@@ -8,7 +8,7 @@ import 'package:neat/core/utils/app_logger.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'core/theme/app_theme.dart';
-import 'features/identity/presentation/screens/main_layout.dart';
+import 'features/splash/presentation/screens/splash_screen.dart';
 
 Future<void> main() async => bootstrap();
 
@@ -28,7 +28,7 @@ Future<void> bootstrap() async {
         title: 'NEAT - Flutter Architect',
       );
 
-      windowManager.waitUntilReadyToShow(windowOptions, () async {
+      await windowManager.waitUntilReadyToShow(windowOptions, () async {
         await windowManager.show();
         await windowManager.focus();
       });
@@ -53,7 +53,7 @@ class NeatApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'NEAT',
       theme: AppTheme.darkTheme,
-      home: const MainLayout(),
+      home: const SplashScreen(),
     );
   }
 }

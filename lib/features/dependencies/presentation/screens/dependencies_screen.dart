@@ -20,10 +20,9 @@ class DependenciesScreen extends HookConsumerWidget {
     final selectedCount = ref.watch(selectedPackagesProvider.select((l) => l.length));
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: .start,
       children: [
         Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             const Text(
               'Project Dependencies',
@@ -147,7 +146,7 @@ class _PackagesBadgeButton extends StatelessWidget {
             decoration: BoxDecoration(
               color: const Color(0xFF1A1A1E),
               borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: AppTheme.colorPrimaryCyan, width: 1),
+              border: Border.all(color: AppTheme.colorPrimaryCyan),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -235,7 +234,7 @@ class _ManagedPackagesSheet extends ConsumerWidget {
                 shrinkWrap: true,
                 padding: const EdgeInsets.all(16),
                 itemCount: packages.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 8),
+                separatorBuilder: (_, _) => const SizedBox(height: 8),
                 itemBuilder: (_, i) => _SheetPackageTile(package: packages[i]),
               ),
             ),
@@ -356,7 +355,7 @@ class _SearchResults extends ConsumerWidget {
 
     return ListView.separated(
       itemCount: packages.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 8),
+      separatorBuilder: (_, _) => const SizedBox(height: 8),
       itemBuilder: (_, i) {
         final pkg = packages[i];
         final isSelected = selectedForDetail?.name == pkg.name;
@@ -683,7 +682,7 @@ class _EmptyDetailCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return DecoratedBox(
       decoration: BoxDecoration(
         color: const Color(0xFF18181C),
         borderRadius: BorderRadius.circular(12),

@@ -1,4 +1,3 @@
-import 'package:neat/features/architecture/presentation/providers/architecture_provider.dart';
 import 'package:neat/features/dependencies/domain/models/pub_package.dart';
 
 class DartTemplates {
@@ -31,7 +30,8 @@ void main() {
 ''';
   }
 
-  static String appDart({required String name}) => '''import 'package:flutter/material.dart';
+  static String appDart({required String name}) =>
+      '''import 'package:flutter/material.dart';
 
 class App extends StatelessWidget {
   const App({super.key});
@@ -55,7 +55,8 @@ class App extends StatelessWidget {
 }
 ''';
 
-  static String featureExampleUsecase({required String featureName}) => '''import 'dart:async';
+  static String featureExampleUsecase({required String featureName}) =>
+      '''import 'dart:async';
 
 abstract class ${_pascal(featureName)}Repository {
   // Define your repository interface here
@@ -72,7 +73,8 @@ class Example${_pascal(featureName)}Usecase {
 }
 ''';
 
-  static String featureExampleModel({required String featureName}) => '''// Domain model for $featureName
+  static String featureExampleModel({required String featureName}) =>
+      '''// Domain model for $featureName
 class ${_pascal(featureName)}Model {
   const ${_pascal(featureName)}Model({
     required this.id,
@@ -94,7 +96,8 @@ class ${_pascal(featureName)}Model {
     return _riverpodManualTemplate(featureName);
   }
 
-  static String _riverpodAnnotationTemplate(String feature) => '''import 'package:riverpod_annotation/riverpod_annotation.dart';
+  static String _riverpodAnnotationTemplate(String feature) =>
+      '''import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part '${feature}_provider.g.dart';
 
@@ -105,7 +108,8 @@ class ${_pascal(feature)}Notifier extends _\$${_pascal(feature)}Notifier {
 }
 ''';
 
-  static String _riverpodManualTemplate(String feature) => '''import 'package:flutter_riverpod/flutter_riverpod.dart';
+  static String _riverpodManualTemplate(String feature) =>
+      '''import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 final ${feature}Provider = StateNotifierProvider<${_pascal(feature)}Notifier, AsyncValue<void>>(
   (ref) => ${_pascal(feature)}Notifier(),
@@ -116,7 +120,8 @@ class ${_pascal(feature)}Notifier extends StateNotifier<AsyncValue<void>> {
 }
 ''';
 
-  static String _cubitTemplate(String feature) => '''import 'package:flutter_bloc/flutter_bloc.dart';
+  static String _cubitTemplate(String feature) =>
+      '''import 'package:flutter_bloc/flutter_bloc.dart';
 
 class ${_pascal(feature)}Cubit extends Cubit<${_pascal(feature)}State> {
   ${_pascal(feature)}Cubit() : super(${_pascal(feature)}Initial());
@@ -136,10 +141,7 @@ class ${_pascal(feature)}Error extends ${_pascal(feature)}State {
 
   static String _pascal(String s) {
     if (s.isEmpty) return s;
-    return s
-        .split('_')
-        .map((w) => w.isEmpty ? '' : w[0].toUpperCase() + w.substring(1))
-        .join('');
+    return s.split('_').map((w) => w.isEmpty ? '' : w[0].toUpperCase() + w.substring(1)).join();
   }
 
   static String coreResultDart() => r'''sealed class Result<T> {

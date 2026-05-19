@@ -131,7 +131,7 @@ class CicdScreen extends HookConsumerWidget {
                         const SizedBox(height: 24),
                         _SectionHeader(label: 'Pipeline Stages'),
                         const SizedBox(height: 12),
-                        Container(
+                        DecoratedBox(
                           decoration: BoxDecoration(
                             color: const Color(0xFF18181C),
                             borderRadius: BorderRadius.circular(12),
@@ -169,7 +169,7 @@ class CicdScreen extends HookConsumerWidget {
                                 icon: Icons.storefront_outlined,
                                 title: 'Auto-deploy to stores',
                                 description:
-                                    "Déclenché sur les tags `v*.*.*` — utilise Fastlane ou Shorebird si sélectionné.",
+                                    'Déclenché sur les tags `v*.*.*` — utilise Fastlane ou Shorebird si sélectionné.',
                                 value: state.autoDeploy,
                                 onChanged: notifier.toggleAutoDeploy,
                               ),
@@ -221,7 +221,7 @@ class CicdScreen extends HookConsumerWidget {
                     const SizedBox(height: 12),
                     if (files.isEmpty)
                       Expanded(
-                        child: Container(
+                        child: DecoratedBox(
                           decoration: BoxDecoration(
                             color: const Color(0xFF0D0D0F),
                             borderRadius: BorderRadius.circular(10),

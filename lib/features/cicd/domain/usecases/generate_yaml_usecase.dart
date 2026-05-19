@@ -2,6 +2,7 @@ import 'package:neat/features/cicd/presentation/providers/cicd_provider.dart';
 
 class GeneratedFile {
   const GeneratedFile({required this.filename, required this.content});
+
   final String filename;
   final String content;
 }
@@ -13,34 +14,21 @@ class GenerateYamlUsecase {
     final files = <GeneratedFile>[];
 
     if (state.isSelected(CiTool.githubActions)) {
-      files.add(GeneratedFile(
-        filename: '.github/workflows/flutter.yml',
-        content: _githubActions(state),
-      ));
+      files.add(
+        GeneratedFile(filename: '.github/workflows/flutter.yml', content: _githubActions(state)),
+      );
     }
     if (state.isSelected(CiTool.gitlabCi)) {
-      files.add(GeneratedFile(
-        filename: '.gitlab-ci.yml',
-        content: _gitlabCi(state),
-      ));
+      files.add(GeneratedFile(filename: '.gitlab-ci.yml', content: _gitlabCi(state)));
     }
     if (state.isSelected(CiTool.codemagic)) {
-      files.add(GeneratedFile(
-        filename: 'codemagic.yaml',
-        content: _codemagic(state),
-      ));
+      files.add(GeneratedFile(filename: 'codemagic.yaml', content: _codemagic(state)));
     }
     if (state.isSelected(CiTool.fastlane)) {
-      files.add(GeneratedFile(
-        filename: 'fastlane/Fastfile',
-        content: _fastfile(state),
-      ));
+      files.add(GeneratedFile(filename: 'fastlane/Fastfile', content: _fastfile(state)));
     }
     if (state.isSelected(CiTool.shorebird)) {
-      files.add(GeneratedFile(
-        filename: 'shorebird.yaml',
-        content: _shorebird(state),
-      ));
+      files.add(GeneratedFile(filename: 'shorebird.yaml', content: _shorebird(state)));
     }
 
     return files;
@@ -81,8 +69,7 @@ class GenerateYamlUsecase {
     }
 
     if (state.autoDeploy) {
-      final needsClause =
-          (state.runAnalyze || state.runTests) ? '\n    needs: quality' : '';
+      final needsClause = (state.runAnalyze || state.runTests) ? '\n    needs: quality' : '';
       buf.writeln();
       buf.writeln('  deploy:');
       buf.writeln('    runs-on: macos-latest$needsClause');
@@ -136,7 +123,7 @@ class GenerateYamlUsecase {
       buf.writeln();
       buf.writeln('deploy:');
       buf.writeln('  stage: deploy');
-      buf.writeln("  rules:");
+      buf.writeln('  rules:');
       buf.writeln("    - if: '\$CI_COMMIT_TAG =~ /^v/'");
       buf.writeln('  script:');
       if (state.isSelected(CiTool.shorebird)) {

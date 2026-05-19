@@ -24,10 +24,12 @@ class LaunchGenerationUsecase {
     required void Function(String) onLog,
   }) async {
     final projectDir = Directory('${identity.projectPath}/${identity.name}');
+    final flutter = await _resolveFlutter();
+    onLog('[▶] Using Flutter: $flutter');
 
     // 1. flutter create
     onLog("[▶] Running 'flutter create ${identity.name}'...");
-    final createResult = await Process.run('flutter', [
+    final createResult = await Process.run(flutter, [
       'create',
       '--project-name',
       identity.name,
@@ -63,7 +65,7 @@ class LaunchGenerationUsecase {
 
     // 5. flutter pub get — with automatic conflict recovery
     onLog("[▶] Running 'flutter pub get'...");
-    await _pubGet(projectDir, onLog);
+    await _pubGet(projectDir, flutter, onLog);
 
     onLog('');
     onLog('[✓✓] Project successfully generated at ${projectDir.path}');
@@ -71,8 +73,8 @@ class LaunchGenerationUsecase {
 
   // ── pub get ───────────────────────────────────────────────────────────────
 
-  Future<void> _pubGet(Directory projectDir, void Function(String) onLog) async {
-    final result = await Process.run('flutter', ['pub', 'get'], workingDirectory: projectDir.path);
+  Future<void> _pubGet(Directory projectDir, String flutter, void Function(String) onLog) async {
+    final result = await Process.run(flutter, ['pub', 'get'], workingDirectory: projectDir.path);
 
     if (result.exitCode != 0) {
       throw Exception(result.stderr.toString().trim());
@@ -135,6 +137,37 @@ class LaunchGenerationUsecase {
       await f.create(recursive: true);
       await f.writeAsString(file.content);
     }
+  }
+
+  // ── Flutter binary resolution ─────────────────────────────────────────────
+
+  Future<String> _resolveFlutter() async {
+    // Common installation paths to probe
+    final candidates = [
+      '/usr/local/bin/flutter',
+      '/opt/homebrew/bin/flutter',
+      '${Platform.environment['HOME']}/develop/flutter/bin/flutter',
+      '${Platform.environment['HOME']}/flutter/bin/flutter',
+      '${Platform.environment['HOME']}/fvm/default/bin/flutter',
+      '${Platform.environment['HOME']}/.pub-cache/bin/flutter',
+    ];
+
+    for (final path in candidates) {
+      if (File(path).existsSync()) return path;
+    }
+
+    // Fallback: ask the shell (works in flutter run, may fail in release)
+    final which = await Process.run('which', ['flutter'],
+        environment: {
+          ...Platform.environment,
+          'PATH': '${Platform.environment['PATH']}:/usr/local/bin:/opt/homebrew/bin',
+        });
+    final resolved = which.stdout.toString().trim();
+    if (resolved.isNotEmpty && File(resolved).existsSync()) return resolved;
+
+    throw Exception(
+      'Flutter SDK not found. Add it to PATH or install it at ~/flutter or ~/develop/flutter.',
+    );
   }
 
   // ── Architecture ──────────────────────────────────────────────────────────

@@ -4,6 +4,11 @@ part 'pub_package_score_entity.g.dart';
 
 @JsonSerializable(createToJson: false)
 class PubPackageScoreEntity {
+  // 0.0 → 1.0
+
+  factory PubPackageScoreEntity.fromJson(Map<String, dynamic> json) =>
+      _$PubPackageScoreEntityFromJson(json);
+
   const PubPackageScoreEntity({
     this.likeCount = 0,
     this.grantedPoints = 0,
@@ -15,8 +20,5 @@ class PubPackageScoreEntity {
   @JsonKey(defaultValue: 0)
   final int grantedPoints;
   @JsonKey(defaultValue: 0.0)
-  final double popularityScore; // 0.0 → 1.0
-
-  factory PubPackageScoreEntity.fromJson(Map<String, dynamic> json) =>
-      _$PubPackageScoreEntityFromJson(json);
+  final double popularityScore;
 }

@@ -58,6 +58,7 @@ class IdentityNotifier extends _$IdentityNotifier {
   }
 
   Future<void> pickDirectory() async {
+    await FilePicker.skipEntitlementsChecks();
     final path = await FilePicker.getDirectoryPath();
     if (path != null) updateProjectPath(path);
   }
