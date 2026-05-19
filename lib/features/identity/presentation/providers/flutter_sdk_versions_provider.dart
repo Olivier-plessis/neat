@@ -1,4 +1,4 @@
-import 'package:neat/features/generator/domain/usecases/fetch_stable_flutter_versions_usecase.dart';
+import 'package:neat/features/identity/domain/usecases/fetch_stable_flutter_versions_usecase.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'flutter_sdk_versions_provider.g.dart';

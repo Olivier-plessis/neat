@@ -6,8 +6,9 @@ import 'package:neat/core/error/error_handler.dart';
 import 'package:neat/core/observers/provider_observer.dart';
 import 'package:neat/core/utils/app_logger.dart';
 import 'package:window_manager/window_manager.dart';
+
 import 'core/theme/app_theme.dart';
-import 'features/generator/presentation/screens/main_layout.dart';
+import 'features/identity/presentation/screens/main_layout.dart';
 
 Future<void> main() async => bootstrap();
 
@@ -35,9 +36,7 @@ Future<void> bootstrap() async {
       final container = ProviderContainer(observers: [RiverpodObserver()]);
 
       // Le ProviderScope est indispensable pour faire fonctionner Riverpod
-      runApp(
-        UncontrolledProviderScope(container: container, child: const NeatApp()),
-      );
+      runApp(UncontrolledProviderScope(container: container, child: const NeatApp()));
     },
     (error, stackTrace) {
       AppLogger.f('Uncaught exception', error: error, stackTrace: stackTrace);
