@@ -156,7 +156,7 @@ class ArchitectureScreen extends ConsumerWidget {
                     ),
                     const SizedBox(height: 10),
                     Expanded(
-                      child: Container(
+                      child: DecoratedBox(
                         decoration: BoxDecoration(
                           color: const Color(0xFF0D0D0F),
                           borderRadius: BorderRadius.circular(10),

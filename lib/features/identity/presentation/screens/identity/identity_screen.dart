@@ -56,7 +56,7 @@ class IdentityScreen extends HookConsumerWidget {
                   child: Column(
                     crossAxisAlignment: .start,
                     children: [
-                      _buildSectionTitle("General Details & Name"),
+                      _buildSectionTitle('General Details & Name'),
                       const SizedBox(height: 16),
 
                       const Text(
@@ -140,25 +140,25 @@ class IdentityScreen extends HookConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildSectionTitle("Target Platforms"),
+                    _buildSectionTitle('Target Platforms'),
                     const SizedBox(height: 16),
 
-                    _buildPlatformCheckbox("Android", "android", targetPlatforms, notifier),
-                    _buildPlatformCheckbox("iOS", "ios", targetPlatforms, notifier),
-                    _buildPlatformCheckbox("Web", "web", targetPlatforms, notifier),
+                    _buildPlatformCheckbox('Android', 'android', targetPlatforms, notifier),
+                    _buildPlatformCheckbox('iOS', 'ios', targetPlatforms, notifier),
+                    _buildPlatformCheckbox('Web', 'web', targetPlatforms, notifier),
                     _buildPlatformCheckbox(
-                      "macOS / Windows / Linux (Desktop)",
-                      "desktop",
+                      'macOS / Windows / Linux (Desktop)',
+                      'desktop',
                       targetPlatforms,
                       notifier,
                     ),
 
                     const SizedBox(height: 40),
 
-                    _buildSectionTitle("Environment Setup"),
+                    _buildSectionTitle('Environment Setup'),
                     const SizedBox(height: 16),
                     const Text(
-                      "FLUTTER SDK VERSION",
+                      'FLUTTER SDK VERSION',
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.bold,
@@ -189,7 +189,7 @@ class IdentityScreen extends HookConsumerWidget {
                           child: const Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Text("Next Step"),
+                              Text('Next Step'),
                               SizedBox(width: 8),
                               Icon(Icons.arrow_forward, size: 16),
                             ],
