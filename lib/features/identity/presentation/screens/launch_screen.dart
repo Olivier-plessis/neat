@@ -130,11 +130,20 @@ class LaunchScreen extends HookConsumerWidget {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.terminal, color: AppTheme.colorPrimaryCyan, size: 14),
-                    const SizedBox(width: 8),
+                    _TrafficDot(color: const Color(0xFFFF5F57)),
+                    const SizedBox(width: 6),
+                    _TrafficDot(color: const Color(0xFFFFBD2E)),
+                    const SizedBox(width: 6),
+                    _TrafficDot(color: const Color(0xFF28C840)),
+                    const SizedBox(width: 16),
+
                     const Text(
                       'System Output',
-                      style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600),
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     const Spacer(),
                     if (isGenerating.value)
@@ -195,13 +204,13 @@ class LaunchScreen extends HookConsumerWidget {
   }
 
   List<String> _initialLogs(IdentityState identity) => [
-        'neat@shell:~\$ system status',
-        if (identity.name.isNotEmpty) '[OK] Identity verified.' else '[WARN] Project name not set.',
-        '[OK] Dependency graph loaded.',
-        '[OK] Architecture pattern defined.',
-        '',
-        '> Ready. Awaiting execution command...',
-      ];
+    'neat@shell:~\$ system status',
+    if (identity.name.isNotEmpty) '[OK] Identity verified.' else '[WARN] Project name not set.',
+    '[OK] Dependency graph loaded.',
+    '[OK] Architecture pattern defined.',
+    '',
+    '> Ready. Awaiting execution command...',
+  ];
 }
 
 // ── Config panel ──────────────────────────────────────────────────────────────
@@ -249,68 +258,79 @@ class _ConfigPanel extends StatelessWidget {
             const SizedBox(height: 20),
 
             // Identity
-            _ConfigSection(label: 'PROJECT IDENTITY', children: [
-              _IdentityRow(name: identity.name, org: identity.organization),
-            ]),
+            _ConfigSection(
+              label: 'PROJECT IDENTITY',
+              children: [_IdentityRow(name: identity.name, org: identity.organization)],
+            ),
             const SizedBox(height: 20),
 
             // Platforms
-            _ConfigSection(label: 'TARGET PLATFORMS', children: [
-              Wrap(
-                spacing: 8,
-                runSpacing: 6,
-                children: identity.targetPlatforms
-                    .map((p) => _Chip(label: p[0].toUpperCase() + p.substring(1)))
-                    .toList(),
-              ),
-            ]),
+            _ConfigSection(
+              label: 'TARGET PLATFORMS',
+              children: [
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  children: identity.targetPlatforms
+                      .map((p) => _Chip(label: p[0].toUpperCase() + p.substring(1)))
+                      .toList(),
+                ),
+              ],
+            ),
             const SizedBox(height: 20),
 
             // Dependencies
             if (packages.isNotEmpty)
-              _ConfigSection(label: 'CORE DEPENDENCIES', children: [
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 6,
-                  children: [
-                    ...deps.take(6).map((p) => _Chip(label: '${p.name}: ^${p.version}')),
-                    if (deps.length > 6)
-                      _Chip(label: '+${deps.length - 6} more', muted: true),
-                    ...devDeps.take(3).map((p) => _Chip(label: '${p.name}: ^${p.version}', dev: true)),
-                    if (devDeps.length > 3)
-                      _Chip(label: '+${devDeps.length - 3} dev', muted: true),
-                  ],
-                ),
-              ]),
+              _ConfigSection(
+                label: 'CORE DEPENDENCIES',
+                children: [
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    children: [
+                      ...deps.take(6).map((p) => _Chip(label: '${p.name}: ^${p.version}')),
+                      if (deps.length > 6) _Chip(label: '+${deps.length - 6} more', muted: true),
+                      ...devDeps
+                          .take(3)
+                          .map((p) => _Chip(label: '${p.name}: ^${p.version}', dev: true)),
+                      if (devDeps.length > 3)
+                        _Chip(label: '+${devDeps.length - 3} dev', muted: true),
+                    ],
+                  ),
+                ],
+              ),
             if (packages.isNotEmpty) const SizedBox(height: 20),
 
             // CI/CD
             if (cicd.selectedTools.isNotEmpty)
-              _ConfigSection(label: 'CI/CD PIPELINE', children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 6,
-                      height: 6,
-                      margin: const EdgeInsets.only(right: 10),
-                      decoration: const BoxDecoration(
-                        color: AppTheme.colorPrimaryCyan,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    Expanded(
-                      child: Text(
-                        cicdTools,
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontFamily: 'monospace',
-                          fontSize: 13,
+              _ConfigSection(
+                label: 'CI/CD PIPELINE',
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 6,
+                        height: 6,
+                        margin: const EdgeInsets.only(right: 10),
+                        decoration: const BoxDecoration(
+                          color: AppTheme.colorPrimaryCyan,
+                          shape: BoxShape.circle,
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ]),
+                      Expanded(
+                        child: Text(
+                          cicdTools,
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontFamily: 'monospace',
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
 
             // Validation warning
             if (identity.name.isEmpty || identity.projectPath.isEmpty) ...[
@@ -345,16 +365,17 @@ class _ConfigPanel extends StatelessWidget {
   }
 
   String _toolLabel(CiTool t) => switch (t) {
-        CiTool.githubActions => 'GitHub Actions',
-        CiTool.gitlabCi => 'GitLab CI',
-        CiTool.codemagic => 'Codemagic',
-        CiTool.fastlane => 'Fastlane',
-        CiTool.shorebird => 'Shorebird',
-      };
+    CiTool.githubActions => 'GitHub Actions',
+    CiTool.gitlabCi => 'GitLab CI',
+    CiTool.codemagic => 'Codemagic',
+    CiTool.fastlane => 'Fastlane',
+    CiTool.shorebird => 'Shorebird',
+  };
 }
 
 class _ConfigSection extends StatelessWidget {
   const _ConfigSection({required this.label, required this.children});
+
   final String label;
   final List<Widget> children;
 
@@ -376,6 +397,7 @@ class _ConfigSection extends StatelessWidget {
 
 class _IdentityRow extends StatelessWidget {
   const _IdentityRow({required this.name, required this.org});
+
   final String name;
   final String org;
 
@@ -397,6 +419,7 @@ class _IdentityRow extends StatelessWidget {
 
 class _Chip extends StatelessWidget {
   const _Chip({required this.label, this.dev = false, this.muted = false});
+
   final String label;
   final bool dev;
   final bool muted;
@@ -409,15 +432,15 @@ class _Chip extends StatelessWidget {
         color: dev
             ? const Color(0xFF2D2010)
             : muted
-                ? const Color(0xFF1A1A1E)
-                : const Color(0xFF18181C),
+            ? const Color(0xFF1A1A1E)
+            : const Color(0xFF18181C),
         borderRadius: BorderRadius.circular(6),
         border: Border.all(
           color: dev
               ? const Color(0xFFFFA726).withValues(alpha: 0.4)
               : muted
-                  ? Colors.white10
-                  : Colors.white12,
+              ? Colors.white10
+              : Colors.white12,
         ),
       ),
       child: Text(
@@ -426,8 +449,8 @@ class _Chip extends StatelessWidget {
           color: dev
               ? const Color(0xFFFFA726)
               : muted
-                  ? Colors.white30
-                  : Colors.white70,
+              ? Colors.white30
+              : Colors.white70,
           fontSize: 11,
           fontFamily: 'monospace',
         ),
@@ -491,7 +514,12 @@ class _ActionPanel extends StatelessWidget {
               style: TextStyle(color: Colors.grey[600], fontSize: 12),
             ),
             const SizedBox(height: 20),
-            _GenerateButton(isGenerating: false, canGenerate: canGenerate, onGenerate: onGenerate, retry: true),
+            _GenerateButton(
+              isGenerating: false,
+              canGenerate: canGenerate,
+              onGenerate: onGenerate,
+              retry: true,
+            ),
           ] else ...[
             const Text(
               'Initialize Matrix',
@@ -504,7 +532,12 @@ class _ActionPanel extends StatelessWidget {
               style: TextStyle(color: Colors.grey[600], fontSize: 12),
             ),
             const SizedBox(height: 28),
-            _GenerateButton(isGenerating: isGenerating, canGenerate: canGenerate, onGenerate: onGenerate, retry: false),
+            _GenerateButton(
+              isGenerating: isGenerating,
+              canGenerate: canGenerate,
+              onGenerate: onGenerate,
+              retry: false,
+            ),
           ],
         ],
       ),
@@ -558,6 +591,21 @@ class _GenerateButton extends StatelessWidget {
                 ],
               ),
       ),
+    );
+  }
+}
+
+class _TrafficDot extends StatelessWidget {
+  const _TrafficDot({required this.color});
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 11,
+      height: 11,
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
     );
   }
 }

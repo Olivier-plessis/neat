@@ -3,7 +3,8 @@ class PlatformTemplates {
 
   // ── Android ────────────────────────────────────────────────────────────────
 
-  static String androidManifest({required String org, required String name}) => '''<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  static String androidManifest({required String org, required String name}) =>
+      '''<manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
         android:label="$name"
         android:name="\${applicationName}"
@@ -39,14 +40,16 @@ class PlatformTemplates {
 </manifest>
 ''';
 
-  static String androidMainActivity({required String org, required String name}) => '''package $org.$name
+  static String androidMainActivity({required String org, required String name}) =>
+      '''package $org.$name
 
 import io.flutter.embedding.android.FlutterActivity
 
 class MainActivity: FlutterActivity()
 ''';
 
-  static String androidBuildGradle({required String org, required String name}) => '''plugins {
+  static String androidBuildGradle({required String org, required String name}) =>
+      '''plugins {
     id "com.android.application"
     id "kotlin-android"
     id "dev.flutter.flutter-gradle-plugin"
@@ -58,12 +61,12 @@ android {
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
 
     kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_1_8
+        jvmTarget = JavaVersion.VERSION_17.toString()
     }
 
     defaultConfig {
@@ -76,7 +79,7 @@ android {
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.debug
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 }
@@ -95,11 +98,11 @@ flutter {
 
   static String androidSettings({required String name}) => '''pluginManagement {
     def flutterSdkPath = {
-        def properties = new Properties()
-        file("local.properties").withInputStream { properties.load(it) }
-        def flutterSdkPath = properties.getProperty("flutter.sdk")
-        assert flutterSdkPath != null, "flutter.sdk not set in local.properties"
-        return flutterSdkPath
+        val properties = java.util.Properties()
+            file("local.properties").inputStream().use { properties.load(it) }
+            val flutterSdkPath = properties.getProperty("flutter.sdk")
+            require(flutterSdkPath != null) { "flutter.sdk not set in local.properties" }
+            flutterSdkPath
     }()
 
     includeBuild("\$flutterSdkPath/packages/flutter_tools/gradle")
@@ -112,17 +115,17 @@ flutter {
 }
 
 plugins {
-    id "dev.flutter.flutter-plugin-loader" version "1.0.0"
-    id "com.android.application" version "8.1.0" apply false
-    id "org.jetbrains.kotlin.android" version "1.8.22" apply false
+    id("dev.flutter.flutter-plugin-loader") version "1.0.0"
+    id("com.android.application") version "8.11.1" apply false
+    id "org.jetbrains.kotlin.android" version "2.2.20" apply false
 }
 
 include ":app"
 ''';
 
-  static String androidGradleProperties() => '''org.gradle.jvmargs=-Xmx8G -XX:+HeapDumpOnOutOfMemoryError
+  static String androidGradleProperties() =>
+      '''org.gradle.jvmargs=-Xmx8G -XX:MaxMetaspaceSize=4G -XX:ReservedCodeCacheSize=512m -XX:+HeapDumpOnOutOfMemoryError
 android.useAndroidX=true
-android.enableJetifier=true
 ''';
 
   static String androidLocalProperties() => '''flutter.sdk=/usr/local/bin/flutter
@@ -148,7 +151,8 @@ import UIKit
 }
 ''';
 
-  static String iosInfoPlist({required String name, required String org}) => '''<?xml version="1.0" encoding="UTF-8"?>
+  static String iosInfoPlist({required String name, required String org}) =>
+      '''<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
@@ -245,7 +249,8 @@ end
 
   // ── Web ────────────────────────────────────────────────────────────────────
 
-  static String webIndex({required String name}) => '''<!DOCTYPE html>
+  static String webIndex({required String name}) =>
+      '''<!DOCTYPE html>
 <html>
 <head>
   <base href="\$FLUTTER_BASE_HREF">
@@ -266,7 +271,8 @@ end
 </html>
 ''';
 
-  static String webManifest({required String name}) => '''{
+  static String webManifest({required String name}) =>
+      '''{
     "name": "$name",
     "short_name": "$name",
     "start_url": ".",
@@ -337,7 +343,8 @@ class MainFlutterWindow: NSWindow {
 }
 ''';
 
-  static String macosInfoPlist({required String name}) => '''<?xml version="1.0" encoding="UTF-8"?>
+  static String macosInfoPlist({required String name}) =>
+      '''<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
@@ -399,7 +406,8 @@ class MainFlutterWindow: NSWindow {
 
   // ── Linux ──────────────────────────────────────────────────────────────────
 
-  static String linuxCmakeLists({required String name}) => '''cmake_minimum_required(VERSION 3.10)
+  static String linuxCmakeLists({required String name}) =>
+      '''cmake_minimum_required(VERSION 3.10)
 project(runner LANGUAGES CXX)
 
 set(BINARY_NAME "$name")
@@ -428,7 +436,8 @@ install(TARGETS \${BINARY_NAME} RUNTIME DESTINATION "\${CMAKE_INSTALL_PREFIX}")
 
   // ── Windows ────────────────────────────────────────────────────────────────
 
-  static String windowsCmakeLists({required String name}) => '''cmake_minimum_required(VERSION 3.14)
+  static String windowsCmakeLists({required String name}) =>
+      '''cmake_minimum_required(VERSION 3.14)
 project(runner LANGUAGES CXX)
 
 set(BINARY_NAME "$name")
