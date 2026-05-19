@@ -1,7 +1,7 @@
 import 'package:neat/core/utils/app_logger.dart';
-import 'package:neat/features/generator/data/datasources/flutter_sdk_datasource.dart';
-import 'package:neat/features/generator/data/entities/flutter_release_entity.dart';
-import 'package:neat/features/generator/domain/repositories/flutter_sdk_repository.dart';
+import 'package:neat/features/identity/data/datasources/flutter_sdk_datasource.dart';
+import 'package:neat/features/identity/data/entities/flutter_release_entity.dart';
+import 'package:neat/features/identity/domain/repositories/flutter_sdk_repository.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'flutter_sdk_repository_impl.g.dart';

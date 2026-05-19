@@ -4,7 +4,7 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:neat/core/theme/app_theme.dart';
 import 'package:neat/features/dependencies/domain/models/pub_package.dart';
 import 'package:neat/features/dependencies/presentation/providers/dependencies_provider.dart';
-import 'package:neat/features/generator/presentation/providers/stepper_provider.dart';
+import 'package:neat/features/identity/presentation/providers/stepper_provider.dart';
 
 class DependenciesScreen extends HookConsumerWidget {
   const DependenciesScreen({super.key});
@@ -93,15 +93,14 @@ class DependenciesScreen extends HookConsumerWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             OutlinedButton.icon(
-              onPressed: () =>
-                  ref.read(currentStepProvider.notifier).setStep(NeatStep.identity),
+              onPressed: () => ref.read(currentStepProvider.notifier).setStep(NeatStep.identity),
               icon: const Icon(Icons.arrow_back, size: 16),
               label: const Text('Back'),
               style: OutlinedButton.styleFrom(minimumSize: const Size(120, 48)),
             ),
             ElevatedButton(
               onPressed: () =>
-                  ref.read(currentStepProvider.notifier).setStep(NeatStep.cicd),
+                  ref.read(currentStepProvider.notifier).setStep(NeatStep.architecture),
               style: ElevatedButton.styleFrom(minimumSize: const Size(160, 48)),
               child: const Row(
                 children: [
@@ -122,10 +121,8 @@ class DependenciesScreen extends HookConsumerWidget {
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (_) => UncontrolledProviderScope(
-        container: ref.container,
-        child: const _ManagedPackagesSheet(),
-      ),
+      builder: (_) =>
+          UncontrolledProviderScope(container: ref.container, child: const _ManagedPackagesSheet()),
     );
   }
 }
@@ -298,10 +295,7 @@ class _SheetPackageTile extends ConsumerWidget {
                     Container(
                       width: 3,
                       height: 3,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[600],
-                        shape: BoxShape.circle,
-                      ),
+                      decoration: BoxDecoration(color: Colors.grey[600], shape: BoxShape.circle),
                     ),
                     const SizedBox(width: 8),
                     Text(
@@ -318,8 +312,7 @@ class _SheetPackageTile extends ConsumerWidget {
           ),
           IconButton(
             icon: const Icon(Icons.delete_outline, color: Colors.grey, size: 20),
-            onPressed: () =>
-                ref.read(selectedPackagesProvider.notifier).toggle(package),
+            onPressed: () => ref.read(selectedPackagesProvider.notifier).toggle(package),
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
           ),
@@ -347,11 +340,8 @@ class _SearchResults extends ConsumerWidget {
     return switch (searchAsync) {
       AsyncData(:final value) => _buildList(value, ref),
       AsyncError() => Center(
-          child: Text(
-            'Error connecting to pub.dev',
-            style: TextStyle(color: Colors.redAccent[100]),
-          ),
-        ),
+        child: Text('Error connecting to pub.dev', style: TextStyle(color: Colors.redAccent[100])),
+      ),
       _ => const Center(child: CircularProgressIndicator(color: AppTheme.colorPrimaryCyan)),
     };
   }
@@ -372,10 +362,8 @@ class _SearchResults extends ConsumerWidget {
         final isSelected = selectedForDetail?.name == pkg.name;
         final selectedPkg = ref.watch(
           selectedPackagesProvider.select(
-            (list) => list.cast<PubPackage?>().firstWhere(
-              (p) => p!.name == pkg.name,
-              orElse: () => null,
-            ),
+            (list) =>
+                list.cast<PubPackage?>().firstWhere((p) => p!.name == pkg.name, orElse: () => null),
           ),
         );
         return _PackageListTile(
@@ -484,10 +472,8 @@ class _PackageDetailCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final selectedPkg = ref.watch(
       selectedPackagesProvider.select(
-        (list) => list.cast<PubPackage?>().firstWhere(
-          (p) => p!.name == package.name,
-          orElse: () => null,
-        ),
+        (list) =>
+            list.cast<PubPackage?>().firstWhere((p) => p!.name == package.name, orElse: () => null),
       ),
     );
     final isAdded = selectedPkg != null;
@@ -542,10 +528,7 @@ class _PackageDetailCard extends ConsumerWidget {
             isAdded: isAdded,
             onChanged: (value) {
               if (isAdded) {
-                ref.read(selectedPackagesProvider.notifier).setDev(
-                  package.name,
-                  isDev: value,
-                );
+                ref.read(selectedPackagesProvider.notifier).setDev(package.name, isDev: value);
               }
             },
           ),
@@ -561,9 +544,9 @@ class _PackageDetailCard extends ConsumerWidget {
               ),
               icon: Icon(isAdded ? Icons.remove_circle_outline : Icons.add, size: 18),
               label: Text(isAdded ? 'Remove from NEAT' : '+ Add to NEAT'),
-              onPressed: () => ref.read(selectedPackagesProvider.notifier).toggle(
-                package.copyWith(isDev: isDev),
-              ),
+              onPressed: () => ref
+                  .read(selectedPackagesProvider.notifier)
+                  .toggle(package.copyWith(isDev: isDev)),
             ),
           ),
         ],
@@ -579,6 +562,7 @@ class _PackageDetailCard extends ConsumerWidget {
 
 class _VersionBadge extends StatelessWidget {
   const _VersionBadge({required this.version});
+
   final String version;
 
   @override
@@ -599,6 +583,7 @@ class _VersionBadge extends StatelessWidget {
 
 class _MetricBadge extends StatelessWidget {
   const _MetricBadge({required this.label, required this.value});
+
   final String label;
   final String value;
 
@@ -693,6 +678,7 @@ class _DevToggle extends StatelessWidget {
 
 class _EmptyDetailCard extends StatelessWidget {
   const _EmptyDetailCard({required this.hasQuery});
+
   final bool hasQuery;
 
   @override
@@ -713,6 +699,7 @@ class _EmptyDetailCard extends StatelessWidget {
 
 class _Placeholder extends StatelessWidget {
   const _Placeholder({required this.icon, required this.message});
+
   final IconData icon;
   final String message;
 

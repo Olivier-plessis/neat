@@ -40,7 +40,7 @@ final class SearchQueryProvider extends $NotifierProvider<SearchQuery, String> {
   }
 }
 
-String _$searchQueryHash() => r'be9ca456d96d63f4ec68227ab06bc479b181be73';
+String _$searchQueryHash() => r'6b84263fe2f4035d77f9deaafac53af4c900c25e';
 
 abstract class _$SearchQuery extends $Notifier<String> {
   String build();
