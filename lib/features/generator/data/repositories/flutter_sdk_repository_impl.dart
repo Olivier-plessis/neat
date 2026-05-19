@@ -6,7 +6,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'flutter_sdk_repository_impl.g.dart';
 
-const _stableVersionsLimit = 10;
+const _stableVersionsLimit = 6;
 const _fallbackVersions = ['3.29.3', '3.27.4', '3.24.5', '3.22.3'];
 
 class FlutterSdkRepositoryImpl implements FlutterSdkRepository {
@@ -32,7 +32,11 @@ class FlutterSdkRepositoryImpl implements FlutterSdkRepository {
 
       return versions.isEmpty ? _fallbackVersions : versions;
     } catch (e, s) {
-      AppLogger.w('FlutterSdkRepository: falling back to hardcoded versions', error: e, stackTrace: s);
+      AppLogger.w(
+        'FlutterSdkRepository: falling back to hardcoded versions',
+        error: e,
+        stackTrace: s,
+      );
       return _fallbackVersions;
     }
   }

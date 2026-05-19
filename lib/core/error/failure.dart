@@ -20,5 +20,6 @@ class Failure {
   final Object? originalError;
 
   @override
-  String toString() => 'Failure(message: $message, code: $code, statusCode: $statusCode)';
+  String toString() =>
+      'Failure(message: $message, code: $code, statusCode: $statusCode)';
 }

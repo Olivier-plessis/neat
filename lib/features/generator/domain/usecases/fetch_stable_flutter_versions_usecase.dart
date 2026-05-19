@@ -12,7 +12,8 @@ class FetchStableFlutterVersionsUseCase extends NoParamsUseCase<List<String>> {
   final FlutterSdkRepository _repository;
 
   @override
-  Future<List<String>> execute(Unit params) => _repository.fetchStableVersions();
+  Future<List<String>> execute(Unit params) =>
+      _repository.fetchStableVersions();
 }
 
 @Riverpod(keepAlive: true)
