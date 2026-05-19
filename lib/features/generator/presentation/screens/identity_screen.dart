@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../providers/flutter_sdk_versions_provider.dart';
 import '../providers/identity_provider.dart';
 import '../providers/stepper_provider.dart';
 
@@ -126,29 +127,9 @@ class IdentityScreen extends HookConsumerWidget {
                     const Text("FLUTTER SDK VERSION", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 1)),
                     const SizedBox(height: 8),
 
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF1A1A1E),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.white10),
-                      ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<String>(
-                          value: flutterVersion,
-                          dropdownColor: AppTheme.colorSurfaceCard,
-                          isExpanded: true,
-                          items: ['3.44.x', '3.41.x', '3.38.x'].map((String value) {
-                            return DropdownMenuItem<String>(
-                              value: value,
-                              child: Text(value, style: const TextStyle(color: Colors.white)),
-                            );
-                          }).toList(),
-                          onChanged: (val) {
-                            if (val != null) notifier.updateFlutterVersion(val);
-                          },
-                        ),
-                      ),
+                    _FlutterVersionDropdown(
+                      selectedVersion: flutterVersion,
+                      onChanged: notifier.updateFlutterVersion,
                     ),
 
                     const Spacer(),
@@ -219,6 +200,74 @@ class IdentityScreen extends HookConsumerWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Dropdown des versions Flutter, alimenté par [flutterSdkVersionsProvider].
+/// Gère les états loading / error / data sans bloquer l'écran parent.
+class _FlutterVersionDropdown extends ConsumerWidget {
+  const _FlutterVersionDropdown({
+    required this.selectedVersion,
+    required this.onChanged,
+  });
+
+  final String selectedVersion;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final versionsAsync = ref.watch(flutterSdkVersionsProvider);
+
+    return versionsAsync.when(
+      loading: () => const SizedBox(
+        height: 48,
+        child: Center(
+          child: SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      ),
+      error: (_, _s) => const SizedBox(
+        height: 48,
+        child: Center(
+          child: Text(
+            'Impossible de charger les versions',
+            style: TextStyle(color: Colors.redAccent, fontSize: 13),
+          ),
+        ),
+      ),
+      data: (versions) {
+        // Garantit que la valeur sélectionnée est dans la liste
+        final effectiveValue = versions.contains(selectedVersion) ? selectedVersion : versions.first;
+
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1A1A1E),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.white10),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: effectiveValue,
+              dropdownColor: AppTheme.colorSurfaceCard,
+              isExpanded: true,
+              items: versions
+                  .map((v) => DropdownMenuItem(
+                        value: v,
+                        child: Text(v, style: const TextStyle(color: Colors.white)),
+                      ))
+                  .toList(),
+              onChanged: (val) {
+                if (val != null) onChanged(val);
+              },
+            ),
+          ),
+        );
+      },
     );
   }
 }
