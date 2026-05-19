@@ -61,10 +61,7 @@ sealed class Result<T> {
   };
 
   /// Branche sur les deux cas et retourne une valeur [R].
-  R fold<R>(
-      R Function(T data) onSuccess,
-      R Function(Object error) onFailure,
-      ) =>
+  R fold<R>(R Function(T data) onSuccess, R Function(Object error) onFailure) =>
       switch (this) {
         _Success<T>(:final data) => onSuccess(data),
         _Failure<T>(:final error) => onFailure(error),

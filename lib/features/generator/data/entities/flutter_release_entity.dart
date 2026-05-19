@@ -4,7 +4,6 @@ part 'flutter_release_entity.g.dart';
 
 @JsonSerializable(createToJson: false)
 class FlutterReleasesResponseEntity {
-
   factory FlutterReleasesResponseEntity.fromJson(Map<String, dynamic> json) =>
       _$FlutterReleasesResponseEntityFromJson(json);
   const FlutterReleasesResponseEntity({required this.releases});
@@ -14,7 +13,6 @@ class FlutterReleasesResponseEntity {
 
 @JsonSerializable(createToJson: false)
 class FlutterReleaseItemEntity {
-
   factory FlutterReleaseItemEntity.fromJson(Map<String, dynamic> json) =>
       _$FlutterReleaseItemEntityFromJson(json);
   const FlutterReleaseItemEntity({

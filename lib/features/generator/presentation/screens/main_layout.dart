@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:neat/core/theme/app_theme.dart';
-import 'package:neat/features/generator/presentation/screens/identity_screen.dart';
+import 'package:neat/features/dependencies/presentation/screens/dependencies_screen.dart';
+import 'package:neat/features/generator/presentation/screens/identity/identity_screen.dart';
 
 import '../providers/stepper_provider.dart';
 
@@ -38,54 +39,27 @@ class MainLayout extends ConsumerWidget {
                           letterSpacing: 1.2,
                         ),
                       ),
-                      Text(
-                        'Flutter Architect',
-                        style: TextStyle(color: Colors.grey, fontSize: 12),
-                      ),
+                      Text('Flutter Architect', style: TextStyle(color: Colors.grey, fontSize: 12)),
                     ],
                   ),
                 ),
                 const SizedBox(height: 32),
 
                 // Les éléments du Stepper
-                _buildSidebarItem(
-                  ref,
-                  NeatStep.identity,
-                  'Identity',
-                  Icons.badge_outlined,
-                ),
-                _buildSidebarItem(
-                  ref,
-                  NeatStep.dependencies,
-                  'Dependencies',
-                  Icons.boy_rounded,
-                ),
-                _buildSidebarItem(
-                  ref,
-                  NeatStep.cicd,
-                  'CI/CD',
-                  Icons.layers_outlined,
-                ),
-                _buildSidebarItem(
-                  ref,
-                  NeatStep.launch,
-                  "Launch",
-                  Icons.rocket_launch_outlined,
-                ),
+                _buildSidebarItem(ref, NeatStep.identity, 'Identity', Icons.badge_outlined),
+                _buildSidebarItem(ref, NeatStep.dependencies, 'Dependencies', Icons.boy_rounded),
+                _buildSidebarItem(ref, NeatStep.cicd, 'CI/CD', Icons.layers_outlined),
+                _buildSidebarItem(ref, NeatStep.launch, 'Launch', Icons.rocket_launch_outlined),
 
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 16),
-                  child: Divider(
-                    color: Colors.white10,
-                    indent: 16,
-                    endIndent: 16,
-                  ),
+                  child: Divider(color: Colors.white10, indent: 16, endIndent: 16),
                 ),
 
                 _buildSidebarItem(
                   ref,
                   NeatStep.featureGen,
-                  "Feature Gen",
+                  'Feature Gen',
                   Icons.construction_outlined,
                 ),
               ],
@@ -110,22 +84,13 @@ class MainLayout extends ConsumerWidget {
     );
   }
 
-  Widget _buildSidebarItem(
-    WidgetRef ref,
-    NeatStep step,
-    String label,
-    IconData icon,
-  ) {
+  Widget _buildSidebarItem(WidgetRef ref, NeatStep step, String label, IconData icon) {
     final activeStep = ref.watch(currentStepProvider);
     final isSelected = activeStep == step;
 
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 24),
-      leading: Icon(
-        icon,
-        color: isSelected ? AppTheme.colorPrimaryCyan : Colors.grey,
-        size: 20,
-      ),
+      leading: Icon(icon, color: isSelected ? AppTheme.colorPrimaryCyan : Colors.grey, size: 20),
       title: Text(
         label,
         style: TextStyle(
@@ -145,12 +110,7 @@ class MainLayout extends ConsumerWidget {
       case NeatStep.identity:
         return const IdentityScreen();
       case NeatStep.dependencies:
-        return const Center(
-          child: Text(
-            "Dependencies Content",
-            style: TextStyle(fontSize: 20, color: Colors.white),
-          ),
-        );
+        return const DependenciesScreen();
       case NeatStep.cicd:
         return const Center(
           child: Text(
@@ -167,10 +127,7 @@ class MainLayout extends ConsumerWidget {
         );
       case NeatStep.featureGen:
         return const Center(
-          child: Text(
-            "Feature Gen Content",
-            style: TextStyle(fontSize: 20, color: Colors.white),
-          ),
+          child: Text("Feature Gen Content", style: TextStyle(fontSize: 20, color: Colors.white)),
         );
     }
   }

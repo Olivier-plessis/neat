@@ -4,7 +4,6 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 part 'identity_provider.g.dart';
 
 class IdentityState {
-
   IdentityState({
     this.name = '',
     this.organization = 'com.example',
@@ -41,9 +40,12 @@ class IdentityNotifier extends _$IdentityNotifier {
   IdentityState build() => IdentityState();
 
   void updateName(String val) => state = state.copyWith(name: val);
-  void updateOrganization(String val) => state = state.copyWith(organization: val);
-  void updateProjectPath(String val) => state = state.copyWith(projectPath: val);
-  void updateFlutterVersion(String val) => state = state.copyWith(flutterVersion: val);
+  void updateOrganization(String val) =>
+      state = state.copyWith(organization: val);
+  void updateProjectPath(String val) =>
+      state = state.copyWith(projectPath: val);
+  void updateFlutterVersion(String val) =>
+      state = state.copyWith(flutterVersion: val);
 
   void togglePlatform(String platform) {
     final platforms = List<String>.from(state.targetPlatforms);

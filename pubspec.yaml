@@ -6,6 +6,9 @@ version: 0.1.0+1
 environment:
   sdk: ^3.11.5
 
+workspace:
+  - packages/neat_ui
+
 dependencies:
   dio: ^5.9.2
   flutter:

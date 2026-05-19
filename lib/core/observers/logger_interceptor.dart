@@ -18,7 +18,10 @@ class LoggerInterceptor extends Interceptor {
   }
 
   @override
-  void onResponse(Response<dynamic> response, ResponseInterceptorHandler handler) {
+  void onResponse(
+    Response<dynamic> response,
+    ResponseInterceptorHandler handler,
+  ) {
     final status = response.statusCode ?? 0;
     final icon = status >= 200 && status < 300 ? '✅' : '⚠️';
     AppLogger.t(
@@ -47,8 +50,9 @@ class LoggerInterceptor extends Interceptor {
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
-  String _truncate(String value) =>
-      value.length > _maxBodyLength ? '${value.substring(0, _maxBodyLength)}…' : value;
+  String _truncate(String value) => value.length > _maxBodyLength
+      ? '${value.substring(0, _maxBodyLength)}…'
+      : value;
 
   String _formatHeaders(Map<String, dynamic> headers) {
     // Masque le token Bearer pour ne pas l'exposer en clair dans les logs

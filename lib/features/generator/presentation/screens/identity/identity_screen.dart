@@ -1,21 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
-import '../../../../core/theme/app_theme.dart';
-import '../providers/flutter_sdk_versions_provider.dart';
-import '../providers/identity_provider.dart';
-import '../providers/stepper_provider.dart';
+
+import '../../../../../core/theme/app_theme.dart';
+import '../../providers/flutter_sdk_versions_provider.dart';
+import '../../providers/identity_provider.dart';
+import '../../providers/stepper_provider.dart';
 
 class IdentityScreen extends HookConsumerWidget {
   const IdentityScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // On lit le notifier pour les actions
     final notifier = ref.read(identityProvider.notifier);
 
-    // IMPORTANT : On n'utilise .watch() ICI que pour les éléments globaux (comme le bouton Next),
-    // mais on récupère la valeur brute au moment du premier build pour les champs de texte.
     final initialState = useMemoized(() => ref.read(identityProvider));
 
     final nameController = useTextEditingController(text: initialState.name);
@@ -25,9 +23,10 @@ class IdentityScreen extends HookConsumerWidget {
     final targetPlatforms = ref.watch(identityProvider.select((s) => s.targetPlatforms));
     final flutterVersion = ref.watch(identityProvider.select((s) => s.flutterVersion));
     final projectPath = ref.watch(identityProvider.select((s) => s.projectPath));
-    final isNextEnabled = ref.watch(identityProvider.select((s) => s.name.isNotEmpty && s.projectPath.isNotEmpty));
+    final isNextEnabled = ref.watch(
+      identityProvider.select((s) => s.name.isNotEmpty && s.projectPath.isNotEmpty),
+    );
 
-    // Synchronise le controller read-only avec la valeur du provider
     useEffect(() {
       pathController.text = projectPath;
       return null;
@@ -36,10 +35,13 @@ class IdentityScreen extends HookConsumerWidget {
     return Column(
       crossAxisAlignment: .start,
       children: [
-        const Text("Project Identity", style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white)),
+        const Text(
+          'Project Identity',
+          style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white),
+        ),
         const SizedBox(height: 8),
         Text(
-          "Configure core parameters of your application. These parameters dictate the base scaffolding.",
+          'Configure core parameters of your application. These parameters dictate the base scaffolding.',
           style: TextStyle(color: Colors.grey[400], fontSize: 14),
         ),
         const SizedBox(height: 40),
@@ -52,32 +54,57 @@ class IdentityScreen extends HookConsumerWidget {
                 flex: 6,
                 child: SingleChildScrollView(
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: .start,
                     children: [
                       _buildSectionTitle("General Details & Name"),
                       const SizedBox(height: 16),
 
-                      const Text("PROJECT NAME", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 1)),
+                      const Text(
+                        'PROJECT NAME',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey,
+                          letterSpacing: 1,
+                        ),
+                      ),
                       const SizedBox(height: 8),
                       TextField(
                         controller: nameController,
                         onChanged: notifier.updateName, // Pousse directement dans le provider
-                        decoration: const InputDecoration(hintText: "e.g., nexus_core_app"),
+                        decoration: const InputDecoration(hintText: 'e.g., nexus_core_app'),
                       ),
 
                       const SizedBox(height: 24),
 
-                      const Text("ORGANIZATION", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 1)),
+                      const Text(
+                        'ORGANIZATION',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey,
+                          letterSpacing: 1,
+                        ),
+                      ),
                       const SizedBox(height: 8),
                       TextField(
                         controller: orgController,
-                        onChanged: notifier.updateOrganization, // Pousse directement dans le provider
-                        decoration: const InputDecoration(hintText: "com.quantum.nexus"),
+                        onChanged:
+                            notifier.updateOrganization, // Pousse directement dans le provider
+                        decoration: const InputDecoration(hintText: 'com.quantum.nexus'),
                       ),
 
                       const SizedBox(height: 24),
 
-                      const Text("PROJECT LOCATION", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 1)),
+                      const Text(
+                        'PROJECT LOCATION',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey,
+                          letterSpacing: 1,
+                        ),
+                      ),
                       const SizedBox(height: 8),
                       Row(
                         children: [
@@ -85,7 +112,9 @@ class IdentityScreen extends HookConsumerWidget {
                             child: TextField(
                               controller: pathController,
                               readOnly: true,
-                              decoration: const InputDecoration(hintText: "Select destination folder..."),
+                              decoration: const InputDecoration(
+                                hintText: 'Select destination folder...',
+                              ),
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -94,7 +123,7 @@ class IdentityScreen extends HookConsumerWidget {
                             child: OutlinedButton.icon(
                               onPressed: notifier.pickDirectory,
                               icon: const Icon(Icons.folder_open, size: 18),
-                              label: const Text("Browse"),
+                              label: const Text('Browse'),
                             ),
                           ),
                         ],
@@ -106,7 +135,6 @@ class IdentityScreen extends HookConsumerWidget {
 
               const SizedBox(width: 60),
 
-              // COLONNE DROITE : Cibles (40%)
               Expanded(
                 flex: 4,
                 child: Column(
@@ -118,13 +146,26 @@ class IdentityScreen extends HookConsumerWidget {
                     _buildPlatformCheckbox("Android", "android", targetPlatforms, notifier),
                     _buildPlatformCheckbox("iOS", "ios", targetPlatforms, notifier),
                     _buildPlatformCheckbox("Web", "web", targetPlatforms, notifier),
-                    _buildPlatformCheckbox("macOS / Windows / Linux (Desktop)", "desktop", targetPlatforms, notifier),
+                    _buildPlatformCheckbox(
+                      "macOS / Windows / Linux (Desktop)",
+                      "desktop",
+                      targetPlatforms,
+                      notifier,
+                    ),
 
                     const SizedBox(height: 40),
 
                     _buildSectionTitle("Environment Setup"),
                     const SizedBox(height: 16),
-                    const Text("FLUTTER SDK VERSION", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 1)),
+                    const Text(
+                      "FLUTTER SDK VERSION",
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey,
+                        letterSpacing: 1,
+                      ),
+                    ),
                     const SizedBox(height: 8),
 
                     _FlutterVersionDropdown(
@@ -141,7 +182,9 @@ class IdentityScreen extends HookConsumerWidget {
                         width: 160,
                         child: ElevatedButton(
                           onPressed: isNextEnabled
-                              ? () => ref.read(currentStepProvider.notifier).setStep(NeatStep.dependencies)
+                              ? () => ref
+                                    .read(currentStepProvider.notifier)
+                                    .setStep(NeatStep.dependencies)
                               : null,
                           child: const Row(
                             mainAxisAlignment: MainAxisAlignment.center,
@@ -153,13 +196,13 @@ class IdentityScreen extends HookConsumerWidget {
                           ),
                         ),
                       ),
-                    )
+                    ),
                   ],
                 ),
               ),
             ],
           ),
-        )
+        ),
       ],
     );
   }
@@ -167,14 +210,29 @@ class IdentityScreen extends HookConsumerWidget {
   Widget _buildSectionTitle(String title) {
     return Row(
       children: [
-        Container(width: 4, height: 16, decoration: BoxDecoration(color: AppTheme.colorPrimaryCyan, borderRadius: BorderRadius.circular(2))),
+        Container(
+          width: 4,
+          height: 16,
+          decoration: BoxDecoration(
+            color: AppTheme.colorPrimaryCyan,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
         const SizedBox(width: 8),
-        Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+        Text(
+          title,
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+        ),
       ],
     );
   }
 
-  Widget _buildPlatformCheckbox(String label, String key, List<String> targetPlatforms, IdentityNotifier notifier) {
+  Widget _buildPlatformCheckbox(
+    String label,
+    String key,
+    List<String> targetPlatforms,
+    IdentityNotifier notifier,
+  ) {
     final isChecked = targetPlatforms.contains(key);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
@@ -195,7 +253,15 @@ class IdentityScreen extends HookConsumerWidget {
                 color: isChecked ? AppTheme.colorPrimaryCyan : Colors.grey,
               ),
               const SizedBox(width: 12),
-              Text(label, style: TextStyle(color: isChecked ? Colors.white : Colors.grey[400], fontWeight: isChecked ? FontWeight.bold : FontWeight.normal)),
+              Flexible(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    color: isChecked ? Colors.white : Colors.grey[400],
+                    fontWeight: isChecked ? FontWeight.bold : FontWeight.normal,
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -204,13 +270,8 @@ class IdentityScreen extends HookConsumerWidget {
   }
 }
 
-/// Dropdown des versions Flutter, alimenté par [flutterSdkVersionsProvider].
-/// Gère les états loading / error / data sans bloquer l'écran parent.
 class _FlutterVersionDropdown extends ConsumerWidget {
-  const _FlutterVersionDropdown({
-    required this.selectedVersion,
-    required this.onChanged,
-  });
+  const _FlutterVersionDropdown({required this.selectedVersion, required this.onChanged});
 
   final String selectedVersion;
   final ValueChanged<String> onChanged;
@@ -219,55 +280,52 @@ class _FlutterVersionDropdown extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final versionsAsync = ref.watch(flutterSdkVersionsProvider);
 
-    return versionsAsync.when(
-      loading: () => const SizedBox(
-        height: 48,
-        child: Center(
-          child: SizedBox(
-            width: 20,
-            height: 20,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
-        ),
-      ),
-      error: (_, _s) => const SizedBox(
-        height: 48,
-        child: Center(
-          child: Text(
-            'Impossible de charger les versions',
-            style: TextStyle(color: Colors.redAccent, fontSize: 13),
-          ),
-        ),
-      ),
-      data: (versions) {
-        // Garantit que la valeur sélectionnée est dans la liste
-        final effectiveValue = versions.contains(selectedVersion) ? selectedVersion : versions.first;
-
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: BoxDecoration(
-            color: const Color(0xFF1A1A1E),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.white10),
-          ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              value: effectiveValue,
-              dropdownColor: AppTheme.colorSurfaceCard,
-              isExpanded: true,
-              items: versions
-                  .map((v) => DropdownMenuItem(
-                        value: v,
-                        child: Text(v, style: const TextStyle(color: Colors.white)),
-                      ))
-                  .toList(),
-              onChanged: (val) {
-                if (val != null) onChanged(val);
-              },
+    return switch (versionsAsync) {
+      AsyncData(:final value) => _buildDropdown(value),
+      AsyncError() => const SizedBox(
+          height: 48,
+          child: Center(
+            child: Text(
+              'Impossible de charger les versions',
+              style: TextStyle(color: Colors.redAccent, fontSize: 13),
             ),
           ),
-        );
-      },
+        ),
+      _ => const SizedBox(
+          height: 48,
+          child: Center(
+            child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+          ),
+        ),
+    };
+  }
+
+  Widget _buildDropdown(List<String> versions) {
+    final effectiveValue = versions.contains(selectedVersion) ? selectedVersion : versions.first;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1A1E),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: effectiveValue,
+          dropdownColor: AppTheme.colorSurfaceCard,
+          isExpanded: true,
+          items: versions
+              .map((v) => DropdownMenuItem(
+                    value: v,
+                    child: Text(v, style: const TextStyle(color: Colors.white)),
+                  ))
+              .toList(),
+          onChanged: (val) {
+            if (val != null) onChanged(val);
+          },
+        ),
+      ),
     );
   }
 }

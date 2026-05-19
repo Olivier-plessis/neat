@@ -10,7 +10,9 @@ class NetworkErrorHandler {
       return _handleDioError(error);
     }
     if (kDebugMode) {
-      debugPrint('⛔ NetworkErrorHandler — exception non-Dio : ${error.runtimeType} → $error');
+      debugPrint(
+        '⛔ NetworkErrorHandler — exception non-Dio : ${error.runtimeType} → $error',
+      );
     }
     return Failure(message: 'Une erreur inattendue est survenue.');
   }
@@ -20,11 +22,13 @@ class NetworkErrorHandler {
       DioExceptionType.connectionTimeout ||
       DioExceptionType.sendTimeout ||
       DioExceptionType.receiveTimeout => Failure(
-        message: 'Le serveur met trop de temps à répondre. Vérifiez votre connexion.',
+        message:
+            'Le serveur met trop de temps à répondre. Vérifiez votre connexion.',
         originalError: error,
       ),
       DioExceptionType.connectionError => Failure(
-        message: 'Impossible de contacter le serveur. Vérifiez votre connexion internet.',
+        message:
+            'Impossible de contacter le serveur. Vérifiez votre connexion internet.',
         originalError: error,
       ),
       DioExceptionType.badResponse => _handleBadResponse(error),

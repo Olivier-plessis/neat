@@ -11,42 +11,39 @@ import 'features/generator/presentation/screens/main_layout.dart';
 
 Future<void> main() async => bootstrap();
 
-
 Future<void> bootstrap() async {
   registerErrorHandler();
 
-
   await runZonedGuarded(
-        () async {
-          WidgetsFlutterBinding.ensureInitialized();
-          await windowManager.ensureInitialized();
+    () async {
+      WidgetsFlutterBinding.ensureInitialized();
+      await windowManager.ensureInitialized();
 
-          // Configuration de la taille de la fenêtre de NEAT
-          WindowOptions windowOptions = const WindowOptions(
-            size: Size(1200, 800),
-            minimumSize: Size(1000, 700),
-            center: true,
-            title: 'NEAT - Flutter Architect',
-          );
+      // Configuration de la taille de la fenêtre de NEAT
+      WindowOptions windowOptions = const WindowOptions(
+        size: Size(1200, 800),
+        minimumSize: Size(1000, 700),
+        center: true,
+        title: 'NEAT - Flutter Architect',
+      );
 
-          windowManager.waitUntilReadyToShow(windowOptions, () async {
-            await windowManager.show();
-            await windowManager.focus();
-          });
+      windowManager.waitUntilReadyToShow(windowOptions, () async {
+        await windowManager.show();
+        await windowManager.focus();
+      });
 
-          final container = ProviderContainer(
-            observers: [RiverpodObserver()],
-          );
+      final container = ProviderContainer(observers: [RiverpodObserver()]);
 
-          // Le ProviderScope est indispensable pour faire fonctionner Riverpod
-          runApp(UncontrolledProviderScope(container: container, child: const NeatApp()));
+      // Le ProviderScope est indispensable pour faire fonctionner Riverpod
+      runApp(
+        UncontrolledProviderScope(container: container, child: const NeatApp()),
+      );
     },
-        (error, stackTrace) {
+    (error, stackTrace) {
       AppLogger.f('Uncaught exception', error: error, stackTrace: stackTrace);
     },
   );
 }
-
 
 class NeatApp extends StatelessWidget {
   const NeatApp({super.key});

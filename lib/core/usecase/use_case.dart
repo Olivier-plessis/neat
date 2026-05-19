@@ -1,7 +1,5 @@
-
 import 'package:neat/core/network/network_error_handler.dart';
 import 'package:neat/core/result/result.dart';
-
 
 /// UseCase de base pour l'application principale.
 /// Il utilise [NetworkErrorHandler] pour transformer les erreurs Dio en [Failure].
