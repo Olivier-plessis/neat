@@ -5,7 +5,6 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import '../../../../../core/theme/app_theme.dart';
 import '../../providers/flutter_sdk_versions_provider.dart';
 import '../../providers/identity_provider.dart';
-import '../../providers/stepper_provider.dart';
 
 class IdentityScreen extends HookConsumerWidget {
   const IdentityScreen({super.key});
@@ -23,10 +22,6 @@ class IdentityScreen extends HookConsumerWidget {
     final targetPlatforms = ref.watch(identityProvider.select((s) => s.targetPlatforms));
     final flutterVersion = ref.watch(identityProvider.select((s) => s.flutterVersion));
     final projectPath = ref.watch(identityProvider.select((s) => s.projectPath));
-    final isNextEnabled = ref.watch(
-      identityProvider.select((s) => s.name.isNotEmpty && s.projectPath.isNotEmpty),
-    );
-
     useEffect(() {
       pathController.text = projectPath;
       return null;
@@ -174,29 +169,6 @@ class IdentityScreen extends HookConsumerWidget {
                     ),
 
                     const Spacer(),
-
-                    Align(
-                      alignment: Alignment.bottomRight,
-                      child: SizedBox(
-                        height: 48,
-                        width: 160,
-                        child: ElevatedButton(
-                          onPressed: isNextEnabled
-                              ? () => ref
-                                    .read(currentStepProvider.notifier)
-                                    .setStep(NeatStep.dependencies)
-                              : null,
-                          child: const Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text('Next Step'),
-                              SizedBox(width: 8),
-                              Icon(Icons.arrow_forward, size: 16),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
                   ],
                 ),
               ),
@@ -283,20 +255,20 @@ class _FlutterVersionDropdown extends ConsumerWidget {
     return switch (versionsAsync) {
       AsyncData(:final value) => _buildDropdown(value),
       AsyncError() => const SizedBox(
-          height: 48,
-          child: Center(
-            child: Text(
-              'Impossible de charger les versions',
-              style: TextStyle(color: Colors.redAccent, fontSize: 13),
-            ),
+        height: 48,
+        child: Center(
+          child: Text(
+            'Impossible de charger les versions',
+            style: TextStyle(color: Colors.redAccent, fontSize: 13),
           ),
         ),
+      ),
       _ => const SizedBox(
-          height: 48,
-          child: Center(
-            child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
-          ),
+        height: 48,
+        child: Center(
+          child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
         ),
+      ),
     };
   }
 
@@ -316,10 +288,12 @@ class _FlutterVersionDropdown extends ConsumerWidget {
           dropdownColor: AppTheme.colorSurfaceCard,
           isExpanded: true,
           items: versions
-              .map((v) => DropdownMenuItem(
-                    value: v,
-                    child: Text(v, style: const TextStyle(color: Colors.white)),
-                  ))
+              .map(
+                (v) => DropdownMenuItem(
+                  value: v,
+                  child: Text(v, style: const TextStyle(color: Colors.white)),
+                ),
+              )
               .toList(),
           onChanged: (val) {
             if (val != null) onChanged(val);
