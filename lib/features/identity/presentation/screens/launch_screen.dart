@@ -9,6 +9,7 @@ import 'package:neat/features/dependencies/presentation/providers/dependencies_p
 import 'package:neat/features/identity/domain/usecases/launch_generation_usecase.dart';
 import 'package:neat/features/identity/presentation/providers/identity_provider.dart';
 import 'package:neat/features/identity/presentation/providers/stepper_provider.dart';
+import 'package:neat/features/theme_engine/presentation/providers/theme_engine_provider.dart';
 
 class LaunchScreen extends HookConsumerWidget {
   const LaunchScreen({super.key});
@@ -19,8 +20,11 @@ class LaunchScreen extends HookConsumerWidget {
     final packages = ref.watch(selectedPackagesProvider);
     final architecture = ref.watch(architectureProvider);
     final cicd = ref.watch(cicdProvider);
+    final theme = ref.watch(themeEngineProvider);
 
-    final isGenerating = useState(false);
+    // isGenerating lives in the shared provider so main_layout can lock the Back button
+    final isGeneratingNotifier = ref.read(isGeneratingProvider.notifier);
+    final isGenerating = ref.watch(isGeneratingProvider);
     final hasFinished = useState(false);
     final errorMessage = useState<String?>(null);
     final logs = useState<List<String>>(_initialLogs(identity));
@@ -40,7 +44,7 @@ class LaunchScreen extends HookConsumerWidget {
     }
 
     Future<void> generate() async {
-      isGenerating.value = true;
+      isGeneratingNotifier.set(true);
       hasFinished.value = false;
       errorMessage.value = null;
       logs.value = ['neat@shell:~\$ generate --project ${identity.name}', ''];
@@ -51,6 +55,7 @@ class LaunchScreen extends HookConsumerWidget {
           packages: packages,
           architecture: architecture,
           cicd: cicd,
+          theme: theme,
           onLog: appendLog,
         );
         hasFinished.value = true;
@@ -58,7 +63,7 @@ class LaunchScreen extends HookConsumerWidget {
         errorMessage.value = e.toString();
         appendLog('[✗] Generation failed: $e');
       } finally {
-        isGenerating.value = false;
+        isGeneratingNotifier.set(false);
       }
     }
 
@@ -98,7 +103,7 @@ class LaunchScreen extends HookConsumerWidget {
               Expanded(
                 flex: 4,
                 child: _ActionPanel(
-                  isGenerating: isGenerating.value,
+                  isGenerating: isGenerating,
                   hasFinished: hasFinished.value,
                   hasError: errorMessage.value != null,
                   canGenerate: canGenerate,
@@ -146,7 +151,7 @@ class LaunchScreen extends HookConsumerWidget {
                       ),
                     ),
                     const Spacer(),
-                    if (isGenerating.value)
+                    if (isGenerating)
                       const SizedBox(
                         width: 10,
                         height: 10,
@@ -181,16 +186,7 @@ class LaunchScreen extends HookConsumerWidget {
           ),
         ),
 
-        const SizedBox(height: 20),
-
-        OutlinedButton.icon(
-          onPressed: isGenerating.value
-              ? null
-              : () => ref.read(currentStepProvider.notifier).setStep(NeatStep.cicd),
-          icon: const Icon(Icons.arrow_back, size: 16),
-          label: const Text('Back'),
-          style: OutlinedButton.styleFrom(minimumSize: const Size(120, 48)),
-        ),
+        const SizedBox(height: 8),
       ],
     );
   }

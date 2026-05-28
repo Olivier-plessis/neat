@@ -89,8 +89,8 @@ class SplashScreen extends HookWidget {
                                 shape: BoxShape.circle,
                                 gradient: RadialGradient(
                                   colors: [
-                                    AppTheme.colorPrimaryCyan.withOpacity(0.12),
-                                    AppTheme.colorPrimaryCyan.withOpacity(0.04),
+                                    AppTheme.colorPrimaryCyan.withValues(alpha: 0.12),
+                                    AppTheme.colorPrimaryCyan.withValues(alpha: 0.04),
                                     Colors.transparent,
                                   ],
                                 ),
@@ -111,8 +111,8 @@ class SplashScreen extends HookWidget {
                                 shape: BoxShape.circle,
                                 gradient: RadialGradient(
                                   colors: [
-                                    AppTheme.colorPrimaryCyan.withOpacity(0.25),
-                                    AppTheme.colorPrimaryCyan.withOpacity(0.08),
+                                    AppTheme.colorPrimaryCyan.withValues(alpha: 0.25),
+                                    AppTheme.colorPrimaryCyan.withValues(alpha: 0.08),
                                     Colors.transparent,
                                   ],
                                 ),
@@ -130,7 +130,7 @@ class SplashScreen extends HookWidget {
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(22),
                               border: Border.all(
-                                color: AppTheme.colorPrimaryCyan.withOpacity(0.25),
+                                color: AppTheme.colorPrimaryCyan.withValues(alpha: 0.25),
                               ),
                             ),
                             child: ClipRRect(
@@ -207,7 +207,7 @@ class _DotGridPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.white.withOpacity(0.045)
+      ..color = Colors.white.withValues(alpha: 0.045)
       ..style = PaintingStyle.fill;
 
     const spacing = 24.0;

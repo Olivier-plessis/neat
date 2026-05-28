@@ -3,11 +3,7 @@ import 'package:neat/features/architecture/presentation/providers/architecture_p
 class GenerateTreeUsecase {
   const GenerateTreeUsecase();
 
-  String execute(
-    ArchitectureState state, {
-    bool hasRiverpod = false,
-    bool hasBloc = false,
-  }) {
+  String execute(ArchitectureState state, {bool hasRiverpod = false, bool hasBloc = false}) {
     return state.pattern == StructuralPattern.featureFirst
         ? _featureFirst(state, hasRiverpod: hasRiverpod, hasBloc: hasBloc)
         : _layerFirst(state, hasRiverpod: hasRiverpod, hasBloc: hasBloc);
@@ -20,36 +16,40 @@ class GenerateTreeUsecase {
   }) {
     final lines = <String>[];
     lines.add('lib/');
+    lines.add('├── core/');
+    lines.add('│   ├── theme/');
+    lines.add('│   ├── router/');
+    lines.add('│   └── utils/');
     lines.add('└── features/');
-    lines.add('    └── auth/');
+    lines.add('    └── {feature}/');
     lines.add('        ├── data/');
-    lines.add('        │   ├── datasources/');
-    lines.add('        │   ├── entities/');
-    if (state.includeMappers) lines.add('        │   ├── mappers/');
-    lines.add('        │   └── repositories/');
-    lines.add('        ├── domain/');
     lines.add('        │   ├── models/');
+    if (state.includeMappers) lines.add('        │   ├── mappers/');
+    lines.add('        │   ├── repositories/');
+    lines.add('        │   └── sources/');
+    lines.add('        ├── domain/');
+    lines.add('        │   ├── entities/');
     lines.add('        │   ├── repositories/');
     lines.add('        │   └── usecases/');
     lines.add('        └── presentation/');
+    lines.add('        │   ├── pages/');
 
     final stateManagementFolders = _stateManagementFolders(
       hasRiverpod: hasRiverpod,
       hasBloc: hasBloc,
       useCubit: state.useCubit,
     );
-
-    for (var i = 0; i < stateManagementFolders.length; i++) {
-      final isLast = i == stateManagementFolders.length - 1;
-      lines.add('            ${isLast ? '└' : '├'}── ${stateManagementFolders[i]}/');
+    for (final folder in stateManagementFolders) {
+      lines.add('        │   ├── $folder/');
     }
-    lines.add('            └── screens/');
+    lines.add('        │   ├── routes/');
+    lines.add('        │   └── widgets/');
 
     if (state.mirrorTestStructure) {
       lines.add('');
       lines.add('test/');
       lines.add('└── features/');
-      lines.add('    └── auth/');
+      lines.add('    └── {feature}/');
       lines.add('        ├── data/');
       lines.add('        ├── domain/');
       lines.add('        └── presentation/');
@@ -58,48 +58,48 @@ class GenerateTreeUsecase {
     return lines.join('\n');
   }
 
-  String _layerFirst(
-    ArchitectureState state, {
-    required bool hasRiverpod,
-    required bool hasBloc,
-  }) {
+  String _layerFirst(ArchitectureState state, {required bool hasRiverpod, required bool hasBloc}) {
     final lines = <String>[];
     lines.add('lib/');
+    lines.add('├── core/');
+    lines.add('│   ├── theme/');
+    lines.add('│   ├── router/');
+    lines.add('│   └── utils/');
     lines.add('├── data/');
-    lines.add('│   └── auth/');
-    lines.add('│       ├── datasources/');
-    lines.add('│       ├── entities/');
-    if (state.includeMappers) lines.add('│       ├── mappers/');
-    lines.add('│       └── repositories/');
-    lines.add('├── domain/');
-    lines.add('│   └── auth/');
+    lines.add('│   └── {feature}/');
     lines.add('│       ├── models/');
+    if (state.includeMappers) lines.add('│       ├── mappers/');
+    lines.add('│       ├── repositories/');
+    lines.add('│       └── sources/');
+    lines.add('├── domain/');
+    lines.add('│   └── {feature}/');
+    lines.add('│       ├── entities/');
     lines.add('│       ├── repositories/');
     lines.add('│       └── usecases/');
     lines.add('└── presentation/');
-    lines.add('    └── auth/');
+    lines.add('    └── {feature}/');
+    lines.add('        ├── pages/');
 
     final stateManagementFolders = _stateManagementFolders(
       hasRiverpod: hasRiverpod,
       hasBloc: hasBloc,
       useCubit: state.useCubit,
     );
-
-    for (var i = 0; i < stateManagementFolders.length; i++) {
-      final isLast = i == stateManagementFolders.length - 1;
-      lines.add('        ${isLast ? '└' : '├'}── ${stateManagementFolders[i]}/');
+    for (final folder in stateManagementFolders) {
+      lines.add('        ├── $folder/');
     }
-    lines.add('        └── screens/');
+    lines.add('        ├── routes/');
+    lines.add('        └── widgets/');
 
     if (state.mirrorTestStructure) {
       lines.add('');
       lines.add('test/');
       lines.add('├── data/');
-      lines.add('│   └── auth/');
+      lines.add('│   └── {feature}/');
       lines.add('├── domain/');
-      lines.add('│   └── auth/');
+      lines.add('│   └── {feature}/');
       lines.add('└── presentation/');
-      lines.add('    └── auth/');
+      lines.add('    └── {feature}/');
     }
 
     return lines.join('\n');

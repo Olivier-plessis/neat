@@ -72,9 +72,26 @@ class SelectedPackages extends _$SelectedPackages {
         : [...state, package];
   }
 
+  void addAll(List<PubPackage> packages) {
+    final existing = {for (final p in state) p.name};
+    final toAdd = packages.where((p) => !existing.contains(p.name));
+    state = [...state, ...toAdd];
+  }
+
   void setDev(String name, {required bool isDev}) {
     state = state
         .map((p) => p.name == name ? p.copyWith(isDev: isDev) : p)
+        .toList();
+  }
+
+  void remove(String name) =>
+      state = state.where((p) => p.name != name).toList();
+
+  void setVersion(String name, String version) {
+    final v = version.trim();
+    if (v.isEmpty) return;
+    state = state
+        .map((p) => p.name == name ? p.copyWith(version: v) : p)
         .toList();
   }
 

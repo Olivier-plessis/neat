@@ -60,3 +60,64 @@ abstract class _$CurrentStep extends $Notifier<NeatStep> {
     element.handleCreate(ref, build);
   }
 }
+
+/// Shared flag: true while the launch generation process is running.
+/// Read by main_layout to disable the Back button during generation.
+
+@ProviderFor(IsGenerating)
+final isGeneratingProvider = IsGeneratingProvider._();
+
+/// Shared flag: true while the launch generation process is running.
+/// Read by main_layout to disable the Back button during generation.
+final class IsGeneratingProvider extends $NotifierProvider<IsGenerating, bool> {
+  /// Shared flag: true while the launch generation process is running.
+  /// Read by main_layout to disable the Back button during generation.
+  IsGeneratingProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'isGeneratingProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$isGeneratingHash();
+
+  @$internal
+  @override
+  IsGenerating create() => IsGenerating();
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(bool value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<bool>(value),
+    );
+  }
+}
+
+String _$isGeneratingHash() => r'e8f82f925336e086d75556f49ffb1b5ec4f9ac97';
+
+/// Shared flag: true while the launch generation process is running.
+/// Read by main_layout to disable the Back button during generation.
+
+abstract class _$IsGenerating extends $Notifier<bool> {
+  bool build();
+  @$mustCallSuper
+  @override
+  void runBuild() {
+    final ref = this.ref as $Ref<bool, bool>;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<bool, bool>,
+              bool,
+              Object?,
+              Object?
+            >;
+    element.handleCreate(ref, build);
+  }
+}

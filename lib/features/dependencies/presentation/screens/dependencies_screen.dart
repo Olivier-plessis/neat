@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:neat/core/theme/app_theme.dart';
+import 'package:neat/features/dependencies/domain/constants/dev_preset.dart';
 import 'package:neat/features/dependencies/domain/models/pub_package.dart';
 import 'package:neat/features/dependencies/presentation/providers/dependencies_provider.dart';
-import 'package:neat/features/identity/presentation/providers/stepper_provider.dart';
 
 class DependenciesScreen extends HookConsumerWidget {
   const DependenciesScreen({super.key});
@@ -29,11 +29,16 @@ class DependenciesScreen extends HookConsumerWidget {
               style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white),
             ),
             const Spacer(),
-            if (selectedCount > 0)
+            _DevPresetButton(
+              onTap: () => ref.read(selectedPackagesProvider.notifier).addAll(devPresetPackages),
+            ),
+            if (selectedCount > 0) ...[
+              const SizedBox(width: 12),
               _PackagesBadgeButton(
                 count: selectedCount,
                 onTap: () => _showManagedPackagesSheet(context, ref),
               ),
+            ],
           ],
         ),
         const SizedBox(height: 8),
@@ -88,29 +93,6 @@ class DependenciesScreen extends HookConsumerWidget {
 
         const SizedBox(height: 20),
 
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            OutlinedButton.icon(
-              onPressed: () => ref.read(currentStepProvider.notifier).setStep(NeatStep.identity),
-              icon: const Icon(Icons.arrow_back, size: 16),
-              label: const Text('Back'),
-              style: OutlinedButton.styleFrom(minimumSize: const Size(120, 48)),
-            ),
-            ElevatedButton(
-              onPressed: () =>
-                  ref.read(currentStepProvider.notifier).setStep(NeatStep.architecture),
-              style: ElevatedButton.styleFrom(minimumSize: const Size(160, 48)),
-              child: const Row(
-                children: [
-                  Text('Next Step'),
-                  SizedBox(width: 8),
-                  Icon(Icons.arrow_forward, size: 16),
-                ],
-              ),
-            ),
-          ],
-        ),
       ],
     );
   }
@@ -122,6 +104,40 @@ class DependenciesScreen extends HookConsumerWidget {
       isScrollControlled: true,
       builder: (_) =>
           UncontrolledProviderScope(container: ref.container, child: const _ManagedPackagesSheet()),
+    );
+  }
+}
+
+// ── Dev preset button ─────────────────────────────────────────────────────────
+
+class _DevPresetButton extends StatelessWidget {
+  const _DevPresetButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1A1A1E),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: Colors.white24),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.bolt, color: Colors.white54, size: 16),
+            SizedBox(width: 6),
+            Text(
+              'Dev Preset',
+              style: TextStyle(color: Colors.white54, fontSize: 12, fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -256,13 +272,38 @@ class _ManagedPackagesSheet extends ConsumerWidget {
   }
 }
 
-class _SheetPackageTile extends ConsumerWidget {
+class _SheetPackageTile extends ConsumerStatefulWidget {
   const _SheetPackageTile({required this.package});
 
   final PubPackage package;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_SheetPackageTile> createState() => _SheetPackageTileState();
+}
+
+class _SheetPackageTileState extends ConsumerState<_SheetPackageTile> {
+  bool _editing = false;
+  late final TextEditingController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = TextEditingController(text: widget.package.version);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  void _commit() {
+    ref.read(selectedPackagesProvider.notifier).setVersion(widget.package.name, _ctrl.text);
+    setState(() => _editing = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
@@ -276,20 +317,66 @@ class _SheetPackageTile extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  package.name,
+                  widget.package.name,
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
                   ),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 4),
                 Row(
                   children: [
-                    Text(
-                      'v${package.version}',
-                      style: TextStyle(color: Colors.grey[500], fontSize: 12),
-                    ),
+                    _editing
+                        ? SizedBox(
+                            width: 110,
+                            height: 24,
+                            child: TextField(
+                              controller: _ctrl,
+                              autofocus: true,
+                              style: const TextStyle(color: Colors.white, fontSize: 12),
+                              decoration: InputDecoration(
+                                isDense: true,
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 4,
+                                ),
+                                filled: true,
+                                fillColor: const Color(0xFF2A2A2E),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(4),
+                                  borderSide: const BorderSide(color: AppTheme.colorPrimaryCyan),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(4),
+                                  borderSide: const BorderSide(color: AppTheme.colorPrimaryCyan),
+                                ),
+                              ),
+                              onSubmitted: (_) => _commit(),
+                              onTapOutside: (_) => _commit(),
+                            ),
+                          )
+                        : GestureDetector(
+                            onTap: () {
+                              _ctrl.text = widget.package.version;
+                              setState(() => _editing = true);
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF2A2A2E),
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(color: Colors.white12),
+                              ),
+                              child: Text(
+                                widget.package.version,
+                                style: const TextStyle(
+                                  color: AppTheme.colorPrimaryCyan,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ),
                     const SizedBox(width: 8),
                     Container(
                       width: 3,
@@ -298,9 +385,11 @@ class _SheetPackageTile extends ConsumerWidget {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      package.isDev ? 'dev_dependency' : 'dependency',
+                      widget.package.isDev ? 'dev_dependency' : 'dependency',
                       style: TextStyle(
-                        color: package.isDev ? const Color(0xFFFFA726) : AppTheme.colorPrimaryCyan,
+                        color: widget.package.isDev
+                            ? const Color(0xFFFFA726)
+                            : AppTheme.colorPrimaryCyan,
                         fontSize: 12,
                       ),
                     ),
@@ -311,7 +400,7 @@ class _SheetPackageTile extends ConsumerWidget {
           ),
           IconButton(
             icon: const Icon(Icons.delete_outline, color: Colors.grey, size: 20),
-            onPressed: () => ref.read(selectedPackagesProvider.notifier).toggle(package),
+            onPressed: () => ref.read(selectedPackagesProvider.notifier).toggle(widget.package),
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
           ),

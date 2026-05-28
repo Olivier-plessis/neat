@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-part of 'identity_provider.dart';
+part of 'theme_engine_provider.dart';
 
 // **************************************************************************
 // RiverpodGenerator
@@ -9,51 +9,51 @@ part of 'identity_provider.dart';
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
 
-@ProviderFor(IdentityNotifier)
-final identityProvider = IdentityNotifierProvider._();
+@ProviderFor(ThemeEngine)
+final themeEngineProvider = ThemeEngineProvider._();
 
-final class IdentityNotifierProvider
-    extends $NotifierProvider<IdentityNotifier, IdentityState> {
-  IdentityNotifierProvider._()
+final class ThemeEngineProvider
+    extends $NotifierProvider<ThemeEngine, ThemeEngineState> {
+  ThemeEngineProvider._()
     : super(
         from: null,
         argument: null,
         retry: null,
-        name: r'identityProvider',
+        name: r'themeEngineProvider',
         isAutoDispose: false,
         dependencies: null,
         $allTransitiveDependencies: null,
       );
 
   @override
-  String debugGetCreateSourceHash() => _$identityNotifierHash();
+  String debugGetCreateSourceHash() => _$themeEngineHash();
 
   @$internal
   @override
-  IdentityNotifier create() => IdentityNotifier();
+  ThemeEngine create() => ThemeEngine();
 
   /// {@macro riverpod.override_with_value}
-  Override overrideWithValue(IdentityState value) {
+  Override overrideWithValue(ThemeEngineState value) {
     return $ProviderOverride(
       origin: this,
-      providerOverride: $SyncValueProvider<IdentityState>(value),
+      providerOverride: $SyncValueProvider<ThemeEngineState>(value),
     );
   }
 }
 
-String _$identityNotifierHash() => r'ad86d1079638e2b69aaea1bbbecf373887b2740c';
+String _$themeEngineHash() => r'db6f4dea005dde8f3c2d0e72bfb6e6ad1874b8f9';
 
-abstract class _$IdentityNotifier extends $Notifier<IdentityState> {
-  IdentityState build();
+abstract class _$ThemeEngine extends $Notifier<ThemeEngineState> {
+  ThemeEngineState build();
   @$mustCallSuper
   @override
   void runBuild() {
-    final ref = this.ref as $Ref<IdentityState, IdentityState>;
+    final ref = this.ref as $Ref<ThemeEngineState, ThemeEngineState>;
     final element =
         ref.element
             as $ClassProviderElement<
-              AnyNotifier<IdentityState, IdentityState>,
-              IdentityState,
+              AnyNotifier<ThemeEngineState, ThemeEngineState>,
+              ThemeEngineState,
               Object?,
               Object?
             >;

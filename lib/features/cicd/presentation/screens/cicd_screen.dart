@@ -4,7 +4,6 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:neat/core/theme/app_theme.dart';
 import 'package:neat/features/cicd/domain/usecases/generate_yaml_usecase.dart';
 import 'package:neat/features/cicd/presentation/providers/cicd_provider.dart';
-import 'package:neat/features/identity/presentation/providers/stepper_provider.dart';
 
 class CicdScreen extends HookConsumerWidget {
   const CicdScreen({super.key});
@@ -317,29 +316,6 @@ class CicdScreen extends HookConsumerWidget {
 
         const SizedBox(height: 20),
 
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            OutlinedButton.icon(
-              onPressed: () =>
-                  ref.read(currentStepProvider.notifier).setStep(NeatStep.architecture),
-              icon: const Icon(Icons.arrow_back, size: 16),
-              label: const Text('Back'),
-              style: OutlinedButton.styleFrom(minimumSize: const Size(120, 48)),
-            ),
-            ElevatedButton(
-              onPressed: () => ref.read(currentStepProvider.notifier).setStep(NeatStep.launch),
-              style: ElevatedButton.styleFrom(minimumSize: const Size(160, 48)),
-              child: const Row(
-                children: [
-                  Text('Next Step'),
-                  SizedBox(width: 8),
-                  Icon(Icons.arrow_forward, size: 16),
-                ],
-              ),
-            ),
-          ],
-        ),
       ],
     );
   }

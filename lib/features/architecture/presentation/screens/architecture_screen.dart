@@ -4,7 +4,6 @@ import 'package:neat/core/theme/app_theme.dart';
 import 'package:neat/features/architecture/domain/usecases/generate_tree_usecase.dart';
 import 'package:neat/features/architecture/presentation/providers/architecture_provider.dart';
 import 'package:neat/features/dependencies/presentation/providers/dependencies_provider.dart';
-import 'package:neat/features/identity/presentation/providers/stepper_provider.dart';
 
 class ArchitectureScreen extends ConsumerWidget {
   const ArchitectureScreen({super.key});
@@ -218,29 +217,6 @@ class ArchitectureScreen extends ConsumerWidget {
 
         const SizedBox(height: 20),
 
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            OutlinedButton.icon(
-              onPressed: () =>
-                  ref.read(currentStepProvider.notifier).setStep(NeatStep.dependencies),
-              icon: const Icon(Icons.arrow_back, size: 16),
-              label: const Text('Back'),
-              style: OutlinedButton.styleFrom(minimumSize: const Size(120, 48)),
-            ),
-            ElevatedButton(
-              onPressed: () => ref.read(currentStepProvider.notifier).setStep(NeatStep.cicd),
-              style: ElevatedButton.styleFrom(minimumSize: const Size(160, 48)),
-              child: const Row(
-                children: [
-                  Text('Next Step'),
-                  SizedBox(width: 8),
-                  Icon(Icons.arrow_forward, size: 16),
-                ],
-              ),
-            ),
-          ],
-        ),
       ],
     );
   }
