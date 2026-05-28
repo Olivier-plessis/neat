@@ -22,8 +22,8 @@ Future<void> bootstrap() async {
 
       // Configuration de la taille de la fenêtre de NEAT
       WindowOptions windowOptions = const WindowOptions(
-        size: Size(1200, 800),
-        minimumSize: Size(1000, 700),
+        size: Size(1400, 900),
+        minimumSize: Size(1200, 800),
         center: true,
         title: 'NEAT - Flutter Architect',
       );

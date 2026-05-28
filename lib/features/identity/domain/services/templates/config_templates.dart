@@ -34,6 +34,13 @@ flutter:
   uses-material-design: true
 ''';
 
+  /// `.fvmrc` — pins the Flutter SDK version for FVM users.
+  static String fvmrc({required String flutterVersion}) => '''
+{
+  "flutter": "$flutterVersion"
+}
+''';
+
   static String analysisOptions({bool veryGoodAnalysis = false}) => veryGoodAnalysis
       ? '''include: package:very_good_analysis/analysis_options.yaml
 '''
