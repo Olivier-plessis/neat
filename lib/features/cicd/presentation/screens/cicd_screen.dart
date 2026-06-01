@@ -47,7 +47,8 @@ class CicdScreen extends HookConsumerWidget {
                     children: [
                       _SectionHeader(label: 'CI Runners'),
                       const SizedBox(height: 12),
-                      Row(
+                      IntrinsicHeight(
+                       child: Row(
                         children: [
                           Expanded(
                             child: _ToolCard(
@@ -88,12 +89,14 @@ class CicdScreen extends HookConsumerWidget {
                             ),
                           ),
                         ],
+                       ),
                       ),
 
                       const SizedBox(height: 24),
                       _SectionHeader(label: 'CD & Delivery'),
                       const SizedBox(height: 12),
-                      Row(
+                      IntrinsicHeight(
+                       child: Row(
                         children: [
                           Expanded(
                             child: _ToolCard(
@@ -124,6 +127,7 @@ class CicdScreen extends HookConsumerWidget {
                           ),
                           const Expanded(child: SizedBox()),
                         ],
+                       ),
                       ),
 
                       if (state.hasCiRunner) ...[
@@ -315,7 +319,6 @@ class CicdScreen extends HookConsumerWidget {
         ),
 
         const SizedBox(height: 20),
-
       ],
     );
   }
@@ -390,6 +393,7 @@ class _ToolCard extends StatelessWidget {
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.max,
           children: [
             Row(
               children: [
@@ -441,6 +445,7 @@ class _ToolCard extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(description, style: TextStyle(color: Colors.grey[600], fontSize: 11, height: 1.4)),
+            const Spacer(),
             const SizedBox(height: 10),
             Wrap(
               spacing: 6,
