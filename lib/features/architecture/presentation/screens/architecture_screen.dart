@@ -51,30 +51,32 @@ class ArchitectureScreen extends ConsumerWidget {
                     children: [
                       _SectionHeader(icon: Icons.view_quilt_outlined, label: 'Structural Pattern'),
                       const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _PatternCard(
-                              title: 'Feature-First',
-                              description:
-                                  'Organizes code by functional features. Recommended for scalability and team collaboration.',
-                              isSelected: state.pattern == StructuralPattern.featureFirst,
-                              isRecommended: true,
-                              onTap: () => notifier.setPattern(StructuralPattern.featureFirst),
+                      IntrinsicHeight(
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: _PatternCard(
+                                title: 'Feature-First',
+                                description:
+                                    'Organizes code by functional features. Recommended for scalability and team collaboration.',
+                                isSelected: state.pattern == StructuralPattern.featureFirst,
+                                isRecommended: true,
+                                onTap: () => notifier.setPattern(StructuralPattern.featureFirst),
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: _PatternCard(
-                              title: 'Layer-First',
-                              description:
-                                  'Traditional approach organizing by architectural layers (Data, Domain, Presentation) globally.',
-                              isSelected: state.pattern == StructuralPattern.layerFirst,
-                              isRecommended: false,
-                              onTap: () => notifier.setPattern(StructuralPattern.layerFirst),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: _PatternCard(
+                                title: 'Layer-First',
+                                description:
+                                    'Traditional approach organizing by architectural layers (Data, Domain, Presentation) globally.',
+                                isSelected: state.pattern == StructuralPattern.layerFirst,
+                                isRecommended: false,
+                                onTap: () => notifier.setPattern(StructuralPattern.layerFirst),
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
 
                       const SizedBox(height: 28),
@@ -166,6 +168,7 @@ class ArchitectureScreen extends ConsumerWidget {
                           children: [
                             // Barre titre style terminal
                             Container(
+                              width: double.infinity,
                               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                               decoration: const BoxDecoration(
                                 color: Color(0xFF18181C),
@@ -190,16 +193,20 @@ class ArchitectureScreen extends ConsumerWidget {
                                 ],
                               ),
                             ),
-                            Expanded(
-                              child: SingleChildScrollView(
-                                padding: const EdgeInsets.all(16),
-                                child: Text(
-                                  tree,
-                                  style: const TextStyle(
-                                    color: Color(0xFF9ECE6A),
-                                    fontFamily: 'monospace',
-                                    fontSize: 12,
-                                    height: 1.7,
+                            Flexible(
+                              child: SizedBox(
+                                width: MediaQuery.sizeOf(context).width,
+                                child: SingleChildScrollView(
+                                  physics: BouncingScrollPhysics(),
+                                  padding: const EdgeInsets.all(16),
+                                  child: Text(
+                                    tree,
+                                    style: const TextStyle(
+                                      color: Color(0xFF9ECE6A),
+                                      fontFamily: 'monospace',
+                                      fontSize: 12,
+                                      height: 1.7,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -216,7 +223,6 @@ class ArchitectureScreen extends ConsumerWidget {
         ),
 
         const SizedBox(height: 20),
-
       ],
     );
   }
