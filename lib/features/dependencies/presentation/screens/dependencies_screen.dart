@@ -5,6 +5,7 @@ import 'package:neat/core/theme/app_theme.dart';
 import 'package:neat/features/dependencies/domain/constants/dev_preset.dart';
 import 'package:neat/features/dependencies/domain/models/pub_package.dart';
 import 'package:neat/features/dependencies/presentation/providers/dependencies_provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class DependenciesScreen extends HookConsumerWidget {
   const DependenciesScreen({super.key});
@@ -92,7 +93,6 @@ class DependenciesScreen extends HookConsumerWidget {
         ),
 
         const SizedBox(height: 20),
-
       ],
     );
   }
@@ -621,21 +621,43 @@ class _PackageDetailCard extends ConsumerWidget {
             },
           ),
           const Spacer(),
-          SizedBox(
-            width: double.infinity,
-            height: 46,
-            child: ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: isAdded ? const Color(0xFF2A1A1A) : AppTheme.colorPrimaryCyan,
-                foregroundColor: isAdded ? Colors.redAccent : AppTheme.colorNeutralBg,
-                side: isAdded ? const BorderSide(color: Colors.redAccent) : BorderSide.none,
+          Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 46,
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppTheme.colorPrimaryCyan,
+                      side: const BorderSide(color: AppTheme.colorPrimaryCyan),
+                    ),
+                    icon: const Icon(Icons.open_in_new, size: 16),
+                    label: const Text('View on pub.dev'),
+                    onPressed: () => _launchPubDev(package.name),
+                  ),
+                ),
               ),
-              icon: Icon(isAdded ? Icons.remove_circle_outline : Icons.add, size: 18),
-              label: Text(isAdded ? 'Remove from NEAT' : '+ Add to NEAT'),
-              onPressed: () => ref
-                  .read(selectedPackagesProvider.notifier)
-                  .toggle(package.copyWith(isDev: isDev)),
-            ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: SizedBox(
+                  height: 46,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: isAdded
+                          ? const Color(0xFF2A1A1A)
+                          : AppTheme.colorPrimaryCyan,
+                      foregroundColor: isAdded ? Colors.redAccent : AppTheme.colorNeutralBg,
+                      side: isAdded ? const BorderSide(color: Colors.redAccent) : BorderSide.none,
+                    ),
+                    icon: Icon(isAdded ? Icons.remove_circle_outline : Icons.add, size: 18),
+                    label: Text(isAdded ? 'Remove' : 'Add'),
+                    onPressed: () => ref
+                        .read(selectedPackagesProvider.notifier)
+                        .toggle(package.copyWith(isDev: isDev)),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -644,6 +666,13 @@ class _PackageDetailCard extends ConsumerWidget {
 
   String _formatCount(int count) =>
       count >= 1000 ? '${(count / 1000).toStringAsFixed(1)}k' : '$count';
+
+  Future<void> _launchPubDev(String packageName) async {
+    final url = Uri.parse('https://pub.dev/packages/$packageName');
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    }
+  }
 }
 
 // ── Widgets utilitaires ───────────────────────────────────────────────────────

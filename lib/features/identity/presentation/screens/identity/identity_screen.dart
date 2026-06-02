@@ -69,7 +69,7 @@ class IdentityScreen extends HookConsumerWidget {
                         controller: nameController,
                         onChanged: notifier.updateName,
                         decoration: InputDecoration(
-                          hintText: 'e.g., nexus_core_app',
+                          hintText: 'e.g., neat_core_app',
                           errorText: state.validateProjectName(),
                         ),
                       ),
@@ -108,7 +108,7 @@ class IdentityScreen extends HookConsumerWidget {
                         controller: orgController,
                         onChanged: notifier.updateOrganization,
                         decoration: InputDecoration(
-                          hintText: 'com.quantum.nexus',
+                          hintText: 'com.quantum.neat',
                           errorText: state.validateOrganization(),
                         ),
                       ),
