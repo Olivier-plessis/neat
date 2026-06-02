@@ -262,7 +262,7 @@ class _TabbedEditor extends HookConsumerWidget {
                       },
                       icon: const Icon(Icons.arrow_back, size: 14),
                       label: const Text('Change approach', style: TextStyle(fontSize: 12)),
-                      style: TextButton.styleFrom(foregroundColor: Colors.white24),
+                      style: TextButton.styleFrom(foregroundColor: Colors.white60),
                     ),
                   ],
                 ),
@@ -289,7 +289,7 @@ class _TabbedEditor extends HookConsumerWidget {
                         child: Text(
                           '← Change approach',
                           style: TextStyle(
-                            color: Colors.white24,
+                            color: Colors.white60,
                             fontSize: 11,
                             decoration: TextDecoration.underline,
                             decorationColor: Colors.white24,
@@ -306,11 +306,7 @@ class _TabbedEditor extends HookConsumerWidget {
                 Expanded(
                   child: IndexedStack(
                     index: activeTab.value,
-                    children: const [
-                      _ColorsTab(),
-                      _TypographyTab(),
-                      _ButtonsShapesTab(),
-                    ],
+                    children: const [_ColorsTab(), _TypographyTab(), _ButtonsShapesTab()],
                   ),
                 ),
               ],
@@ -416,8 +412,8 @@ class _ColorsTabState extends ConsumerState<_ColorsTab> {
                 onTap: _pickImage,
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
-                  width: 160,
-                  height: 130,
+                  width: 260,
+                  height: 230,
                   decoration: BoxDecoration(
                     color: const Color(0xFF1A1A1E),
                     borderRadius: BorderRadius.circular(12),
@@ -434,7 +430,7 @@ class _ColorsTabState extends ConsumerState<_ColorsTab> {
                             children: [
                               Image.file(File(imagePath), fit: BoxFit.cover),
                               if (_extracting)
-                                Container(
+                                ColoredBox(
                                   color: Colors.black54,
                                   child: const Center(
                                     child: SizedBox(
@@ -762,7 +758,6 @@ class _TypographyTab extends ConsumerWidget {
             const SizedBox(width: 16),
             // Base Size
             Expanded(
-              flex: 1,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -797,7 +792,7 @@ class _TypographyTab extends ConsumerWidget {
         Expanded(
           child: ListView.separated(
             itemCount: activeKeys.length + 1, // +1 for "Add style" button
-            separatorBuilder: (_, __) => const SizedBox(height: 10),
+            separatorBuilder: (_, _) => const SizedBox(height: 10),
             itemBuilder: (context, i) {
               if (i == activeKeys.length) {
                 // "Add style" button
@@ -862,7 +857,7 @@ class _TextStyleCard extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               Text(
-                '$fontFamily  ${config.fontSize.round()}px · w${config.fontWeight}',
+                '$fontFamily  ${config.fontSize.round().toDouble()} · w${config.fontWeight}',
                 style: const TextStyle(
                   color: AppTheme.colorPrimaryCyan,
                   fontSize: 10,
@@ -914,7 +909,7 @@ class _TextStyleCard extends StatelessWidget {
                   value: config.fontSize,
                   min: 8,
                   max: 96,
-                  unit: 'px',
+                  unit: '.0',
                   decimals: 0,
                   onChanged: (v) => onChanged(config.copyWith(fontSize: v)),
                 ),
@@ -933,7 +928,7 @@ class _TextStyleCard extends StatelessWidget {
                   value: config.letterSpacing,
                   min: -2,
                   max: 4,
-                  unit: 'px',
+                  unit: '',
                   decimals: 2,
                   onChanged: (v) => onChanged(config.copyWith(letterSpacing: v)),
                 ),
@@ -965,7 +960,7 @@ class _AddStyleButton extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.transparent,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.white12, style: BorderStyle.solid),
+          border: Border.all(color: Colors.white12),
         ),
         child: const Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -1001,7 +996,7 @@ class _AddStyleDialog extends StatelessWidget {
                 (k) => ListTile(
                   title: Text(k.label, style: const TextStyle(color: Colors.white, fontSize: 14)),
                   subtitle: Text(
-                    '${kM3Defaults[k]!.fontSize.round()}px · w${kM3Defaults[k]!.fontWeight}',
+                    '${kM3Defaults[k]!.fontSize.round().toDouble()} · w${kM3Defaults[k]!.fontWeight}',
                     style: const TextStyle(color: Colors.white38, fontSize: 12),
                   ),
                   onTap: () {
@@ -1059,7 +1054,7 @@ class _ButtonsShapesTab extends ConsumerWidget {
                         value: state.containerRadius,
                         min: 0,
                         max: 32,
-                        unit: 'px',
+                        unit: '',
                         decimals: 0,
                         onChanged: notifier.setContainerRadius,
                       ),
@@ -1119,7 +1114,6 @@ class _ButtonsShapesTab extends ConsumerWidget {
             globalRadius: state.containerRadius,
             previewColor: state.lightScheme.primary,
             onPrimaryColor: state.lightScheme.onPrimary,
-            showElevation: false,
             onChanged: notifier.setFilledButton,
           ),
           const SizedBox(height: 10),
@@ -1187,7 +1181,6 @@ class _ButtonConfigCard extends StatelessWidget {
         border: Border.all(color: Colors.white10),
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           // Sliders
           Expanded(
@@ -1392,7 +1385,7 @@ class _RadiusOverrideSlider extends StatelessWidget {
             overlayColor: AppTheme.colorPrimaryCyan.withValues(alpha: 0.12),
             thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
           ),
-          child: Slider(value: value, min: 0, max: 32, divisions: 32, onChanged: onChanged),
+          child: Slider(value: value, max: 32, divisions: 32, onChanged: onChanged),
         ),
       ],
     );
@@ -1452,7 +1445,7 @@ class _FlexColorSchemeTabState extends ConsumerState<_FlexColorSchemeTab> {
               label: const Text('Open Playground', style: TextStyle(fontSize: 12)),
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppTheme.colorPrimaryCyan,
-                side: const BorderSide(color: AppTheme.colorPrimaryCyan, width: 1),
+                side: const BorderSide(color: AppTheme.colorPrimaryCyan),
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
@@ -1464,7 +1457,7 @@ class _FlexColorSchemeTabState extends ConsumerState<_FlexColorSchemeTab> {
           _SectionHeader(icon: Icons.code_outlined, label: 'Import Configuration'),
           const SizedBox(height: 12),
 
-          Container(
+          DecoratedBox(
             decoration: BoxDecoration(
               color: const Color(0xFF0D0D0F),
               borderRadius: BorderRadius.circular(10),
@@ -1497,7 +1490,7 @@ class _FlexColorSchemeTabState extends ConsumerState<_FlexColorSchemeTab> {
                         onPressed: _applyCode,
                         style: OutlinedButton.styleFrom(
                           foregroundColor: AppTheme.colorPrimaryCyan,
-                          side: const BorderSide(color: AppTheme.colorPrimaryCyan, width: 1),
+                          side: const BorderSide(color: AppTheme.colorPrimaryCyan),
                           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                           minimumSize: Size.zero,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
@@ -1765,7 +1758,6 @@ class _LivePreview extends ConsumerWidget {
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.06 + state.cardElevation * 0.025),
               blurRadius: state.cardElevation * 3,
-              spreadRadius: 0,
               offset: Offset(0, state.cardElevation),
             ),
           ]
@@ -2132,7 +2124,6 @@ class _WeightSlider extends StatelessWidget {
           ),
           child: Slider(
             value: idx.toDouble(),
-            min: 0,
             max: (_weights.length - 1).toDouble(),
             divisions: _weights.length - 1,
             onChanged: (v) => onChanged(_weights[v.round()]),
