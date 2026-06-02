@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
-
-import '../../../../../core/theme/app_theme.dart';
-import '../../providers/flutter_sdk_versions_provider.dart';
-import '../../providers/identity_provider.dart';
+import 'package:neat/core/theme/app_theme.dart';
+import 'package:neat/features/identity/presentation/providers/flutter_sdk_versions_provider.dart';
+import 'package:neat/features/identity/presentation/providers/identity_provider.dart';
 
 class IdentityScreen extends HookConsumerWidget {
   const IdentityScreen({super.key});
@@ -18,10 +17,12 @@ class IdentityScreen extends HookConsumerWidget {
     final nameController = useTextEditingController(text: initialState.name);
     final orgController = useTextEditingController(text: initialState.organization);
     final pathController = useTextEditingController(text: initialState.projectPath);
+    final descriptionController = useTextEditingController(text: initialState.description);
 
     final targetPlatforms = ref.watch(identityProvider.select((s) => s.targetPlatforms));
     final flutterVersion = ref.watch(identityProvider.select((s) => s.flutterVersion));
     final projectPath = ref.watch(identityProvider.select((s) => s.projectPath));
+    final state = ref.watch(identityProvider);
     useEffect(() {
       pathController.text = projectPath;
       return null;
@@ -66,8 +67,29 @@ class IdentityScreen extends HookConsumerWidget {
                       const SizedBox(height: 8),
                       TextField(
                         controller: nameController,
-                        onChanged: notifier.updateName, // Pousse directement dans le provider
-                        decoration: const InputDecoration(hintText: 'e.g., nexus_core_app'),
+                        onChanged: notifier.updateName,
+                        decoration: InputDecoration(
+                          hintText: 'e.g., nexus_core_app',
+                          errorText: state.validateProjectName(),
+                        ),
+                      ),
+
+                      const SizedBox(height: 24),
+
+                      const Text(
+                        'PROJECT DESCRIPTION',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey,
+                          letterSpacing: 1,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: descriptionController,
+                        onChanged: notifier.updateDescription,
+                        decoration: const InputDecoration(hintText: 'my flutter app description'),
                       ),
 
                       const SizedBox(height: 24),
@@ -84,9 +106,11 @@ class IdentityScreen extends HookConsumerWidget {
                       const SizedBox(height: 8),
                       TextField(
                         controller: orgController,
-                        onChanged:
-                            notifier.updateOrganization, // Pousse directement dans le provider
-                        decoration: const InputDecoration(hintText: 'com.quantum.nexus'),
+                        onChanged: notifier.updateOrganization,
+                        decoration: InputDecoration(
+                          hintText: 'com.quantum.nexus',
+                          errorText: state.validateOrganization(),
+                        ),
                       ),
 
                       const SizedBox(height: 24),
@@ -150,7 +174,16 @@ class IdentityScreen extends HookConsumerWidget {
 
                     const SizedBox(height: 40),
 
-                    _buildSectionTitle('Environment Setup'),
+                    Row(
+                      children: [
+                        _buildSectionTitle('Environment Setup'),
+                        const SizedBox(width: 12),
+                        Tooltip(
+                          message: 'Generates .fvmrc to sync Flutter SDK version across your team',
+                          child: Icon(Icons.info_outline),
+                        ),
+                      ],
+                    ),
                     const SizedBox(height: 16),
                     const Text(
                       'FLUTTER SDK VERSION',

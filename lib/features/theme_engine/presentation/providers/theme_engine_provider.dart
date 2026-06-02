@@ -118,11 +118,11 @@ const Map<TextStyleKey, TextStyleConfig> kM3Defaults = {
   TextStyleKey.titleLarge:
       TextStyleConfig(fontSize: 22, fontWeight: 400, letterSpacing: 0, height: 1.27),
   TextStyleKey.titleMedium:
-      TextStyleConfig(fontSize: 16, fontWeight: 500, letterSpacing: 0.15, height: 1.50),
+      TextStyleConfig(fontSize: 16, fontWeight: 500, letterSpacing: 0.15),
   TextStyleKey.titleSmall:
       TextStyleConfig(fontSize: 14, fontWeight: 500, letterSpacing: 0.1, height: 1.43),
   TextStyleKey.bodyLarge:
-      TextStyleConfig(fontSize: 16, fontWeight: 400, letterSpacing: 0.5, height: 1.50),
+      TextStyleConfig(fontSize: 16, fontWeight: 400, letterSpacing: 0.5),
   TextStyleKey.bodyMedium:
       TextStyleConfig(fontSize: 14, fontWeight: 400, letterSpacing: 0.25, height: 1.43),
   TextStyleKey.bodySmall:
@@ -298,7 +298,7 @@ class ThemeEngineState {
   // ── Derived color schemes ─────────────────────────────────────────────────
 
   ColorScheme get lightScheme => _applyOverrides(
-      ColorScheme.fromSeed(seedColor: seedColor, brightness: Brightness.light));
+      ColorScheme.fromSeed(seedColor: seedColor));
 
   ColorScheme get darkScheme => _applyOverrides(
       ColorScheme.fromSeed(seedColor: seedColor, brightness: Brightness.dark));

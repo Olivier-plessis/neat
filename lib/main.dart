@@ -4,11 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:neat/core/error/error_handler.dart';
 import 'package:neat/core/observers/provider_observer.dart';
+import 'package:neat/core/theme/app_theme.dart';
 import 'package:neat/core/utils/app_logger.dart';
+import 'package:neat/features/splash/presentation/screens/splash_screen.dart';
 import 'package:window_manager/window_manager.dart';
-
-import 'core/theme/app_theme.dart';
-import 'features/splash/presentation/screens/splash_screen.dart';
 
 Future<void> main() async => bootstrap();
 

@@ -7,12 +7,11 @@ import 'package:neat/features/dependencies/domain/models/pub_package.dart';
 import 'package:neat/features/dependencies/presentation/providers/dependencies_provider.dart';
 import 'package:neat/features/dependencies/presentation/screens/dependencies_screen.dart';
 import 'package:neat/features/identity/presentation/providers/identity_provider.dart';
+import 'package:neat/features/identity/presentation/providers/stepper_provider.dart';
 import 'package:neat/features/identity/presentation/screens/identity/identity_screen.dart';
 import 'package:neat/features/identity/presentation/screens/launch_screen.dart';
 import 'package:neat/features/theme_engine/presentation/providers/theme_engine_provider.dart';
 import 'package:neat/features/theme_engine/presentation/screens/theme_engine_screen.dart';
-
-import '../providers/stepper_provider.dart';
 
 class MainLayout extends ConsumerWidget {
   const MainLayout({super.key});
@@ -195,8 +194,8 @@ class MainLayout extends ConsumerWidget {
               color: isSelected
                   ? AppTheme.colorPrimaryCyan
                   : reachable
-                      ? Colors.grey[600]
-                      : Colors.grey[800],
+                  ? Colors.grey[600]
+                  : Colors.grey[800],
               size: 16,
             ),
             const SizedBox(width: 10),
@@ -206,8 +205,8 @@ class MainLayout extends ConsumerWidget {
                 color: isSelected
                     ? Colors.white
                     : reachable
-                        ? Colors.grey[500]
-                        : Colors.grey[700],
+                    ? Colors.grey[500]
+                    : Colors.grey[700],
                 fontSize: 12,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                 letterSpacing: 0.8,
@@ -286,9 +285,7 @@ class _NavBar extends ConsumerWidget {
                   ? () {
                       // Lazy: add flex dep here if user chose FlexColorScheme
                       if (step == NeatStep.themeEngine) {
-                        final approach = ref.read(
-                          themeEngineProvider.select((s) => s.approach),
-                        );
+                        final approach = ref.read(themeEngineProvider.select((s) => s.approach));
                         if (approach == ThemeApproach.flexColorScheme) {
                           ref.read(selectedPackagesProvider.notifier).addAll([
                             const PubPackage(
@@ -329,7 +326,7 @@ class _NavBar extends ConsumerWidget {
 bool _isStepValid(NeatStep step, WidgetRef ref) {
   return switch (step) {
     NeatStep.identity => ref.watch(
-      identityProvider.select((s) => s.name.isNotEmpty && s.projectPath.isNotEmpty),
+      identityProvider.select((s) => s.isIdentityValid && s.projectPath.isNotEmpty),
     ),
     NeatStep.themeEngine => ref.watch(
       themeEngineProvider.select((s) => s.approach != ThemeApproach.none),
