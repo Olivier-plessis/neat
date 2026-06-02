@@ -333,7 +333,7 @@ class AppTheme {
   static ThemeData get light => ThemeData(
     useMaterial3: true,
     colorScheme: ColorScheme.fromSeed(
-      seedColor: Palette.brand,
+      seedColor: Palette.primary,
       brightness: Brightness.light,
     ),
     extensions: const [AppColors.light],
@@ -369,8 +369,8 @@ $textThemeEntries
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
-        backgroundColor: Palette.brand,
-        foregroundColor: Palette.onBrand,
+        backgroundColor: Palette.primary,
+        foregroundColor: Palette.onPrimary,
         elevation: 0,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular($frStr)),
         textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
@@ -379,8 +379,8 @@ $textThemeEntries
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
-        foregroundColor: Palette.brand,
-        side: const BorderSide(color: Palette.brand, width: $oSt),
+        foregroundColor: Palette.primary,
+        side: const BorderSide(color: Palette.primary, width: $oSt),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular($orStr)),
         textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
         padding: const EdgeInsets.symmetric(horizontal: $oHP, vertical: $oVP),
@@ -388,7 +388,7 @@ $textThemeEntries
     ),
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
-        foregroundColor: Palette.brand,
+        foregroundColor: Palette.primary,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular($trStr)),
         textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
         padding: const EdgeInsets.symmetric(horizontal: $tHP, vertical: $tVP),
@@ -408,7 +408,7 @@ $textThemeEntries
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular($orStr),
-        borderSide: const BorderSide(color: Palette.brand, width: 1.5),
+        borderSide: const BorderSide(color: Palette.primary, width: 1.5),
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular($orStr),
@@ -436,7 +436,7 @@ $textThemeEntries
 
   static ThemeData get dark => light.copyWith(
     colorScheme: ColorScheme.fromSeed(
-      seedColor: Palette.brand,
+      seedColor: Palette.primary,
       brightness: Brightness.dark,
     ),
     extensions: const [AppColors.light],
