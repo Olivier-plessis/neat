@@ -11,7 +11,6 @@ import 'package:neat/features/identity/domain/services/templates/theme_templates
 import 'package:neat/features/identity/presentation/providers/identity_provider.dart';
 import 'package:neat/features/theme_engine/presentation/providers/theme_engine_provider.dart';
 
-
 class LaunchGenerationUsecase {
   const LaunchGenerationUsecase();
 
@@ -36,6 +35,8 @@ class LaunchGenerationUsecase {
       '-e',
       '--org',
       identity.organization,
+      '--description',
+      identity.description,
       '--platforms',
       identity.targetPlatforms.join(','),
       projectDir.path,
@@ -72,10 +73,10 @@ class LaunchGenerationUsecase {
     final httpClient = hasRetrofit
         ? 'retrofit'
         : hasChopper
-            ? 'chopper'
-            : hasDio
-                ? 'dio'
-                : '';
+        ? 'chopper'
+        : hasDio
+        ? 'dio'
+        : '';
     final featureName = identity.name;
     final packageName = identity.name;
 
@@ -121,7 +122,9 @@ class LaunchGenerationUsecase {
     // 6. build_runner — only if code-gen packages are present
     final hasBuildRunner = packages.any((p) => p.name == 'build_runner');
     if (hasBuildRunner) {
-      onLog("[▶] Running 'dart run build_runner build' (may fail on first run due to version resolution)...");
+      onLog(
+        "[▶] Running 'dart run build_runner build' (may fail on first run due to version resolution)...",
+      );
       await _runBuildRunner(projectDir, onLog);
     }
 
@@ -153,10 +156,7 @@ class LaunchGenerationUsecase {
     final lib = '${projectDir.path}/lib';
 
     // ── main.dart ─────────────────────────────────────────────────────────
-    await _write(
-      '$lib/main.dart',
-      DartTemplates.mainDart(packages),
-    );
+    await _write('$lib/main.dart', DartTemplates.mainDart(packages));
 
     // ── app.dart ──────────────────────────────────────────────────────────
     await _write(
@@ -176,8 +176,7 @@ class LaunchGenerationUsecase {
     await _write('$lib/core/usecases/use_case.dart', DartTemplates.coreUsecaseDart());
 
     // ── core/constants ────────────────────────────────────────────────────
-    await _write(
-        '$lib/core/constants/app_route_path.dart', CoreTemplates.appRoutePath());
+    await _write('$lib/core/constants/app_route_path.dart', CoreTemplates.appRoutePath());
 
     // ── core/error ────────────────────────────────────────────────────────
     await _write('$lib/core/error/failure.dart', CoreTemplates.failure());
@@ -254,19 +253,18 @@ class LaunchGenerationUsecase {
 
     // typography/
     await _write(
-        '$t/typography/typography.dart',
-        ThemeTemplates.typographyBarrel(packageName: packageName));
-    await _write('$t/typography/font_size.dart',
-        ThemeTemplates.fontSize(theme.textStyles));
-    await _write('$t/typography/font_weight.dart',
-        ThemeTemplates.fontWeight(theme.fontFamily));
-    await _write('$t/typography/text_style.dart',
-        ThemeTemplates.textStyle(theme.textStyles));
+      '$t/typography/typography.dart',
+      ThemeTemplates.typographyBarrel(packageName: packageName),
+    );
+    await _write('$t/typography/font_size.dart', ThemeTemplates.fontSize(theme.textStyles));
+    await _write('$t/typography/font_weight.dart', ThemeTemplates.fontWeight(theme.fontFamily));
+    await _write('$t/typography/text_style.dart', ThemeTemplates.textStyle(theme.textStyles));
 
     // app_theme_extensions.dart
     await _write(
-        '$t/app_theme_extensions.dart',
-        ThemeTemplates.appThemeExtensions(packageName: packageName));
+      '$t/app_theme_extensions.dart',
+      ThemeTemplates.appThemeExtensions(packageName: packageName),
+    );
 
     // app_theme.dart
     final useFlexColorScheme =
@@ -317,17 +315,21 @@ class LaunchGenerationUsecase {
 
     if (hasBloc || useCubit) {
       if (useCubit) {
+        await _write('$t/brightness_theme/brightness_cubit.dart', ThemeTemplates.brightnessCubit());
         await _write(
-            '$t/brightness_theme/brightness_cubit.dart', ThemeTemplates.brightnessCubit());
-        await _write(
-            '$t/brightness_theme/brightness_state.dart', ThemeTemplates.brightnessCubitState());
+          '$t/brightness_theme/brightness_state.dart',
+          ThemeTemplates.brightnessCubitState(),
+        );
       } else {
+        await _write('$t/brightness_theme/brightness_bloc.dart', ThemeTemplates.brightnessBloc());
         await _write(
-            '$t/brightness_theme/brightness_bloc.dart', ThemeTemplates.brightnessBloc());
+          '$t/brightness_theme/brightness_event.dart',
+          ThemeTemplates.brightnessBlocEvent(),
+        );
         await _write(
-            '$t/brightness_theme/brightness_event.dart', ThemeTemplates.brightnessBlocEvent());
-        await _write(
-            '$t/brightness_theme/brightness_state.dart', ThemeTemplates.brightnessBlocState());
+          '$t/brightness_theme/brightness_state.dart',
+          ThemeTemplates.brightnessBlocState(),
+        );
       }
     }
   }
@@ -354,10 +356,7 @@ class LaunchGenerationUsecase {
       );
       await _write(
         '$r/routes.dart',
-        CoreTemplates.routesBuilder(
-          packageName: packageName,
-          featureName: featureName,
-        ),
+        CoreTemplates.routesBuilder(packageName: packageName, featureName: featureName),
       );
     } else {
       await _write(
@@ -544,10 +543,8 @@ class LaunchGenerationUsecase {
 
   // ── pub get ───────────────────────────────────────────────────────────────
 
-  Future<void> _pubGet(
-      Directory projectDir, String flutter, void Function(String) onLog) async {
-    final result =
-        await Process.run(flutter, ['pub', 'get'], workingDirectory: projectDir.path);
+  Future<void> _pubGet(Directory projectDir, String flutter, void Function(String) onLog) async {
+    final result = await Process.run(flutter, ['pub', 'get'], workingDirectory: projectDir.path);
 
     if (result.exitCode != 0) {
       throw Exception(result.stderr.toString().trim());
@@ -678,5 +675,4 @@ class LaunchGenerationUsecase {
       'Flutter SDK not found. Add it to PATH or install it at ~/flutter or ~/develop/flutter.',
     );
   }
-
 }
