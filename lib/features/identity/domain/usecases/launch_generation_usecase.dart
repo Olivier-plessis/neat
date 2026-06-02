@@ -6,7 +6,12 @@ import 'package:neat/features/cicd/presentation/providers/cicd_provider.dart';
 import 'package:neat/features/dependencies/domain/models/pub_package.dart';
 import 'package:neat/features/identity/domain/services/templates/config_templates.dart';
 import 'package:neat/features/identity/domain/services/templates/core_templates.dart';
-import 'package:neat/features/identity/domain/services/templates/dart_templates.dart';
+import 'package:neat/features/identity/domain/services/templates/dart/app_templates.dart';
+import 'package:neat/features/identity/domain/services/templates/dart/core_dart_templates.dart';
+import 'package:neat/features/identity/domain/services/templates/dart/data_templates.dart';
+import 'package:neat/features/identity/domain/services/templates/dart/domain_templates.dart';
+import 'package:neat/features/identity/domain/services/templates/dart/presentation_templates.dart';
+import 'package:neat/features/identity/domain/services/templates/dart/state_templates.dart';
 import 'package:neat/features/identity/domain/services/templates/theme_templates.dart';
 import 'package:neat/features/identity/presentation/providers/identity_provider.dart';
 import 'package:neat/features/theme_engine/presentation/providers/theme_engine_provider.dart';
@@ -156,12 +161,12 @@ class LaunchGenerationUsecase {
     final lib = '${projectDir.path}/lib';
 
     // ── main.dart ─────────────────────────────────────────────────────────
-    await _write('$lib/main.dart', DartTemplates.mainDart(packages));
+    await _write('$lib/main.dart', AppTemplates.mainDart(packages));
 
     // ── app.dart ──────────────────────────────────────────────────────────
     await _write(
       '$lib/app.dart',
-      DartTemplates.appDart(
+      AppTemplates.appDart(
         name: featureName,
         hasGoRouter: hasGoRouter,
         hasRiverpod: hasRiverpod,
@@ -172,8 +177,8 @@ class LaunchGenerationUsecase {
     );
 
     // ── core/result ───────────────────────────────────────────────────────
-    await _write('$lib/core/result/result.dart', DartTemplates.coreResultDart());
-    await _write('$lib/core/usecases/use_case.dart', DartTemplates.coreUsecaseDart());
+    await _write('$lib/core/result/result.dart', CoreDartTemplates.coreResultDart());
+    await _write('$lib/core/usecases/use_case.dart', CoreDartTemplates.coreUsecaseDart());
 
     // ── core/constants ────────────────────────────────────────────────────
     await _write('$lib/core/constants/app_route_path.dart', CoreTemplates.appRoutePath());
@@ -407,25 +412,25 @@ class LaunchGenerationUsecase {
     // domain/entities
     await _write(
       '$domainBase/entities/${featureName}_entity.dart',
-      DartTemplates.featureEntity(featureName: featureName),
+      DomainTemplates.featureEntity(featureName: featureName, hasFreezed: hasFreezed),
     );
 
     // domain/repositories
     await _write(
       '$domainBase/repositories/i_${featureName}_repository.dart',
-      DartTemplates.featureIRepository(featureName: featureName, packageName: packageName),
+      DomainTemplates.featureIRepository(featureName: featureName, packageName: packageName),
     );
 
     // domain/usecases
     await _write(
       '$domainBase/usecases/get_${featureName}_usecase.dart',
-      DartTemplates.featureGetUsecase(featureName: featureName, packageName: packageName),
+      DomainTemplates.featureGetUsecase(featureName: featureName, packageName: packageName),
     );
 
     // data/models
     await _write(
       '$dataBase/models/${featureName}_model.dart',
-      DartTemplates.featureModel(
+      DataTemplates.featureModel(
         featureName: featureName,
         packageName: packageName,
         hasFreezed: hasFreezed,
@@ -436,10 +441,11 @@ class LaunchGenerationUsecase {
     // data/repositories
     await _write(
       '$dataBase/repositories/${featureName}_repository_impl.dart',
-      DartTemplates.featureRepositoryImpl(
+      DataTemplates.featureRepositoryImpl(
         featureName: featureName,
         packageName: packageName,
         hasHttpClient: hasHttpClient,
+        httpClient: httpClient,
       ),
     );
 
@@ -447,7 +453,7 @@ class LaunchGenerationUsecase {
     if (hasHttpClient) {
       await _write(
         '$dataBase/sources/${featureName}_api_source.dart',
-        DartTemplates.featureApiSource(
+        DataTemplates.featureApiSource(
           featureName: featureName,
           packageName: packageName,
           httpClient: httpClient,
@@ -456,13 +462,13 @@ class LaunchGenerationUsecase {
     }
     await _write(
       '$dataBase/sources/${featureName}_local_source.dart',
-      DartTemplates.featureLocalSource(featureName: featureName, packageName: packageName),
+      DataTemplates.featureLocalSource(featureName: featureName, packageName: packageName),
     );
 
     // presentation/pages
     await _write(
       '$presentationBase/pages/${featureName}_page.dart',
-      DartTemplates.featurePage(
+      PresentationTemplates.featurePage(
         featureName: featureName,
         packageName: packageName,
         hasRiverpod: hasRiverpod,
@@ -476,7 +482,7 @@ class LaunchGenerationUsecase {
     if (hasRiverpod) {
       await _write(
         '$presentationBase/providers/${featureName}_provider.dart',
-        DartTemplates.featureProvider(
+        PresentationTemplates.featureProvider(
           featureName: featureName,
           useAnnotations: useAnnotations,
           useCubit: false,
@@ -485,24 +491,24 @@ class LaunchGenerationUsecase {
     } else if (useCubit) {
       await _write(
         '$presentationBase/cubit/${featureName}_cubit.dart',
-        DartTemplates.featureCubit(featureName: featureName),
+        StateTemplates.featureCubit(featureName: featureName),
       );
       await _write(
         '$presentationBase/cubit/${featureName}_state.dart',
-        DartTemplates.featureCubitState(featureName: featureName),
+        StateTemplates.featureCubitState(featureName: featureName),
       );
     } else if (hasBloc) {
       await _write(
         '$presentationBase/bloc/${featureName}_bloc.dart',
-        DartTemplates.featureBloc(featureName: featureName),
+        StateTemplates.featureBloc(featureName: featureName),
       );
       await _write(
         '$presentationBase/bloc/${featureName}_event.dart',
-        DartTemplates.featureBlocEvent(featureName: featureName),
+        StateTemplates.featureBlocEvent(featureName: featureName),
       );
       await _write(
         '$presentationBase/bloc/${featureName}_state.dart',
-        DartTemplates.featureBlocState(featureName: featureName),
+        StateTemplates.featureBlocState(featureName: featureName),
       );
     }
 
@@ -511,7 +517,7 @@ class LaunchGenerationUsecase {
     if (hasGoRouter && !hasGoRouterBuilder) {
       await _write(
         '$presentationBase/routes/${featureName}_route.dart',
-        DartTemplates.featureRoute(
+        PresentationTemplates.featureRoute(
           featureName: featureName,
           packageName: packageName,
           useBuilder: false,
