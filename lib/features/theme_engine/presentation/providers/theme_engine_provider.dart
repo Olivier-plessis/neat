@@ -318,8 +318,16 @@ class ThemeEngineState {
   }
 
   /// ARGB hex for code generation, e.g. "0xFF00DCE5"
-  String get seedColorHex {
-    final v = seedColor.toARGB32();
+  String get seedColorHex => _hex(seedColor)!;
+
+  /// Override hexes for code generation (null when not overridden).
+  String? get primaryOverrideHex => _hex(primaryOverride);
+  String? get secondaryOverrideHex => _hex(secondaryOverride);
+  String? get tertiaryOverrideHex => _hex(tertiaryOverride);
+
+  String? _hex(Color? c) {
+    if (c == null) return null;
+    final v = c.toARGB32();
     return '0x${v.toRadixString(16).padLeft(8, '0').toUpperCase()}';
   }
 }

@@ -99,6 +99,7 @@ const SizedBox gapH64 = SizedBox(height: Sizes.p64);
 
   static String typographyBarrel({required String packageName}) =>
       '''import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:$packageName/core/theme/constant/constant.dart';
 
 part 'font_size.dart';
@@ -169,11 +170,13 @@ class FontWeightTheme {
 class StyleTheme {
   StyleTheme._();
 
-  static final TextStyle _base = TextStyle(
-    fontFamily: FontFamilyTheme.mainFont,
-    color: Palette.textPrimary,
-    fontWeight: FontWeightTheme.regular,
-  );
+  // Resolved via google_fonts so the chosen family is actually applied
+  // (downloaded & cached at runtime — no font assets to bundle).
+  static TextStyle get _base => GoogleFonts.getFont(
+        FontFamilyTheme.mainFont,
+        color: Palette.textPrimary,
+        fontWeight: FontWeightTheme.regular,
+      );
 
 $getters
 }
@@ -268,6 +271,49 @@ extension AppThemeContext on BuildContext {
 }
 ''';
 
+  // ── app_theme.dart (from the live ThemeEngineState) ───────────────────────
+
+  /// Single source of truth for generating `app_theme.dart` from the current
+  /// [ThemeEngineState]. Used by BOTH the live code preview and the generator,
+  /// so what the user sees is exactly what gets written.
+  static String appThemeForState({
+    required ThemeEngineState theme,
+    required String packageName,
+    bool forceFlex = false,
+  }) {
+    final useFlex = forceFlex || theme.approach == ThemeApproach.flexColorScheme;
+    if (useFlex) {
+      return appThemeFlexColorScheme(
+        packageName: packageName,
+        customCode: theme.flexColorSchemeCode,
+        textStyles: theme.textStyles,
+      );
+    }
+    return appThemeBasic(
+      packageName: packageName,
+      containerRadius: theme.containerRadius,
+      cardElevation: theme.cardElevation,
+      textStyles: theme.textStyles,
+      elevatedRadius: theme.effectiveRadius(theme.elevatedButton),
+      elevatedHPad: theme.elevatedButton.hPadding,
+      elevatedVPad: theme.elevatedButton.vPadding,
+      elevatedElevation: theme.elevatedButton.elevation ?? 4,
+      filledRadius: theme.effectiveRadius(theme.filledButton),
+      filledHPad: theme.filledButton.hPadding,
+      filledVPad: theme.filledButton.vPadding,
+      outlinedRadius: theme.effectiveRadius(theme.outlinedButton),
+      outlinedHPad: theme.outlinedButton.hPadding,
+      outlinedVPad: theme.outlinedButton.vPadding,
+      outlinedStroke: theme.outlinedButton.strokeWidth ?? 1.5,
+      textRadius: theme.effectiveRadius(theme.textButton),
+      textHPad: theme.textButton.hPadding,
+      textVPad: theme.textButton.vPadding,
+      primaryOverrideHex: theme.primaryOverrideHex,
+      secondaryOverrideHex: theme.secondaryOverrideHex,
+      tertiaryOverrideHex: theme.tertiaryOverrideHex,
+    );
+  }
+
   // ── app_theme.dart (basic ThemeData) ──────────────────────────────────────
 
   static String appThemeBasic({
@@ -294,6 +340,10 @@ extension AppThemeContext on BuildContext {
     double textVPad = 8,
     // Typography
     Map<TextStyleKey, TextStyleConfig> textStyles = kM3Defaults,
+    // ColorScheme overrides (hex like '0xFF...'), null = keep seed-derived
+    String? primaryOverrideHex,
+    String? secondaryOverrideHex,
+    String? tertiaryOverrideHex,
   }) {
     final cr = containerRadius.toStringAsFixed(1);
     final el = cardElevation.toStringAsFixed(1);
@@ -322,6 +372,16 @@ extension AppThemeContext on BuildContext {
     // AppBar uses titleLarge if configured, else falls back gracefully
     final hasTitle = textStyles.containsKey(TextStyleKey.titleLarge);
 
+    // Build a `.copyWith(...)` chained on ColorScheme.fromSeed when the user
+    // overrode primary/secondary/tertiary in the Colors tab. Applied to both
+    // brightnesses so the generated theme matches the live preview.
+    final overrideEntries = [
+      if (primaryOverrideHex != null) '      primary: Color($primaryOverrideHex),',
+      if (secondaryOverrideHex != null) '      secondary: Color($secondaryOverrideHex),',
+      if (tertiaryOverrideHex != null) '      tertiary: Color($tertiaryOverrideHex),',
+    ].join('\n');
+    final schemeOverride = overrideEntries.isEmpty ? '' : '.copyWith(\n$overrideEntries\n    )';
+
     return '''import 'package:flutter/material.dart';
 import 'package:$packageName/core/theme/constant/constant.dart';
 import 'package:$packageName/core/theme/typography/typography.dart';
@@ -335,7 +395,7 @@ class AppTheme {
     colorScheme: ColorScheme.fromSeed(
       seedColor: Palette.primary,
       brightness: Brightness.light,
-    ),
+    )$schemeOverride,
     extensions: const [AppColors.light],
     textTheme: TextTheme(
 $textThemeEntries
@@ -438,7 +498,7 @@ $textThemeEntries
     colorScheme: ColorScheme.fromSeed(
       seedColor: Palette.primary,
       brightness: Brightness.dark,
-    ),
+    )$schemeOverride,
     extensions: const [AppColors.light],
     scaffoldBackgroundColor: const Color(0xFF0F172A),
     appBarTheme: const AppBarTheme(
