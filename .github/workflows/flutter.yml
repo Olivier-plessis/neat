@@ -7,7 +7,8 @@ on:
     branches: ["main", "develop"]
 
 jobs:
-  analyze:
+  # Fast lane: analyze + unit/contract tests. Runs on every push & PR.
+  analyze-and-test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -16,6 +17,7 @@ jobs:
         with:
           flutter-version: 3.44.0
           channel: stable
+          cache: true # caches the Flutter SDK install
 
       - run: flutter --version
 
@@ -29,6 +31,39 @@ jobs:
       - name: Analyze project source
         run: flutter analyze
 
-      # No tests yet — enable this once a test/ folder exists.
-      # - name: Run tests
-      #   run: flutter test
+      - name: Run unit & contract tests
+        run: flutter test --exclude-tags integration
+
+  # Heavy lane: generates a real Flutter project end-to-end and runs
+  # `flutter analyze` on the output (the generation regression guard).
+  # Slower + network-heavy, so it's a separate job.
+  generation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.44.0
+          channel: stable
+          cache: true # caches the Flutter SDK install
+
+      # The integration test downloads the generated project's dependencies on
+      # the fly. Cache the global pub-cache so repeat runs skip re-downloading.
+      # Best-effort key (the generated deps aren't in this repo's lockfile), so
+      # restore-keys let us reuse the latest cache regardless of the hash.
+      - name: Cache pub dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache
+          key: pub-cache-${{ runner.os }}-${{ hashFiles('.github/workflows/flutter.yml', 'test/generation/full_generation_integration_test.dart') }}
+          restore-keys: |
+            pub-cache-${{ runner.os }}-
+
+      - run: flutter --version
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Verify end-to-end project generation
+        run: flutter test --tags integration
