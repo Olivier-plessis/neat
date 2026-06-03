@@ -15,9 +15,13 @@ part 'app_gap.dart';
 
   static String appColor({
     String seedHex = '0xFF6366F1',
+    String accentHex = '0xFF1E293B',
+    String errorHex = '0xFFEF4444',
   }) {
     final darkHex = _darkenHex(seedHex, 0.15);
     final subtleHex = _subtleHex(seedHex);
+    final errorDimHex = _darkenHex(errorHex, 0.15);
+    final errorContainerHex = _subtleHex(errorHex);
     return '''part of 'constant.dart';
 
 class Palette {
@@ -29,6 +33,10 @@ class Palette {
   static const Color primaryLight = Color($subtleHex);
   static const Color onPrimary = Color(0xFFFFFFFF);
 
+  // ── Accent (alternate filled — e.g. AppButton "accent" variant) ────────────
+  static const Color accent = Color($accentHex);
+  static const Color onAccent = Color(0xFFFFFFFF);
+
   // ── Text / Neutral ───────────────────────────────────────────────────────
   static const Color textPrimary = Color(0xFF121827);
   static const Color textSecondary = Color(0xFF6B7280);
@@ -38,14 +46,14 @@ class Palette {
   static const Color surface = Color(0xFFFFFFFF);
 
   // ── Semantic Colors ──────────────────────────────────────────────────────
-  static const Color error = Color(0xFFEF4444);
-  static const Color errorDim = Color(0xFFDC2626);
+  static const Color error = Color($errorHex);
+  static const Color errorDim = Color($errorDimHex);
+  static const Color errorContainer = Color($errorContainerHex);
 
   static const Color success = Color(0xFF16A34A);
   static const Color successContainer = Color(0x1A16A34A);
   static const Color warning = Color(0xFFD97706);
   static const Color warningContainer = Color(0x1AD97706);
-  static const Color errorContainer = Color(0x1AEF4444);
   static const Color info = Color(0xFF3B82F6);
   static const Color infoContainer = Color(0x1A3B82F6);
 }
@@ -270,6 +278,574 @@ extension AppThemeContext on BuildContext {
   ColorScheme get colorScheme => Theme.of(this).colorScheme;
 }
 ''';
+
+  // ── components/app_button.dart (opt-in design-system button) ──────────────
+
+  /// A complete design-system button widget, wired to the generated [Palette]
+  /// and theme. Variants, sizes, icon, loading, expand and a dashed border.
+  static String appButtonComponent({required String packageName}) =>
+      '''import 'package:flutter/material.dart';
+import 'package:$packageName/core/theme/constant/constant.dart';
+
+enum AppButtonVariant {
+  primary,
+  destructive,
+  secondary,
+  accent,
+  outlined,
+  outlinedDestructive,
+  ghost,
+  ghostDestructive,
+  link,
+  linkSecondary,
+}
+
+enum AppButtonSize { lg, md, sm }
+
+/// Unified button covering every variant in the design system.
+class AppButton extends StatelessWidget {
+  const AppButton({
+    super.key,
+    required this.label,
+    this.onPressed,
+    this.variant = AppButtonVariant.primary,
+    this.size = AppButtonSize.md,
+    this.icon,
+    this.iconAlignment = IconAlignment.start,
+    this.isLoading = false,
+    this.expand = false,
+    this.dashedBorder = false,
+    this.hasError = false,
+  });
+
+  final String label;
+
+  /// Null disables the button.
+  final VoidCallback? onPressed;
+
+  final AppButtonVariant variant;
+  final AppButtonSize size;
+  final Widget? icon;
+  final IconAlignment iconAlignment;
+  final bool isLoading;
+  final bool expand;
+  final bool dashedBorder;
+  final bool hasError;
+
+  EdgeInsetsGeometry get _padding => switch (size) {
+        AppButtonSize.sm => const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        AppButtonSize.lg => const EdgeInsets.symmetric(horizontal: 24, vertical: 22),
+        AppButtonSize.md => const EdgeInsets.symmetric(horizontal: 20, vertical: 16.5),
+      };
+
+  double get _fontSize => size == AppButtonSize.sm ? 12 : 14;
+  double get _radius => size == AppButtonSize.sm ? 8 : 10;
+  double get _loaderSize => size == AppButtonSize.sm ? 14 : 18;
+  bool get _isDisabled => onPressed == null || isLoading;
+
+  Widget _buildChild(Color contentColor, TextStyle? textStyle) {
+    if (isLoading) {
+      return SizedBox(
+        width: _loaderSize,
+        height: _loaderSize,
+        child: CircularProgressIndicator(
+          strokeWidth: 2,
+          valueColor: AlwaysStoppedAnimation<Color>(contentColor),
+        ),
+      );
+    }
+    final labelWidget = Text(label, style: textStyle);
+    if (icon == null) return labelWidget;
+    final iconWidget = IconTheme(
+      data: IconThemeData(size: _fontSize + 4, color: contentColor),
+      child: icon!,
+    );
+    final children = iconAlignment == IconAlignment.start
+        ? [iconWidget, const SizedBox(width: 8), labelWidget]
+        : [labelWidget, const SizedBox(width: 8), iconWidget];
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: children,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (dashedBorder) return _DashedButton(button: this);
+
+    final theme = Theme.of(context);
+    final onTap = _isDisabled ? null : onPressed;
+    final textStyle = theme.textTheme.labelLarge?.copyWith(
+      fontSize: _fontSize,
+      letterSpacing: 0.5,
+      fontWeight: FontWeight.w600,
+    );
+
+    // Inline text link.
+    if (variant == AppButtonVariant.link || variant == AppButtonVariant.linkSecondary) {
+      return TextButton(
+        onPressed: onTap,
+        style: TextButton.styleFrom(
+          padding: EdgeInsets.zero,
+          minimumSize: Size.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          foregroundColor: Palette.textPrimary,
+          textStyle: textStyle?.copyWith(
+            decoration: TextDecoration.underline,
+            decorationColor: Palette.textPrimary,
+            decorationThickness: 1.5,
+          ),
+        ),
+        child: _buildChild(Palette.textPrimary, null),
+      );
+    }
+
+    final shape = RoundedRectangleBorder(borderRadius: BorderRadius.circular(_radius));
+
+    Widget styled({
+      required Color bg,
+      required Color fg,
+      Color? border,
+    }) {
+      final commonStyle = ButtonStyle(
+        padding: WidgetStateProperty.all(_padding),
+        shape: WidgetStateProperty.all(shape),
+        textStyle: WidgetStateProperty.all(textStyle),
+        backgroundColor: WidgetStateProperty.resolveWith(
+          (s) => s.contains(WidgetState.disabled) ? Palette.divider : bg,
+        ),
+        foregroundColor: WidgetStateProperty.resolveWith(
+          (s) => s.contains(WidgetState.disabled) ? Palette.textSecondary : fg,
+        ),
+        side: border == null
+            ? null
+            : WidgetStateProperty.resolveWith(
+                (s) => BorderSide(
+                  color: s.contains(WidgetState.disabled) ? Palette.divider : border,
+                  width: 1.5,
+                ),
+              ),
+        elevation: WidgetStateProperty.all(0.0),
+      );
+      final isOutlinedOrGhost = bg == Colors.transparent;
+      return isOutlinedOrGhost
+          ? (border != null
+              ? OutlinedButton(onPressed: onTap, style: commonStyle, child: _buildChild(fg, null))
+              : TextButton(onPressed: onTap, style: commonStyle, child: _buildChild(fg, null)))
+          : FilledButton(onPressed: onTap, style: commonStyle, child: _buildChild(fg, null));
+    }
+
+    final button = switch (variant) {
+      AppButtonVariant.primary => styled(bg: Palette.primary, fg: Palette.onPrimary),
+      AppButtonVariant.destructive => styled(bg: Palette.error, fg: Palette.surface),
+      AppButtonVariant.secondary =>
+        styled(bg: Palette.surface, fg: Palette.textPrimary, border: Palette.divider),
+      AppButtonVariant.accent => styled(bg: Palette.accent, fg: Palette.onAccent),
+      AppButtonVariant.outlined =>
+        styled(bg: Colors.transparent, fg: Palette.primary, border: Palette.primary),
+      AppButtonVariant.outlinedDestructive =>
+        styled(bg: Colors.transparent, fg: Palette.error, border: Palette.error),
+      AppButtonVariant.ghost => styled(bg: Colors.transparent, fg: Palette.primary),
+      AppButtonVariant.ghostDestructive => styled(bg: Colors.transparent, fg: Palette.error),
+      AppButtonVariant.link || AppButtonVariant.linkSecondary => const SizedBox.shrink(),
+    };
+
+    return expand ? SizedBox(width: double.infinity, child: button) : button;
+  }
+}
+
+// ── Dashed border button ──────────────────────────────────────────────────────
+
+class _DashedButton extends StatelessWidget {
+  const _DashedButton({required this.button});
+
+  final AppButton button;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final disabled = button._isDisabled;
+    final textColor = disabled ? Palette.textSecondary : Palette.textPrimary;
+    final borderColor = disabled
+        ? Palette.divider
+        : button.hasError
+            ? Palette.error
+            : Palette.primary;
+
+    final textStyle = theme.textTheme.labelLarge?.copyWith(
+      color: textColor,
+      fontSize: button._fontSize,
+      letterSpacing: 0.5,
+      fontWeight: FontWeight.w600,
+    );
+
+    final content = button.expand
+        ? SizedBox(
+            width: double.infinity,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              child: Center(child: button._buildChild(textColor, textStyle)),
+            ),
+          )
+        : Padding(padding: button._padding, child: button._buildChild(textColor, textStyle));
+
+    return GestureDetector(
+      onTap: disabled ? null : button.onPressed,
+      child: CustomPaint(
+        painter: _DashedBorderPainter(color: borderColor, radius: button._radius),
+        child: content,
+      ),
+    );
+  }
+}
+
+class _DashedBorderPainter extends CustomPainter {
+  const _DashedBorderPainter({required this.color, required this.radius});
+
+  final Color color;
+  final double radius;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1.5
+      ..style = PaintingStyle.stroke;
+    final path = Path()
+      ..addRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(0.75, 0.75, size.width - 1.5, size.height - 1.5),
+          Radius.circular(radius),
+        ),
+      );
+    const dashWidth = 6.0;
+    const dashGap = 2.0;
+    for (final metric in path.computeMetrics()) {
+      var distance = 0.0;
+      while (distance < metric.length) {
+        canvas.drawPath(metric.extractPath(distance, distance + dashWidth), paint);
+        distance += dashWidth + dashGap;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DashedBorderPainter old) => old.color != color;
+}
+''';
+
+  // ── components/app_card.dart ──────────────────────────────────────────────
+
+  static String appCardComponent({required String packageName}) =>
+      '''import 'package:flutter/material.dart';
+import 'package:$packageName/core/theme/constant/constant.dart';
+
+/// A standardized surface card: padding, rounded corners, optional tap & shadow.
+class AppCard extends StatelessWidget {
+  const AppCard({
+    required this.child,
+    super.key,
+    this.padding = const EdgeInsets.all(16),
+    this.margin,
+    this.onTap,
+    this.color,
+    this.borderRadius,
+    this.hasShadow = false,
+    this.hasBorder = true,
+  });
+
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+  final EdgeInsetsGeometry? margin;
+  final VoidCallback? onTap;
+  final Color? color;
+  final BorderRadius? borderRadius;
+  final bool hasShadow;
+  final bool hasBorder;
+
+  @override
+  Widget build(BuildContext context) {
+    final radius = borderRadius ?? BorderRadius.circular(12);
+
+    Widget content = Padding(padding: padding, child: child);
+    if (onTap != null) {
+      content = InkWell(borderRadius: radius, onTap: onTap, child: content);
+    }
+
+    return Container(
+      margin: margin,
+      decoration: BoxDecoration(
+        color: color ?? Palette.surface,
+        borderRadius: radius,
+        border: hasBorder ? Border.all(color: Palette.divider) : null,
+        boxShadow: hasShadow
+            ? [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.06),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ]
+            : null,
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: content,
+    );
+  }
+}
+''';
+
+  // ── components/app_text_field.dart ────────────────────────────────────────
+
+  static String appTextFieldComponent({required String packageName}) =>
+      '''import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:$packageName/core/theme/constant/constant.dart';
+
+/// Generic text field: optional label above, error message below, and an
+/// automatic password visibility toggle when [obscureText] is true.
+class AppTextField extends StatefulWidget {
+  const AppTextField({
+    super.key,
+    this.label,
+    this.hint,
+    this.controller,
+    this.focusNode,
+    this.obscureText = false,
+    this.keyboardType,
+    this.textInputAction,
+    this.errorText,
+    this.onChanged,
+    this.onSubmitted,
+    this.enabled = true,
+    this.prefixIcon,
+    this.suffixIcon,
+    this.inputFormatters,
+    this.autofocus = false,
+    this.readOnly = false,
+    this.maxLines = 1,
+    this.minLines,
+  });
+
+  final String? label;
+  final String? hint;
+  final TextEditingController? controller;
+  final FocusNode? focusNode;
+  final bool obscureText;
+  final TextInputType? keyboardType;
+  final TextInputAction? textInputAction;
+  final String? errorText;
+  final ValueChanged<String>? onChanged;
+  final ValueChanged<String>? onSubmitted;
+  final bool enabled;
+  final Widget? prefixIcon;
+  final Widget? suffixIcon;
+  final List<TextInputFormatter>? inputFormatters;
+  final bool autofocus;
+  final bool readOnly;
+  final int? maxLines;
+  final int? minLines;
+
+  @override
+  State<AppTextField> createState() => _AppTextFieldState();
+}
+
+class _AppTextFieldState extends State<AppTextField> {
+  late bool _obscured;
+
+  @override
+  void initState() {
+    super.initState();
+    _obscured = widget.obscureText;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final hasError = widget.errorText != null && widget.errorText!.isNotEmpty;
+
+    Widget? suffix = widget.suffixIcon;
+    if (suffix == null && widget.obscureText) {
+      suffix = IconButton(
+        icon: Icon(
+          _obscured ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+          color: Palette.textSecondary,
+          size: 20,
+        ),
+        onPressed: () => setState(() => _obscured = !_obscured),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (widget.label != null) ...[
+          Text(
+            widget.label!,
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: Palette.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 6),
+        ],
+        TextField(
+          controller: widget.controller,
+          focusNode: widget.focusNode,
+          obscureText: _obscured,
+          keyboardType: widget.keyboardType,
+          textInputAction: widget.textInputAction,
+          onChanged: widget.onChanged,
+          onSubmitted: widget.onSubmitted,
+          enabled: widget.enabled,
+          inputFormatters: widget.inputFormatters,
+          autofocus: widget.autofocus,
+          readOnly: widget.readOnly,
+          maxLines: widget.obscureText ? 1 : widget.maxLines,
+          minLines: widget.minLines,
+          style: theme.textTheme.bodyLarge,
+          decoration: InputDecoration(
+            hintText: widget.hint,
+            prefixIcon: widget.prefixIcon,
+            suffixIcon: suffix,
+            enabledBorder: hasError
+                ? OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: Palette.error, width: 1.5),
+                  )
+                : null,
+          ),
+        ),
+        if (hasError) ...[
+          const SizedBox(height: 4),
+          Text(
+            widget.errorText!,
+            style: theme.textTheme.bodySmall?.copyWith(color: Palette.error),
+          ),
+        ],
+      ],
+    );
+  }
+}
+''';
+
+  // ── widgetbook/main.dart (opt-in catalog) ─────────────────────────────────
+
+  /// Scaffolds a Widgetbook catalog for the enabled [components].
+  /// Lives outside lib/ — run with `flutter run -t widgetbook/main.dart`.
+  static String widgetbookApp({
+    required String packageName,
+    required Set<AppComponent> components,
+  }) {
+    final imports = <String>[
+      "import 'package:flutter/material.dart';",
+      "import 'package:widgetbook/widgetbook.dart';",
+      "import 'package:$packageName/core/theme/app_theme.dart';",
+      for (final c in components)
+        "import 'package:$packageName/components/${c.fileName}';",
+    ].join('\n');
+
+    final entries = components.map(_widgetbookEntry).join('\n');
+
+    return '''$imports
+
+void main() => runApp(const WidgetbookApp());
+
+class WidgetbookApp extends StatelessWidget {
+  const WidgetbookApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Widgetbook.material(
+      addons: [
+        ThemeAddon<ThemeData>(
+          themes: [
+            WidgetbookTheme(name: 'Light', data: AppTheme.light),
+            WidgetbookTheme(name: 'Dark', data: AppTheme.dark),
+          ],
+          themeBuilder: (context, theme, child) => Theme(data: theme, child: child),
+        ),
+        TextScaleAddon(),
+      ],
+      directories: [
+$entries
+      ],
+    );
+  }
+}
+''';
+  }
+
+  static String _widgetbookEntry(AppComponent c) {
+    switch (c) {
+      case AppComponent.button:
+        return '''        WidgetbookComponent(
+          name: 'AppButton',
+          useCases: [
+            WidgetbookUseCase(
+              name: 'Playground',
+              builder: (context) => Center(
+                child: AppButton(
+                  label: context.knobs.string(label: 'Label', initialValue: 'Button'),
+                  variant: context.knobs.list(
+                    label: 'Variant',
+                    options: AppButtonVariant.values,
+                    labelBuilder: (v) => v.name,
+                  ),
+                  size: context.knobs.list(
+                    label: 'Size',
+                    options: AppButtonSize.values,
+                    labelBuilder: (v) => v.name,
+                  ),
+                  isLoading: context.knobs.boolean(label: 'Loading'),
+                  expand: context.knobs.boolean(label: 'Expand'),
+                  onPressed: () {},
+                ),
+              ),
+            ),
+          ],
+        ),''';
+      case AppComponent.card:
+        return '''        WidgetbookComponent(
+          name: 'AppCard',
+          useCases: [
+            WidgetbookUseCase(
+              name: 'Default',
+              builder: (context) => Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: AppCard(
+                    hasShadow: context.knobs.boolean(label: 'Shadow'),
+                    hasBorder: context.knobs.boolean(label: 'Border', initialValue: true),
+                    child: const Text('Card content'),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),''';
+      case AppComponent.textField:
+        return '''        WidgetbookComponent(
+          name: 'AppTextField',
+          useCases: [
+            WidgetbookUseCase(
+              name: 'Default',
+              builder: (context) => Padding(
+                padding: const EdgeInsets.all(24),
+                child: AppTextField(
+                  label: context.knobs.stringOrNull(label: 'Label', initialValue: 'Email'),
+                  hint: context.knobs.string(label: 'Hint', initialValue: 'you@example.com'),
+                  obscureText: context.knobs.boolean(label: 'Obscure'),
+                  errorText: context.knobs.stringOrNull(label: 'Error'),
+                ),
+              ),
+            ),
+          ],
+        ),''';
+    }
+  }
 
   // ── app_theme.dart (from the live ThemeEngineState) ───────────────────────
 
