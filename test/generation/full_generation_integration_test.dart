@@ -5,12 +5,12 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:neat/features/architecture/presentation/providers/architecture_provider.dart';
-import 'package:neat/features/cicd/presentation/providers/cicd_provider.dart';
+import 'package:neat/features/architecture/domain/models/architecture_state.dart';
+import 'package:neat/features/cicd/domain/models/cicd_state.dart';
 import 'package:neat/features/dependencies/domain/models/pub_package.dart';
 import 'package:neat/features/generation/domain/usecases/launch_generation_usecase.dart';
-import 'package:neat/features/identity/presentation/providers/identity_provider.dart';
-import 'package:neat/features/theme_engine/presentation/providers/theme_engine_provider.dart';
+import 'package:neat/features/identity/domain/models/identity_state.dart';
+import 'package:neat/features/theme_engine/domain/models/theme_engine_state.dart';
 
 /// End-to-end generation guard (the Desktop equivalent of the extension's
 /// `verify:gen`): generates a *real* Flutter project on disk with a heavy,

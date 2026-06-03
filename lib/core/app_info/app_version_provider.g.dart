@@ -10,21 +10,21 @@ part of 'app_version_provider.dart';
 // ignore_for_file: type=lint, type=warning
 /// The app version label, read once from the platform bundle.
 ///
-/// Returns "vX.Y.Z" (e.g. "v1.0.0"). Kept alive so the lookup runs only once.
+/// Returns "vX.Y.Z+B" (e.g. "v1.0.0+1"). Kept alive so the lookup runs once.
 
 @ProviderFor(appVersion)
 final appVersionProvider = AppVersionProvider._();
 
 /// The app version label, read once from the platform bundle.
 ///
-/// Returns "vX.Y.Z" (e.g. "v1.0.0"). Kept alive so the lookup runs only once.
+/// Returns "vX.Y.Z+B" (e.g. "v1.0.0+1"). Kept alive so the lookup runs once.
 
 final class AppVersionProvider
     extends $FunctionalProvider<AsyncValue<String>, String, FutureOr<String>>
     with $FutureModifier<String>, $FutureProvider<String> {
   /// The app version label, read once from the platform bundle.
   ///
-  /// Returns "vX.Y.Z" (e.g. "v1.0.0"). Kept alive so the lookup runs only once.
+  /// Returns "vX.Y.Z+B" (e.g. "v1.0.0+1"). Kept alive so the lookup runs once.
   AppVersionProvider._()
     : super(
         from: null,

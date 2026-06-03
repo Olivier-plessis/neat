@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:neat/core/theme/app_theme.dart';
+import 'package:neat/features/architecture/domain/models/architecture_state.dart';
 import 'package:neat/features/architecture/domain/usecases/generate_tree_usecase.dart';
 import 'package:neat/features/architecture/presentation/providers/architecture_provider.dart';
 import 'package:neat/features/dependencies/presentation/providers/dependencies_provider.dart';

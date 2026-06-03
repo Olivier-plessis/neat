@@ -1,4 +1,4 @@
-import 'package:neat/features/theme_engine/presentation/providers/theme_engine_provider.dart';
+import 'package:neat/features/theme_engine/domain/models/theme_engine_state.dart';
 
 class ThemeTemplates {
   ThemeTemplates._();
