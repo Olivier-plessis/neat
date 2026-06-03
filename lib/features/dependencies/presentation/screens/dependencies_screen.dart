@@ -13,6 +13,7 @@ class DependenciesScreen extends HookConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final searchController = useTextEditingController();
+    final rightTabIndex = useState(0); // 0: Details, 1: Selection
 
     final query = ref.watch(searchQueryProvider);
     final searchAsync = ref.watch(packageSearchResultsProvider);
@@ -20,8 +21,13 @@ class DependenciesScreen extends HookConsumerWidget {
 
     final selectedCount = ref.watch(selectedPackagesProvider.select((l) => l.length));
 
+    // Bascule auto vers l'onglet Détails quand on sélectionne un package dans la recherche
+    ref.listen(packageForDetailProvider, (prev, next) {
+      if (next != null) rightTabIndex.value = 0;
+    });
+
     return Column(
-      crossAxisAlignment: .start,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
@@ -37,7 +43,8 @@ class DependenciesScreen extends HookConsumerWidget {
               const SizedBox(width: 12),
               _PackagesBadgeButton(
                 count: selectedCount,
-                onTap: () => _showManagedPackagesSheet(context, ref),
+                isSelected: rightTabIndex.value == 1,
+                onTap: () => rightTabIndex.value = 1,
               ),
             ],
           ],
@@ -73,6 +80,7 @@ class DependenciesScreen extends HookConsumerWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Colonne gauche : Recherche
               Expanded(
                 flex: 5,
                 child: _SearchResults(
@@ -81,29 +89,177 @@ class DependenciesScreen extends HookConsumerWidget {
                   selectedForDetail: selectedForDetail,
                 ),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 20),
+
+              // Colonne droite : Tabs (Détails / Sélection)
               Expanded(
                 flex: 4,
-                child: selectedForDetail != null
-                    ? _PackageDetailCard(package: selectedForDetail)
-                    : _EmptyDetailCard(hasQuery: query.isNotEmpty),
+                child: Column(
+                  children: [
+                    _RightPanelTabs(
+                      activeIndex: rightTabIndex.value,
+                      onChanged: (i) => rightTabIndex.value = i,
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: rightTabIndex.value == 0
+                          ? (selectedForDetail != null
+                              ? _PackageDetailCard(package: selectedForDetail)
+                              : _EmptyDetailCard(hasQuery: query.isNotEmpty))
+                          : const _ManagedPackagesPanel(),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
         ),
-
         const SizedBox(height: 20),
       ],
     );
   }
+}
 
-  void _showManagedPackagesSheet(BuildContext context, WidgetRef ref) {
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (_) =>
-          UncontrolledProviderScope(container: ref.container, child: const _ManagedPackagesSheet()),
+// ── Tabs Header ───────────────────────────────────────────────────────────────
+
+class _RightPanelTabs extends StatelessWidget {
+  const _RightPanelTabs({required this.activeIndex, required this.onChanged});
+
+  final int activeIndex;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: const Color(0xFF141416),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          _TabButton(
+            label: 'PACKAGE DETAILS',
+            icon: Icons.info_outline,
+            isSelected: activeIndex == 0,
+            onTap: () => onChanged(0),
+          ),
+          _TabButton(
+            label: 'MY SELECTION',
+            icon: Icons.shopping_basket_outlined,
+            isSelected: activeIndex == 1,
+            onTap: () => onChanged(1),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TabButton extends StatelessWidget {
+  const _TabButton({
+    required this.label,
+    required this.icon,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            color: isSelected ? const Color(0xFF1E1E22) : Colors.transparent,
+            borderRadius: BorderRadius.circular(7),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 14,
+                color: isSelected ? AppTheme.colorPrimaryCyan : Colors.white24,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  color: isSelected ? Colors.white : Colors.white24,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Managed Packages Panel ────────────────────────────────────────────────────
+
+class _ManagedPackagesPanel extends ConsumerWidget {
+  const _ManagedPackagesPanel();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final packages = ref.watch(selectedPackagesProvider);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF18181C),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                const Icon(Icons.inventory_2_outlined, color: AppTheme.colorPrimaryCyan, size: 16),
+                const SizedBox(width: 8),
+                Text(
+                  '${packages.length} SELECTED PACKAGES',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(color: Colors.white10, height: 1),
+          if (packages.isEmpty)
+            const Expanded(
+              child: Center(
+                child: Text('No packages added yet.', style: TextStyle(color: Colors.grey)),
+              ),
+            )
+          else
+            Expanded(
+              child: ListView.separated(
+                padding: const EdgeInsets.all(16),
+                itemCount: packages.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 10),
+                itemBuilder: (_, i) => _SheetPackageTile(package: packages[i]),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -145,9 +301,14 @@ class _DevPresetButton extends StatelessWidget {
 // ── Badge button ──────────────────────────────────────────────────────────────
 
 class _PackagesBadgeButton extends StatelessWidget {
-  const _PackagesBadgeButton({required this.count, required this.onTap});
+  const _PackagesBadgeButton({
+    required this.count,
+    required this.onTap,
+    required this.isSelected,
+  });
 
   final int count;
+  final bool isSelected;
   final VoidCallback onTap;
 
   @override
@@ -160,19 +321,26 @@ class _PackagesBadgeButton extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: BoxDecoration(
-              color: const Color(0xFF1A1A1E),
+              color: isSelected ? const Color(0xFF1E1E22) : const Color(0xFF1A1A1E),
               borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: AppTheme.colorPrimaryCyan),
+              border: Border.all(
+                color: isSelected ? AppTheme.colorPrimaryCyan : Colors.white24,
+                width: isSelected ? 1.5 : 1,
+              ),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.archive_outlined, color: AppTheme.colorPrimaryCyan, size: 18),
+                Icon(
+                  Icons.archive_outlined,
+                  color: isSelected ? AppTheme.colorPrimaryCyan : Colors.white54,
+                  size: 18,
+                ),
                 const SizedBox(width: 8),
                 Text(
                   '$count Package${count > 1 ? 's' : ''}',
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: isSelected ? Colors.white : Colors.white54,
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                   ),
@@ -180,97 +348,26 @@ class _PackagesBadgeButton extends StatelessWidget {
               ],
             ),
           ),
-          Positioned(
-            top: -4,
-            right: -4,
-            child: Container(
-              width: 10,
-              height: 10,
-              decoration: const BoxDecoration(
-                color: AppTheme.colorPrimaryCyan,
-                shape: BoxShape.circle,
+          if (count > 0 && !isSelected)
+            Positioned(
+              top: -2,
+              right: -2,
+              child: Container(
+                width: 10,
+                height: 10,
+                decoration: const BoxDecoration(
+                  color: AppTheme.colorPrimaryCyan,
+                  shape: BoxShape.circle,
+                ),
               ),
             ),
-          ),
         ],
       ),
     );
   }
 }
 
-// ── Bottom sheet ──────────────────────────────────────────────────────────────
-
-class _ManagedPackagesSheet extends ConsumerWidget {
-  const _ManagedPackagesSheet();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final packages = ref.watch(selectedPackagesProvider);
-
-    return Container(
-      margin: const EdgeInsets.fromLTRB(40, 0, 40, 40),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E1E22),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white10),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-            child: Row(
-              children: [
-                const Icon(Icons.archive_outlined, color: AppTheme.colorPrimaryCyan, size: 20),
-                const SizedBox(width: 10),
-                const Text(
-                  'Manage Dependencies',
-                  style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const Spacer(),
-                IconButton(
-                  icon: const Icon(Icons.close, color: Colors.grey, size: 20),
-                  onPressed: () => Navigator.pop(context),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                ),
-              ],
-            ),
-          ),
-          const Divider(color: Colors.white10, height: 1),
-          if (packages.isEmpty)
-            const Padding(
-              padding: EdgeInsets.all(32),
-              child: Text('No packages added yet.', style: TextStyle(color: Colors.grey)),
-            )
-          else
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 360),
-              child: ListView.separated(
-                shrinkWrap: true,
-                padding: const EdgeInsets.all(16),
-                itemCount: packages.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 8),
-                itemBuilder: (_, i) => _SheetPackageTile(package: packages[i]),
-              ),
-            ),
-          const Divider(color: Colors.white10, height: 1),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: SizedBox(
-              width: double.infinity,
-              height: 44,
-              child: OutlinedButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Back to Search'),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
+// ── Managed Packages Tile ─────────────────────────────────────────────────────
 
 class _SheetPackageTile extends ConsumerStatefulWidget {
   const _SheetPackageTile({required this.package});
@@ -385,12 +482,13 @@ class _SheetPackageTileState extends ConsumerState<_SheetPackageTile> {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      widget.package.isDev ? 'dev_dependency' : 'dependency',
+                      widget.package.isDev ? 'dev' : 'dep',
                       style: TextStyle(
                         color: widget.package.isDev
                             ? const Color(0xFFFFA726)
                             : AppTheme.colorPrimaryCyan,
-                        fontSize: 12,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                   ],
