@@ -8,9 +8,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:neat/core/theme/app_theme.dart';
 import 'package:neat/features/dependencies/presentation/providers/dependencies_provider.dart';
-import 'package:neat/features/identity/domain/services/templates/theme_templates.dart';
 import 'package:neat/features/identity/presentation/providers/identity_provider.dart';
 import 'package:neat/features/theme_engine/domain/services/color_extractor_service.dart';
+import 'package:neat/features/theme_engine/domain/services/theme_templates.dart';
 import 'package:neat/features/theme_engine/presentation/providers/theme_engine_provider.dart';
 
 // ── Root screen ───────────────────────────────────────────────────────────────

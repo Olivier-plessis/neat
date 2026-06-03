@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:neat/features/dependencies/domain/models/pub_package.dart';
-import 'package:neat/features/identity/domain/usecases/launch_generation_usecase.dart';
+import 'package:neat/features/generation/domain/usecases/launch_generation_usecase.dart';
 import 'package:yaml/yaml.dart';
 
 /// A minimal `flutter create` pubspec, used as the [original] input to

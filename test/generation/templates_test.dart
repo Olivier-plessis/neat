@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:neat/features/dependencies/domain/models/pub_package.dart';
-import 'package:neat/features/identity/domain/services/templates/core_templates.dart';
-import 'package:neat/features/identity/domain/services/templates/dart/app_templates.dart';
+import 'package:neat/features/generation/domain/services/templates/core_templates.dart';
+import 'package:neat/features/generation/domain/services/templates/dart/app_templates.dart';
 
 /// Detects template placeholders that were never substituted. A leftover like
 /// `{feature}` or `{app_name}` means a generation bug.
