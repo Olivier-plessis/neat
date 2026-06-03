@@ -11,7 +11,7 @@ class ColorExtractorService {
   Future<Color?> extractSeedColor(String filePath) async {
     try {
       final file = File(filePath);
-      if (!await file.exists()) return null;
+      if (!file.existsSync()) return null;
 
       final bytes = await file.readAsBytes();
       final decoded = img.decodeImage(bytes);

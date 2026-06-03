@@ -887,7 +887,7 @@ class _TextStyleCard extends StatelessWidget {
                 color: Colors.white,
                 fontSize: config.fontSize.clamp(10, 42),
                 fontWeight: FontWeight.values.firstWhere(
-                  (w) => w.index == (config.fontWeight ~/ 100) - 1,
+                  (w) => w.value == config.fontWeight,
                   orElse: () => FontWeight.w400,
                 ),
                 letterSpacing: config.letterSpacing,
