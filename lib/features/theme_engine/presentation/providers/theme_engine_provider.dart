@@ -7,6 +7,32 @@ part 'theme_engine_provider.g.dart';
 
 enum ThemeApproach { none, customM3, flexColorScheme }
 
+// ── Design-system components (opt-in, generated into lib/components/) ─────────
+
+enum AppComponent {
+  button,
+  card,
+  textField;
+
+  String get label => switch (this) {
+        button => 'AppButton',
+        card => 'AppCard',
+        textField => 'AppTextField',
+      };
+
+  String get fileName => switch (this) {
+        button => 'app_button.dart',
+        card => 'app_card.dart',
+        textField => 'app_text_field.dart',
+      };
+
+  String get description => switch (this) {
+        button => 'Variants, sizes, icon, loading & dashed border',
+        card => 'Surface card with padding, radius, optional tap & shadow',
+        textField => 'Labeled input with error, password toggle & prefix/suffix',
+      };
+}
+
 // ── Available font families ───────────────────────────────────────────────────
 
 const _kFontFamilies = [
@@ -204,6 +230,10 @@ class ThemeEngineState {
     this.flexColorSchemeCode,
     this.surfaceBlendLevel = 13.0,
     this.onSurfaceBlendLevel = 20.0,
+    this.components = const <AppComponent>{},
+    this.generateWidgetbook = false,
+    this.accentColor = const Color(0xFF1E293B),
+    this.destructiveColor = const Color(0xFFEF4444),
   });
 
   final ThemeApproach approach;
@@ -235,6 +265,17 @@ class ThemeEngineState {
   final double surfaceBlendLevel;
   final double onSurfaceBlendLevel;
 
+  // Components
+  /// Design-system components to generate into lib/components/ (opt-in).
+  final Set<AppComponent> components;
+
+  /// When true, scaffold a Widgetbook catalog (widgetbook/main.dart).
+  final bool generateWidgetbook;
+
+  // Semantic palette colors (used by AppButton variants & the theme)
+  final Color accentColor;
+  final Color destructiveColor;
+
   // Preview
   final Brightness defaultBrightness;
 
@@ -265,6 +306,10 @@ class ThemeEngineState {
     Object? flexColorSchemeCode = _kUnset,
     double? surfaceBlendLevel,
     double? onSurfaceBlendLevel,
+    Set<AppComponent>? components,
+    bool? generateWidgetbook,
+    Color? accentColor,
+    Color? destructiveColor,
   }) =>
       ThemeEngineState(
         approach: approach ?? this.approach,
@@ -293,6 +338,10 @@ class ThemeEngineState {
             : flexColorSchemeCode as String?,
         surfaceBlendLevel: surfaceBlendLevel ?? this.surfaceBlendLevel,
         onSurfaceBlendLevel: onSurfaceBlendLevel ?? this.onSurfaceBlendLevel,
+        components: components ?? this.components,
+        generateWidgetbook: generateWidgetbook ?? this.generateWidgetbook,
+        accentColor: accentColor ?? this.accentColor,
+        destructiveColor: destructiveColor ?? this.destructiveColor,
       );
 
   // ── Derived color schemes ─────────────────────────────────────────────────
@@ -324,6 +373,10 @@ class ThemeEngineState {
   String? get primaryOverrideHex => _hex(primaryOverride);
   String? get secondaryOverrideHex => _hex(secondaryOverride);
   String? get tertiaryOverrideHex => _hex(tertiaryOverride);
+
+  /// Semantic color hexes for code generation.
+  String get accentColorHex => _hex(accentColor)!;
+  String get destructiveColorHex => _hex(destructiveColor)!;
 
   String? _hex(Color? c) {
     if (c == null) return null;
@@ -380,6 +433,14 @@ class ThemeEngine extends _$ThemeEngine {
   void setFilledButton(ButtonConfig c) => state = state.copyWith(filledButton: c);
   void setOutlinedButton(ButtonConfig c) => state = state.copyWith(outlinedButton: c);
   void setTextButton(ButtonConfig c) => state = state.copyWith(textButton: c);
+  void toggleComponent(AppComponent c, bool on) => state = state.copyWith(
+        components: on
+            ? {...state.components, c}
+            : state.components.where((x) => x != c).toSet(),
+      );
+  void setGenerateWidgetbook(bool v) => state = state.copyWith(generateWidgetbook: v);
+  void setAccentColor(Color c) => state = state.copyWith(accentColor: c);
+  void setDestructiveColor(Color c) => state = state.copyWith(destructiveColor: c);
 
   // FlexColorScheme
   void setFlexColorSchemeCode(String? code) =>
