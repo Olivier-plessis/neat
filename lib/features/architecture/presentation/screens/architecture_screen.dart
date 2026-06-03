@@ -131,6 +131,22 @@ class ArchitectureScreen extends ConsumerWidget {
 
                       const SizedBox(height: 28),
                       _SectionHeader(
+                        icon: Icons.cloud_off_outlined,
+                        label: 'Storage Strategy',
+                      ),
+                      const SizedBox(height: 12),
+                      _ToggleTile(
+                        title: 'Offline-First (Drift + workspace)',
+                        description:
+                            'Génère un workspace avec un package `_local_storage` (Drift) et un repository local-first par-dessus la source distante.',
+                        value: state.storageStrategy.isOfflineFirst,
+                        onChanged: (v) => notifier.setStorageStrategy(
+                          v ? StorageStrategy.offlineFirst : StorageStrategy.remoteOnly,
+                        ),
+                      ),
+
+                      const SizedBox(height: 28),
+                      _SectionHeader(
                         icon: Icons.bug_report_outlined,
                         label: 'Testing Architecture',
                       ),

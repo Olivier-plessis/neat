@@ -15,4 +15,6 @@ class ArchitectureNotifier extends _$ArchitectureNotifier {
   void toggleMirrorTest(bool val) => state = state.copyWith(mirrorTestStructure: val);
   void setFirstFeatureName(String val) =>
       state = state.copyWith(firstFeatureName: val.trim());
+  void setStorageStrategy(StorageStrategy strategy) =>
+      state = state.copyWith(storageStrategy: strategy);
 }
