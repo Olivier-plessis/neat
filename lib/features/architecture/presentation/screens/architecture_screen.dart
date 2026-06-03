@@ -49,6 +49,24 @@ class ArchitectureScreen extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      _SectionHeader(icon: Icons.bookmark_added_outlined, label: 'First Feature'),
+                      const SizedBox(height: 12),
+                      _FeatureNameField(
+                        initialValue: state.firstFeatureName,
+                        errorText: state.validateFirstFeatureName(),
+                        onChanged: notifier.setFirstFeatureName,
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Generated at lib/features/${state.firstFeatureName.isEmpty ? '...' : state.firstFeatureName}/',
+                        style: TextStyle(
+                          color: AppTheme.colorPrimaryCyan.withValues(alpha: 0.7),
+                          fontSize: 11,
+                          fontFamily: 'monospace',
+                        ),
+                      ),
+                      const SizedBox(height: 28),
+
                       _SectionHeader(icon: Icons.view_quilt_outlined, label: 'Structural Pattern'),
                       const SizedBox(height: 12),
                       IntrinsicHeight(
@@ -229,6 +247,46 @@ class ArchitectureScreen extends ConsumerWidget {
 }
 
 // ── Section header ────────────────────────────────────────────────────────────
+
+// ── First feature name field ──────────────────────────────────────────────────
+
+class _FeatureNameField extends StatefulWidget {
+  const _FeatureNameField({
+    required this.initialValue,
+    required this.errorText,
+    required this.onChanged,
+  });
+
+  final String initialValue;
+  final String? errorText;
+  final ValueChanged<String> onChanged;
+
+  @override
+  State<_FeatureNameField> createState() => _FeatureNameFieldState();
+}
+
+class _FeatureNameFieldState extends State<_FeatureNameField> {
+  late final TextEditingController _ctrl = TextEditingController(text: widget.initialValue);
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: _ctrl,
+      onChanged: widget.onChanged,
+      style: const TextStyle(color: Colors.white, fontSize: 14),
+      decoration: InputDecoration(
+        hintText: 'e.g. home, dashboard, auth',
+        errorText: widget.errorText,
+      ),
+    );
+  }
+}
 
 class _SectionHeader extends StatelessWidget {
   const _SectionHeader({required this.icon, required this.label});

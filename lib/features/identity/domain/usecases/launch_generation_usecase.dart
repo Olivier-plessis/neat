@@ -69,6 +69,7 @@ class LaunchGenerationUsecase {
     // user didn't explicitly add go_router as a standalone package.
     final hasGoRouter = packages.any((p) => p.name == 'go_router') || hasGoRouterBuilder;
     final hasFlexColorScheme = packages.any((p) => p.name == 'flex_color_scheme');
+    final hasEnvied = packages.any((p) => p.name == 'envied');
     final hasFreezed = packages.any((p) => p.name == 'freezed');
     final hasJsonSerializable = packages.any((p) => p.name == 'json_serializable');
     final hasRetrofit = packages.any((p) => p.name == 'retrofit');
@@ -82,8 +83,16 @@ class LaunchGenerationUsecase {
         : hasDio
         ? 'dio'
         : '';
-    final featureName = identity.name;
+    // The package name is the app name; the first feature is named separately
+    // in the Architecture step (defaults to "home") — avoids features/<app_name>.
+    final featureName = architecture.firstFeatureName;
     final packageName = identity.name;
+
+    // flutter_screenutil is added by default, except for web-only projects
+    // (responsive sizing there is handled differently).
+    final isWebOnly =
+        identity.targetPlatforms.length == 1 && identity.targetPlatforms.first == 'web';
+    final useScreenUtil = !isWebOnly;
 
     // 2. Scaffold Clean Architecture directories + files
     onLog('[▶] Scaffolding Clean Architecture...');
@@ -104,13 +113,20 @@ class LaunchGenerationUsecase {
       httpClient: httpClient,
       hasFreezed: hasFreezed,
       hasJsonSerializable: hasJsonSerializable,
+      useScreenUtil: useScreenUtil,
+      hasEnvied: hasEnvied,
       theme: theme,
     );
     onLog('[✓] Scaffold created.');
 
     // 3. pubspec.yaml
     onLog('[▶] Configuring pubspec.yaml...');
-    await _writePubspec(projectDir, packages, withWidgetbook: theme.generateWidgetbook);
+    await _writePubspec(
+      projectDir,
+      packages,
+      withWidgetbook: theme.generateWidgetbook,
+      addScreenUtil: useScreenUtil,
+    );
     onLog('[✓] Dependencies added to pubspec.yaml.');
 
     // 4. CI/CD files
@@ -125,7 +141,8 @@ class LaunchGenerationUsecase {
     await _pubGet(projectDir, flutter, onLog);
 
     // 6. build_runner — only if code-gen packages are present
-    final hasBuildRunner = packages.any((p) => p.name == 'build_runner');
+    // (envied always needs it; we auto-injected the dev dep above).
+    final hasBuildRunner = packages.any((p) => p.name == 'build_runner') || hasEnvied;
     if (hasBuildRunner) {
       onLog(
         "[▶] Running 'dart run build_runner build' (may fail on first run due to version resolution)...",
@@ -133,8 +150,25 @@ class LaunchGenerationUsecase {
       await _runBuildRunner(projectDir, onLog);
     }
 
+    // 7. dart format — guarantees clean, consistent formatting on all output
+    onLog('[▶] Formatting generated code...');
+    await _dartFormat(projectDir, onLog);
+
     onLog('');
     onLog('[✓✓] Project successfully generated at ${projectDir.path}');
+  }
+
+  Future<void> _dartFormat(Directory projectDir, void Function(String) onLog) async {
+    try {
+      final result = await Process.run('dart', ['format', '.'], workingDirectory: projectDir.path);
+      if (result.exitCode == 0) {
+        onLog('[✓] Code formatted.');
+      } else {
+        onLog('[!] dart format skipped: ${result.stderr.toString().trim()}');
+      }
+    } catch (e) {
+      onLog('[!] dart format skipped: $e');
+    }
   }
 
   // ── Scaffold ──────────────────────────────────────────────────────────────
@@ -156,12 +190,22 @@ class LaunchGenerationUsecase {
     required String httpClient,
     required bool hasFreezed,
     required bool hasJsonSerializable,
+    required bool useScreenUtil,
+    required bool hasEnvied,
     required ThemeEngineState theme,
   }) async {
     final lib = '${projectDir.path}/lib';
 
     // ── main.dart ─────────────────────────────────────────────────────────
-    await _write('$lib/main.dart', AppTemplates.mainDart(packages));
+    await _write(
+      '$lib/main.dart',
+      AppTemplates.mainDart(packages, packageName: packageName, useEnvied: hasEnvied),
+    );
+
+    // ── core/env (envied flavors) ───────────────────────────────────────────
+    if (hasEnvied) {
+      await _writeEnv(projectDir, lib, packageName);
+    }
 
     // ── app.dart ──────────────────────────────────────────────────────────
     await _write(
@@ -173,6 +217,7 @@ class LaunchGenerationUsecase {
         useAnnotations: useAnnotations,
         hasBloc: hasBloc,
         useCubit: useCubit,
+        useScreenUtil: useScreenUtil,
       ),
     );
 
@@ -181,7 +226,10 @@ class LaunchGenerationUsecase {
     await _write('$lib/core/usecases/use_case.dart', CoreDartTemplates.coreUsecaseDart());
 
     // ── core/constants ────────────────────────────────────────────────────
-    await _write('$lib/core/constants/app_route_path.dart', CoreTemplates.appRoutePath());
+    await _write(
+      '$lib/core/constants/app_route_path.dart',
+      CoreTemplates.appRoutePath(featureName: featureName),
+    );
 
     // ── core/error ────────────────────────────────────────────────────────
     await _write('$lib/core/error/failure.dart', CoreTemplates.failure());
@@ -198,6 +246,7 @@ class LaunchGenerationUsecase {
       hasBloc: hasBloc,
       useCubit: useCubit,
       hasFlexColorScheme: hasFlexColorScheme,
+      useScreenUtil: useScreenUtil,
       theme: theme,
     );
 
@@ -244,6 +293,7 @@ class LaunchGenerationUsecase {
     required bool hasBloc,
     required bool useCubit,
     required bool hasFlexColorScheme,
+    required bool useScreenUtil,
     required ThemeEngineState theme,
   }) async {
     final t = '$lib/core/theme';
@@ -263,9 +313,12 @@ class LaunchGenerationUsecase {
     // typography/
     await _write(
       '$t/typography/typography.dart',
-      ThemeTemplates.typographyBarrel(packageName: packageName),
+      ThemeTemplates.typographyBarrel(packageName: packageName, useScreenUtil: useScreenUtil),
     );
-    await _write('$t/typography/font_size.dart', ThemeTemplates.fontSize(theme.textStyles));
+    await _write(
+      '$t/typography/font_size.dart',
+      ThemeTemplates.fontSize(theme.textStyles, useScreenUtil: useScreenUtil),
+    );
     await _write('$t/typography/font_weight.dart', ThemeTemplates.fontWeight(theme.fontFamily));
     await _write('$t/typography/text_style.dart', ThemeTemplates.textStyle(theme.textStyles));
 
@@ -284,6 +337,7 @@ class LaunchGenerationUsecase {
         theme: theme,
         packageName: packageName,
         forceFlex: useFlexColorScheme,
+        useScreenUtil: useScreenUtil,
       ),
     );
 
@@ -339,6 +393,45 @@ class LaunchGenerationUsecase {
 
   // ── Router files ──────────────────────────────────────────────────────────
 
+  // ── envied environment system ───────────────────────────────────────────
+
+  Future<void> _writeEnv(Directory projectDir, String lib, String packageName) async {
+    const flavors = ['dev', 'staging', 'prod'];
+
+    // Dart: contract + per-flavor envied classes.
+    await _write('$lib/core/env/app_env.dart', CoreTemplates.appEnv());
+    for (final flavor in flavors) {
+      await _write(
+        '$lib/core/env/envs/${flavor}_env.dart',
+        CoreTemplates.flavorEnv(packageName: packageName, flavor: flavor),
+      );
+    }
+
+    // .env files (must exist before build_runner so envied can read them).
+    for (final flavor in flavors) {
+      await _write('${projectDir.path}/.env.$flavor', CoreTemplates.envFile(appName: packageName));
+    }
+    await _write('${projectDir.path}/.env.example', CoreTemplates.envFile(appName: packageName));
+
+    // Keep secrets out of git (but commit .env.example).
+    await _appendGitignore(projectDir, '''
+
+# Environment files (envied) — keep only .env.example
+.env
+.env.*
+!.env.example
+''');
+  }
+
+  Future<void> _appendGitignore(Directory projectDir, String content) async {
+    final file = File('${projectDir.path}/.gitignore');
+    if (file.existsSync()) {
+      await file.writeAsString(content, mode: FileMode.append);
+    } else {
+      await file.writeAsString(content.trimLeft());
+    }
+  }
+
   Future<void> _writeRouter({
     required String lib,
     required String packageName,
@@ -359,7 +452,7 @@ class LaunchGenerationUsecase {
       );
       await _write(
         '$r/routes.dart',
-        CoreTemplates.routesBuilder(packageName: packageName, featureName: featureName),
+        CoreTemplates.routesAggregator(packageName: packageName, featureName: featureName),
       );
     } else {
       await _write(
@@ -510,9 +603,14 @@ class LaunchGenerationUsecase {
       );
     }
 
-    // presentation/routes — only when NOT using go_router_builder
-    // (with builder, the route class lives in core/router/routes.dart)
-    if (hasGoRouter && !hasGoRouterBuilder) {
+    // presentation/routes
+    if (hasGoRouterBuilder) {
+      // Typed go_router_builder routes, aggregated in core/router/routes.dart.
+      await _write(
+        '$presentationBase/routes/${featureName}_routes.dart',
+        CoreTemplates.featureRoutes(packageName: packageName, featureName: featureName),
+      );
+    } else if (hasGoRouter) {
       await _write(
         '$presentationBase/routes/${featureName}_route.dart',
         PresentationTemplates.featureRoute(
@@ -592,6 +690,7 @@ class LaunchGenerationUsecase {
     Directory projectDir,
     List<PubPackage> packages, {
     bool withWidgetbook = false,
+    bool addScreenUtil = true,
   }) async {
     final pubspecFile = File('${projectDir.path}/pubspec.yaml');
     if (!pubspecFile.existsSync()) return;
@@ -628,9 +727,24 @@ class LaunchGenerationUsecase {
       deps.write('  google_fonts: ^8.1.0\n');
     }
 
+    // Responsive sizing — added by default, skipped for web-only projects.
+    if (addScreenUtil && !uniquePackages.any((p) => p.name == 'flutter_screenutil')) {
+      deps.write('  flutter_screenutil: ^5.9.3\n');
+    }
+
     // Widgetbook catalog (dev-only) when opted in.
     if (withWidgetbook && !uniquePackages.any((p) => p.name == 'widgetbook')) {
       devDeps.write('  widgetbook: ^3.7.0\n');
+    }
+
+    // envied needs its generator (+ build_runner) to produce the .g.dart files.
+    if (uniquePackages.any((p) => p.name == 'envied')) {
+      if (!uniquePackages.any((p) => p.name == 'envied_generator')) {
+        devDeps.write('  envied_generator: ^1.1.1\n');
+      }
+      if (!uniquePackages.any((p) => p.name == 'build_runner')) {
+        devDeps.write('  build_runner: ^2.4.13\n');
+      }
     }
 
     var content = await pubspecFile.readAsString();

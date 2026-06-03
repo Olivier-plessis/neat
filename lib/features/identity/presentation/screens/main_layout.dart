@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:neat/core/app_info/app_version_provider.dart';
 import 'package:neat/core/theme/app_theme.dart';
+import 'package:neat/features/architecture/presentation/providers/architecture_provider.dart';
 import 'package:neat/features/architecture/presentation/screens/architecture_screen.dart';
 import 'package:neat/features/cicd/presentation/screens/cicd_screen.dart';
 import 'package:neat/features/dependencies/domain/models/pub_package.dart';
@@ -334,6 +335,9 @@ bool _isStepValid(NeatStep step, WidgetRef ref) {
     ),
     NeatStep.themeEngine => ref.watch(
       themeEngineProvider.select((s) => s.approach != ThemeApproach.none),
+    ),
+    NeatStep.architecture => ref.watch(
+      architectureProvider.select((s) => s.validateFirstFeatureName() == null),
     ),
     _ => true,
   };

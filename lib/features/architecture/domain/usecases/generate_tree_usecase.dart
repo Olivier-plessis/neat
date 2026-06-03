@@ -14,6 +14,7 @@ class GenerateTreeUsecase {
     required bool hasRiverpod,
     required bool hasBloc,
   }) {
+    final f = state.firstFeatureName.isEmpty ? 'feature' : state.firstFeatureName;
     final lines = <String>[];
     lines.add('lib/');
     lines.add('├── core/');
@@ -21,7 +22,7 @@ class GenerateTreeUsecase {
     lines.add('│   ├── router/');
     lines.add('│   └── utils/');
     lines.add('└── features/');
-    lines.add('    └── {feature}/');
+    lines.add('    └── $f/');
     lines.add('        ├── data/');
     lines.add('        │   ├── models/');
     if (state.includeMappers) lines.add('        │   ├── mappers/');
@@ -49,7 +50,7 @@ class GenerateTreeUsecase {
       lines.add('');
       lines.add('test/');
       lines.add('└── features/');
-      lines.add('    └── {feature}/');
+      lines.add('    └── $f/');
       lines.add('        ├── data/');
       lines.add('        ├── domain/');
       lines.add('        └── presentation/');
@@ -59,6 +60,7 @@ class GenerateTreeUsecase {
   }
 
   String _layerFirst(ArchitectureState state, {required bool hasRiverpod, required bool hasBloc}) {
+    final f = state.firstFeatureName.isEmpty ? 'feature' : state.firstFeatureName;
     final lines = <String>[];
     lines.add('lib/');
     lines.add('├── core/');
@@ -66,18 +68,18 @@ class GenerateTreeUsecase {
     lines.add('│   ├── router/');
     lines.add('│   └── utils/');
     lines.add('├── data/');
-    lines.add('│   └── {feature}/');
+    lines.add('│   └── $f/');
     lines.add('│       ├── models/');
     if (state.includeMappers) lines.add('│       ├── mappers/');
     lines.add('│       ├── repositories/');
     lines.add('│       └── sources/');
     lines.add('├── domain/');
-    lines.add('│   └── {feature}/');
+    lines.add('│   └── $f/');
     lines.add('│       ├── entities/');
     lines.add('│       ├── repositories/');
     lines.add('│       └── usecases/');
     lines.add('└── presentation/');
-    lines.add('    └── {feature}/');
+    lines.add('    └── $f/');
     lines.add('        ├── pages/');
 
     final stateManagementFolders = _stateManagementFolders(
@@ -95,11 +97,11 @@ class GenerateTreeUsecase {
       lines.add('');
       lines.add('test/');
       lines.add('├── data/');
-      lines.add('│   └── {feature}/');
+      lines.add('│   └── $f/');
       lines.add('├── domain/');
-      lines.add('│   └── {feature}/');
+      lines.add('│   └── $f/');
       lines.add('└── presentation/');
-      lines.add('    └── {feature}/');
+      lines.add('    └── $f/');
     }
 
     return lines.join('\n');
