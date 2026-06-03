@@ -4,9 +4,12 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:neat/core/theme/app_theme.dart';
 import 'package:neat/features/dependencies/presentation/providers/dependencies_provider.dart';
+import 'package:neat/features/identity/domain/services/templates/theme_templates.dart';
+import 'package:neat/features/identity/presentation/providers/identity_provider.dart';
 import 'package:neat/features/theme_engine/domain/services/color_extractor_service.dart';
 import 'package:neat/features/theme_engine/presentation/providers/theme_engine_provider.dart';
 
@@ -282,7 +285,7 @@ class _TabbedEditor extends HookConsumerWidget {
                         onTabSelected: (i) => activeTab.value = i,
                       ),
                     ),
-                    GestureDetector(
+                    _Clickable(
                       onTap: notifier.resetApproach,
                       child: const Padding(
                         padding: EdgeInsets.only(left: 16, bottom: 2),
@@ -304,9 +307,28 @@ class _TabbedEditor extends HookConsumerWidget {
                 const SizedBox(height: 20),
 
                 Expanded(
-                  child: IndexedStack(
-                    index: activeTab.value,
-                    children: const [_ColorsTab(), _TypographyTab(), _ButtonsShapesTab()],
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 220),
+                    switchInCurve: Curves.easeOut,
+                    switchOutCurve: Curves.easeIn,
+                    transitionBuilder: (child, anim) => FadeTransition(
+                      opacity: anim,
+                      child: SlideTransition(
+                        position: Tween<Offset>(
+                          begin: const Offset(0, 0.015),
+                          end: Offset.zero,
+                        ).animate(anim),
+                        child: child,
+                      ),
+                    ),
+                    child: KeyedSubtree(
+                      key: ValueKey(activeTab.value),
+                      child: switch (activeTab.value) {
+                        0 => const _ColorsTab(),
+                        1 => const _TypographyTab(),
+                        _ => const _ButtonsShapesTab(),
+                      },
+                    ),
                   ),
                 ),
               ],
@@ -334,7 +356,7 @@ class _CustomTabBar extends StatelessWidget {
     return Row(
       children: List.generate(_kTabLabels.length, (i) {
         final isActive = i == activeIndex;
-        return GestureDetector(
+        return _Clickable(
           onTap: () => onTabSelected(i),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 150),
@@ -383,11 +405,15 @@ class _ColorsTabState extends ConsumerState<_ColorsTab> {
     ref.read(themeEngineProvider.notifier).setImagePath(path);
     setState(() => _extracting = true);
     final color = await const ColorExtractorService().extractSeedColor(path);
-    if (color != null && mounted) {
+    if (!mounted) return;
+    if (color != null) {
       ref.read(themeEngineProvider.notifier).setSeedColor(color);
       ref.read(themeEngineProvider.notifier).clearColorOverrides();
+      neatSnack(context, 'Seed color extracted from image');
+    } else {
+      neatSnack(context, "Couldn't extract a color from this image", success: false);
     }
-    if (mounted) setState(() => _extracting = false);
+    setState(() => _extracting = false);
   }
 
   @override
@@ -408,7 +434,7 @@ class _ColorsTabState extends ConsumerState<_ColorsTab> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Image drop zone
-              GestureDetector(
+              _Clickable(
                 onTap: _pickImage,
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
@@ -526,7 +552,7 @@ class _ColorsTabState extends ConsumerState<_ColorsTab> {
                     if (state.primaryOverride != null ||
                         state.secondaryOverride != null ||
                         state.tertiaryOverride != null)
-                      GestureDetector(
+                      _Clickable(
                         onTap: () => ref.read(themeEngineProvider.notifier).clearColorOverrides(),
                         child: const Text(
                           '↩ Reset all color overrides',
@@ -548,7 +574,7 @@ class _ColorsTabState extends ConsumerState<_ColorsTab> {
 
           // ── Generated color swatches ─────────────────────────────────────
           _SectionHeader(icon: Icons.grid_view_outlined, label: 'Generated Palette'),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
 
           // Row 1: primary, primaryContainer, secondary, surfaceHigh
           Row(
@@ -637,7 +663,7 @@ class _EditableSwatchTile extends StatelessWidget {
         ? Colors.white
         : Colors.black;
 
-    return GestureDetector(
+    return _Clickable(
       onTap: () => showDialog<void>(
         context: context,
         builder: (_) => _ColorPickerDialog(
@@ -751,7 +777,7 @@ class _TypographyTab extends ConsumerWidget {
                     style: TextStyle(color: Colors.white38, fontSize: 10, letterSpacing: 1.2),
                   ),
                   const SizedBox(height: 8),
-                  _FontDropdown(value: state.fontFamily, onChanged: notifier.setFontFamily),
+                  _FontSelector(value: state.fontFamily, onChanged: notifier.setFontFamily),
                 ],
               ),
             ),
@@ -865,7 +891,7 @@ class _TextStyleCard extends StatelessWidget {
                 ),
               ),
               const Spacer(),
-              GestureDetector(
+              _Clickable(
                 onTap: onRemove,
                 child: const Icon(Icons.close, size: 14, color: Colors.white24),
               ),
@@ -883,16 +909,11 @@ class _TextStyleCard extends StatelessWidget {
             ),
             child: Text(
               styleKey.previewText,
-              style: TextStyle(
+              style: neatTextStyle(
+                family: fontFamily,
+                cfg: config,
                 color: Colors.white,
-                fontSize: config.fontSize.clamp(10, 42),
-                fontWeight: FontWeight.values.firstWhere(
-                  (w) => w.value == config.fontWeight,
-                  orElse: () => FontWeight.w400,
-                ),
-                letterSpacing: config.letterSpacing,
-                height: config.height,
-                fontFamily: fontFamily,
+                sizeOverride: config.fontSize.clamp(10, 42),
               ),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
@@ -949,7 +970,7 @@ class _AddStyleButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return _Clickable(
       onTap: () => showDialog<void>(
         context: context,
         builder: (_) => _AddStyleDialog(keys: inactiveKeys, onAdd: onAdd),
@@ -1368,7 +1389,7 @@ class _RadiusOverrideSlider extends StatelessWidget {
             ),
             if (isOverridden) ...[
               const SizedBox(width: 6),
-              GestureDetector(
+              _Clickable(
                 onTap: onReset,
                 child: const Icon(Icons.refresh, size: 12, color: AppTheme.colorPrimaryCyan),
               ),
@@ -1425,6 +1446,10 @@ class _FlexColorSchemeTabState extends ConsumerState<_FlexColorSchemeTab> {
     final code = _codeCtrl.text.trim();
     ref.read(themeEngineProvider.notifier).setFlexColorSchemeCode(code.isEmpty ? null : code);
     ref.read(themeEngineProvider.notifier).setApproach(ThemeApproach.flexColorScheme);
+    neatSnack(
+      context,
+      code.isEmpty ? 'Code cleared — using default scheme' : 'FlexColorScheme code applied',
+    );
   }
 
   @override
@@ -1455,7 +1480,7 @@ class _FlexColorSchemeTabState extends ConsumerState<_FlexColorSchemeTab> {
 
           // ── Code editor ──────────────────────────────────────────────────
           _SectionHeader(icon: Icons.code_outlined, label: 'Import Configuration'),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
 
           DecoratedBox(
             decoration: BoxDecoration(
@@ -1573,7 +1598,7 @@ class _FlexColorSchemeTabState extends ConsumerState<_FlexColorSchemeTab> {
 
           // ── Scheme Definition ────────────────────────────────────────────
           _SectionHeader(icon: Icons.tune_outlined, label: 'Scheme Definition'),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
 
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1739,6 +1764,33 @@ class _FlexColorSchemeTabState extends ConsumerState<_FlexColorSchemeTab> {
 
 // ── Live Preview ──────────────────────────────────────────────────────────────
 
+/// Builds a real [TextStyle] from a [TextStyleConfig] using the chosen Google
+/// font, so the preview renders exactly what the generated theme will use.
+TextStyle neatTextStyle({
+  required String family,
+  required TextStyleConfig cfg,
+  Color? color,
+  double? sizeOverride,
+}) {
+  final weight = FontWeight.values.firstWhere(
+    (w) => w.value == cfg.fontWeight,
+    orElse: () => FontWeight.w400,
+  );
+  final base = TextStyle(
+    fontSize: sizeOverride ?? cfg.fontSize,
+    fontWeight: weight,
+    letterSpacing: cfg.letterSpacing,
+    height: cfg.height,
+    color: color,
+  );
+  try {
+    return GoogleFonts.getFont(family, textStyle: base);
+  } catch (_) {
+    // Unknown family (typo / offline): fall back to the raw family name.
+    return base.copyWith(fontFamily: family);
+  }
+}
+
 class _LivePreview extends ConsumerWidget {
   const _LivePreview();
 
@@ -1747,6 +1799,15 @@ class _LivePreview extends ConsumerWidget {
     final state = ref.watch(themeEngineProvider);
     final isDark = state.defaultBrightness == Brightness.dark;
     final scheme = state.activeScheme;
+
+    // Resolve a configured text style (falls back to M3 default if removed).
+    TextStyle styleFor(TextStyleKey key, Color color, {double? size}) =>
+        neatTextStyle(
+          family: state.fontFamily,
+          cfg: state.textStyles[key] ?? kM3Defaults[key]!,
+          color: color,
+          sizeOverride: size,
+        );
 
     final surfaceBg = isDark ? const Color(0xFF1C1C1F) : const Color(0xFFF9FAFB);
     final cardBg = isDark ? const Color(0xFF2A2A2E) : Colors.white;
@@ -1787,7 +1848,44 @@ class _LivePreview extends ConsumerWidget {
                 style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
               ),
             ),
-            GestureDetector(
+            // View generated code
+            _Clickable(
+              onTap: () {
+                final pkg = ref.read(identityProvider).name.trim();
+                final code = ThemeTemplates.appThemeForState(
+                  theme: state,
+                  packageName: pkg.isEmpty ? 'app' : pkg,
+                );
+                showDialog<void>(
+                  context: context,
+                  builder: (_) => _GeneratedCodeDialog(code: code),
+                );
+              },
+              child: Container(
+                margin: const EdgeInsets.only(right: 10),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: AppTheme.colorPrimaryCyan.withValues(alpha: 0.4)),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.code, size: 13, color: AppTheme.colorPrimaryCyan),
+                    SizedBox(width: 5),
+                    Text(
+                      'Code',
+                      style: TextStyle(
+                        color: AppTheme.colorPrimaryCyan,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            _Clickable(
               onTap: () => ref
                   .read(themeEngineProvider.notifier)
                   .setDefaultBrightness(isDark ? Brightness.light : Brightness.dark),
@@ -1877,12 +1975,7 @@ class _LivePreview extends ConsumerWidget {
                           ),
                           child: Text(
                             'NEW THEME',
-                            style: TextStyle(
-                              color: scheme.primary,
-                              fontSize: 8,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 0.8,
-                            ),
+                            style: styleFor(TextStyleKey.labelSmall, scheme.primary, size: 8),
                           ),
                         ),
                       ],
@@ -1890,16 +1983,12 @@ class _LivePreview extends ConsumerWidget {
                     const SizedBox(height: 10),
                     Text(
                       'Card Anatomy',
-                      style: TextStyle(
-                        color: textPrimary,
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      style: styleFor(TextStyleKey.titleMedium, textPrimary),
                     ),
                     const SizedBox(height: 3),
                     Text(
                       'Observing the fluid radius dynamics.',
-                      style: TextStyle(color: textSecondary, fontSize: 11, height: 1.4),
+                      style: styleFor(TextStyleKey.bodySmall, textSecondary),
                     ),
                     if (state.cardElevation > 0) ...[
                       const SizedBox(height: 8),
@@ -1920,34 +2009,44 @@ class _LivePreview extends ConsumerWidget {
 
               const SizedBox(height: 12),
 
-              // Filled button
+              // Filled button — reflects radius, padding & elevation from config
               AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
                 width: double.infinity,
-                height: 38,
+                padding: EdgeInsets.symmetric(
+                  vertical: state.filledButton.vPadding.clamp(6, 18),
+                  horizontal: state.filledButton.hPadding,
+                ),
                 decoration: BoxDecoration(
                   color: scheme.primary,
                   borderRadius: BorderRadius.circular(filledRadius),
+                  boxShadow: (state.filledButton.elevation ?? 0) > 0
+                      ? [
+                          BoxShadow(
+                            color: scheme.primary.withValues(alpha: 0.4),
+                            blurRadius: (state.filledButton.elevation ?? 0) * 2.5,
+                            offset: Offset(0, (state.filledButton.elevation ?? 0) * 0.6),
+                          ),
+                        ]
+                      : null,
                 ),
                 alignment: Alignment.center,
                 child: Text(
                   'PRIMARY ACTION',
-                  style: TextStyle(
-                    color: scheme.onPrimary,
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1.2,
-                  ),
+                  style: styleFor(TextStyleKey.labelLarge, scheme.onPrimary),
                 ),
               ),
 
               const SizedBox(height: 8),
 
-              // Outlined button
+              // Outlined button — reflects radius, padding & stroke from config
               AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
                 width: double.infinity,
-                height: 38,
+                padding: EdgeInsets.symmetric(
+                  vertical: state.outlinedButton.vPadding.clamp(6, 18),
+                  horizontal: state.outlinedButton.hPadding,
+                ),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(outlinedRadius),
                   border: Border.all(
@@ -1958,12 +2057,7 @@ class _LivePreview extends ConsumerWidget {
                 alignment: Alignment.center,
                 child: Text(
                   'SECONDARY GHOST',
-                  style: TextStyle(
-                    color: scheme.primary,
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1.2,
-                  ),
+                  style: styleFor(TextStyleKey.labelLarge, scheme.primary),
                 ),
               ),
 
@@ -1982,9 +2076,9 @@ class _LivePreview extends ConsumerWidget {
                 alignment: Alignment.centerLeft,
                 child: Text(
                   'Text field…',
-                  style: TextStyle(
-                    color: isDark ? Colors.white38 : const Color(0xFF9CA3AF),
-                    fontSize: 11,
+                  style: styleFor(
+                    TextStyleKey.bodySmall,
+                    isDark ? Colors.white38 : const Color(0xFF9CA3AF),
                   ),
                 ),
               ),
@@ -1997,6 +2091,52 @@ class _LivePreview extends ConsumerWidget {
 }
 
 // ── Shared widgets ────────────────────────────────────────────────────────────
+
+/// Shows a consistent floating snackbar (cyan = success, red = error).
+void neatSnack(BuildContext context, String message, {bool success = true}) {
+  ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: success ? const Color(0xFF0E1A1A) : const Color(0xFF2A1A1A),
+        duration: const Duration(seconds: 2),
+        content: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              success ? Icons.check_circle_outline : Icons.error_outline,
+              color: success ? AppTheme.colorPrimaryCyan : Colors.redAccent,
+              size: 18,
+            ),
+            const SizedBox(width: 10),
+            Flexible(child: Text(message, style: const TextStyle(color: Colors.white))),
+          ],
+        ),
+      ),
+    );
+}
+
+/// A tap target that shows the pointer cursor on hover (desktop affordance).
+/// Drop-in replacement for a simple `GestureDetector(onTap:, child:)`.
+class _Clickable extends StatelessWidget {
+  const _Clickable({required this.onTap, required this.child});
+
+  final VoidCallback onTap;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: child,
+      ),
+    );
+  }
+}
 
 class _SectionHeader extends StatelessWidget {
   const _SectionHeader({required this.icon, required this.label});
@@ -2134,40 +2274,113 @@ class _WeightSlider extends StatelessWidget {
   }
 }
 
-class _FontDropdown extends StatelessWidget {
-  const _FontDropdown({required this.value, required this.onChanged});
+/// Popular Google Fonts shown as suggestions. Any other valid Google Font name
+/// can still be typed — it's validated by attempting to load it.
+const _popularGoogleFonts = <String>[
+  'Inter', 'Poppins', 'Roboto', 'Open Sans', 'Lato', 'Montserrat', 'Nunito',
+  'Raleway', 'Work Sans', 'DM Sans', 'Plus Jakarta Sans', 'Outfit', 'Manrope',
+  'Sora', 'Space Grotesk', 'Rubik', 'Mulish', 'Karla', 'Quicksand',
+  'Josefin Sans', 'Source Sans 3', 'PT Sans', 'Noto Sans', 'Lexend',
+  'Playfair Display', 'Merriweather', 'Lora', 'Bitter', 'Roboto Slab',
+  'Roboto Mono', 'JetBrains Mono', 'Fira Code',
+];
+
+/// Searchable font picker: filter the popular list, or type any Google Font
+/// name (validated on submit).
+class _FontSelector extends StatelessWidget {
+  const _FontSelector({required this.value, required this.onChanged});
 
   final String value;
   final ValueChanged<String> onChanged;
 
+  void _apply(BuildContext context, String font, {TextEditingController? controller}) {
+    final name = font.trim();
+    if (name.isEmpty) return;
+    try {
+      GoogleFonts.getFont(name); // throws if not a known Google Font
+      onChanged(name);
+    } catch (_) {
+      controller?.text = value;
+      neatSnack(context, '"$name" not found on Google Fonts', success: false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 40,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1A1A1E),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white12),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: value,
-          dropdownColor: const Color(0xFF1E1E22),
-          style: const TextStyle(color: Colors.white, fontSize: 13),
-          isExpanded: true,
-          icon: const Icon(Icons.keyboard_arrow_down, color: Colors.white38, size: 18),
-          items: availableFontFamilies
-              .map(
-                (f) => DropdownMenuItem(
-                  value: f,
-                  child: Text(f == availableFontFamilies.first ? '$f (Recommended)' : f),
+    return Autocomplete<String>(
+      initialValue: TextEditingValue(text: value),
+      optionsBuilder: (t) {
+        final q = t.text.trim().toLowerCase();
+        if (q.isEmpty) return _popularGoogleFonts;
+        return _popularGoogleFonts.where((f) => f.toLowerCase().contains(q));
+      },
+      onSelected: (f) => _apply(context, f),
+      fieldViewBuilder: (context, controller, focusNode, onSubmit) {
+        return Container(
+          height: 40,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1A1A1E),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.white12),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.search, color: Colors.white24, size: 16),
+              const SizedBox(width: 8),
+              Expanded(
+                child: TextField(
+                  controller: controller,
+                  focusNode: focusNode,
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                  decoration: const InputDecoration(
+                    border: InputBorder.none,
+                    isDense: true,
+                    hintText: 'Search a Google Font…',
+                    hintStyle: TextStyle(color: Colors.white24, fontSize: 13),
+                  ),
+                  onSubmitted: (v) => _apply(context, v, controller: controller),
                 ),
-              )
-              .toList(),
-          onChanged: (v) => v != null ? onChanged(v) : null,
-        ),
-      ),
+              ),
+            ],
+          ),
+        );
+      },
+      optionsViewBuilder: (context, onSelected, options) {
+        return Align(
+          alignment: Alignment.topLeft,
+          child: Material(
+            color: const Color(0xFF1E1E22),
+            elevation: 8,
+            borderRadius: BorderRadius.circular(8),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 260, maxWidth: 320),
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                shrinkWrap: true,
+                itemCount: options.length,
+                itemBuilder: (context, i) {
+                  final f = options.elementAt(i);
+                  return InkWell(
+                    onTap: () => onSelected(f),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                      child: Text(
+                        f,
+                        style: TextStyle(
+                          color: f == value ? AppTheme.colorPrimaryCyan : Colors.white70,
+                          fontSize: 13,
+                          fontWeight: f == value ? FontWeight.w600 : FontWeight.normal,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -2475,7 +2688,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
               runSpacing: 10,
               children: _swatches.map((c) {
                 final selected = _current.toARGB32() == c.toARGB32();
-                return GestureDetector(
+                return _Clickable(
                   onTap: () => setState(() {
                     _current = c;
                     _hexCtrl.text = _toHex(c);
@@ -2521,6 +2734,110 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
           child: const Text('Apply', style: TextStyle(color: Colors.black)),
         ),
       ],
+    );
+  }
+}
+
+// ── Generated code preview dialog ───────────────────────────────────────────
+
+class _GeneratedCodeDialog extends StatelessWidget {
+  const _GeneratedCodeDialog({required this.code});
+
+  final String code;
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: const Color(0xFF0D0D0F),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 760, maxHeight: 640),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Title bar
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: const BoxDecoration(
+                color: Color(0xFF18181C),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.code, size: 16, color: AppTheme.colorPrimaryCyan),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'app_theme.dart',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '· preview of generated code',
+                    style: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 11),
+                  ),
+                  const Spacer(),
+                  _Clickable(
+                    onTap: () {
+                      Clipboard.setData(ClipboardData(text: code));
+                      neatSnack(context, 'Copied to clipboard');
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: AppTheme.colorPrimaryCyan.withValues(alpha: 0.4)),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.copy_outlined, size: 13, color: AppTheme.colorPrimaryCyan),
+                          SizedBox(width: 6),
+                          Text(
+                            'Copy',
+                            style: TextStyle(
+                              color: AppTheme.colorPrimaryCyan,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  _Clickable(
+                    onTap: () => Navigator.of(context).pop(),
+                    child: const Icon(Icons.close, size: 18, color: Colors.white38),
+                  ),
+                ],
+              ),
+            ),
+            // Code body
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: SelectableText(
+                    code,
+                    style: const TextStyle(
+                      color: Color(0xFF9ECE6A),
+                      fontFamily: 'monospace',
+                      fontSize: 12,
+                      height: 1.5,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
