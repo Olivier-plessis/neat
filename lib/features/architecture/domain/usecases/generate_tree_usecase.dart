@@ -1,4 +1,4 @@
-import 'package:neat/features/architecture/presentation/providers/architecture_provider.dart';
+import 'package:neat/features/architecture/domain/models/architecture_state.dart';
 
 class GenerateTreeUsecase {
   const GenerateTreeUsecase();

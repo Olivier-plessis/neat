@@ -1,4 +1,4 @@
-import 'package:neat/features/cicd/presentation/providers/cicd_provider.dart';
+import 'package:neat/features/cicd/domain/models/cicd_state.dart';
 
 class GeneratedFile {
   const GeneratedFile({required this.filename, required this.content});

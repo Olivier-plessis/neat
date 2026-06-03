@@ -42,7 +42,7 @@ final class ArchitectureNotifierProvider
 }
 
 String _$architectureNotifierHash() =>
-    r'b4f165ef43356b66417e30dce071c3489bc73c3a';
+    r'f3fa6279f131225098466a41f46c73d7fd1f011d';
 
 abstract class _$ArchitectureNotifier extends $Notifier<ArchitectureState> {
   ArchitectureState build();
