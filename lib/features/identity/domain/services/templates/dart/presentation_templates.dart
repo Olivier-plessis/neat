@@ -33,7 +33,7 @@ class ${p}Notifier extends _\$${p}Notifier {
     final p = pascal(featureName);
     return '''import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-final ${featureName}Provider = StateNotifierProvider<${p}Notifier, AsyncValue<void>>(
+final ${camel(featureName)}Provider = StateNotifierProvider<${p}Notifier, AsyncValue<void>>(
   (ref) => ${p}Notifier(),
 );
 
@@ -97,7 +97,7 @@ class ${p}Page extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(${featureName}Provider);
+    final state = ref.watch(${camel(featureName)}Provider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
       appBar: AppBar(
@@ -227,7 +227,7 @@ class ${p}Route extends GoRouteData {
 import 'package:go_router/go_router.dart';
 import 'package:$packageName/features/$featureName/presentation/pages/${featureName}_page.dart';
 
-final ${featureName}Route = GoRoute(
+final ${camel(featureName)}Route = GoRoute(
   path: '/',
   builder: (context, state) => const ${p}Page(),
 );

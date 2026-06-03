@@ -633,6 +633,45 @@ class _ColorsTabState extends ConsumerState<_ColorsTab> {
           ),
 
           const SizedBox(height: 24),
+
+          // ── Semantic colors (palette tokens used by AppButton & theme) ───
+          _SectionHeader(icon: Icons.bookmark_outline, label: 'Semantic Colors'),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _EditableSwatchTile(
+                  label: 'accent',
+                  color: state.accentColor,
+                  currentOverride: state.accentColor,
+                  onColorChanged: (c) => ref.read(themeEngineProvider.notifier).setAccentColor(c),
+                  onReset: () => ref
+                      .read(themeEngineProvider.notifier)
+                      .setAccentColor(const Color(0xFF1E293B)),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _EditableSwatchTile(
+                  label: 'destructive',
+                  color: state.destructiveColor,
+                  currentOverride: state.destructiveColor,
+                  onColorChanged: (c) =>
+                      ref.read(themeEngineProvider.notifier).setDestructiveColor(c),
+                  onReset: () => ref
+                      .read(themeEngineProvider.notifier)
+                      .setDestructiveColor(const Color(0xFFEF4444)),
+                ),
+              ),
+              const SizedBox(width: 10),
+              // Spacers to keep the row aligned with the 4-column grid above.
+              const Expanded(child: SizedBox()),
+              const SizedBox(width: 10),
+              const Expanded(child: SizedBox()),
+            ],
+          ),
+
+          const SizedBox(height: 24),
         ],
       ),
     );
@@ -1159,6 +1198,218 @@ class _ButtonsShapesTab extends ConsumerWidget {
           ),
 
           const SizedBox(height: 24),
+
+          // ── Component Library (opt-in) ───────────────────────────────────
+          _SectionHeader(icon: Icons.widgets_outlined, label: 'Component Library'),
+          const SizedBox(height: 16),
+          for (final c in AppComponent.values)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _ComponentToggleCard(
+                component: c,
+                enabled: state.components.contains(c),
+                onChanged: (on) => notifier.toggleComponent(c, on),
+              ),
+            ),
+
+          const SizedBox(height: 6),
+          _WidgetbookToggleCard(
+            enabled: state.generateWidgetbook,
+            hasComponents: state.components.isNotEmpty,
+            onChanged: notifier.setGenerateWidgetbook,
+          ),
+
+          const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+}
+
+/// Opt-in card to scaffold a Widgetbook catalog of the generated components.
+class _WidgetbookToggleCard extends StatelessWidget {
+  const _WidgetbookToggleCard({
+    required this.enabled,
+    required this.hasComponents,
+    required this.onChanged,
+  });
+
+  final bool enabled;
+  final bool hasComponents;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final active = enabled && hasComponents;
+    return Opacity(
+      opacity: hasComponents ? 1 : 0.5,
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: const Color(0xFF0E1A1A),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: active ? AppTheme.colorPrimaryCyan.withValues(alpha: 0.5) : Colors.white10,
+          ),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.menu_book_outlined, color: AppTheme.colorPrimaryCyan, size: 20),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Generate Widgetbook',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    hasComponents
+                        ? 'An interactive catalog of your components with knobs & light/dark '
+                            'themes. Run: flutter run -t widgetbook/main.dart'
+                        : 'Select at least one component above to enable the catalog.',
+                    style: TextStyle(color: Colors.grey[500], fontSize: 12, height: 1.4),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 16),
+            _Clickable(
+              onTap: hasComponents ? () => onChanged(!enabled) : () {},
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                width: 48,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: active ? AppTheme.colorPrimaryCyan.withValues(alpha: 0.15) : Colors.white10,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: active ? AppTheme.colorPrimaryCyan : Colors.white12,
+                    width: 1.5,
+                  ),
+                ),
+                child: AnimatedAlign(
+                  duration: const Duration(milliseconds: 200),
+                  alignment: active ? Alignment.centerRight : Alignment.centerLeft,
+                  child: Padding(
+                    padding: const EdgeInsets.all(3),
+                    child: Container(
+                      width: 20,
+                      height: 20,
+                      decoration: BoxDecoration(
+                        color: active ? AppTheme.colorPrimaryCyan : Colors.grey[700],
+                        shape: BoxShape.circle,
+                      ),
+                      child: active
+                          ? const Icon(Icons.check, size: 11, color: Color(0xFF0E0E0E))
+                          : null,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Opt-in card to generate a reusable design-system component.
+class _ComponentToggleCard extends StatelessWidget {
+  const _ComponentToggleCard({
+    required this.component,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  final AppComponent component;
+  final bool enabled;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFF111316),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: enabled ? AppTheme.colorPrimaryCyan.withValues(alpha: 0.4) : Colors.white10,
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  component.label,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  component.description,
+                  style: TextStyle(color: Colors.grey[500], fontSize: 12, height: 1.4),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'lib/components/${component.fileName}',
+                  style: TextStyle(
+                    color: AppTheme.colorPrimaryCyan.withValues(alpha: 0.7),
+                    fontSize: 11,
+                    fontFamily: 'monospace',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 16),
+          _Clickable(
+            onTap: () => onChanged(!enabled),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              width: 48,
+              height: 28,
+              decoration: BoxDecoration(
+                color: enabled ? AppTheme.colorPrimaryCyan.withValues(alpha: 0.15) : Colors.white10,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: enabled ? AppTheme.colorPrimaryCyan : Colors.white12,
+                  width: 1.5,
+                ),
+              ),
+              child: AnimatedAlign(
+                duration: const Duration(milliseconds: 200),
+                alignment: enabled ? Alignment.centerRight : Alignment.centerLeft,
+                child: Padding(
+                  padding: const EdgeInsets.all(3),
+                  child: Container(
+                    width: 20,
+                    height: 20,
+                    decoration: BoxDecoration(
+                      color: enabled ? AppTheme.colorPrimaryCyan : Colors.grey[700],
+                      shape: BoxShape.circle,
+                    ),
+                    child: enabled
+                        ? const Icon(Icons.check, size: 11, color: Color(0xFF0E0E0E))
+                        : null,
+                  ),
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );

@@ -110,7 +110,7 @@ class LaunchGenerationUsecase {
 
     // 3. pubspec.yaml
     onLog('[▶] Configuring pubspec.yaml...');
-    await _writePubspec(projectDir, packages);
+    await _writePubspec(projectDir, packages, withWidgetbook: theme.generateWidgetbook);
     onLog('[✓] Dependencies added to pubspec.yaml.');
 
     // 4. CI/CD files
@@ -252,7 +252,11 @@ class LaunchGenerationUsecase {
     await _write('$t/constant/constant.dart', ThemeTemplates.constantBarrel());
     await _write(
       '$t/constant/app_color.dart',
-      ThemeTemplates.appColor(seedHex: theme.seedColorHex),
+      ThemeTemplates.appColor(
+        seedHex: theme.seedColorHex,
+        accentHex: theme.accentColorHex,
+        errorHex: theme.destructiveColorHex,
+      ),
     );
     await _write('$t/constant/app_gap.dart', ThemeTemplates.appGap());
 
@@ -282,6 +286,25 @@ class LaunchGenerationUsecase {
         forceFlex: useFlexColorScheme,
       ),
     );
+
+    // components/ (opt-in design-system components)
+    for (final c in theme.components) {
+      final content = switch (c) {
+        AppComponent.button => ThemeTemplates.appButtonComponent(packageName: packageName),
+        AppComponent.card => ThemeTemplates.appCardComponent(packageName: packageName),
+        AppComponent.textField => ThemeTemplates.appTextFieldComponent(packageName: packageName),
+      };
+      await _write('$lib/components/${c.fileName}', content);
+    }
+
+    // widgetbook/main.dart (opt-in catalog, lives outside lib/)
+    if (theme.generateWidgetbook) {
+      final projectRoot = lib.substring(0, lib.length - '/lib'.length);
+      await _write(
+        '$projectRoot/widgetbook/main.dart',
+        ThemeTemplates.widgetbookApp(packageName: packageName, components: theme.components),
+      );
+    }
 
     // theme mode controller
     if (hasRiverpod) {
@@ -565,7 +588,11 @@ class LaunchGenerationUsecase {
 
   // ── pubspec.yaml ──────────────────────────────────────────────────────────
 
-  Future<void> _writePubspec(Directory projectDir, List<PubPackage> packages) async {
+  Future<void> _writePubspec(
+    Directory projectDir,
+    List<PubPackage> packages, {
+    bool withWidgetbook = false,
+  }) async {
     final pubspecFile = File('${projectDir.path}/pubspec.yaml');
     if (!pubspecFile.existsSync()) return;
 
@@ -599,6 +626,11 @@ class LaunchGenerationUsecase {
     // family at runtime — inject it unless the user already added it.
     if (!uniquePackages.any((p) => p.name == 'google_fonts')) {
       deps.write('  google_fonts: ^8.1.0\n');
+    }
+
+    // Widgetbook catalog (dev-only) when opted in.
+    if (withWidgetbook && !uniquePackages.any((p) => p.name == 'widgetbook')) {
+      devDeps.write('  widgetbook: ^3.7.0\n');
     }
 
     var content = await pubspecFile.readAsString();
