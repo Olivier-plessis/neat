@@ -18,7 +18,6 @@ Future<void> bootstrap() async {
     () async {
       WidgetsFlutterBinding.ensureInitialized();
       await windowManager.ensureInitialized();
-
       // Configuration de la taille de la fenêtre de NEAT
       WindowOptions windowOptions = const WindowOptions(
         size: Size(1400, 900),

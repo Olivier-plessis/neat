@@ -1,0 +1,51 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history so we can merge into main & develop
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      # ── Gate: the release must be healthy before it touches main/develop ──
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      # ── Integrate the tagged release into main and develop ──
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Merge tag into main
+        run: |
+          git checkout main
+          git merge --no-ff "$GITHUB_REF_NAME" -m "ci: merge ${GITHUB_REF_NAME} into main"
+          git push origin main
+
+      - name: Merge tag into develop
+        run: |
+          git checkout develop
+          git merge --no-ff "$GITHUB_REF_NAME" -m "ci: merge ${GITHUB_REF_NAME} into develop"
+          git push origin develop
+
+      # ── Publish the GitHub Release ──
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --generate-notes --title "$GITHUB_REF_NAME"

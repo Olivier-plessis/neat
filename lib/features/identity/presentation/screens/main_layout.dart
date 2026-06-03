@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:neat/core/app_info/app_version_provider.dart';
 import 'package:neat/core/theme/app_theme.dart';
 import 'package:neat/features/architecture/presentation/screens/architecture_screen.dart';
 import 'package:neat/features/cicd/presentation/screens/cicd_screen.dart';
@@ -65,9 +66,12 @@ class MainLayout extends ConsumerWidget {
                               border: Border.all(color: Colors.white12),
                               borderRadius: BorderRadius.circular(3),
                             ),
-                            child: const Text(
-                              'V1.0.0-BETA',
-                              style: TextStyle(
+                            child: Text(
+                              ref.watch(appVersionProvider).maybeWhen(
+                                    data: (v) => v.toUpperCase(),
+                                    orElse: () => '…',
+                                  ),
+                              style: const TextStyle(
                                 color: Colors.white38,
                                 fontSize: 9,
                                 letterSpacing: 0.8,

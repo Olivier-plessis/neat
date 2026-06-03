@@ -2,15 +2,16 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:neat/core/app_info/app_version_provider.dart';
 import 'package:neat/core/theme/app_theme.dart';
 import 'package:neat/features/identity/presentation/screens/main_layout.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 
-class SplashScreen extends HookWidget {
+class SplashScreen extends HookConsumerWidget {
   const SplashScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final glowCtrl = useAnimationController(
       duration: const Duration(milliseconds: 1600),
     );
@@ -20,13 +21,8 @@ class SplashScreen extends HookWidget {
     final pulseCtrl = useAnimationController(
       duration: const Duration(milliseconds: 2000),
     );
-    final version = useState<String>('');
 
     useEffect(() {
-      PackageInfo.fromPlatform().then((info) {
-        version.value = 'v${info.version}';
-      });
-
       glowCtrl.forward();
       Future.delayed(const Duration(milliseconds: 500), contentCtrl.forward);
       Future.delayed(
@@ -174,7 +170,10 @@ class SplashScreen extends HookWidget {
             child: FadeTransition(
               opacity: contentFade,
               child: Text(
-                version.value,
+                ref.watch(appVersionProvider).maybeWhen(
+                      data: (v) => v,
+                      orElse: () => '',
+                    ),
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   color: Colors.white24,
