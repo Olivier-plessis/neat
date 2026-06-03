@@ -8,6 +8,18 @@ part 'architecture_state.freezed.dart';
 /// (tree preview, generation) can consume it without depending on presentation.
 enum StructuralPattern { featureFirst, layerFirst }
 
+/// How the data layer persists data.
+///
+/// [offlineFirst] flips the generated project into a Dart **workspace**: a
+/// dedicated `packages/<name>_local_storage` package (Drift) is created and the
+/// witness feature gets a local-first repository on top of its remote source.
+enum StorageStrategy {
+  remoteOnly,
+  offlineFirst;
+
+  bool get isOfflineFirst => this == StorageStrategy.offlineFirst;
+}
+
 @freezed
 abstract class ArchitectureState with _$ArchitectureState {
   const ArchitectureState._();
@@ -25,6 +37,10 @@ abstract class ArchitectureState with _$ArchitectureState {
 
     /// Name of the first feature scaffolded under lib/features/ (snake_case).
     @Default('home') String firstFeatureName,
+
+    /// Data persistence strategy. [StorageStrategy.offlineFirst] switches the
+    /// generated project to a workspace with a Drift local-storage package.
+    @Default(StorageStrategy.remoteOnly) StorageStrategy storageStrategy,
   }) = _ArchitectureState;
 
   /// Validates the first feature name (Dart folder/identifier rules).

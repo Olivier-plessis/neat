@@ -13,6 +13,7 @@ import 'package:neat/features/generation/domain/services/templates/dart/data_tem
 import 'package:neat/features/generation/domain/services/templates/dart/domain_templates.dart';
 import 'package:neat/features/generation/domain/services/templates/dart/presentation_templates.dart';
 import 'package:neat/features/generation/domain/services/templates/dart/state_templates.dart';
+import 'package:neat/features/generation/domain/services/templates/local_storage_templates.dart';
 import 'package:neat/features/identity/domain/models/identity_state.dart';
 import 'package:neat/features/theme_engine/domain/models/theme_engine_state.dart';
 import 'package:neat/features/theme_engine/domain/services/theme_templates.dart';
@@ -95,6 +96,11 @@ class LaunchGenerationUsecase {
         identity.targetPlatforms.length == 1 && identity.targetPlatforms.first == 'web';
     final useScreenUtil = !isWebOnly;
 
+    // Offline-first turns the project into a Dart workspace with a dedicated
+    // local-storage package (Drift). null when remote-only.
+    final offlineFirst = architecture.storageStrategy.isOfflineFirst;
+    final localStoragePackage = offlineFirst ? '${packageName}_local_storage' : null;
+
     // 2. Scaffold Clean Architecture directories + files
     onLog('[▶] Scaffolding Clean Architecture...');
     await _buildScaffold(
@@ -120,6 +126,13 @@ class LaunchGenerationUsecase {
     );
     onLog('[✓] Scaffold created.');
 
+    // 2b. Offline-first workspace package
+    if (localStoragePackage != null) {
+      onLog('[▶] Creating offline-first workspace package...');
+      await _writeLocalStoragePackage(projectDir, localStoragePackage);
+      onLog('[✓] packages/$localStoragePackage created.');
+    }
+
     // 3. pubspec.yaml
     onLog('[▶] Configuring pubspec.yaml...');
     await _writePubspec(
@@ -127,6 +140,7 @@ class LaunchGenerationUsecase {
       packages,
       withWidgetbook: theme.generateWidgetbook,
       addScreenUtil: useScreenUtil,
+      localStoragePackage: localStoragePackage,
     );
     onLog('[✓] Dependencies added to pubspec.yaml.');
 
@@ -692,6 +706,7 @@ class LaunchGenerationUsecase {
     List<PubPackage> packages, {
     bool withWidgetbook = false,
     bool addScreenUtil = true,
+    String? localStoragePackage,
   }) async {
     final pubspecFile = File('${projectDir.path}/pubspec.yaml');
     if (!pubspecFile.existsSync()) return;
@@ -702,9 +717,33 @@ class LaunchGenerationUsecase {
       packages,
       withWidgetbook: withWidgetbook,
       addScreenUtil: addScreenUtil,
+      localStoragePackage: localStoragePackage,
     );
 
     await pubspecFile.writeAsString(content);
+  }
+
+  // ── Offline-first workspace package ─────────────────────────────────────────
+
+  /// Writes the minimal `packages/<name>_local_storage` workspace member.
+  /// (Phase 1: compiles & is wired into the workspace; Drift lands in Phase 2.)
+  Future<void> _writeLocalStoragePackage(
+    Directory projectDir,
+    String localStoragePackage,
+  ) async {
+    final root = '${projectDir.path}/packages/$localStoragePackage';
+    await _write(
+      '$root/pubspec.yaml',
+      LocalStorageTemplates.packagePubspec(packageName: localStoragePackage),
+    );
+    await _write(
+      '$root/lib/$localStoragePackage.dart',
+      LocalStorageTemplates.publicApi(packageName: localStoragePackage),
+    );
+    await _write(
+      '$root/lib/src/placeholder.dart',
+      LocalStorageTemplates.placeholder(),
+    );
   }
 
   /// Pure pubspec assembly: takes the `flutter create` pubspec [original] and
@@ -718,6 +757,7 @@ class LaunchGenerationUsecase {
     List<PubPackage> packages, {
     bool withWidgetbook = false,
     bool addScreenUtil = true,
+    String? localStoragePackage,
   }) {
     final deps = StringBuffer();
     final devDeps = StringBuffer();
@@ -771,6 +811,11 @@ class LaunchGenerationUsecase {
       }
     }
 
+    // Offline-first → the app path-depends on the workspace local-storage package.
+    if (localStoragePackage != null) {
+      deps.write('  $localStoragePackage:\n    path: packages/$localStoragePackage\n');
+    }
+
     var content = original;
 
     if (deps.isNotEmpty) {
@@ -784,6 +829,12 @@ class LaunchGenerationUsecase {
         'dev_dependencies:\n  flutter_test:\n    sdk: flutter',
         'dev_dependencies:\n  flutter_test:\n    sdk: flutter\n$devDeps',
       );
+    }
+
+    // Declare the Dart workspace at the root (app = workspace root). Members
+    // live under packages/ and each carries `resolution: workspace`.
+    if (localStoragePackage != null) {
+      content = '${content.trimRight()}\n\nworkspace:\n  - packages/$localStoragePackage\n';
     }
 
     return content;
