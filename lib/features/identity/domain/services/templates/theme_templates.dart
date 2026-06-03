@@ -105,23 +105,37 @@ const SizedBox gapH64 = SizedBox(height: Sizes.p64);
 
   // ── typography/typography.dart ────────────────────────────────────────────
 
-  static String typographyBarrel({required String packageName}) =>
-      '''import 'package:flutter/material.dart';
+  static String typographyBarrel({
+    required String packageName,
+    bool useScreenUtil = false,
+  }) {
+    final su = useScreenUtil
+        ? "import 'package:flutter_screenutil/flutter_screenutil.dart';\n"
+        : '';
+    return '''import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:$packageName/core/theme/constant/constant.dart';
+${su}import 'package:$packageName/core/theme/constant/constant.dart';
 
 part 'font_size.dart';
 part 'font_weight.dart';
 part 'text_style.dart';
 ''';
+  }
 
   // ── typography/font_size.dart ─────────────────────────────────────────────
 
-  static String fontSize(Map<TextStyleKey, TextStyleConfig> textStyles) {
-    final entries = textStyles.entries
-        .map((e) =>
-            '  static const double ${e.key.name} = ${e.value.fontSize};')
-        .join('\n');
+  static String fontSize(
+    Map<TextStyleKey, TextStyleConfig> textStyles, {
+    bool useScreenUtil = false,
+  }) {
+    // With ScreenUtil, sizes are responsive (.sp) so they can't be const.
+    final entries = textStyles.entries.map((e) {
+      final name = e.key.name;
+      final value = e.value.fontSize;
+      return useScreenUtil
+          ? '  static double get $name => $value.sp;'
+          : '  static const double $name = $value;';
+    }).join('\n');
     return '''part of 'typography.dart';
 
 class FontSizeTheme {
@@ -789,12 +803,12 @@ $entries
               builder: (context) => Center(
                 child: AppButton(
                   label: context.knobs.string(label: 'Label', initialValue: 'Button'),
-                  variant: context.knobs.list(
+                  variant: context.knobs.object.dropdown(
                     label: 'Variant',
                     options: AppButtonVariant.values,
                     labelBuilder: (v) => v.name,
                   ),
-                  size: context.knobs.list(
+                  size: context.knobs.object.dropdown(
                     label: 'Size',
                     options: AppButtonSize.values,
                     labelBuilder: (v) => v.name,
@@ -856,6 +870,7 @@ $entries
     required ThemeEngineState theme,
     required String packageName,
     bool forceFlex = false,
+    bool useScreenUtil = false,
   }) {
     final useFlex = forceFlex || theme.approach == ThemeApproach.flexColorScheme;
     if (useFlex) {
@@ -887,6 +902,7 @@ $entries
       primaryOverrideHex: theme.primaryOverrideHex,
       secondaryOverrideHex: theme.secondaryOverrideHex,
       tertiaryOverrideHex: theme.tertiaryOverrideHex,
+      useScreenUtil: useScreenUtil,
     );
   }
 
@@ -920,7 +936,16 @@ $entries
     String? primaryOverrideHex,
     String? secondaryOverrideHex,
     String? tertiaryOverrideHex,
+    // Responsive font sizes via flutter_screenutil (.sp)
+    bool useScreenUtil = false,
   }) {
+    // Hardcoded font sizes become responsive (.sp) when ScreenUtil is on,
+    // which also forces the TextStyle to be non-const.
+    final fs = useScreenUtil ? '.sp' : '';
+    final tsConst = useScreenUtil ? '' : 'const ';
+    final suImport = useScreenUtil
+        ? "import 'package:flutter_screenutil/flutter_screenutil.dart';\n"
+        : '';
     final cr = containerRadius.toStringAsFixed(1);
     final el = cardElevation.toStringAsFixed(1);
     // Button radius helpers
@@ -959,7 +984,7 @@ $entries
     final schemeOverride = overrideEntries.isEmpty ? '' : '.copyWith(\n$overrideEntries\n    )';
 
     return '''import 'package:flutter/material.dart';
-import 'package:$packageName/core/theme/constant/constant.dart';
+${suImport}import 'package:$packageName/core/theme/constant/constant.dart';
 import 'package:$packageName/core/theme/typography/typography.dart';
 import 'app_theme_extensions.dart';
 
@@ -999,7 +1024,7 @@ $textThemeEntries
       style: ElevatedButton.styleFrom(
         elevation: $eEl,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular($erStr)),
-        textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+        textStyle: ${tsConst}TextStyle(fontWeight: FontWeight.w600, fontSize: 14$fs),
         padding: const EdgeInsets.symmetric(horizontal: $eHP, vertical: $eVP),
       ),
     ),
@@ -1009,7 +1034,7 @@ $textThemeEntries
         foregroundColor: Palette.onPrimary,
         elevation: 0,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular($frStr)),
-        textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+        textStyle: ${tsConst}TextStyle(fontWeight: FontWeight.w600, fontSize: 14$fs),
         padding: const EdgeInsets.symmetric(horizontal: $fHP, vertical: $fVP),
       ),
     ),
@@ -1018,7 +1043,7 @@ $textThemeEntries
         foregroundColor: Palette.primary,
         side: const BorderSide(color: Palette.primary, width: $oSt),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular($orStr)),
-        textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+        textStyle: ${tsConst}TextStyle(fontWeight: FontWeight.w600, fontSize: 14$fs),
         padding: const EdgeInsets.symmetric(horizontal: $oHP, vertical: $oVP),
       ),
     ),
@@ -1026,7 +1051,7 @@ $textThemeEntries
       style: TextButton.styleFrom(
         foregroundColor: Palette.primary,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular($trStr)),
-        textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+        textStyle: ${tsConst}TextStyle(fontWeight: FontWeight.w600, fontSize: 14$fs),
         padding: const EdgeInsets.symmetric(horizontal: $tHP, vertical: $tVP),
       ),
     ),
@@ -1054,8 +1079,8 @@ $textThemeEntries
         borderRadius: BorderRadius.circular($orStr),
         borderSide: const BorderSide(color: Palette.error, width: 1.5),
       ),
-      hintStyle: const TextStyle(color: Palette.textSecondary, fontSize: 14),
-      errorStyle: const TextStyle(color: Palette.error, fontSize: 12),
+      hintStyle: ${tsConst}TextStyle(color: Palette.textSecondary, fontSize: 14$fs),
+      errorStyle: ${tsConst}TextStyle(color: Palette.error, fontSize: 12$fs),
     ),
     dividerTheme: const DividerThemeData(color: Palette.divider, thickness: 1, space: 1),
     dialogTheme: DialogThemeData(
@@ -1064,7 +1089,7 @@ $textThemeEntries
     ),
     snackBarTheme: SnackBarThemeData(
       backgroundColor: Palette.textPrimary,
-      contentTextStyle: const TextStyle(color: Palette.surface, fontSize: 14),
+      contentTextStyle: ${tsConst}TextStyle(color: Palette.surface, fontSize: 14$fs),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular($orStr)),
       behavior: SnackBarBehavior.floating,
     ),
