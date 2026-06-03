@@ -2102,10 +2102,14 @@ class _LivePreview extends ConsumerWidget {
             // View generated code
             _Clickable(
               onTap: () {
-                final pkg = ref.read(identityProvider).name.trim();
+                final identity = ref.read(identityProvider);
+                final pkg = identity.name.trim();
+                final webOnly = identity.targetPlatforms.length == 1 &&
+                    identity.targetPlatforms.first == 'web';
                 final code = ThemeTemplates.appThemeForState(
                   theme: state,
                   packageName: pkg.isEmpty ? 'app' : pkg,
+                  useScreenUtil: !webOnly,
                 );
                 showDialog<void>(
                   context: context,

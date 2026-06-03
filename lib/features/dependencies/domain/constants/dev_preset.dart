@@ -27,27 +27,26 @@ const devPresetPackages = [
     version: '3.1.0',
     description: 'Annotations for freezed immutable classes.',
   ),
-  PubPackage(
-    name: 'dio',
-    version: '5.9.2',
-    description: 'Powerful HTTP client with interceptors.',
-  ),
+  PubPackage(name: 'dio', version: '5.9.2', description: 'Powerful HTTP client with interceptors.'),
   PubPackage(
     name: 'chopper',
     version: '8.6.0',
     description: 'HTTP client generator using annotations.',
   ),
-  PubPackage(
-    name: 'go_router',
-    version: '17.2.3',
-    description: 'Declarative routing for Flutter.',
-  ),
+  PubPackage(name: 'go_router', version: '17.2.3', description: 'Declarative routing for Flutter.'),
+  PubPackage(name: 'envied', version: '1.3.5', description: 'Declarative env for Flutter.'),
 
   // ── Dev dependencies ──────────────────────────────────────────────────────
   PubPackage(
     name: 'riverpod_generator',
     version: '4.0.3',
     description: 'Code generator for Riverpod providers.',
+    isDev: true,
+  ),
+  PubPackage(
+    name: 'envied_generator',
+    version: '1.3.5',
+    description: 'Code generator for envied.',
     isDev: true,
   ),
   PubPackage(
