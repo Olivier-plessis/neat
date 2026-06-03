@@ -6,7 +6,7 @@ import 'package:neat/features/architecture/presentation/providers/architecture_p
 import 'package:neat/features/cicd/presentation/providers/cicd_provider.dart';
 import 'package:neat/features/dependencies/domain/models/pub_package.dart';
 import 'package:neat/features/dependencies/presentation/providers/dependencies_provider.dart';
-import 'package:neat/features/identity/domain/usecases/launch_generation_usecase.dart';
+import 'package:neat/features/generation/domain/usecases/launch_generation_usecase.dart';
 import 'package:neat/features/identity/presentation/providers/identity_provider.dart';
 import 'package:neat/features/identity/presentation/providers/stepper_provider.dart';
 import 'package:neat/features/theme_engine/presentation/providers/theme_engine_provider.dart';
