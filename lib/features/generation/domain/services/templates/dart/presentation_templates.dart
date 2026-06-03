@@ -1,4 +1,4 @@
-import 'package:neat/features/identity/domain/services/templates/dart/_template_utils.dart';
+import 'package:neat/features/generation/domain/services/templates/dart/_template_utils.dart';
 
 class PresentationTemplates {
   PresentationTemplates._();
