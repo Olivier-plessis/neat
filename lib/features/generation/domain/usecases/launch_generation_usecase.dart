@@ -1,9 +1,9 @@
 import 'dart:io';
 
 import 'package:flutter/foundation.dart' show visibleForTesting;
-import 'package:neat/features/architecture/presentation/providers/architecture_provider.dart';
+import 'package:neat/features/architecture/domain/models/architecture_state.dart';
+import 'package:neat/features/cicd/domain/models/cicd_state.dart';
 import 'package:neat/features/cicd/domain/usecases/generate_yaml_usecase.dart';
-import 'package:neat/features/cicd/presentation/providers/cicd_provider.dart';
 import 'package:neat/features/dependencies/domain/models/pub_package.dart';
 import 'package:neat/features/generation/domain/services/templates/config_templates.dart';
 import 'package:neat/features/generation/domain/services/templates/core_templates.dart';
@@ -13,9 +13,9 @@ import 'package:neat/features/generation/domain/services/templates/dart/data_tem
 import 'package:neat/features/generation/domain/services/templates/dart/domain_templates.dart';
 import 'package:neat/features/generation/domain/services/templates/dart/presentation_templates.dart';
 import 'package:neat/features/generation/domain/services/templates/dart/state_templates.dart';
-import 'package:neat/features/identity/presentation/providers/identity_provider.dart';
+import 'package:neat/features/identity/domain/models/identity_state.dart';
+import 'package:neat/features/theme_engine/domain/models/theme_engine_state.dart';
 import 'package:neat/features/theme_engine/domain/services/theme_templates.dart';
-import 'package:neat/features/theme_engine/presentation/providers/theme_engine_provider.dart';
 
 class LaunchGenerationUsecase {
   const LaunchGenerationUsecase();
