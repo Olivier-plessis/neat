@@ -276,36 +276,11 @@ class LaunchGenerationUsecase {
         hasFlexColorScheme || theme.approach == ThemeApproach.flexColorScheme;
     await _write(
       '$t/app_theme.dart',
-      useFlexColorScheme
-          ? ThemeTemplates.appThemeFlexColorScheme(
-              packageName: packageName,
-              customCode: theme.flexColorSchemeCode,
-              textStyles: theme.textStyles,
-            )
-          : ThemeTemplates.appThemeBasic(
-              packageName: packageName,
-              containerRadius: theme.containerRadius,
-              cardElevation: theme.cardElevation,
-              textStyles: theme.textStyles,
-              // Elevated button
-              elevatedRadius: theme.effectiveRadius(theme.elevatedButton),
-              elevatedHPad: theme.elevatedButton.hPadding,
-              elevatedVPad: theme.elevatedButton.vPadding,
-              elevatedElevation: theme.elevatedButton.elevation ?? 4,
-              // Filled button
-              filledRadius: theme.effectiveRadius(theme.filledButton),
-              filledHPad: theme.filledButton.hPadding,
-              filledVPad: theme.filledButton.vPadding,
-              // Outlined button
-              outlinedRadius: theme.effectiveRadius(theme.outlinedButton),
-              outlinedHPad: theme.outlinedButton.hPadding,
-              outlinedVPad: theme.outlinedButton.vPadding,
-              outlinedStroke: theme.outlinedButton.strokeWidth ?? 1.5,
-              // Text button
-              textRadius: theme.effectiveRadius(theme.textButton),
-              textHPad: theme.textButton.hPadding,
-              textVPad: theme.textButton.vPadding,
-            ),
+      ThemeTemplates.appThemeForState(
+        theme: theme,
+        packageName: packageName,
+        forceFlex: useFlexColorScheme,
+      ),
     );
 
     // theme mode controller
@@ -618,6 +593,12 @@ class LaunchGenerationUsecase {
     // Auto-inject it when missing so the generated code compiles out of the box.
     if (hasGoRouterBuilder && !hasGoRouterExplicit) {
       deps.write('  go_router: ^17.2.3\n');
+    }
+
+    // The generated typography uses google_fonts to apply the chosen font
+    // family at runtime — inject it unless the user already added it.
+    if (!uniquePackages.any((p) => p.name == 'google_fonts')) {
+      deps.write('  google_fonts: ^8.1.0\n');
     }
 
     var content = await pubspecFile.readAsString();
