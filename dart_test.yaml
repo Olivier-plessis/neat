@@ -1,0 +1,16 @@
+# Test configuration.
+#
+# The `integration` tag marks slow, network-dependent end-to-end tests
+# (e.g. full project generation → flutter analyze). They are NOT run by the
+# default suite. Use:
+#
+#   flutter test                          # fast unit/contract tests only*
+#   flutter test --tags integration       # only the heavy generation tests
+#   flutter test --exclude-tags integration   # everything except the heavy ones
+#
+# (*) The default `flutter test` still picks up tagged tests unless you pass
+# --exclude-tags; CI uses --exclude-tags integration for the fast lane and a
+# separate job with --tags integration for the full generation check.
+tags:
+  integration:
+    timeout: 12x

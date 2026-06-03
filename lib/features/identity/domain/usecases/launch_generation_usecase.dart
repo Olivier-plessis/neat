@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:neat/features/architecture/presentation/providers/architecture_provider.dart';
 import 'package:neat/features/cicd/domain/usecases/generate_yaml_usecase.dart';
 import 'package:neat/features/cicd/presentation/providers/cicd_provider.dart';
@@ -695,6 +696,29 @@ class LaunchGenerationUsecase {
     final pubspecFile = File('${projectDir.path}/pubspec.yaml');
     if (!pubspecFile.existsSync()) return;
 
+    final original = await pubspecFile.readAsString();
+    final content = buildPubspecContent(
+      original,
+      packages,
+      withWidgetbook: withWidgetbook,
+      addScreenUtil: addScreenUtil,
+    );
+
+    await pubspecFile.writeAsString(content);
+  }
+
+  /// Pure pubspec assembly: takes the `flutter create` pubspec [original] and
+  /// returns it with all selected + auto-injected dependencies merged in.
+  ///
+  /// Extracted from [_writePubspec] so it can be unit-tested without touching
+  /// the filesystem — guards against malformed-YAML regressions.
+  @visibleForTesting
+  static String buildPubspecContent(
+    String original,
+    List<PubPackage> packages, {
+    bool withWidgetbook = false,
+    bool addScreenUtil = true,
+  }) {
     final deps = StringBuffer();
     final devDeps = StringBuffer();
 
@@ -747,7 +771,7 @@ class LaunchGenerationUsecase {
       }
     }
 
-    var content = await pubspecFile.readAsString();
+    var content = original;
 
     if (deps.isNotEmpty) {
       content = content.replaceFirst(
@@ -762,7 +786,7 @@ class LaunchGenerationUsecase {
       );
     }
 
-    await pubspecFile.writeAsString(content);
+    return content;
   }
 
   // ── CI/CD files ───────────────────────────────────────────────────────────
