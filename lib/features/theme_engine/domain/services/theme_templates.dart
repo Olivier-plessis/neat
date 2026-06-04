@@ -1095,21 +1095,36 @@ $textThemeEntries
     ),
   );
 
-  static ThemeData get dark => light.copyWith(
-    colorScheme: ColorScheme.fromSeed(
+  static ThemeData get dark {
+    final scheme = ColorScheme.fromSeed(
       seedColor: Palette.primary,
       brightness: Brightness.dark,
-    )$schemeOverride,
-    extensions: const [AppColors.light],
-    scaffoldBackgroundColor: const Color(0xFF0F172A),
-    appBarTheme: const AppBarTheme(
-      backgroundColor: Color(0xFF1E293B),
-      foregroundColor: Color(0xFFF1F5F9),
-      elevation: 0,
-      shadowColor: Colors.transparent,
-      surfaceTintColor: Colors.transparent,
-    ),
-  );
+    )$schemeOverride;
+    return light.copyWith(
+      colorScheme: scheme,
+      extensions: const [AppColors.light],
+      scaffoldBackgroundColor: scheme.surface,
+      // Re-color the text for dark surfaces (the light textTheme bakes in dark colors).
+      textTheme: light.textTheme.apply(
+        bodyColor: scheme.onSurface,
+        displayColor: scheme.onSurface,
+      ),
+      appBarTheme: light.appBarTheme.copyWith(
+        backgroundColor: scheme.surface,
+        foregroundColor: scheme.onSurface,
+        titleTextStyle: StyleTheme.titleLarge.copyWith(color: scheme.onSurface),
+      ),
+      cardTheme: light.cardTheme.copyWith(color: scheme.surfaceContainerHighest),
+      inputDecorationTheme: light.inputDecorationTheme.copyWith(
+        fillColor: scheme.surfaceContainerHighest,
+      ),
+      dialogTheme: light.dialogTheme.copyWith(backgroundColor: scheme.surface),
+      snackBarTheme: light.snackBarTheme.copyWith(
+        backgroundColor: scheme.onSurface,
+        contentTextStyle: StyleTheme.bodyMedium.copyWith(color: scheme.surface),
+      ),
+    );
+  }
 }
 ''';
   }

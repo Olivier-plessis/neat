@@ -143,7 +143,11 @@ class ${p}Model {
   @override
   Future<Result<bool>> delete(String id) async {
     await _local.deleteById(id); // optimistic
-    await _local.enqueueWrite(operation: 'delete', endpoint: '/${featureName}s/\$id');
+    await _local.enqueueWrite(
+      operation: 'delete',
+      endpoint: '/${featureName}s/\$id',
+      payload: jsonEncode({'id': id}),
+    );
     return Result.success(true);
   }'''
           : '''
