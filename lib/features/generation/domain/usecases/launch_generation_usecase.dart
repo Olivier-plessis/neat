@@ -725,6 +725,7 @@ class LaunchGenerationUsecase {
             packageName: packageName,
             httpClient: httpClient,
             offlineFirst: offlineFirst,
+            hasSync: hasSync,
             localStoragePackage: localStoragePackage,
           ),
         );

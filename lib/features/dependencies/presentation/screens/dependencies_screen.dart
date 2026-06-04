@@ -104,8 +104,8 @@ class DependenciesScreen extends HookConsumerWidget {
                     Expanded(
                       child: rightTabIndex.value == 0
                           ? (selectedForDetail != null
-                              ? _PackageDetailCard(package: selectedForDetail)
-                              : _EmptyDetailCard(hasQuery: query.isNotEmpty))
+                                ? _PackageDetailCard(package: selectedForDetail)
+                                : _EmptyDetailCard(hasQuery: query.isNotEmpty))
                           : const _ManagedPackagesPanel(),
                     ),
                   ],
@@ -184,11 +184,7 @@ class _TabButton extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
-                icon,
-                size: 14,
-                color: isSelected ? AppTheme.colorPrimaryCyan : Colors.white24,
-              ),
+              Icon(icon, size: 14, color: isSelected ? AppTheme.colorPrimaryCyan : Colors.white24),
               const SizedBox(width: 8),
               Text(
                 label,
@@ -216,7 +212,7 @@ class _ManagedPackagesPanel extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final packages = ref.watch(selectedPackagesProvider);
 
-    return Container(
+    return DecoratedBox(
       decoration: BoxDecoration(
         color: const Color(0xFF18181C),
         borderRadius: BorderRadius.circular(12),
@@ -301,11 +297,7 @@ class _DevPresetButton extends StatelessWidget {
 // ── Badge button ──────────────────────────────────────────────────────────────
 
 class _PackagesBadgeButton extends StatelessWidget {
-  const _PackagesBadgeButton({
-    required this.count,
-    required this.onTap,
-    required this.isSelected,
-  });
+  const _PackagesBadgeButton({required this.count, required this.onTap, required this.isSelected});
 
   final int count;
   final bool isSelected;

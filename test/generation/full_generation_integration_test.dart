@@ -187,11 +187,10 @@ void main() {
         reason: 'flutter analyze did not run as expected:\n$out',
       );
 
-      // Generated code may carry lints (info) or warnings; we only fail on
-      // genuine compile-level errors — those mean the generation is broken.
+      // Generated code must be error- AND warning-free (infos are tolerated).
       final errorLines = const LineSplitter()
           .convert(out)
-          .where((l) => l.contains(' error •') || l.contains('error -'))
+          .where((l) => l.contains(' error •') || l.contains(' warning •'))
           .toList();
 
       expect(
@@ -335,7 +334,7 @@ void main() {
       );
       final errorLines = const LineSplitter()
           .convert(out)
-          .where((l) => l.contains(' error •') || l.contains('error -'))
+          .where((l) => l.contains(' error •') || l.contains(' warning •'))
           .toList();
       expect(
         errorLines,
@@ -419,6 +418,15 @@ void main() {
       expect(repoImpl, contains("operation: 'create'"));
       expect(repoImpl, contains("operation: 'delete'"));
 
+      // SyncService is auto-wired in the DI graph (replay via the API source).
+      final di = File(
+        '${projectDir.path}/lib/features/user_profile/presentation/providers/'
+        'user_profile_providers.dart',
+      ).readAsStringSync();
+      expect(di, contains('SyncService userProfileSync(Ref ref)'));
+      expect(di, contains('..start()'));
+      expect(di, contains('api.add(UserProfileModel.fromJson(data))'));
+
       // The whole workspace analyzes without errors.
       final analyze = await Process.run(
         'flutter',
@@ -433,7 +441,7 @@ void main() {
       );
       final errorLines = const LineSplitter()
           .convert(out)
-          .where((l) => l.contains(' error •') || l.contains('error -'))
+          .where((l) => l.contains(' error •') || l.contains(' warning •'))
           .toList();
       expect(
         errorLines,
