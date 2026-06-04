@@ -161,6 +161,16 @@ void main() {
       expect(bootstrap, contains('runZonedGuarded'));
       expect(bootstrap, contains('observers: [RiverpodObserver()]'));
 
+      // Ready-to-use DI graph wires the chopper-backed API source + usecases.
+      final di = File(
+        '${projectDir.path}/lib/features/user_profile/presentation/providers/'
+        'user_profile_providers.dart',
+      ).readAsStringSync();
+      expect(di, contains('UserProfileApiSource.create(ref.watch(chopperClientProvider))'));
+      expect(di, contains('UserProfileRepositoryImpl(ref.watch(userProfileApiSourceProvider))'));
+      expect(di, contains('GetUserProfileUsecase'));
+      expect(di, contains('CreateUserProfileUsecase'));
+
       // Run the analyzer on the generated project.
       final analyze = await Process.run(
         'flutter',
@@ -275,6 +285,16 @@ void main() {
         isTrue,
         reason: 'logger_interceptor.dart missing',
       );
+
+      // Ready-to-use DI graph: dio-backed source + Drift db + NetworkInfo + repo.
+      final di = File(
+        '${projectDir.path}/lib/features/user_profile/presentation/providers/'
+        'user_profile_providers.dart',
+      ).readAsStringSync();
+      expect(di, contains('UserProfileApiSource(ref.watch(dioProvider))'));
+      expect(di, contains('AppDatabase appDatabase(Ref ref)'));
+      expect(di, contains('NetworkInfo networkInfo(Ref ref)'));
+      expect(di, contains('ref.watch(networkInfoProvider)'));
 
       // The witness repository is the offline-first variant (remote + cache).
       final repoImpl = File(
