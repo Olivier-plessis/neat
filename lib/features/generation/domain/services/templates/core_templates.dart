@@ -507,8 +507,7 @@ extension IterableX<T> on Iterable<T> {
   // ── core/router/app_router.dart (basic GoRouter, no builder) ─────────────
 
   static String appRouter({required String packageName, required String featureName}) =>
-      '''import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
+      '''import 'package:go_router/go_router.dart';
 import 'package:$packageName/core/constants/app_route_path.dart';
 import 'package:$packageName/features/$featureName/presentation/pages/${featureName}_page.dart';
 
@@ -549,8 +548,7 @@ RouterConfig<Object> appRouter(Ref ref) => GoRouter(
 );
 ''';
     }
-    return '''import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
+    return '''import 'package:go_router/go_router.dart';
 import 'package:$packageName/core/constants/app_route_path.dart';
 import 'routes.dart';
 

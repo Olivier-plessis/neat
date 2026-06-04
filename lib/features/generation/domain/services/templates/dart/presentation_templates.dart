@@ -26,14 +26,16 @@ class PresentationTemplates {
     required String packageName,
     required String httpClient,
     required bool offlineFirst,
+    bool hasSync = false,
     String? localStoragePackage,
   }) {
     final p = pascal(featureName);
     final c = camel(featureName);
     final isChopper = httpClient == 'chopper';
 
-    final imports = StringBuffer()
-      ..writeln("import 'package:riverpod_annotation/riverpod_annotation.dart';");
+    final imports = StringBuffer();
+    if (hasSync) imports.writeln("import 'dart:convert';\n");
+    imports.writeln("import 'package:riverpod_annotation/riverpod_annotation.dart';");
     if (offlineFirst) {
       imports
         ..writeln("import 'package:connectivity_plus/connectivity_plus.dart';")
@@ -45,11 +47,18 @@ class PresentationTemplates {
     if (offlineFirst) {
       imports.writeln("import 'package:$packageName/core/network/network_info.dart';");
     }
+    if (hasSync) {
+      imports.writeln("import 'package:$packageName/core/sync/sync_service.dart';");
+    }
     imports
       ..writeln(
           "import 'package:$packageName/features/$featureName/data/repositories/${featureName}_repository_impl.dart';")
       ..writeln(
           "import 'package:$packageName/features/$featureName/data/sources/${featureName}_api_source.dart';");
+    if (hasSync) {
+      imports.writeln(
+          "import 'package:$packageName/features/$featureName/data/models/${featureName}_model.dart';");
+    }
     if (offlineFirst) {
       imports.writeln(
           "import 'package:$packageName/features/$featureName/data/sources/${featureName}_local_source.dart';");
@@ -83,6 +92,39 @@ NetworkInfo networkInfo(Ref ref) => NetworkInfo(Connectivity());'''
         ? '${p}RepositoryImpl(\n      ref.watch(${c}ApiSourceProvider),\n      ref.watch(${c}LocalSourceProvider),\n      ref.watch(networkInfoProvider),\n    )'
         : '${p}RepositoryImpl(ref.watch(${c}ApiSourceProvider))';
 
+    // Chopper API calls return Response<T>; the result is ignored either way.
+    final syncProvider = hasSync
+        ? '''
+
+/// Drains the offline write queue via the API source when back online.
+/// Auto-starts on first read; cancels its subscription on dispose.
+@Riverpod(keepAlive: true)
+SyncService ${c}Sync(Ref ref) {
+  final api = ref.watch(${c}ApiSourceProvider);
+  final service = SyncService(
+    ref.watch(appDatabaseProvider),
+    ref.watch(networkInfoProvider),
+    (entry) async {
+      final data = entry.payload == null
+          ? const <String, dynamic>{}
+          : jsonDecode(entry.payload!) as Map<String, dynamic>;
+      switch (entry.operation) {
+        case 'create':
+          await api.add(${p}Model.fromJson(data));
+        case 'update':
+          final model = ${p}Model.fromJson(data);
+          await api.update(model.id, model);
+        case 'delete':
+          await api.delete(data['id'] as String);
+      }
+      return true;
+    },
+  )..start();
+  ref.onDispose(service.dispose);
+  return service;
+}'''
+        : '';
+
     return '''${imports.toString()}
 part '${featureName}_providers.g.dart';
 
@@ -105,7 +147,7 @@ Update${p}Usecase update${p}Usecase(Ref ref) =>
 
 @Riverpod(keepAlive: true)
 Delete${p}Usecase delete${p}Usecase(Ref ref) =>
-    Delete${p}Usecase(ref.watch(${c}RepositoryProvider));
+    Delete${p}Usecase(ref.watch(${c}RepositoryProvider));$syncProvider
 ''';
   }
 
@@ -304,7 +346,8 @@ class ${p}Page extends StatelessWidget {
     final p = pascal(featureName);
 
     if (useBuilder) {
-      return '''import 'package:go_router/go_router.dart';
+      return '''import 'package:flutter/widgets.dart';
+import 'package:go_router/go_router.dart';
 import 'package:$packageName/features/$featureName/presentation/pages/${featureName}_page.dart';
 
 class ${p}Route extends GoRouteData {
@@ -317,8 +360,7 @@ class ${p}Route extends GoRouteData {
 ''';
     }
 
-    return '''import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
+    return '''import 'package:go_router/go_router.dart';
 import 'package:$packageName/features/$featureName/presentation/pages/${featureName}_page.dart';
 
 final ${camel(featureName)}Route = GoRoute(
