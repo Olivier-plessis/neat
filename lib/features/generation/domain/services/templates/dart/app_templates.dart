@@ -10,28 +10,75 @@ class AppTemplates {
     String packageName = '',
     bool useEnvied = false,
   }) {
-    final hasRiverpod = packages.any((p) => p.name.contains('riverpod'));
+    final imports = StringBuffer()..writeln("import 'core/bootstrap.dart';");
+    if (useEnvied) imports.writeln("import 'core/env/envs/dev_env.dart';");
 
-    final imports = StringBuffer();
-    final wrapper = StringBuffer();
-
-    imports.writeln("import 'package:flutter/material.dart';");
-    if (hasRiverpod) imports.writeln("import 'package:hooks_riverpod/hooks_riverpod.dart';");
-    if (useEnvied) {
-      imports
-        ..writeln("import 'package:$packageName/core/env/app_env.dart';")
-        ..writeln("import 'package:$packageName/core/env/envs/dev_env.dart';");
-    }
-    imports.writeln("import 'app.dart';");
-
-    wrapper.write(hasRiverpod ? 'ProviderScope(child: const App())' : 'const App()');
-
-    // Default to the dev flavor; swap DevEnv() for StagingEnv()/ProdEnv() as needed.
-    final setEnv = useEnvied ? '  AppEnv.setEnv(DevEnv());\n' : '';
+    // Default to the dev flavor. Add main_staging.dart / main_prod.dart that
+    // call bootstrap(StagingEnv()) / bootstrap(ProdEnv()) for more entry points.
+    final call = useEnvied ? 'bootstrap(DevEnv())' : 'bootstrap()';
 
     return '''${imports.toString()}
-void main() {
-$setEnv  runApp(${wrapper.toString()});
+void main() => $call;
+''';
+  }
+
+  // ── core/bootstrap.dart ─────────────────────────────────────────────────────
+
+  /// Centralised start-up: bindings + error handling + provider scope, all
+  /// inside a guarded zone that funnels uncaught errors to AppLogger.
+  static String bootstrap({
+    required String packageName,
+    required bool hasRiverpod,
+    required bool useAnnotations,
+    required bool useEnvied,
+    required bool isWeb,
+  }) {
+    final imports = StringBuffer()
+      ..writeln("import 'dart:async';")
+      ..writeln()
+      ..writeln("import 'package:flutter/widgets.dart';");
+    if (isWeb) {
+      imports.writeln("import 'package:flutter_web_plugins/url_strategy.dart';");
+    }
+    if (hasRiverpod) {
+      imports.writeln(useAnnotations
+          ? "import 'package:hooks_riverpod/hooks_riverpod.dart';"
+          : "import 'package:flutter_riverpod/flutter_riverpod.dart';");
+    }
+    imports.writeln("import 'package:$packageName/app.dart';");
+    if (useEnvied) {
+      imports.writeln("import 'package:$packageName/core/env/app_env.dart';");
+    }
+    imports.writeln("import 'package:$packageName/core/error/error_handler.dart';");
+    imports.writeln("import 'package:$packageName/core/utils/app_logger.dart';");
+    if (hasRiverpod) {
+      imports.writeln("import 'package:$packageName/core/observers/provider_observer.dart';");
+    }
+
+    final sig =
+        useEnvied ? 'Future<void> bootstrap(AppEnv env) async' : 'Future<void> bootstrap() async';
+    final setEnv = useEnvied ? '  AppEnv.setEnv(env);\n' : '';
+    final pathUrl = isWeb ? '\n      usePathUrlStrategy();' : '';
+    final root = hasRiverpod
+        ? 'ProviderScope(observers: [RiverpodObserver()], child: const App())'
+        : 'const App()';
+
+    final docComment = hasRiverpod
+        ? '''/// Swap [ProviderScope] for an UncontrolledProviderScope if you need
+/// bootstrap-time overrides (e.g. injecting config computed here).
+'''
+        : '';
+
+    return '''${imports.toString()}
+$docComment$sig {
+$setEnv  await runZonedGuarded(
+    () async {
+      WidgetsFlutterBinding.ensureInitialized();
+      registerErrorHandler();$pathUrl
+      runApp($root);
+    },
+    (error, stack) => AppLogger.f('Uncaught exception', error: error, stackTrace: stack),
+  );
 }
 ''';
   }
@@ -46,6 +93,7 @@ $setEnv  runApp(${wrapper.toString()});
     required bool hasBloc,
     required bool useCubit,
     bool useScreenUtil = false,
+    bool routerIsProvider = false,
   }) {
     final imports = StringBuffer()..writeln("import 'package:flutter/material.dart';");
     if (useScreenUtil) {
@@ -79,7 +127,9 @@ $setEnv  runApp(${wrapper.toString()});
     // The MaterialApp(.router) widget.
     final String materialApp;
     if (hasGoRouter) {
-      final router = useAnnotations ? 'ref.watch(appRouterProvider)' : 'appRouter';
+      // The router is only a Riverpod provider when go_router_builder + riverpod
+      // annotations are both on; otherwise it's a top-level `appRouter` global.
+      final router = routerIsProvider ? 'ref.watch(appRouterProvider)' : 'appRouter';
       materialApp = '''MaterialApp.router(
       title: '$name',
       debugShowCheckedModeBanner: false,

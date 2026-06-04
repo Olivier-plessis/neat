@@ -43,14 +43,23 @@ abstract class ${p}Entity with _\$${p}Entity {
   static String featureIRepository({
     required String featureName,
     required String packageName,
+    bool hasHttpClient = false,
   }) {
     final p = pascal(featureName);
+    // A remote source unlocks the full CRUD write contract.
+    final writeContract = hasHttpClient
+        ? '''
+  Future<Result<${p}Entity>> create(${p}Entity entity);
+  Future<Result<${p}Entity>> update(${p}Entity entity);
+  Future<Result<bool>> delete(String id);'''
+        : '';
     return '''import 'package:$packageName/core/result/result.dart';
 import '../entities/${featureName}_entity.dart';
 
 abstract class I${p}Repository {
   Future<Result<List<${p}Entity>>> getAll();
   Future<Result<${p}Entity>> getById(String id);
+$writeContract
 }
 ''';
   }
@@ -72,6 +81,42 @@ class Get${p}Usecase {
   final I${p}Repository _repository;
 
   Future<Result<List<${p}Entity>>> execute() => _repository.getAll();
+}
+''';
+  }
+
+  /// CRUD write usecases (generated when a remote source is present).
+  static String featureCrudUsecases({
+    required String featureName,
+    required String packageName,
+  }) {
+    final p = pascal(featureName);
+    return '''import 'package:$packageName/core/result/result.dart';
+import '../entities/${featureName}_entity.dart';
+import '../repositories/i_${featureName}_repository.dart';
+
+class Create${p}Usecase {
+  const Create${p}Usecase(this._repository);
+
+  final I${p}Repository _repository;
+
+  Future<Result<${p}Entity>> execute(${p}Entity entity) => _repository.create(entity);
+}
+
+class Update${p}Usecase {
+  const Update${p}Usecase(this._repository);
+
+  final I${p}Repository _repository;
+
+  Future<Result<${p}Entity>> execute(${p}Entity entity) => _repository.update(entity);
+}
+
+class Delete${p}Usecase {
+  const Delete${p}Usecase(this._repository);
+
+  final I${p}Repository _repository;
+
+  Future<Result<bool>> execute(String id) => _repository.delete(id);
 }
 ''';
   }

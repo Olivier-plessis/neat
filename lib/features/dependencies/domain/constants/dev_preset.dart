@@ -27,7 +27,6 @@ const devPresetPackages = [
     version: '3.1.0',
     description: 'Annotations for freezed immutable classes.',
   ),
-  PubPackage(name: 'dio', version: '5.9.2', description: 'Powerful HTTP client with interceptors.'),
   PubPackage(
     name: 'chopper',
     version: '8.6.0',

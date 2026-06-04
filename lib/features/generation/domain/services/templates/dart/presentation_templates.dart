@@ -15,6 +15,100 @@ class PresentationTemplates {
     return _riverpodManualTemplate(featureName);
   }
 
+  // ── presentation/providers/<f>_providers.dart (ready-to-use DI graph) ─────
+
+  /// Wires the full feature graph as Riverpod providers: API source (using the
+  /// core dio/chopper provider, so the API_BASE_URL flows in), local source +
+  /// Drift db + NetworkInfo when offline-first, the repository, and the CRUD
+  /// usecases. Generated only with riverpod annotations + a remote source.
+  static String featureDi({
+    required String featureName,
+    required String packageName,
+    required String httpClient,
+    required bool offlineFirst,
+    String? localStoragePackage,
+  }) {
+    final p = pascal(featureName);
+    final c = camel(featureName);
+    final isChopper = httpClient == 'chopper';
+
+    final imports = StringBuffer()
+      ..writeln("import 'package:riverpod_annotation/riverpod_annotation.dart';");
+    if (offlineFirst) {
+      imports
+        ..writeln("import 'package:connectivity_plus/connectivity_plus.dart';")
+        ..writeln("import 'package:$localStoragePackage/$localStoragePackage.dart';");
+    }
+    imports.writeln(isChopper
+        ? "import 'package:$packageName/core/network/chopper_client_provider.dart';"
+        : "import 'package:$packageName/core/network/dio_provider.dart';");
+    if (offlineFirst) {
+      imports.writeln("import 'package:$packageName/core/network/network_info.dart';");
+    }
+    imports
+      ..writeln(
+          "import 'package:$packageName/features/$featureName/data/repositories/${featureName}_repository_impl.dart';")
+      ..writeln(
+          "import 'package:$packageName/features/$featureName/data/sources/${featureName}_api_source.dart';");
+    if (offlineFirst) {
+      imports.writeln(
+          "import 'package:$packageName/features/$featureName/data/sources/${featureName}_local_source.dart';");
+    }
+    imports
+      ..writeln(
+          "import 'package:$packageName/features/$featureName/domain/repositories/i_${featureName}_repository.dart';")
+      ..writeln(
+          "import 'package:$packageName/features/$featureName/domain/usecases/get_${featureName}_usecase.dart';")
+      ..writeln(
+          "import 'package:$packageName/features/$featureName/domain/usecases/${featureName}_crud_usecases.dart';");
+
+    final apiConstruct = isChopper
+        ? '${p}ApiSource.create(ref.watch(chopperClientProvider))'
+        : '${p}ApiSource(ref.watch(dioProvider))';
+
+    final offlineProviders = offlineFirst
+        ? '''
+
+@Riverpod(keepAlive: true)
+AppDatabase appDatabase(Ref ref) => AppDatabase();
+
+@Riverpod(keepAlive: true)
+${p}LocalSource ${c}LocalSource(Ref ref) => ${p}LocalSource(ref.watch(appDatabaseProvider));
+
+@Riverpod(keepAlive: true)
+NetworkInfo networkInfo(Ref ref) => NetworkInfo(Connectivity());'''
+        : '';
+
+    final repoConstruct = offlineFirst
+        ? '${p}RepositoryImpl(\n      ref.watch(${c}ApiSourceProvider),\n      ref.watch(${c}LocalSourceProvider),\n      ref.watch(networkInfoProvider),\n    )'
+        : '${p}RepositoryImpl(ref.watch(${c}ApiSourceProvider))';
+
+    return '''${imports.toString()}
+part '${featureName}_providers.g.dart';
+
+@Riverpod(keepAlive: true)
+${p}ApiSource ${c}ApiSource(Ref ref) => $apiConstruct;$offlineProviders
+
+@Riverpod(keepAlive: true)
+I${p}Repository ${c}Repository(Ref ref) => $repoConstruct;
+
+@Riverpod(keepAlive: true)
+Get${p}Usecase get${p}Usecase(Ref ref) => Get${p}Usecase(ref.watch(${c}RepositoryProvider));
+
+@Riverpod(keepAlive: true)
+Create${p}Usecase create${p}Usecase(Ref ref) =>
+    Create${p}Usecase(ref.watch(${c}RepositoryProvider));
+
+@Riverpod(keepAlive: true)
+Update${p}Usecase update${p}Usecase(Ref ref) =>
+    Update${p}Usecase(ref.watch(${c}RepositoryProvider));
+
+@Riverpod(keepAlive: true)
+Delete${p}Usecase delete${p}Usecase(Ref ref) =>
+    Delete${p}Usecase(ref.watch(${c}RepositoryProvider));
+''';
+  }
+
   static String _riverpodAnnotationTemplate(String featureName) {
     final p = pascal(featureName);
     return '''import 'package:riverpod_annotation/riverpod_annotation.dart';

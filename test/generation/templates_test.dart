@@ -106,22 +106,71 @@ void main() {
       const PubPackage(name: 'hooks_riverpod', version: '3.3.1', description: ''),
     ];
 
-    test('without envied: no AppEnv setup', () {
+    test('without envied: main calls bootstrap()', () {
       final out = AppTemplates.mainDart(riverpod, packageName: pkgName);
-      expect(out, isNot(contains('AppEnv.setEnv')));
-      expect(out, contains('runApp('));
+      expect(out, contains('void main() => bootstrap();'));
+      expect(out, contains("import 'core/bootstrap.dart';"));
     });
 
-    test('with envied: sets the dev flavor before runApp', () {
+    test('with envied: main calls bootstrap(DevEnv())', () {
       final out = AppTemplates.mainDart(riverpod, packageName: pkgName, useEnvied: true);
-      expect(out, contains('AppEnv.setEnv(DevEnv());'));
-      expect(out, contains('core/env/app_env.dart'));
+      expect(out, contains('void main() => bootstrap(DevEnv());'));
       expect(out, contains('core/env/envs/dev_env.dart'));
     });
+  });
 
-    test('wraps in ProviderScope when riverpod is present', () {
-      final out = AppTemplates.mainDart(riverpod, packageName: pkgName);
-      expect(out, contains('ProviderScope(child: const App())'));
+  group('AppTemplates.bootstrap', () {
+    test('guards the zone and wires the RiverpodObserver (riverpod)', () {
+      final out = AppTemplates.bootstrap(
+        packageName: pkgName,
+        hasRiverpod: true,
+        useAnnotations: true,
+        useEnvied: false,
+        isWeb: false,
+      );
+      expect(out, contains('Future<void> bootstrap() async'));
+      expect(out, contains('runZonedGuarded'));
+      expect(out, contains('registerErrorHandler();'));
+      expect(out, contains('WidgetsFlutterBinding.ensureInitialized();'));
+      expect(out, contains('ProviderScope(observers: [RiverpodObserver()], child: const App())'));
+      expect(out, contains("AppLogger.f('Uncaught exception'"));
+      expect(out, isNot(contains('usePathUrlStrategy')));
+    });
+
+    test('with envied: takes an AppEnv and sets it', () {
+      final out = AppTemplates.bootstrap(
+        packageName: pkgName,
+        hasRiverpod: true,
+        useAnnotations: true,
+        useEnvied: true,
+        isWeb: false,
+      );
+      expect(out, contains('Future<void> bootstrap(AppEnv env) async'));
+      expect(out, contains('AppEnv.setEnv(env);'));
+    });
+
+    test('web target adds usePathUrlStrategy', () {
+      final out = AppTemplates.bootstrap(
+        packageName: pkgName,
+        hasRiverpod: true,
+        useAnnotations: true,
+        useEnvied: false,
+        isWeb: true,
+      );
+      expect(out, contains('usePathUrlStrategy();'));
+      expect(out, contains('flutter_web_plugins/url_strategy.dart'));
+    });
+
+    test('without riverpod: runs the bare App in the guarded zone', () {
+      final out = AppTemplates.bootstrap(
+        packageName: pkgName,
+        hasRiverpod: false,
+        useAnnotations: false,
+        useEnvied: false,
+        isWeb: false,
+      );
+      expect(out, contains('runApp(const App())'));
+      expect(out, isNot(contains('ProviderScope')));
     });
   });
 
@@ -155,7 +204,7 @@ void main() {
       expect(out, isNot(contains('flutter_screenutil')));
     });
 
-    test('go_router variant uses MaterialApp.router with the riverpod provider', () {
+    test('go_router + provider router watches appRouterProvider', () {
       final out = AppTemplates.appDart(
         name: pkgName,
         hasGoRouter: true,
@@ -163,9 +212,27 @@ void main() {
         useAnnotations: true,
         hasBloc: false,
         useCubit: false,
+        routerIsProvider: true,
       );
       expect(out, contains('MaterialApp.router('));
       expect(out, contains('routerConfig: ref.watch(appRouterProvider)'));
+    });
+
+    test('go_router without a provider router uses the global appRouter', () {
+      // go_router selected but NOT go_router_builder → router is a top-level
+      // `appRouter`, never the (non-existent) appRouterProvider.
+      final out = AppTemplates.appDart(
+        name: pkgName,
+        hasGoRouter: true,
+        hasRiverpod: true,
+        useAnnotations: true,
+        hasBloc: false,
+        useCubit: false,
+        // routerIsProvider defaults to false.
+      );
+      expect(out, contains('MaterialApp.router('));
+      expect(out, contains('routerConfig: appRouter'));
+      expect(out, isNot(contains('appRouterProvider')));
     });
   });
 }

@@ -135,14 +135,41 @@ class ArchitectureScreen extends ConsumerWidget {
                         label: 'Storage Strategy',
                       ),
                       const SizedBox(height: 12),
-                      _ToggleTile(
-                        title: 'Offline-First (Drift + workspace)',
-                        description:
-                            'Génère un workspace avec un package `_local_storage` (Drift) et un repository local-first par-dessus la source distante.',
-                        value: state.storageStrategy.isOfflineFirst,
-                        onChanged: (v) => notifier.setStorageStrategy(
-                          v ? StorageStrategy.offlineFirst : StorageStrategy.remoteOnly,
+                      SizedBox(
+                        width: double.infinity,
+                        child: SegmentedButton<StorageStrategy>(
+                          segments: const [
+                            ButtonSegment(
+                              value: StorageStrategy.remoteOnly,
+                              label: Text('Remote Only'),
+                              icon: Icon(Icons.cloud_outlined),
+                            ),
+                            ButtonSegment(
+                              value: StorageStrategy.offlineFirstRead,
+                              label: Text('Offline-First'),
+                              icon: Icon(Icons.sd_storage_outlined),
+                            ),
+                            ButtonSegment(
+                              value: StorageStrategy.offlineFirstSync,
+                              label: Text('Offline + Sync'),
+                              icon: Icon(Icons.sync_outlined),
+                            ),
+                          ],
+                          selected: {state.storageStrategy},
+                          onSelectionChanged: (s) => notifier.setStorageStrategy(s.first),
                         ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        switch (state.storageStrategy) {
+                          StorageStrategy.remoteOnly =>
+                            'Source distante uniquement (Dio/Retrofit standard).',
+                          StorageStrategy.offlineFirstRead =>
+                            'Workspace + package Drift `_local_storage` : lecture local-first avec fallback cache.',
+                          StorageStrategy.offlineFirstSync =>
+                            'Tout le mode lecture + Outbox : les écritures hors ligne sont mises en file et rejouées par un SyncService au retour du réseau.',
+                        },
+                        style: Theme.of(context).textTheme.bodySmall,
                       ),
 
                       const SizedBox(height: 28),

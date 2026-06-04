@@ -1,8 +1,11 @@
-/// Templates for the opt-in `<name>_local_storage` workspace package.
+import 'package:neat/features/generation/domain/services/templates/dart/_template_utils.dart';
+
+/// Templates for the `<name>_local_storage` workspace package.
 ///
-/// Phase 1 emits a minimal package that compiles and is wired into the Dart
-/// workspace. Phase 2 fills it with the Drift database; Phase 3 wires the
-/// witness feature's local-first repository on top.
+/// Emits a self-contained Drift package: its own pubspec (`resolution:
+/// workspace`), an [AppDatabase] with a typed table for the witness feature
+/// (full local CRUD) plus the Outbox queue when sync is enabled, and a public
+/// barrel.
 class LocalStorageTemplates {
   LocalStorageTemplates._();
 
@@ -23,24 +26,129 @@ resolution: workspace
 dependencies:
   flutter:
     sdk: flutter
+  drift: ^2.33.0
+  drift_flutter: ^0.3.0
 
 dev_dependencies:
   flutter_lints: ^6.0.0
+  build_runner: ^2.4.13
+  drift_dev: ^2.33.0
 ''';
 
   /// Public entry point (barrel) of the package.
+  ///
+  /// Re-exports the drift runtime so consumers manipulate rows/queries without
+  /// declaring a direct dependency on `drift`.
   static String publicApi({required String packageName}) => '''/// Public API of the $packageName package.
 library;
 
-// Phase 2 will export the Drift database and DAOs from here.
-export 'src/placeholder.dart';
+export 'package:drift/drift.dart';
+
+export 'src/database.dart';
 ''';
 
-  /// Phase 1 placeholder so the package has compilable source.
-  /// Replaced by the Drift database in Phase 2.
-  static String placeholder() => '''/// Placeholder until the Drift database lands (Phase 2).
-class LocalStorage {
-  const LocalStorage();
+  /// The Drift database. Carries a typed table for the witness [featureName]
+  /// (full local CRUD); when [withOutbox] is true it also carries the Outbox
+  /// queue table + helpers for the sync strategy.
+  static String database({required String featureName, bool withOutbox = false}) {
+    final p = pascal(featureName); // UserProfile
+    final acc = '${camel(featureName)}Rows'; // userProfileRows (Drift accessor)
+
+    final outboxTable = withOutbox
+        ? '''
+
+/// Outbox queue: writes made offline are appended here and replayed by the
+/// SyncService when connectivity returns.
+class OutboxEntries extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get operation => text()();
+  TextColumn get endpoint => text()();
+  TextColumn get payload => text().nullable()();
+  IntColumn get retryCount => integer().withDefault(const Constant(0))();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+}'''
+        : '';
+
+    final tablesList = withOutbox ? '[${p}Rows, OutboxEntries]' : '[${p}Rows]';
+
+    final outboxMethods = withOutbox
+        ? '''
+
+  // ── Outbox ────────────────────────────────────────────────────────────────
+
+  /// Queue a write to be replayed later.
+  Future<void> enqueueOutbox({
+    required String operation,
+    required String endpoint,
+    String? payload,
+  }) =>
+      into(outboxEntries).insert(OutboxEntriesCompanion.insert(
+        operation: operation,
+        endpoint: endpoint,
+        payload: Value(payload),
+      ));
+
+  /// Pending writes, oldest first.
+  Future<List<OutboxEntry>> pendingOutbox() =>
+      (select(outboxEntries)..orderBy([(t) => OrderingTerm.asc(t.createdAt)])).get();
+
+  /// Watch the pending queue reactively.
+  Stream<List<OutboxEntry>> watchPendingOutbox() => select(outboxEntries).watch();
+
+  Future<void> deleteOutbox(int id) =>
+      (delete(outboxEntries)..where((t) => t.id.equals(id))).go();
+
+  Future<void> incrementRetry(int id) async {
+    final row =
+        await (select(outboxEntries)..where((t) => t.id.equals(id))).getSingleOrNull();
+    if (row == null) return;
+    await (update(outboxEntries)..where((t) => t.id.equals(id)))
+        .write(OutboxEntriesCompanion(retryCount: Value(row.retryCount + 1)));
+  }'''
+        : '';
+
+    return '''import 'package:drift/drift.dart';
+import 'package:drift_flutter/drift_flutter.dart';
+
+part 'database.g.dart';
+
+/// Typed local table for the $featureName feature (full CRUD).
+@DataClassName('${p}Row')
+class ${p}Rows extends Table {
+  TextColumn get id => text()();
+  TextColumn get name => text()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}$outboxTable
+
+@DriftDatabase(tables: $tablesList)
+class AppDatabase extends _\$AppDatabase {
+  AppDatabase([QueryExecutor? executor]) : super(executor ?? _open());
+
+  @override
+  int get schemaVersion => 1;
+
+  // ── $featureName CRUD ───────────────────────────────────────────────────────
+
+  Future<List<${p}Row>> getAll${p}s() => select($acc).get();
+
+  Future<${p}Row?> get$p(String id) =>
+      (select($acc)..where((t) => t.id.equals(id))).getSingleOrNull();
+
+  /// Reactive list (emits on every local write).
+  Stream<List<${p}Row>> watch${p}s() => select($acc).watch();
+
+  Future<void> upsert$p(${p}Row row) => into($acc).insertOnConflictUpdate(row);
+
+  Future<void> upsertAll${p}s(List<${p}Row> rows) =>
+      batch((b) => b.insertAllOnConflictUpdate($acc, rows));
+
+  Future<void> delete$p(String id) =>
+      (delete($acc)..where((t) => t.id.equals(id))).go();$outboxMethods
+
+  static QueryExecutor _open() => driftDatabase(name: 'app_db');
 }
 ''';
+  }
 }
