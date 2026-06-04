@@ -95,11 +95,15 @@ class LaunchGenerationUsecase {
     final isWebOnly =
         identity.targetPlatforms.length == 1 && identity.targetPlatforms.first == 'web';
     final useScreenUtil = !isWebOnly;
+    // Web among targets → bootstrap uses usePathUrlStrategy().
+    final isWeb = identity.targetPlatforms.contains('web');
 
     // Offline-first turns the project into a Dart workspace with a dedicated
     // local-storage package (Drift). null when remote-only.
     final offlineFirst = architecture.storageStrategy.isOfflineFirst;
     final localStoragePackage = offlineFirst ? '${packageName}_local_storage' : null;
+    // Sync strategy adds the Outbox table + SyncService + repository write path.
+    final hasSync = architecture.storageStrategy.hasSync;
 
     // 2. Scaffold Clean Architecture directories + files
     onLog('[▶] Scaffolding Clean Architecture...');
@@ -123,13 +127,21 @@ class LaunchGenerationUsecase {
       useScreenUtil: useScreenUtil,
       hasEnvied: hasEnvied,
       theme: theme,
+      localStoragePackage: localStoragePackage,
+      hasSync: hasSync,
+      isWeb: isWeb,
     );
     onLog('[✓] Scaffold created.');
 
     // 2b. Offline-first workspace package
     if (localStoragePackage != null) {
       onLog('[▶] Creating offline-first workspace package...');
-      await _writeLocalStoragePackage(projectDir, localStoragePackage);
+      await _writeLocalStoragePackage(
+        projectDir,
+        localStoragePackage,
+        featureName: featureName,
+        hasSync: hasSync,
+      );
       onLog('[✓] packages/$localStoragePackage created.');
     }
 
@@ -163,6 +175,16 @@ class LaunchGenerationUsecase {
         "[▶] Running 'dart run build_runner build' (may fail on first run due to version resolution)...",
       );
       await _runBuildRunner(projectDir, onLog);
+    }
+
+    // In a workspace, build_runner runs per-package — the Drift package has its
+    // own codegen (database.g.dart) that the root build does not produce.
+    if (localStoragePackage != null) {
+      onLog('[▶] Running build_runner in packages/$localStoragePackage (Drift)...');
+      await _runBuildRunner(
+        Directory('${projectDir.path}/packages/$localStoragePackage'),
+        onLog,
+      );
     }
 
     // 7. dart format — guarantees clean, consistent formatting on all output
@@ -208,13 +230,26 @@ class LaunchGenerationUsecase {
     required bool useScreenUtil,
     required bool hasEnvied,
     required ThemeEngineState theme,
+    String? localStoragePackage,
+    bool hasSync = false,
+    bool isWeb = false,
   }) async {
     final lib = '${projectDir.path}/lib';
 
-    // ── main.dart ─────────────────────────────────────────────────────────
+    // ── main.dart + bootstrap ───────────────────────────────────────────────
     await _write(
       '$lib/main.dart',
       AppTemplates.mainDart(packages, packageName: packageName, useEnvied: hasEnvied),
+    );
+    await _write(
+      '$lib/core/bootstrap.dart',
+      AppTemplates.bootstrap(
+        packageName: packageName,
+        hasRiverpod: hasRiverpod,
+        useAnnotations: useAnnotations,
+        useEnvied: hasEnvied,
+        isWeb: isWeb,
+      ),
     );
 
     // ── core/env (envied flavors) ───────────────────────────────────────────
@@ -233,6 +268,8 @@ class LaunchGenerationUsecase {
         hasBloc: hasBloc,
         useCubit: useCubit,
         useScreenUtil: useScreenUtil,
+        // appRouterProvider only exists with go_router_builder + annotations.
+        routerIsProvider: hasGoRouterBuilder && useAnnotations,
       ),
     );
 
@@ -251,6 +288,66 @@ class LaunchGenerationUsecase {
 
     // ── core/utils ────────────────────────────────────────────────────────
     await _write('$lib/core/utils/extensions.dart', CoreTemplates.extensions());
+
+    // ── core/utils + observers (observability) ──────────────────────────────
+    await _write(
+      '$lib/core/utils/app_logger.dart',
+      CoreTemplates.appLogger(useEnvied: hasEnvied, packageName: packageName),
+    );
+    await _write(
+      '$lib/core/error/error_handler.dart',
+      CoreTemplates.errorHandler(packageName: packageName),
+    );
+    if (hasRiverpod) {
+      await _write(
+        '$lib/core/observers/provider_observer.dart',
+        CoreTemplates.riverpodObserver(packageName: packageName, useAnnotations: useAnnotations),
+      );
+    }
+    // HTTP logging interceptor + a client provider, adapted to the chosen client.
+    if (hasHttpClient) {
+      await _write(
+        '$lib/core/observers/logger_interceptor.dart',
+        CoreTemplates.loggerInterceptor(packageName: packageName, httpClient: httpClient),
+      );
+    }
+    final isDioBased = httpClient == 'dio' || httpClient == 'retrofit';
+    if (isDioBased && hasRiverpod) {
+      await _write(
+        '$lib/core/network/dio_provider.dart',
+        CoreTemplates.dioProvider(
+          packageName: packageName,
+          useAnnotations: useAnnotations,
+          useEnvied: hasEnvied,
+        ),
+      );
+    }
+    if (httpClient == 'chopper' && hasRiverpod) {
+      await _write(
+        '$lib/core/network/chopper_client_provider.dart',
+        CoreTemplates.chopperClientProvider(
+          packageName: packageName,
+          useAnnotations: useAnnotations,
+          useEnvied: hasEnvied,
+        ),
+      );
+    }
+
+    // ── core/network (offline-first) ────────────────────────────────────────
+    if (localStoragePackage != null) {
+      await _write('$lib/core/network/network_info.dart', CoreTemplates.networkInfo());
+    }
+
+    // ── core/sync (offline-first + sync / Outbox) ────────────────────────────
+    if (localStoragePackage != null && hasSync) {
+      await _write(
+        '$lib/core/sync/sync_service.dart',
+        CoreTemplates.syncService(
+          packageName: packageName,
+          localStoragePackage: localStoragePackage,
+        ),
+      );
+    }
 
     // ── core/theme ────────────────────────────────────────────────────────
     await _writeTheme(
@@ -295,6 +392,8 @@ class LaunchGenerationUsecase {
       httpClient: httpClient,
       hasFreezed: hasFreezed,
       hasJsonSerializable: hasJsonSerializable,
+      localStoragePackage: localStoragePackage,
+      hasSync: hasSync,
     );
   }
 
@@ -498,8 +597,11 @@ class LaunchGenerationUsecase {
     required String httpClient,
     required bool hasFreezed,
     required bool hasJsonSerializable,
+    String? localStoragePackage,
+    bool hasSync = false,
   }) async {
     final isFeatureFirst = architecture.pattern == StructuralPattern.featureFirst;
+    final offlineFirst = localStoragePackage != null;
 
     String domainBase;
     String dataBase;
@@ -524,7 +626,11 @@ class LaunchGenerationUsecase {
     // domain/repositories
     await _write(
       '$domainBase/repositories/i_${featureName}_repository.dart',
-      DomainTemplates.featureIRepository(featureName: featureName, packageName: packageName),
+      DomainTemplates.featureIRepository(
+        featureName: featureName,
+        packageName: packageName,
+        hasHttpClient: hasHttpClient,
+      ),
     );
 
     // domain/usecases
@@ -532,6 +638,13 @@ class LaunchGenerationUsecase {
       '$domainBase/usecases/get_${featureName}_usecase.dart',
       DomainTemplates.featureGetUsecase(featureName: featureName, packageName: packageName),
     );
+    // CRUD write usecases require a remote source.
+    if (hasHttpClient) {
+      await _write(
+        '$domainBase/usecases/${featureName}_crud_usecases.dart',
+        DomainTemplates.featureCrudUsecases(featureName: featureName, packageName: packageName),
+      );
+    }
 
     // data/models
     await _write(
@@ -552,6 +665,8 @@ class LaunchGenerationUsecase {
         packageName: packageName,
         hasHttpClient: hasHttpClient,
         httpClient: httpClient,
+        offlineFirst: offlineFirst,
+        hasSync: hasSync,
       ),
     );
 
@@ -568,7 +683,13 @@ class LaunchGenerationUsecase {
     }
     await _write(
       '$dataBase/sources/${featureName}_local_source.dart',
-      DataTemplates.featureLocalSource(featureName: featureName, packageName: packageName),
+      DataTemplates.featureLocalSource(
+        featureName: featureName,
+        packageName: packageName,
+        offlineFirst: offlineFirst,
+        hasSync: hasSync,
+        localStoragePackage: localStoragePackage,
+      ),
     );
 
     // presentation/pages
@@ -594,6 +715,20 @@ class LaunchGenerationUsecase {
           useCubit: false,
         ),
       );
+      // Ready-to-use DI graph: API source → repository → usecases, wired to the
+      // core dio/chopper provider (so API_BASE_URL flows in). Needs annotations.
+      if (useAnnotations && hasHttpClient) {
+        await _write(
+          '$presentationBase/providers/${featureName}_providers.dart',
+          PresentationTemplates.featureDi(
+            featureName: featureName,
+            packageName: packageName,
+            httpClient: httpClient,
+            offlineFirst: offlineFirst,
+            localStoragePackage: localStoragePackage,
+          ),
+        );
+      }
     } else if (useCubit) {
       await _write(
         '$presentationBase/cubit/${featureName}_cubit.dart',
@@ -729,8 +864,10 @@ class LaunchGenerationUsecase {
   /// (Phase 1: compiles & is wired into the workspace; Drift lands in Phase 2.)
   Future<void> _writeLocalStoragePackage(
     Directory projectDir,
-    String localStoragePackage,
-  ) async {
+    String localStoragePackage, {
+    required String featureName,
+    bool hasSync = false,
+  }) async {
     final root = '${projectDir.path}/packages/$localStoragePackage';
     await _write(
       '$root/pubspec.yaml',
@@ -741,8 +878,8 @@ class LaunchGenerationUsecase {
       LocalStorageTemplates.publicApi(packageName: localStoragePackage),
     );
     await _write(
-      '$root/lib/src/placeholder.dart',
-      LocalStorageTemplates.placeholder(),
+      '$root/lib/src/database.dart',
+      LocalStorageTemplates.database(featureName: featureName, withOutbox: hasSync),
     );
   }
 
@@ -791,6 +928,11 @@ class LaunchGenerationUsecase {
       deps.write('  google_fonts: ^8.1.0\n');
     }
 
+    // AppLogger (observability) is always generated — inject the logger package.
+    if (!uniquePackages.any((p) => p.name == 'logger')) {
+      deps.write('  logger: ^2.7.0\n');
+    }
+
     // Responsive sizing — added by default, skipped for web-only projects.
     if (addScreenUtil && !uniquePackages.any((p) => p.name == 'flutter_screenutil')) {
       deps.write('  flutter_screenutil: ^5.9.3\n');
@@ -811,8 +953,12 @@ class LaunchGenerationUsecase {
       }
     }
 
-    // Offline-first → the app path-depends on the workspace local-storage package.
+    // Offline-first → the app path-depends on the workspace local-storage
+    // package and needs connectivity_plus for the NetworkInfo brick.
     if (localStoragePackage != null) {
+      if (!uniquePackages.any((p) => p.name == 'connectivity_plus')) {
+        deps.write('  connectivity_plus: ^7.1.1\n');
+      }
       deps.write('  $localStoragePackage:\n    path: packages/$localStoragePackage\n');
     }
 

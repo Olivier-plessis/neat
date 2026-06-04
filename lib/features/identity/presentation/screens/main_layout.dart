@@ -8,6 +8,7 @@ import 'package:neat/features/cicd/presentation/screens/cicd_screen.dart';
 import 'package:neat/features/dependencies/domain/models/pub_package.dart';
 import 'package:neat/features/dependencies/presentation/providers/dependencies_provider.dart';
 import 'package:neat/features/dependencies/presentation/screens/dependencies_screen.dart';
+import 'package:neat/features/feature_gen/presentation/screens/feature_gen_screen.dart';
 import 'package:neat/features/identity/domain/models/identity_state.dart';
 import 'package:neat/features/identity/presentation/providers/identity_provider.dart';
 import 'package:neat/features/identity/presentation/providers/stepper_provider.dart';
@@ -52,14 +53,14 @@ class MainLayout extends ConsumerWidget {
                       ),
                       const SizedBox(width: 12),
                       Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        crossAxisAlignment: .start,
                         children: [
                           const Text(
                             'NEAT',
                             style: TextStyle(
                               color: AppTheme.colorPrimaryCyan,
                               fontSize: 20,
-                              fontWeight: FontWeight.bold,
+                              fontWeight: .bold,
                               letterSpacing: 2,
                             ),
                           ),
@@ -237,9 +238,7 @@ class MainLayout extends ConsumerWidget {
       NeatStep.architecture => const ArchitectureScreen(),
       NeatStep.cicd => const CicdScreen(),
       NeatStep.launch => const LaunchScreen(),
-      NeatStep.featureGen => const Center(
-        child: Text('Feature Gen', style: TextStyle(fontSize: 20, color: Colors.white)),
-      ),
+      NeatStep.featureGen => const FeatureGenScreen(),
     };
   }
 }

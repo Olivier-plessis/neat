@@ -10,14 +10,27 @@ enum StructuralPattern { featureFirst, layerFirst }
 
 /// How the data layer persists data.
 ///
-/// [offlineFirst] flips the generated project into a Dart **workspace**: a
-/// dedicated `packages/<name>_local_storage` package (Drift) is created and the
-/// witness feature gets a local-first repository on top of its remote source.
+/// Anything other than [remoteOnly] flips the project into a Dart **workspace**
+/// with a dedicated `packages/<name>_local_storage` package (Drift).
+/// - [offlineFirstRead]: local-first reads + cache fallback.
+/// - [offlineFirstSync]: read + the Outbox write path (queued writes replayed
+///   by a SyncService when connectivity returns).
 enum StorageStrategy {
   remoteOnly,
-  offlineFirst;
+  offlineFirstRead,
+  offlineFirstSync;
 
-  bool get isOfflineFirst => this == StorageStrategy.offlineFirst;
+  /// Triggers the workspace + Drift package.
+  bool get isOfflineFirst => this != StorageStrategy.remoteOnly;
+
+  /// Adds the Outbox table + SyncService + repository write path.
+  bool get hasSync => this == StorageStrategy.offlineFirstSync;
+
+  String get label => switch (this) {
+        remoteOnly => 'Remote Only',
+        offlineFirstRead => 'Offline-First',
+        offlineFirstSync => 'Offline + Sync',
+      };
 }
 
 @freezed
