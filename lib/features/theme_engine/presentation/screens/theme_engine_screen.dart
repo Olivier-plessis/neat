@@ -2111,6 +2111,21 @@ class _FlexColorSchemeTabState extends ConsumerState<_FlexColorSchemeTab> {
           ),
 
           const SizedBox(height: 24),
+
+          // Packaging — available in FlexColorScheme too (not just Custom M3).
+          _SectionHeader(icon: Icons.widgets_outlined, label: 'Packaging'),
+          const SizedBox(height: 12),
+          _SimpleToggleCard(
+            icon: Icons.widgets_outlined,
+            title: 'Extract UI into a package',
+            description:
+                'Move theme, tokens & components into a `<app>_ui` workspace package. '
+                'The app and Widgetbook depend on it — clean decoupling.',
+            enabled: state.extractUiPackage,
+            onChanged: notifier.setExtractUiPackage,
+          ),
+
+          const SizedBox(height: 24),
         ],
       ),
     );
