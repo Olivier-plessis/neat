@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:neat/features/dependencies/domain/constants/unsupported_packages.dart';
 import 'package:neat/features/dependencies/domain/models/pub_package.dart';
 import 'package:neat/features/dependencies/domain/usecases/search_packages_usecase.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -67,6 +68,8 @@ class SelectedPackages extends _$SelectedPackages {
 
   void toggle(PubPackage package) {
     final isSelected = state.any((p) => p.name == package.name);
+    // Removing is always allowed; adding an unsupported package is a no-op.
+    if (!isSelected && isUnsupportedPackage(package.name)) return;
     state = isSelected
         ? state.where((p) => p.name != package.name).toList()
         : [...state, package];
@@ -74,7 +77,8 @@ class SelectedPackages extends _$SelectedPackages {
 
   void addAll(List<PubPackage> packages) {
     final existing = {for (final p in state) p.name};
-    final toAdd = packages.where((p) => !existing.contains(p.name));
+    final toAdd = packages
+        .where((p) => !existing.contains(p.name) && !isUnsupportedPackage(p.name));
     state = [...state, ...toAdd];
   }
 

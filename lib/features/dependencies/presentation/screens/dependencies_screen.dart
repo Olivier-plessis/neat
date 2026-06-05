@@ -3,6 +3,7 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:neat/core/theme/app_theme.dart';
 import 'package:neat/features/dependencies/domain/constants/dev_preset.dart';
+import 'package:neat/features/dependencies/domain/constants/unsupported_packages.dart';
 import 'package:neat/features/dependencies/domain/models/pub_package.dart';
 import 'package:neat/features/dependencies/presentation/providers/dependencies_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -544,12 +545,14 @@ class _SearchResults extends ConsumerWidget {
                 list.cast<PubPackage?>().firstWhere((p) => p!.name == pkg.name, orElse: () => null),
           ),
         );
+        final blocked = isUnsupportedPackage(pkg.name);
         return _PackageListTile(
           package: pkg,
           isSelected: isSelected,
           isAdded: selectedPkg != null,
           isDev: selectedPkg?.isDev ?? false,
-          onTap: () => ref.read(packageForDetailProvider.notifier).select(pkg),
+          isBlocked: blocked,
+          onTap: blocked ? () {} : () => ref.read(packageForDetailProvider.notifier).select(pkg),
         );
       },
     );
@@ -563,6 +566,7 @@ class _PackageListTile extends StatelessWidget {
     required this.isAdded,
     required this.isDev,
     required this.onTap,
+    this.isBlocked = false,
   });
 
   final PubPackage package;
@@ -571,9 +575,14 @@ class _PackageListTile extends StatelessWidget {
   final bool isDev;
   final VoidCallback onTap;
 
+  /// Visible but not selectable (generation path not yet validated).
+  final bool isBlocked;
+
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return Opacity(
+      opacity: isBlocked ? 0.5 : 1,
+      child: GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(14),
@@ -603,6 +612,25 @@ class _PackageListTile extends StatelessWidget {
                       ),
                       const SizedBox(width: 8),
                       _VersionBadge(version: package.version),
+                      if (isBlocked) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: Colors.white24),
+                          ),
+                          child: const Text(
+                            'BIENTÔT',
+                            style: TextStyle(
+                              color: Colors.white38,
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                   const SizedBox(height: 4),
@@ -634,6 +662,7 @@ class _PackageListTile extends StatelessWidget {
             ],
           ],
         ),
+      ),
       ),
     );
   }
