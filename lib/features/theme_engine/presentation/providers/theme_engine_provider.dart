@@ -58,6 +58,7 @@ class ThemeEngine extends _$ThemeEngine {
             : state.components.where((x) => x != c).toSet(),
       );
   void setGenerateWidgetbook(bool v) => state = state.copyWith(generateWidgetbook: v);
+  void setExtractUiPackage(bool v) => state = state.copyWith(extractUiPackage: v);
   void setAccentColor(Color c) => state = state.copyWith(accentColor: c);
   void setDestructiveColor(Color c) => state = state.copyWith(destructiveColor: c);
 

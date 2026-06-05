@@ -94,12 +94,16 @@ $setEnv  await runZonedGuarded(
     required bool useCubit,
     bool useScreenUtil = false,
     bool routerIsProvider = false,
+    String? themePackage,
   }) {
     final imports = StringBuffer()..writeln("import 'package:flutter/material.dart';");
     if (useScreenUtil) {
       imports.writeln("import 'package:flutter_screenutil/flutter_screenutil.dart';");
     }
-    imports.writeln("import 'core/theme/app_theme.dart';");
+    // AppTheme lives in the <app>_ui package when UI is extracted, else in the app.
+    imports.writeln(themePackage != null
+        ? "import 'package:$themePackage/$themePackage.dart';"
+        : "import 'core/theme/app_theme.dart';");
     if (hasGoRouter) imports.writeln("import 'core/router/app_router.dart';");
     if (hasRiverpod) {
       imports

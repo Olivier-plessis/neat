@@ -12,6 +12,10 @@ dependencies:
     sdk: flutter
   flutter_hooks: ^0.21.3+1
   hooks_riverpod: ^3.3.1
+  # Pulls screen_retriever_macos, which lacks Swift Package Manager support →
+  # harmless "plugins do not support SPM" warning at startup (Flutter 3.44).
+  # Disabling SPM does NOT silence it. Bump when screen_retriever ships SPM
+  # support, then the warning disappears. Tracking: window_manager / screen_retriever.
   window_manager: ^0.5.1
   file_picker: ^11.0.2
   riverpod_lint: ^3.1.3

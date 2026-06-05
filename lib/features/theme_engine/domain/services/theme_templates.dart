@@ -5,11 +5,16 @@ class ThemeTemplates {
 
   // ── constant/constant.dart ────────────────────────────────────────────────
 
-  static String constantBarrel() => r'''import 'package:flutter/material.dart';
-
+  static String constantBarrel({bool useScreenUtil = false}) {
+    final su = useScreenUtil
+        ? "import 'package:flutter_screenutil/flutter_screenutil.dart';\n"
+        : '';
+    return '''import 'package:flutter/material.dart';
+$su
 part 'app_color.dart';
 part 'app_gap.dart';
 ''';
+  }
 
   // ── constant/app_color.dart ───────────────────────────────────────────────
 
@@ -62,46 +67,37 @@ class Palette {
 
   // ── constant/app_gap.dart ─────────────────────────────────────────────────
 
-  static String appGap() => r'''part of 'constant.dart';
+  static String appGap({bool useScreenUtil = false}) {
+    const sizes = [4, 6, 8, 10, 12, 16, 20, 24, 32, 48, 64];
 
-class Sizes {
-  static const double p4 = 4;
-  static const double p6 = 6;
-  static const double p8 = 8;
-  static const double p10 = 10;
-  static const double p12 = 12;
-  static const double p16 = 16;
-  static const double p20 = 20;
-  static const double p24 = 24;
-  static const double p32 = 32;
-  static const double p48 = 48;
-  static const double p64 = 64;
-}
+    final sb = StringBuffer("part of 'constant.dart';\n\nclass Sizes {\n");
+    for (final s in sizes) {
+      sb.writeln('  static const double p$s = $s;');
+    }
+    sb.writeln('}\n');
 
-const SizedBox gapW4 = SizedBox(width: Sizes.p4);
-const SizedBox gapW6 = SizedBox(width: Sizes.p6);
-const SizedBox gapW8 = SizedBox(width: Sizes.p8);
-const SizedBox gapW10 = SizedBox(width: Sizes.p10);
-const SizedBox gapW12 = SizedBox(width: Sizes.p12);
-const SizedBox gapW16 = SizedBox(width: Sizes.p16);
-const SizedBox gapW20 = SizedBox(width: Sizes.p20);
-const SizedBox gapW24 = SizedBox(width: Sizes.p24);
-const SizedBox gapW32 = SizedBox(width: Sizes.p32);
-const SizedBox gapW48 = SizedBox(width: Sizes.p48);
-const SizedBox gapW64 = SizedBox(width: Sizes.p64);
-
-const SizedBox gapH4 = SizedBox(height: Sizes.p4);
-const SizedBox gapH6 = SizedBox(height: Sizes.p6);
-const SizedBox gapH8 = SizedBox(height: Sizes.p8);
-const SizedBox gapH10 = SizedBox(height: Sizes.p10);
-const SizedBox gapH12 = SizedBox(height: Sizes.p12);
-const SizedBox gapH16 = SizedBox(height: Sizes.p16);
-const SizedBox gapH20 = SizedBox(height: Sizes.p20);
-const SizedBox gapH24 = SizedBox(height: Sizes.p24);
-const SizedBox gapH32 = SizedBox(height: Sizes.p32);
-const SizedBox gapH48 = SizedBox(height: Sizes.p48);
-const SizedBox gapH64 = SizedBox(height: Sizes.p64);
-''';
+    if (useScreenUtil) {
+      // Responsive gaps: getters so `.w`/`.h` re-evaluate against the current
+      // screen (a const SizedBox would freeze the value before ScreenUtilInit).
+      sb.writeln('// Responsive gaps (flutter_screenutil): widths use .w, heights use .h.');
+      for (final s in sizes) {
+        sb.writeln('SizedBox get gapW$s => SizedBox(width: Sizes.p$s.w);');
+      }
+      sb.writeln();
+      for (final s in sizes) {
+        sb.writeln('SizedBox get gapH$s => SizedBox(height: Sizes.p$s.h);');
+      }
+    } else {
+      for (final s in sizes) {
+        sb.writeln('const SizedBox gapW$s = SizedBox(width: Sizes.p$s);');
+      }
+      sb.writeln();
+      for (final s in sizes) {
+        sb.writeln('const SizedBox gapH$s = SizedBox(height: Sizes.p$s);');
+      }
+    }
+    return sb.toString();
+  }
 
   // ── typography/typography.dart ────────────────────────────────────────────
 
@@ -943,6 +939,9 @@ $entries
     // which also forces the TextStyle to be non-const.
     final fs = useScreenUtil ? '.sp' : '';
     final tsConst = useScreenUtil ? '' : 'const ';
+    // Responsive paddings: horizontal → .w, vertical → .h (drop const via tsConst).
+    final pw = useScreenUtil ? '.w' : '';
+    final ph = useScreenUtil ? '.h' : '';
     final suImport = useScreenUtil
         ? "import 'package:flutter_screenutil/flutter_screenutil.dart';\n"
         : '';
@@ -1025,7 +1024,7 @@ $textThemeEntries
         elevation: $eEl,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular($erStr)),
         textStyle: ${tsConst}TextStyle(fontWeight: FontWeight.w600, fontSize: 14$fs),
-        padding: const EdgeInsets.symmetric(horizontal: $eHP, vertical: $eVP),
+        padding: ${tsConst}EdgeInsets.symmetric(horizontal: $eHP$pw, vertical: $eVP$ph),
       ),
     ),
     filledButtonTheme: FilledButtonThemeData(
@@ -1035,7 +1034,7 @@ $textThemeEntries
         elevation: 0,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular($frStr)),
         textStyle: ${tsConst}TextStyle(fontWeight: FontWeight.w600, fontSize: 14$fs),
-        padding: const EdgeInsets.symmetric(horizontal: $fHP, vertical: $fVP),
+        padding: ${tsConst}EdgeInsets.symmetric(horizontal: $fHP$pw, vertical: $fVP$ph),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
@@ -1044,7 +1043,7 @@ $textThemeEntries
         side: const BorderSide(color: Palette.primary, width: $oSt),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular($orStr)),
         textStyle: ${tsConst}TextStyle(fontWeight: FontWeight.w600, fontSize: 14$fs),
-        padding: const EdgeInsets.symmetric(horizontal: $oHP, vertical: $oVP),
+        padding: ${tsConst}EdgeInsets.symmetric(horizontal: $oHP$pw, vertical: $oVP$ph),
       ),
     ),
     textButtonTheme: TextButtonThemeData(
@@ -1052,13 +1051,13 @@ $textThemeEntries
         foregroundColor: Palette.primary,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular($trStr)),
         textStyle: ${tsConst}TextStyle(fontWeight: FontWeight.w600, fontSize: 14$fs),
-        padding: const EdgeInsets.symmetric(horizontal: $tHP, vertical: $tVP),
+        padding: ${tsConst}EdgeInsets.symmetric(horizontal: $tHP$pw, vertical: $tVP$ph),
       ),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: Palette.surface,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      contentPadding: ${tsConst}EdgeInsets.symmetric(horizontal: 16$pw, vertical: 14$ph),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular($orStr),
         borderSide: const BorderSide(color: Palette.divider),

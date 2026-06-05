@@ -206,6 +206,10 @@ abstract class ThemeEngineState with _$ThemeEngineState {
     /// When true, scaffold a Widgetbook catalog (widgetbook/main.dart).
     @Default(false) bool generateWidgetbook,
 
+    /// When true, extract theme + tokens + components into a workspace package
+    /// `<app>_ui` (the app and Widgetbook depend on it).
+    @Default(false) bool extractUiPackage,
+
     // Semantic palette colors (used by AppButton variants & the theme)
     @Default(Color(0xFF1E293B)) Color accentColor,
     @Default(Color(0xFFEF4444)) Color destructiveColor,

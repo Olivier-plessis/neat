@@ -59,7 +59,7 @@ void main() {
   });
 
   test(
-    'generates a full project that passes flutter analyze (no errors)',
+    'generates a full chopper + offline-sync project that analyzes cleanly',
     () async {
       const projectName = 'neat_gen_test';
       final logs = <String>[];
@@ -75,6 +75,8 @@ void main() {
 
       const architecture = ArchitectureState(
         firstFeatureName: 'user_profile', // multi-word → camelCase stress case
+        // Chopper + offline-sync: proves the chopper Outbox replay path.
+        storageStrategy: StorageStrategy.offlineFirstSync,
       );
 
       const cicd = CicdState();
@@ -167,7 +169,10 @@ void main() {
         'user_profile_providers.dart',
       ).readAsStringSync();
       expect(di, contains('UserProfileApiSource.create(ref.watch(chopperClientProvider))'));
-      expect(di, contains('UserProfileRepositoryImpl(ref.watch(userProfileApiSourceProvider))'));
+      // Offline-sync: repository is the 3-arg variant + the sync engine is wired.
+      expect(di, contains('ref.watch(networkInfoProvider)'));
+      expect(di, contains('SyncService userProfileSync(Ref ref)'));
+      expect(di, contains('api.add(UserProfileModel.fromJson(data))'));
       expect(di, contains('GetUserProfileUsecase'));
       expect(di, contains('CreateUserProfileUsecase'));
 
@@ -294,6 +299,13 @@ void main() {
       expect(di, contains('AppDatabase appDatabase(Ref ref)'));
       expect(di, contains('NetworkInfo networkInfo(Ref ref)'));
       expect(di, contains('ref.watch(networkInfoProvider)'));
+
+      // Offline usage guide ships with the project.
+      expect(
+        File('${projectDir.path}/docs/OFFLINE.md').existsSync(),
+        isTrue,
+        reason: 'docs/OFFLINE.md missing',
+      );
 
       // The witness repository is the offline-first variant (remote + cache).
       final repoImpl = File(
@@ -427,6 +439,14 @@ void main() {
       expect(di, contains('..start()'));
       expect(di, contains('api.add(UserProfileModel.fromJson(data))'));
 
+      // Outbox retry cap + offline usage guide.
+      final syncSrc =
+          File('${projectDir.path}/lib/core/sync/sync_service.dart').readAsStringSync();
+      expect(syncSrc, contains('maxRetries'));
+      final doc = File('${projectDir.path}/docs/OFFLINE.md');
+      expect(doc.existsSync(), isTrue, reason: 'docs/OFFLINE.md missing');
+      expect(doc.readAsStringSync(), contains('Outbox'));
+
       // The whole workspace analyzes without errors.
       final analyze = await Process.run(
         'flutter',
@@ -447,6 +467,125 @@ void main() {
         errorLines,
         isEmpty,
         reason: 'sync workspace analyze reported errors:\n${errorLines.join('\n')}\n\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
+
+  test(
+    'extracted UI package + Widgetbook form a clean workspace',
+    () async {
+      const projectName = 'neat_ui_test';
+      final logs = <String>[];
+      const uiPkg = '${projectName}_ui';
+
+      final uiPackages = <PubPackage>[
+        _dep('hooks_riverpod', '3.3.1'),
+        _dep('flutter_hooks', '0.21.3+1'),
+        _dep('riverpod_annotation', '4.0.2'),
+        _dep('dio', '5.9.2'),
+        _dep('go_router', '17.2.3'),
+        _dev('riverpod_generator', '4.0.3'),
+        _dev('build_runner', '2.15.0'),
+      ];
+
+      final identity = IdentityState(
+        name: projectName,
+        organization: 'com.neat.test',
+        projectPath: tempRoot.path,
+        description: 'NEAT UI-package integration test',
+        targetPlatforms: const ['macos'],
+      );
+
+      const architecture = ArchitectureState(firstFeatureName: 'user_profile');
+
+      const theme = ThemeEngineState(
+        approach: ThemeApproach.customM3,
+        components: {AppComponent.button, AppComponent.card},
+        generateWidgetbook: true,
+        extractUiPackage: true,
+      );
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: identity,
+          packages: uiPackages,
+          architecture: architecture,
+          cicd: const CicdState(),
+          theme: theme,
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('UI-package generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+
+      // The <app>_ui package: pubspec, barrel, relocated theme + components.
+      for (final relPath in [
+        'packages/$uiPkg/pubspec.yaml',
+        'packages/$uiPkg/lib/$uiPkg.dart',
+        'packages/$uiPkg/lib/core/theme/app_theme.dart',
+        'packages/$uiPkg/lib/components/app_button.dart',
+        'packages/$uiPkg/lib/components/app_card.dart',
+        'widgetbook/pubspec.yaml',
+        'widgetbook/lib/main.dart',
+      ]) {
+        expect(
+          File('${projectDir.path}/$relPath').existsSync(),
+          isTrue,
+          reason: 'expected file missing: $relPath',
+        );
+      }
+
+      // Theme no longer in the app.
+      expect(
+        File('${projectDir.path}/lib/core/theme/app_theme.dart').existsSync(),
+        isFalse,
+        reason: 'app_theme.dart should have moved to the UI package',
+      );
+      // State stays in the app.
+      expect(
+        File('${projectDir.path}/lib/core/theme/theme_mode_controller.dart').existsSync(),
+        isTrue,
+        reason: 'theme_mode_controller stays in the app',
+      );
+
+      // Barrel exports + app imports the package.
+      final barrel =
+          File('${projectDir.path}/packages/$uiPkg/lib/$uiPkg.dart').readAsStringSync();
+      expect(barrel, contains("export 'core/theme/app_theme.dart';"));
+      expect(barrel, contains("export 'components/app_button.dart';"));
+      final appDart = File('${projectDir.path}/lib/app.dart').readAsStringSync();
+      expect(appDart, contains("import 'package:$uiPkg/$uiPkg.dart';"));
+
+      // Root workspace lists the UI package + widgetbook; widgetbook depends on it.
+      final rootPubspec = File('${projectDir.path}/pubspec.yaml').readAsStringSync();
+      expect(rootPubspec, contains('packages/$uiPkg'));
+      expect(rootPubspec, contains('- widgetbook'));
+      final wbPubspec = File('${projectDir.path}/widgetbook/pubspec.yaml').readAsStringSync();
+      expect(wbPubspec, contains('path: ../packages/$uiPkg'));
+
+      // Whole workspace analyzes without errors or warnings.
+      final analyze = await Process.run(
+        'flutter',
+        ['analyze', '--no-pub'],
+        workingDirectory: projectDir.path,
+      );
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      expect(
+        RegExp(r'(\d+ issues? found|No issues found)').hasMatch(out),
+        isTrue,
+        reason: 'flutter analyze did not run as expected:\n$out',
+      );
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where((l) => l.contains(' error •') || l.contains(' warning •'))
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason: 'UI-package workspace analyze reported issues:\n${errorLines.join('\n')}\n\n$out',
       );
     },
     timeout: const Timeout(Duration(minutes: 12)),
