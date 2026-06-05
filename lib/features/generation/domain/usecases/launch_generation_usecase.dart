@@ -1,6 +1,8 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:neat/core/contract/neat_contract.dart';
 import 'package:neat/features/architecture/domain/models/architecture_state.dart';
 import 'package:neat/features/cicd/domain/models/cicd_state.dart';
 import 'package:neat/features/cicd/domain/usecases/generate_yaml_usecase.dart';
@@ -207,8 +209,50 @@ class LaunchGenerationUsecase {
     onLog('[▶] Formatting generated code...');
     await _dartFormat(projectDir, onLog);
 
+    // 8. .neat.json — the Workspace Contract (stack fingerprint) for feature gen.
+    onLog('[▶] Writing .neat.json (Workspace Contract)...');
+    await _writeContract(
+      projectDir,
+      NeatContract(
+        projectName: packageName,
+        architecture: architecture.pattern == StructuralPattern.featureFirst
+            ? 'feature_first'
+            : 'layer_first',
+        stateManagement: hasRiverpod
+            ? 'riverpod'
+            : hasBloc
+            ? 'bloc'
+            : 'none',
+        useRiverpodAnnotations: useAnnotations,
+        navigation: hasGoRouterBuilder
+            ? 'go_router_builder'
+            : hasGoRouter
+            ? 'go_router'
+            : 'none',
+        httpClient: hasHttpClient ? httpClient : 'none',
+        themeApproach: theme.approach.name,
+        storageStrategy: architecture.storageStrategy.name,
+        extractUiPackage: theme.extractUiPackage,
+        useScreenUtil: useScreenUtil,
+        hasEnvied: hasEnvied,
+        hasFreezed: hasFreezed,
+        hasJsonSerializable: hasJsonSerializable,
+        includeMappers: architecture.includeMappers,
+        mirrorTestStructure: architecture.mirrorTestStructure,
+        generateWidgetbook: theme.generateWidgetbook,
+        components: theme.components.map((c) => c.name).toList(),
+      ),
+    );
+    onLog('[✓] .neat.json written.');
+
     onLog('');
     onLog('[✓✓] Project successfully generated at ${projectDir.path}');
+  }
+
+  /// Writes the Workspace Contract to `<project>/.neat.json` (pretty-printed).
+  Future<void> _writeContract(Directory projectDir, NeatContract contract) async {
+    const encoder = JsonEncoder.withIndent('  ');
+    await _write('${projectDir.path}/.neat.json', '${encoder.convert(contract.toJson())}\n');
   }
 
   Future<void> _dartFormat(Directory projectDir, void Function(String) onLog) async {
