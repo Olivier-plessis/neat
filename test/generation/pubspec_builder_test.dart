@@ -210,43 +210,58 @@ void main() {
     });
   });
 
-  group('buildPubspecContent — offline-first workspace', () {
-    test('no workspace block when localStoragePackage is null', () {
+  group('buildPubspecContent — workspace', () {
+    test('no workspace block when there are no members', () {
       final out = LaunchGenerationUsecase.buildPubspecContent(_basePubspec, const []);
       expect(out.contains('workspace:'), isFalse);
       expect(() => parseDeps(out), returnsNormally);
     });
 
-    test('declares the workspace member and a path dependency', () {
+    test('path packages → workspace members + path deps + connectivity', () {
       final out = LaunchGenerationUsecase.buildPubspecContent(
         _basePubspec,
         const [],
-        localStoragePackage: 'my_app_local_storage',
+        pathPackages: ['my_app_local_storage'],
+        addConnectivity: true,
       );
-
-      // Still valid YAML overall.
       final doc = loadYaml(out) as YamlMap;
 
-      // workspace: lists the package under packages/
       final workspace = doc['workspace'] as YamlList;
       expect(workspace, contains('packages/my_app_local_storage'));
 
-      // The app path-depends on the package (nested `path:`, not a caret version).
-      final dep = parseDeps(out).deps['my_app_local_storage'] as YamlMap;
-      expect(dep['path'], 'packages/my_app_local_storage');
+      final deps = parseDeps(out).deps;
+      expect((deps['my_app_local_storage'] as YamlMap)['path'], 'packages/my_app_local_storage');
+      expect(deps.containsKey('connectivity_plus'), isTrue);
+    });
+
+    test('multiple path packages + extra members (widgetbook)', () {
+      final out = LaunchGenerationUsecase.buildPubspecContent(
+        _basePubspec,
+        const [],
+        pathPackages: ['my_app_ui', 'my_app_local_storage'],
+        extraWorkspaceMembers: ['widgetbook'],
+      );
+      final workspace = (loadYaml(out) as YamlMap)['workspace'] as YamlList;
+      expect(workspace, containsAll(<String>[
+        'packages/my_app_ui',
+        'packages/my_app_local_storage',
+        'widgetbook',
+      ]));
+      final deps = parseDeps(out).deps;
+      expect((deps['my_app_ui'] as YamlMap)['path'], 'packages/my_app_ui');
+      // widgetbook is a member but NOT an app dependency.
+      expect(deps.containsKey('widgetbook'), isFalse);
     });
 
     test('workspace block coexists with auto-injected deps (valid YAML)', () {
       final out = LaunchGenerationUsecase.buildPubspecContent(
         _basePubspec,
         [pkg('envied', '1.3.5')],
-        localStoragePackage: 'my_app_local_storage',
-        withWidgetbook: true,
+        pathPackages: ['my_app_local_storage'],
+        addConnectivity: true,
       );
       expect(() => parseDeps(out), returnsNormally);
-      final doc = loadYaml(out) as YamlMap;
-      expect(doc['workspace'], isA<YamlList>());
-      // Sanity: regular injected deps survived alongside the path dep.
+      expect((loadYaml(out) as YamlMap)['workspace'], isA<YamlList>());
       expect(parseDeps(out).deps.containsKey('google_fonts'), isTrue);
       expect(parseDeps(out).devDeps.containsKey('envied_generator'), isTrue);
     });

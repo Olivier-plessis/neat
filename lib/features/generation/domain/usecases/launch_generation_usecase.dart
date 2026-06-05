@@ -105,6 +105,17 @@ class LaunchGenerationUsecase {
     // Sync strategy adds the Outbox table + SyncService + repository write path.
     final hasSync = architecture.storageStrategy.hasSync;
 
+    // Opt-in: extract theme + tokens + components into a <app>_ui workspace package.
+    final uiPackage = theme.extractUiPackage ? '${packageName}_ui' : null;
+    // Widgetbook becomes a workspace member when the UI package is on.
+    final widgetbookIsMember = uiPackage != null && theme.generateWidgetbook;
+    // App path-deps + workspace members.
+    final pathPackages = <String>[
+      ?localStoragePackage,
+      ?uiPackage,
+    ];
+    final extraWorkspaceMembers = <String>[if (widgetbookIsMember) 'widgetbook'];
+
     // 2. Scaffold Clean Architecture directories + files
     onLog('[▶] Scaffolding Clean Architecture...');
     await _buildScaffold(
@@ -130,6 +141,7 @@ class LaunchGenerationUsecase {
       localStoragePackage: localStoragePackage,
       hasSync: hasSync,
       isWeb: isWeb,
+      uiPackage: uiPackage,
     );
     onLog('[✓] Scaffold created.');
 
@@ -150,9 +162,13 @@ class LaunchGenerationUsecase {
     await _writePubspec(
       projectDir,
       packages,
-      withWidgetbook: theme.generateWidgetbook,
+      // When widgetbook is its own workspace member, it owns the dep — don't
+      // also inject it into the app.
+      withWidgetbook: theme.generateWidgetbook && !widgetbookIsMember,
       addScreenUtil: useScreenUtil,
-      localStoragePackage: localStoragePackage,
+      pathPackages: pathPackages,
+      extraWorkspaceMembers: extraWorkspaceMembers,
+      addConnectivity: offlineFirst,
     );
     onLog('[✓] Dependencies added to pubspec.yaml.');
 
@@ -233,6 +249,7 @@ class LaunchGenerationUsecase {
     String? localStoragePackage,
     bool hasSync = false,
     bool isWeb = false,
+    String? uiPackage,
   }) async {
     final lib = '${projectDir.path}/lib';
 
@@ -270,6 +287,8 @@ class LaunchGenerationUsecase {
         useScreenUtil: useScreenUtil,
         // appRouterProvider only exists with go_router_builder + annotations.
         routerIsProvider: hasGoRouterBuilder && useAnnotations,
+        // When the theme lives in <app>_ui, app.dart imports it from there.
+        themePackage: uiPackage,
       ),
     );
 
@@ -349,8 +368,23 @@ class LaunchGenerationUsecase {
       );
     }
 
+    // ── docs/OFFLINE.md (usage guide) ────────────────────────────────────────
+    if (localStoragePackage != null) {
+      await _write(
+        '${projectDir.path}/docs/OFFLINE.md',
+        CoreTemplates.offlineDoc(
+          packageName: packageName,
+          featureName: featureName,
+          localStoragePackage: localStoragePackage,
+          hasSync: hasSync,
+        ),
+      );
+    }
+
     // ── core/theme ────────────────────────────────────────────────────────
+    final flexMatches = packages.where((p) => p.name == 'flex_color_scheme');
     await _writeTheme(
+      projectDir: projectDir,
       lib: lib,
       packageName: packageName,
       hasRiverpod: hasRiverpod,
@@ -360,6 +394,8 @@ class LaunchGenerationUsecase {
       hasFlexColorScheme: hasFlexColorScheme,
       useScreenUtil: useScreenUtil,
       theme: theme,
+      uiPackage: uiPackage,
+      flexVersion: flexMatches.isEmpty ? null : flexMatches.first.version,
     );
 
     // ── core/router ───────────────────────────────────────────────────────
@@ -400,6 +436,7 @@ class LaunchGenerationUsecase {
   // ── Theme files ───────────────────────────────────────────────────────────
 
   Future<void> _writeTheme({
+    required Directory projectDir,
     required String lib,
     required String packageName,
     required bool hasRiverpod,
@@ -409,11 +446,25 @@ class LaunchGenerationUsecase {
     required bool hasFlexColorScheme,
     required bool useScreenUtil,
     required ThemeEngineState theme,
+    String? uiPackage,
+    String? flexVersion,
   }) async {
-    final t = '$lib/core/theme';
+    // When extracted, theme + tokens + components live in packages/<ui>/lib;
+    // their imports target <ui> instead of the app. State (theme mode / bloc)
+    // always stays in the app.
+    final themePkg = uiPackage ?? packageName;
+    final themeLib =
+        uiPackage != null ? '${projectDir.path}/packages/$uiPackage/lib' : lib;
+    final t = '$themeLib/core/theme';
+
+    final useFlexColorScheme =
+        hasFlexColorScheme || theme.approach == ThemeApproach.flexColorScheme;
 
     // constant/
-    await _write('$t/constant/constant.dart', ThemeTemplates.constantBarrel());
+    await _write(
+      '$t/constant/constant.dart',
+      ThemeTemplates.constantBarrel(useScreenUtil: useScreenUtil),
+    );
     await _write(
       '$t/constant/app_color.dart',
       ThemeTemplates.appColor(
@@ -422,12 +473,12 @@ class LaunchGenerationUsecase {
         errorHex: theme.destructiveColorHex,
       ),
     );
-    await _write('$t/constant/app_gap.dart', ThemeTemplates.appGap());
+    await _write('$t/constant/app_gap.dart', ThemeTemplates.appGap(useScreenUtil: useScreenUtil));
 
     // typography/
     await _write(
       '$t/typography/typography.dart',
-      ThemeTemplates.typographyBarrel(packageName: packageName, useScreenUtil: useScreenUtil),
+      ThemeTemplates.typographyBarrel(packageName: themePkg, useScreenUtil: useScreenUtil),
     );
     await _write(
       '$t/typography/font_size.dart',
@@ -439,17 +490,15 @@ class LaunchGenerationUsecase {
     // app_theme_extensions.dart
     await _write(
       '$t/app_theme_extensions.dart',
-      ThemeTemplates.appThemeExtensions(packageName: packageName),
+      ThemeTemplates.appThemeExtensions(packageName: themePkg),
     );
 
     // app_theme.dart
-    final useFlexColorScheme =
-        hasFlexColorScheme || theme.approach == ThemeApproach.flexColorScheme;
     await _write(
       '$t/app_theme.dart',
       ThemeTemplates.appThemeForState(
         theme: theme,
-        packageName: packageName,
+        packageName: themePkg,
         forceFlex: useFlexColorScheme,
         useScreenUtil: useScreenUtil,
       ),
@@ -458,26 +507,47 @@ class LaunchGenerationUsecase {
     // components/ (opt-in design-system components)
     for (final c in theme.components) {
       final content = switch (c) {
-        AppComponent.button => ThemeTemplates.appButtonComponent(packageName: packageName),
-        AppComponent.card => ThemeTemplates.appCardComponent(packageName: packageName),
-        AppComponent.textField => ThemeTemplates.appTextFieldComponent(packageName: packageName),
+        AppComponent.button => ThemeTemplates.appButtonComponent(packageName: themePkg),
+        AppComponent.card => ThemeTemplates.appCardComponent(packageName: themePkg),
+        AppComponent.textField => ThemeTemplates.appTextFieldComponent(packageName: themePkg),
       };
-      await _write('$lib/components/${c.fileName}', content);
+      await _write('$themeLib/components/${c.fileName}', content);
     }
 
-    // widgetbook/main.dart (opt-in catalog, lives outside lib/)
-    if (theme.generateWidgetbook) {
-      final projectRoot = lib.substring(0, lib.length - '/lib'.length);
-      await _write(
-        '$projectRoot/widgetbook/main.dart',
-        ThemeTemplates.widgetbookApp(packageName: packageName, components: theme.components),
+    // <app>_ui package scaffolding (pubspec + public barrel).
+    if (uiPackage != null) {
+      await _writeUiPackage(
+        projectDir,
+        uiPackage,
+        components: theme.components,
+        useScreenUtil: useScreenUtil,
+        flexVersion: useFlexColorScheme ? flexVersion : null,
       );
     }
+
+    // Widgetbook catalog.
+    if (theme.generateWidgetbook) {
+      final widgetbookApp =
+          ThemeTemplates.widgetbookApp(packageName: themePkg, components: theme.components);
+      if (uiPackage != null) {
+        // A proper workspace member that depends on <app>_ui.
+        await _write('${projectDir.path}/widgetbook/lib/main.dart', widgetbookApp);
+        await _write(
+          '${projectDir.path}/widgetbook/pubspec.yaml',
+          _widgetbookPubspec(packageName, uiPackage),
+        );
+      } else {
+        await _write('${projectDir.path}/widgetbook/main.dart', widgetbookApp);
+      }
+    }
+
+    // State (theme mode / brightness) ALWAYS stays in the app, never in <ui>.
+    final appT = '$lib/core/theme';
 
     // theme mode controller
     if (hasRiverpod) {
       await _write(
-        '$t/theme_mode_controller.dart',
+        '$appT/theme_mode_controller.dart',
         useAnnotations
             ? ThemeTemplates.themeModeControllerRiverpod(packageName: packageName)
             : ThemeTemplates.themeModeControllerRiverpodManual(),
@@ -486,24 +556,100 @@ class LaunchGenerationUsecase {
 
     if (hasBloc || useCubit) {
       if (useCubit) {
-        await _write('$t/brightness_theme/brightness_cubit.dart', ThemeTemplates.brightnessCubit());
         await _write(
-          '$t/brightness_theme/brightness_state.dart',
+            '$appT/brightness_theme/brightness_cubit.dart', ThemeTemplates.brightnessCubit());
+        await _write(
+          '$appT/brightness_theme/brightness_state.dart',
           ThemeTemplates.brightnessCubitState(),
         );
       } else {
-        await _write('$t/brightness_theme/brightness_bloc.dart', ThemeTemplates.brightnessBloc());
         await _write(
-          '$t/brightness_theme/brightness_event.dart',
+            '$appT/brightness_theme/brightness_bloc.dart', ThemeTemplates.brightnessBloc());
+        await _write(
+          '$appT/brightness_theme/brightness_event.dart',
           ThemeTemplates.brightnessBlocEvent(),
         );
         await _write(
-          '$t/brightness_theme/brightness_state.dart',
+          '$appT/brightness_theme/brightness_state.dart',
           ThemeTemplates.brightnessBlocState(),
         );
       }
     }
   }
+
+  // ── <app>_ui workspace package (theme + tokens + components) ────────────────
+
+  Future<void> _writeUiPackage(
+    Directory projectDir,
+    String uiPackage, {
+    required Set<AppComponent> components,
+    required bool useScreenUtil,
+    String? flexVersion,
+  }) async {
+    final root = '${projectDir.path}/packages/$uiPackage';
+
+    final deps = StringBuffer()
+      ..writeln('  flutter:')
+      ..writeln('    sdk: flutter')
+      ..writeln('  google_fonts: ^8.1.0');
+    if (useScreenUtil) deps.writeln('  flutter_screenutil: ^5.9.3');
+    if (flexVersion != null) deps.writeln('  flex_color_scheme: ^$flexVersion');
+
+    await _write('$root/pubspec.yaml', '''name: $uiPackage
+description: "Design system (theme, tokens, components) — generated by NEAT."
+version: 0.1.0
+publish_to: 'none'
+
+environment:
+  sdk: ^3.6.0
+
+resolution: workspace
+
+dependencies:
+${deps.toString().trimRight()}
+
+dev_dependencies:
+  flutter_lints: ^6.0.0
+''');
+
+    // Public barrel.
+    final exports = StringBuffer()
+      ..writeln("export 'core/theme/app_theme.dart';")
+      ..writeln("export 'core/theme/constant/constant.dart';")
+      ..writeln("export 'core/theme/typography/typography.dart';");
+    for (final c in components) {
+      exports.writeln("export 'components/${c.fileName}';");
+    }
+    await _write('$root/lib/$uiPackage.dart', '''/// Public API of the $uiPackage design system.
+library;
+
+${exports.toString().trimRight()}
+''');
+  }
+
+  /// pubspec for the standalone Widgetbook workspace member (depends on `<ui>`).
+  /// Named `<app>_widgetbook` — it can't be called `widgetbook` since it depends
+  /// on the `widgetbook` package.
+  String _widgetbookPubspec(String packageName, String uiPackage) => '''name: ${packageName}_widgetbook
+description: "Interactive component catalog — generated by NEAT."
+version: 0.1.0
+publish_to: 'none'
+
+environment:
+  sdk: ^3.6.0
+
+resolution: workspace
+
+dependencies:
+  flutter:
+    sdk: flutter
+  widgetbook: ^3.7.0
+  $uiPackage:
+    path: ../packages/$uiPackage
+
+dev_dependencies:
+  flutter_lints: ^6.0.0
+''';
 
   // ── Router files ──────────────────────────────────────────────────────────
 
@@ -842,7 +988,9 @@ class LaunchGenerationUsecase {
     List<PubPackage> packages, {
     bool withWidgetbook = false,
     bool addScreenUtil = true,
-    String? localStoragePackage,
+    List<String> pathPackages = const [],
+    List<String> extraWorkspaceMembers = const [],
+    bool addConnectivity = false,
   }) async {
     final pubspecFile = File('${projectDir.path}/pubspec.yaml');
     if (!pubspecFile.existsSync()) return;
@@ -853,7 +1001,9 @@ class LaunchGenerationUsecase {
       packages,
       withWidgetbook: withWidgetbook,
       addScreenUtil: addScreenUtil,
-      localStoragePackage: localStoragePackage,
+      pathPackages: pathPackages,
+      extraWorkspaceMembers: extraWorkspaceMembers,
+      addConnectivity: addConnectivity,
     );
 
     await pubspecFile.writeAsString(content);
@@ -895,7 +1045,9 @@ class LaunchGenerationUsecase {
     List<PubPackage> packages, {
     bool withWidgetbook = false,
     bool addScreenUtil = true,
-    String? localStoragePackage,
+    List<String> pathPackages = const [],
+    List<String> extraWorkspaceMembers = const [],
+    bool addConnectivity = false,
   }) {
     final deps = StringBuffer();
     final devDeps = StringBuffer();
@@ -954,13 +1106,13 @@ class LaunchGenerationUsecase {
       }
     }
 
-    // Offline-first → the app path-depends on the workspace local-storage
-    // package and needs connectivity_plus for the NetworkInfo brick.
-    if (localStoragePackage != null) {
-      if (!uniquePackages.any((p) => p.name == 'connectivity_plus')) {
-        deps.write('  connectivity_plus: ^7.1.1\n');
-      }
-      deps.write('  $localStoragePackage:\n    path: packages/$localStoragePackage\n');
+    // connectivity_plus for the offline NetworkInfo brick.
+    if (addConnectivity && !uniquePackages.any((p) => p.name == 'connectivity_plus')) {
+      deps.write('  connectivity_plus: ^7.1.1\n');
+    }
+    // Path deps on local workspace packages (e.g. <app>_ui, <app>_local_storage).
+    for (final pkg in pathPackages) {
+      deps.write('  $pkg:\n    path: packages/$pkg\n');
     }
 
     var content = original;
@@ -979,9 +1131,14 @@ class LaunchGenerationUsecase {
     }
 
     // Declare the Dart workspace at the root (app = workspace root). Members
-    // live under packages/ and each carries `resolution: workspace`.
-    if (localStoragePackage != null) {
-      content = '${content.trimRight()}\n\nworkspace:\n  - packages/$localStoragePackage\n';
+    // live under packages/ (or widgetbook/) and each carries `resolution: workspace`.
+    final members = [
+      ...pathPackages.map((p) => 'packages/$p'),
+      ...extraWorkspaceMembers,
+    ];
+    if (members.isNotEmpty) {
+      final block = members.map((m) => '  - $m').join('\n');
+      content = '${content.trimRight()}\n\nworkspace:\n$block\n';
     }
 
     return content;

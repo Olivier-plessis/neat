@@ -426,6 +426,10 @@ class SyncService {
   final NetworkInfo _network;
   final OutboxReplay _replay;
 
+  /// A write that keeps failing is parked after this many attempts (kept in the
+  /// table for inspection, but no longer retried) so it can't loop forever.
+  static const int maxRetries = 5;
+
   StreamSubscription<bool>? _sub;
 
   /// Start listening for connectivity; flush automatically when back online.
@@ -435,11 +439,12 @@ class SyncService {
     });
   }
 
-  /// Replay every pending write. Successful ones are removed; failures bump
-  /// their retry counter and stay queued.
+  /// Replay every pending write, oldest first. Successful ones are removed;
+  /// failures bump their retry counter; entries past [maxRetries] are skipped.
   Future<void> flush() async {
     if (!await _network.isConnected) return;
     for (final entry in await _db.pendingOutbox()) {
+      if (entry.retryCount >= maxRetries) continue; // parked — give up
       try {
         if (await _replay(entry)) {
           await _db.deleteOutbox(entry.id);
@@ -452,9 +457,134 @@ class SyncService {
     }
   }
 
+  /// Writes that exhausted their retries — surface these to the user / a report.
+  Future<List<OutboxEntry>> failedWrites() async =>
+      (await _db.pendingOutbox()).where((e) => e.retryCount >= maxRetries).toList();
+
   Future<void> dispose() async => _sub?.cancel();
 }
 ''';
+
+  // ── docs/OFFLINE.md (offline-first usage guide) ──────────────────────────
+
+  static String offlineDoc({
+    required String packageName,
+    required String featureName,
+    required String localStoragePackage,
+    required bool hasSync,
+  }) {
+    final p = _pascal(featureName);
+    final c = _camel(featureName);
+
+    final syncIntro = hasSync
+        ? 'reads are local-first with a cache fallback, and **writes work offline**: they are applied to the local DB immediately and queued in an Outbox that a `SyncService` replays when connectivity returns.'
+        : 'reads are local-first with a cache fallback. Writes require connectivity (they are not queued — pick the **Offline + Sync** strategy for offline writes).';
+
+    final writeSection = hasSync
+        ? '''
+
+## Writing (offline-capable)
+
+`create` / `update` / `delete` are **optimistic**: the local Drift table is updated
+immediately, then the operation is appended to the Outbox.
+
+```dart
+final create = ref.read(create${p}UsecaseProvider);
+await create.execute(const ${p}Entity(id: '1', name: 'Ada'));
+// → row upserted locally now; POST replayed automatically once online.
+```
+
+### The Outbox + SyncService
+
+Every offline write becomes a row in the `OutboxEntries` table
+(`operation`, `endpoint`, `payload`, `retryCount`). The `${c}SyncProvider`
+starts a `SyncService` that listens to connectivity and, when back online,
+**replays each queued write through the API source**, deleting it on success.
+
+```dart
+// Activate the sync engine once, high in the widget tree:
+ref.watch(${c}SyncProvider);
+```
+
+- Successful replays are removed from the queue.
+- Failing ones bump `retryCount`; after `SyncService.maxRetries` attempts they
+  are **parked** (kept for inspection via `SyncService.failedWrites()`, never
+  retried in a loop).
+- ⚠️ No conflict resolution / exponential backoff out of the box — add your own
+  policy in the replay callback (`core/sync/sync_service.dart`) if needed.'''
+        : '';
+
+    return '''# Offline-first
+
+This project was generated with an **offline-first data layer**: $syncIntro
+
+## Layout (Dart workspace)
+
+```
+$packageName/
+├── pubspec.yaml                      # workspace root (the app)
+├── packages/
+│   └── $localStoragePackage/         # Drift database (typed tables + Outbox)
+└── lib/
+    ├── core/
+    │   ├── network/network_info.dart # connectivity (connectivity_plus)
+    │   ${hasSync ? '└── sync/sync_service.dart    # Outbox replay engine' : ''}
+    └── features/$featureName/
+        ├── data/sources/             # ${p}ApiSource (remote) + ${p}LocalSource (Drift)
+        ├── data/repositories/        # offline-first orchestration
+        └── presentation/providers/   # ${featureName}_providers.dart (the DI graph)
+```
+
+## Data flow
+
+```
+read  → repository.getAll()
+          online?  → API  → write-through cache (Drift)  → entities
+          offline? → Drift cache                          → entities
+${hasSync ? '''write → repository.create/update/delete()
+          → upsert/delete local (optimistic)
+          → enqueue Outbox  → replayed by SyncService when online''' : 'write → requires connectivity (no queue in read-only mode)'}
+```
+
+## Wiring (already done)
+
+Everything is wired as `keepAlive` Riverpod providers in
+`lib/features/$featureName/presentation/providers/${featureName}_providers.dart`:
+
+| Provider | What it gives |
+|---|---|
+| `${c}ApiSourceProvider` | remote source (uses the core dio/chopper client) |
+| `appDatabaseProvider` | the Drift `AppDatabase` |
+| `${c}LocalSourceProvider` | Drift-backed local source |
+| `networkInfoProvider` | connectivity wrapper |
+| `${c}RepositoryProvider` | offline-first repository |
+| `get/create/update/delete${p}UsecaseProvider` | the usecases |
+${hasSync ? '| `${c}SyncProvider` | the Outbox sync engine (auto-starts) |' : ''}
+
+## Reading
+
+```dart
+final usecase = ref.watch(get${p}UsecaseProvider);
+final result = await usecase.execute(); // local-first, refreshed from the API when online
+```
+$writeSection
+
+## API base URL
+
+The base URL flows from your env (`AppEnv.current.apiBaseUrl`, set in `bootstrap`)
+into the core dio/chopper client provider. The API source's per-resource path
+(e.g. `/${featureName}s`) is appended to it.
+
+## Extending
+
+- **More columns**: edit the `${p}Rows` table in
+  `packages/$localStoragePackage/lib/src/database.dart`, then re-run
+  `dart run build_runner build` **inside that package**, and update the
+  row↔model mapping in `${p}LocalSource`.
+- **New feature**: mirror the `$featureName` data layer + add its providers.
+'''
+        '${hasSync ? '\n- **Replay policy**: customise retries/backoff/conflicts in `SyncService`.\n' : '\n'}';
+  }
 
   // ── core/error/failure.dart ───────────────────────────────────────────────
 

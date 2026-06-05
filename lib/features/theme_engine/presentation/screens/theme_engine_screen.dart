@@ -1220,6 +1220,17 @@ class _ButtonsShapesTab extends ConsumerWidget {
             onChanged: notifier.setGenerateWidgetbook,
           ),
 
+          const SizedBox(height: 6),
+          _SimpleToggleCard(
+            icon: Icons.widgets_outlined,
+            title: 'Extract UI into a package',
+            description:
+                'Move theme, tokens & components into a `<app>_ui` workspace package. '
+                'The app and Widgetbook depend on it — clean decoupling.',
+            enabled: state.extractUiPackage,
+            onChanged: notifier.setExtractUiPackage,
+          ),
+
           const SizedBox(height: 24),
         ],
       ),
@@ -1317,6 +1328,98 @@ class _WidgetbookToggleCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Generic always-enabled toggle card (title + description + switch).
+class _SimpleToggleCard extends StatelessWidget {
+  const _SimpleToggleCard({
+    required this.icon,
+    required this.title,
+    required this.description,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  final IconData icon;
+  final String title;
+  final String description;
+  final bool enabled;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0E1A1A),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: enabled ? AppTheme.colorPrimaryCyan.withValues(alpha: 0.5) : Colors.white10,
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: AppTheme.colorPrimaryCyan, size: 20),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  description,
+                  style: TextStyle(color: Colors.grey[500], fontSize: 12, height: 1.4),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 16),
+          _Clickable(
+            onTap: () => onChanged(!enabled),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              width: 48,
+              height: 28,
+              decoration: BoxDecoration(
+                color: enabled ? AppTheme.colorPrimaryCyan.withValues(alpha: 0.15) : Colors.white10,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: enabled ? AppTheme.colorPrimaryCyan : Colors.white12,
+                  width: 1.5,
+                ),
+              ),
+              child: AnimatedAlign(
+                duration: const Duration(milliseconds: 200),
+                alignment: enabled ? Alignment.centerRight : Alignment.centerLeft,
+                child: Padding(
+                  padding: const EdgeInsets.all(3),
+                  child: Container(
+                    width: 20,
+                    height: 20,
+                    decoration: BoxDecoration(
+                      color: enabled ? AppTheme.colorPrimaryCyan : Colors.grey[700],
+                      shape: BoxShape.circle,
+                    ),
+                    child: enabled
+                        ? const Icon(Icons.check, size: 11, color: Color(0xFF0E0E0E))
+                        : null,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
