@@ -809,6 +809,89 @@ void main() {
     },
     timeout: const Timeout(Duration(minutes: 12)),
   );
+
+  test(
+    'feature generation injects a Drift table into an offline-sync project',
+    () async {
+      const projectName = 'neat_featgen_offline';
+      final logs = <String>[];
+
+      final pkgs = <PubPackage>[
+        _dep('hooks_riverpod', '3.3.1'),
+        _dep('flutter_hooks', '0.21.3+1'),
+        _dep('riverpod_annotation', '4.0.2'),
+        _dep('dio', '5.9.2'),
+        _dep('go_router', '17.2.3'),
+        _dev('riverpod_generator', '4.0.3'),
+        _dev('build_runner', '2.15.0'),
+      ];
+
+      final identity = IdentityState(
+        name: projectName,
+        organization: 'com.neat.test',
+        projectPath: tempRoot.path,
+        description: 'NEAT offline feature-gen integration test',
+        targetPlatforms: const ['macos'],
+      );
+      const architecture = ArchitectureState(
+        storageStrategy: StorageStrategy.offlineFirstSync,
+      );
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: identity,
+          packages: pkgs,
+          architecture: architecture,
+          cicd: const CicdState(),
+          theme: const ThemeEngineState(approach: ThemeApproach.customM3),
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('Base offline generation threw:\n$e');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+      const uiPkg = '${projectName}_local_storage';
+
+      final project = await const ProjectLoader().load(projectDir.path);
+      expect(project, isNotNull);
+      expect(project!.contract.storageStrategy, 'offlineFirstSync');
+
+      // Add a feature → its Drift table + DAO must be injected into the package.
+      await const GenerateFeatureUsecase()
+          .execute(project: project, featureName: 'orders', onLog: logs.add);
+
+      final dbDart = File(
+        '${projectDir.path}/packages/$uiPkg/lib/src/database.dart',
+      ).readAsStringSync();
+      expect(dbDart, contains('class OrdersRows extends Table'));
+      expect(dbDart, contains('upsertOrders(OrdersRow row)')); // DAO injected
+      expect(dbDart, contains('OrdersRows,')); // added to @DriftDatabase(tables:)
+
+      // The whole offline workspace still analyzes cleanly.
+      final analyze = await Process.run(
+        'flutter',
+        ['analyze', '--no-pub'],
+        workingDirectory: projectDir.path,
+      );
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      expect(
+        RegExp(r'(\d+ issues? found|No issues found)').hasMatch(out),
+        isTrue,
+        reason: 'flutter analyze did not run as expected:\n$out',
+      );
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where((l) => l.contains(' error •') || l.contains(' warning •'))
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason: 'offline feature-gen analyze reported issues:\n${errorLines.join('\n')}\n\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
 }
 
 PubPackage _dep(String name, String version) =>
