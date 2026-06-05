@@ -47,12 +47,54 @@ export 'package:drift/drift.dart';
 export 'src/database.dart';
 ''';
 
+  /// A typed table for [featureName] (id + name). Reused by the initial
+  /// database and by feature-gen injection.
+  static String featureTable(String featureName) {
+    final p = pascal(featureName);
+    return '''/// Typed local table for the $featureName feature (full CRUD).
+@DataClassName('${p}Row')
+class ${p}Rows extends Table {
+  TextColumn get id => text()();
+  TextColumn get name => text()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}''';
+  }
+
+  /// The CRUD DAO methods for [featureName]'s table, as a class-body snippet.
+  static String featureDao(String featureName) {
+    final p = pascal(featureName);
+    final acc = '${camel(featureName)}Rows';
+    return '''  // ── $featureName CRUD ───────────────────────────────────────────────────────
+
+  Future<List<${p}Row>> getAll${p}s() => select($acc).get();
+
+  Future<${p}Row?> get$p(String id) =>
+      (select($acc)..where((t) => t.id.equals(id))).getSingleOrNull();
+
+  /// Reactive list (emits on every local write).
+  Stream<List<${p}Row>> watch${p}s() => select($acc).watch();
+
+  Future<void> upsert$p(${p}Row row) => into($acc).insertOnConflictUpdate(row);
+
+  Future<void> upsertAll${p}s(List<${p}Row> rows) =>
+      batch((b) => b.insertAllOnConflictUpdate($acc, rows));
+
+  Future<void> delete$p(String id) =>
+      (delete($acc)..where((t) => t.id.equals(id))).go();''';
+  }
+
   /// The Drift database. Carries a typed table for the witness [featureName]
   /// (full local CRUD); when [withOutbox] is true it also carries the Outbox
-  /// queue table + helpers for the sync strategy.
+  /// queue table + helpers for the sync strategy. Anchors (`// neat:…`) let
+  /// feature-gen inject new tables / DAOs later.
   static String database({required String featureName, bool withOutbox = false}) {
-    final p = pascal(featureName); // UserProfile
-    final acc = '${camel(featureName)}Rows'; // userProfileRows (Drift accessor)
+    final p = pascal(featureName);
+
+    final tableEntries = StringBuffer('    ${p}Rows,\n');
+    if (withOutbox) tableEntries.write('    OutboxEntries,\n');
+    tableEntries.write('    // neat:table-names');
 
     final outboxTable = withOutbox
         ? '''
@@ -68,8 +110,6 @@ class OutboxEntries extends Table {
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 }'''
         : '';
-
-    final tablesList = withOutbox ? '[${p}Rows, OutboxEntries]' : '[${p}Rows]';
 
     final outboxMethods = withOutbox
         ? '''
@@ -112,40 +152,24 @@ import 'package:drift_flutter/drift_flutter.dart';
 
 part 'database.g.dart';
 
-/// Typed local table for the $featureName feature (full CRUD).
-@DataClassName('${p}Row')
-class ${p}Rows extends Table {
-  TextColumn get id => text()();
-  TextColumn get name => text()();
+${featureTable(featureName)}$outboxTable
 
-  @override
-  Set<Column<Object>> get primaryKey => {id};
-}$outboxTable
+// neat:tables — feature tables are inserted above this line.
 
-@DriftDatabase(tables: $tablesList)
+@DriftDatabase(
+  tables: [
+${tableEntries.toString()}
+  ],
+)
 class AppDatabase extends _\$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _open());
 
   @override
   int get schemaVersion => 1;
 
-  // ── $featureName CRUD ───────────────────────────────────────────────────────
+${featureDao(featureName)}$outboxMethods
 
-  Future<List<${p}Row>> getAll${p}s() => select($acc).get();
-
-  Future<${p}Row?> get$p(String id) =>
-      (select($acc)..where((t) => t.id.equals(id))).getSingleOrNull();
-
-  /// Reactive list (emits on every local write).
-  Stream<List<${p}Row>> watch${p}s() => select($acc).watch();
-
-  Future<void> upsert$p(${p}Row row) => into($acc).insertOnConflictUpdate(row);
-
-  Future<void> upsertAll${p}s(List<${p}Row> rows) =>
-      batch((b) => b.insertAllOnConflictUpdate($acc, rows));
-
-  Future<void> delete$p(String id) =>
-      (delete($acc)..where((t) => t.id.equals(id))).go();$outboxMethods
+  // neat:daos — feature DAOs are inserted above this line.
 
   static QueryExecutor _open() => driftDatabase(name: 'app_db');
 }

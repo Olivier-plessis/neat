@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:neat/features/feature_gen/domain/models/loaded_project.dart';
 import 'package:neat/features/generation/domain/services/feature_scaffolder.dart';
+import 'package:neat/features/generation/domain/services/templates/local_storage_templates.dart';
 
 /// Adds a new feature to an existing NEAT project, deriving every choice from
 /// the project's Workspace Contract (`.neat.json`) so the new feature matches
@@ -72,13 +73,41 @@ class GenerateFeatureUsecase {
       );
     }
 
+    // Offline-first: inject the feature's typed table + DAO into the Drift package.
+    if (localStoragePackage != null) {
+      onLog('[▶] Injecting Drift table for "$featureName"...');
+      await _injectDriftTable(project.path, localStoragePackage, featureName);
+    }
+
     // Regenerate code if the stack uses generators (riverpod / freezed / json).
     if (useAnnotations || c.hasFreezed || c.hasJsonSerializable) {
       onLog("[▶] Running 'dart run build_runner build'...");
       await _runBuildRunner(project.path, onLog);
     }
+    // Drift codegen runs per-package, so build the local-storage package too.
+    if (localStoragePackage != null) {
+      onLog('[▶] Running build_runner in packages/$localStoragePackage...');
+      await _runBuildRunner('${project.path}/packages/$localStoragePackage', onLog);
+    }
     await _dartFormat(project.path, onLog);
     onLog('[✓✓] Feature "$featureName" added.');
+  }
+
+  // ── Drift table injection (inserts at the // neat: anchors) ────────────────
+
+  Future<void> _injectDriftTable(
+    String projectPath,
+    String localStoragePackage,
+    String featureName,
+  ) async {
+    final db = File('$projectPath/packages/$localStoragePackage/lib/src/database.dart');
+    if (!db.existsSync()) return;
+    final p = _pascal(featureName);
+    var s = await db.readAsString();
+    s = _insertBefore(s, '// neat:tables', '${LocalStorageTemplates.featureTable(featureName)}\n');
+    s = _insertBefore(s, '// neat:table-names', '    ${p}Rows,');
+    s = _insertBefore(s, '// neat:daos', '${LocalStorageTemplates.featureDao(featureName)}\n');
+    await db.writeAsString(s);
   }
 
   // ── Route wiring (inserts at the // neat: anchors) ─────────────────────────
