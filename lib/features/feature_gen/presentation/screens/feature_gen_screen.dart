@@ -358,7 +358,7 @@ class _LayerToggle extends StatelessWidget {
         onChanged: onChanged,
         title: Text(label, style: const TextStyle(color: Colors.white, fontSize: 14)),
         subtitle: Text(description, style: TextStyle(color: Colors.grey[600], fontSize: 12)),
-        activeColor: AppTheme.colorPrimaryCyan,
+        activeThumbColor: AppTheme.colorPrimaryCyan,
         contentPadding: EdgeInsets.zero,
       ),
     );
