@@ -91,7 +91,9 @@ class ArchitectureScreen extends ConsumerWidget {
                                     'Traditional approach organizing by architectural layers (Data, Domain, Presentation) globally.',
                                 isSelected: state.pattern == StructuralPattern.layerFirst,
                                 isRecommended: false,
-                                onTap: () => notifier.setPattern(StructuralPattern.layerFirst),
+                                // Not yet validated by the generation harness.
+                                disabled: true,
+                                onTap: () {},
                               ),
                             ),
                           ],
@@ -115,9 +117,11 @@ class ArchitectureScreen extends ConsumerWidget {
                         _ToggleTile(
                           title: 'Use @riverpod annotation syntax',
                           description:
-                              'Génère `@riverpod class MyNotifier extends _\$MyNotifier` au lieu du setup manuel NotifierProvider.',
-                          value: state.useRiverpodAnnotations,
-                          onChanged: notifier.toggleRiverpodAnnotations,
+                              'Génère `@riverpod class MyNotifier extends _\$MyNotifier`. Le mode manuel NotifierProvider arrive bientôt — verrouillé sur generator.',
+                          value: true,
+                          // Locked ON: the manual NotifierProvider path isn't validated yet.
+                          disabled: true,
+                          onChanged: (_) {},
                         ),
                       if (hasRiverpod && hasBloc) const SizedBox(height: 8),
                       if (hasBloc)
@@ -362,6 +366,7 @@ class _PatternCard extends StatelessWidget {
     required this.isSelected,
     required this.isRecommended,
     required this.onTap,
+    this.disabled = false,
   });
 
   final String title;
@@ -370,10 +375,13 @@ class _PatternCard extends StatelessWidget {
   final bool isRecommended;
   final VoidCallback onTap;
 
+  /// Visible but not selectable (feature not yet validated).
+  final bool disabled;
+
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
+    final card = GestureDetector(
+      onTap: disabled ? null : onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.all(18),
@@ -425,18 +433,22 @@ class _PatternCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(description, style: TextStyle(color: Colors.grey[500], fontSize: 12, height: 1.5)),
-            if (isRecommended) ...[
+            if (isRecommended || disabled) ...[
               const SizedBox(height: 14),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  border: Border.all(color: AppTheme.colorPrimaryCyan.withValues(alpha: 0.5)),
+                  border: Border.all(
+                    color: disabled
+                        ? Colors.white24
+                        : AppTheme.colorPrimaryCyan.withValues(alpha: 0.5),
+                  ),
                   borderRadius: BorderRadius.circular(4),
                 ),
-                child: const Text(
-                  'RECOMMENDED',
+                child: Text(
+                  disabled ? 'COMING SOON' : 'RECOMMENDED',
                   style: TextStyle(
-                    color: AppTheme.colorPrimaryCyan,
+                    color: disabled ? Colors.white38 : AppTheme.colorPrimaryCyan,
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
                     letterSpacing: 0.8,
@@ -448,6 +460,8 @@ class _PatternCard extends StatelessWidget {
         ),
       ),
     );
+
+    return disabled ? Opacity(opacity: 0.45, child: card) : card;
   }
 }
 
@@ -459,6 +473,7 @@ class _ToggleTile extends StatelessWidget {
     required this.description,
     required this.value,
     required this.onChanged,
+    this.disabled = false,
   });
 
   final String title;
@@ -466,9 +481,14 @@ class _ToggleTile extends StatelessWidget {
   final bool value;
   final ValueChanged<bool> onChanged;
 
+  /// Locked: shown but not toggleable (feature pinned / not yet validated).
+  final bool disabled;
+
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return Opacity(
+      opacity: disabled ? 0.55 : 1,
+      child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
       decoration: BoxDecoration(
         color: const Color(0xFF18181C),
@@ -496,7 +516,7 @@ class _ToggleTile extends StatelessWidget {
           ),
           const SizedBox(width: 16),
           GestureDetector(
-            onTap: () => onChanged(!value),
+            onTap: disabled ? null : () => onChanged(!value),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
               width: 48,
@@ -535,6 +555,7 @@ class _ToggleTile extends StatelessWidget {
             ),
           ),
         ],
+      ),
       ),
     );
   }
