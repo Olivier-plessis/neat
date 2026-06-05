@@ -61,6 +61,17 @@ class GenerateFeatureUsecase {
     );
     onLog('[✓] Feature files written.');
 
+    // Wire the new feature's routes into the shared router (anchors).
+    if (hasGoRouter) {
+      onLog('[▶] Wiring routes...');
+      await _wireRoutes(
+        project.path,
+        c.projectName,
+        featureName,
+        builder: hasGoRouterBuilder,
+      );
+    }
+
     // Regenerate code if the stack uses generators (riverpod / freezed / json).
     if (useAnnotations || c.hasFreezed || c.hasJsonSerializable) {
       onLog("[▶] Running 'dart run build_runner build'...");
@@ -68,6 +79,78 @@ class GenerateFeatureUsecase {
     }
     await _dartFormat(project.path, onLog);
     onLog('[✓✓] Feature "$featureName" added.');
+  }
+
+  // ── Route wiring (inserts at the // neat: anchors) ─────────────────────────
+
+  Future<void> _wireRoutes(
+    String projectPath,
+    String packageName,
+    String featureName, {
+    required bool builder,
+  }) async {
+    final camel = _camel(featureName);
+    final pascal = _pascal(featureName);
+
+    // 1. AppRoutePath constant.
+    final routePath = File('$projectPath/lib/core/constants/app_route_path.dart');
+    if (routePath.existsSync()) {
+      final s = _insertBefore(
+        await routePath.readAsString(),
+        '// neat:routes',
+        "  static const String $camel = '/$featureName';",
+      );
+      await routePath.writeAsString(s);
+    }
+
+    // 2. routes.dart (single wiring point for both routing modes).
+    final routes = File('$projectPath/lib/core/router/routes.dart');
+    if (!routes.existsSync()) return;
+    var s = await routes.readAsString();
+    if (builder) {
+      s = _insertBefore(
+        s,
+        '// neat:route-imports',
+        "import 'package:$packageName/features/$featureName/presentation/routes/"
+            "${featureName}_routes.dart' as $featureName;",
+      );
+      s = _insertBefore(s, '// neat:route-entries', '  ...$featureName.\$appRoutes,');
+    } else {
+      s = _insertBefore(
+        s,
+        '// neat:route-imports',
+        "import 'package:$packageName/features/$featureName/presentation/pages/"
+            "${featureName}_page.dart';",
+      );
+      s = _insertBefore(
+        s,
+        '// neat:route-entries',
+        '  GoRoute(\n'
+            '    path: AppRoutePath.$camel,\n'
+            '    builder: (context, state) => const ${pascal}Page(),\n'
+            '  ),',
+      );
+    }
+    await routes.writeAsString(s);
+  }
+
+  /// Inserts [line] (plus a newline) immediately before the line containing
+  /// [anchor]. No-op if the anchor is absent.
+  String _insertBefore(String content, String anchor, String line) {
+    final idx = content.indexOf(anchor);
+    if (idx < 0) return content;
+    final lineStart = content.lastIndexOf('\n', idx) + 1;
+    return '${content.substring(0, lineStart)}$line\n${content.substring(lineStart)}';
+  }
+
+  static String _pascal(String s) => s
+      .split('_')
+      .map((w) => w.isEmpty ? '' : w[0].toUpperCase() + w.substring(1))
+      .join();
+
+  static String _camel(String s) {
+    final p = _pascal(s);
+    return p.isEmpty ? p : p[0].toLowerCase() + p.substring(1);
   }
 
   Future<void> _runBuildRunner(String dir, void Function(String) onLog) async {

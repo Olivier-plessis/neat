@@ -765,6 +765,15 @@ void main() {
         reason: 'existing feature must be left intact',
       );
 
+      // 3b. The new feature is wired into the router + AppRoutePath.
+      final routesDart =
+          File('${projectDir.path}/lib/core/router/routes.dart').readAsStringSync();
+      expect(routesDart, contains('AppRoutePath.orders'));
+      final routePath = File(
+        '${projectDir.path}/lib/core/constants/app_route_path.dart',
+      ).readAsStringSync();
+      expect(routePath, contains("static const String orders = '/orders';"));
+
       // 4. Scanning now sees both features.
       expect(await const ProjectLoader().load(projectDir.path).then((p) => p!.features),
           ['home', 'orders']);

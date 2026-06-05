@@ -10,6 +10,7 @@ class CoreTemplates {
 
   /// First feature — app entry point.
   static const String $c = '/';
+  // neat:routes — feature route constants are inserted above this line.
 }
 ''';
   }
@@ -639,17 +640,12 @@ extension IterableX<T> on Iterable<T> {
   static String appRouter({required String packageName, required String featureName}) =>
       '''import 'package:go_router/go_router.dart';
 import 'package:$packageName/core/constants/app_route_path.dart';
-import 'package:$packageName/features/$featureName/presentation/pages/${featureName}_page.dart';
+import 'routes.dart';
 
 final appRouter = GoRouter(
   initialLocation: AppRoutePath.${_camel(featureName)},
   debugLogDiagnostics: true,
-  routes: [
-    GoRoute(
-      path: AppRoutePath.${_camel(featureName)},
-      builder: (context, state) => const ${_pascal(featureName)}Page(),
-    ),
-  ],
+  routes: appRoutes,
 );
 ''';
 
@@ -698,14 +694,12 @@ final appRouter = GoRouter(
       '''import 'package:go_router/go_router.dart';
 import 'package:$packageName/features/$featureName/presentation/routes/${featureName}_routes.dart'
     as $featureName;
+// neat:route-imports
 
-/// Aggregated app routes.
-///
-/// To add a feature: create its `<feature>_routes.dart` under the feature's
-/// presentation/routes/ folder, then import it here with an alias and spread
-/// its generated `\$appRoutes`.
+/// Aggregated app routes. NEAT inserts new features at the anchors below.
 final List<RouteBase> appRoutes = [
   ...$featureName.\$appRoutes,
+  // neat:route-entries
 ];
 ''';
 
@@ -733,13 +727,17 @@ class ${_pascal(featureName)}Route extends GoRouteData with \$${_pascal(featureN
 
   static String routesManual({required String packageName, required String featureName}) =>
       '''import 'package:go_router/go_router.dart';
+import 'package:$packageName/core/constants/app_route_path.dart';
 import 'package:$packageName/features/$featureName/presentation/pages/${featureName}_page.dart';
+// neat:route-imports
 
-final appRoutes = [
+/// App routes. NEAT inserts new features at the anchors below.
+final List<RouteBase> appRoutes = [
   GoRoute(
-    path: '/',
+    path: AppRoutePath.${_camel(featureName)},
     builder: (context, state) => const ${_pascal(featureName)}Page(),
   ),
+  // neat:route-entries
 ];
 ''';
 
