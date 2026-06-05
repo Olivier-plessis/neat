@@ -8,6 +8,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:neat/features/architecture/domain/models/architecture_state.dart';
 import 'package:neat/features/cicd/domain/models/cicd_state.dart';
 import 'package:neat/features/dependencies/domain/models/pub_package.dart';
+import 'package:neat/features/feature_gen/domain/services/project_loader.dart';
+import 'package:neat/features/feature_gen/domain/usecases/generate_feature_usecase.dart';
 import 'package:neat/features/generation/domain/usecases/launch_generation_usecase.dart';
 import 'package:neat/features/identity/domain/models/identity_state.dart';
 import 'package:neat/features/theme_engine/domain/models/theme_engine_state.dart';
@@ -689,6 +691,111 @@ void main() {
         isEmpty,
         reason: 'flex + UI-package workspace analyze reported issues:\n'
             '${errorLines.join('\n')}\n\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
+
+  test(
+    'feature generation adds a 2nd feature to an existing project, cleanly',
+    () async {
+      const projectName = 'neat_featgen_test';
+      final logs = <String>[];
+
+      final pkgs = <PubPackage>[
+        _dep('hooks_riverpod', '3.3.1'),
+        _dep('flutter_hooks', '0.21.3+1'),
+        _dep('riverpod_annotation', '4.0.2'),
+        _dep('dio', '5.9.2'),
+        _dep('go_router', '17.2.3'),
+        _dev('riverpod_generator', '4.0.3'),
+        _dev('build_runner', '2.15.0'),
+      ];
+
+      final identity = IdentityState(
+        name: projectName,
+        organization: 'com.neat.test',
+        projectPath: tempRoot.path,
+        description: 'NEAT feature-gen integration test',
+        targetPlatforms: const ['macos'],
+      );
+      const architecture = ArchitectureState(); // firstFeatureName defaults to 'home'
+
+      // 1. Generate the base project (writes .neat.json).
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: identity,
+          packages: pkgs,
+          architecture: architecture,
+          cicd: const CicdState(),
+          theme: const ThemeEngineState(approach: ThemeApproach.customM3),
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('Base generation threw:\n$e');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+
+      // 2. Re-open it via the contract (as the Hub would).
+      final project = await const ProjectLoader().load(projectDir.path);
+      expect(project, isNotNull, reason: '.neat.json should make the project loadable');
+      expect(project!.features, ['home']);
+      expect(project.contract.httpClient, 'dio');
+
+      // 3. Add a 2nd feature, matching the stack derived from the contract.
+      await const GenerateFeatureUsecase()
+          .execute(project: project, featureName: 'orders', onLog: logs.add);
+
+      // The new feature exists; the original is untouched.
+      expect(
+        File('${projectDir.path}/lib/features/orders/presentation/pages/orders_page.dart')
+            .existsSync(),
+        isTrue,
+      );
+      expect(
+        File('${projectDir.path}/lib/features/orders/data/sources/orders_api_source.dart')
+            .existsSync(),
+        isTrue,
+      );
+      expect(
+        File('${projectDir.path}/lib/features/home/presentation/pages/home_page.dart')
+            .existsSync(),
+        isTrue,
+        reason: 'existing feature must be left intact',
+      );
+
+      // 4. Scanning now sees both features.
+      expect(await const ProjectLoader().load(projectDir.path).then((p) => p!.features),
+          ['home', 'orders']);
+
+      // 5. Non-destructive guard: re-adding an existing feature throws.
+      expect(
+        () => const GenerateFeatureUsecase()
+            .execute(project: project, featureName: 'home', onLog: logs.add),
+        throwsA(isA<Exception>()),
+      );
+
+      // 6. The whole project still analyzes without errors or warnings.
+      final analyze = await Process.run(
+        'flutter',
+        ['analyze', '--no-pub'],
+        workingDirectory: projectDir.path,
+      );
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      expect(
+        RegExp(r'(\d+ issues? found|No issues found)').hasMatch(out),
+        isTrue,
+        reason: 'flutter analyze did not run as expected:\n$out',
+      );
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where((l) => l.contains(' error •') || l.contains(' warning •'))
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason: 'feature-gen project analyze reported issues:\n${errorLines.join('\n')}\n\n$out',
       );
     },
     timeout: const Timeout(Duration(minutes: 12)),

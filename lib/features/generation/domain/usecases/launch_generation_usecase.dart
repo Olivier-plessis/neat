@@ -7,14 +7,11 @@ import 'package:neat/features/architecture/domain/models/architecture_state.dart
 import 'package:neat/features/cicd/domain/models/cicd_state.dart';
 import 'package:neat/features/cicd/domain/usecases/generate_yaml_usecase.dart';
 import 'package:neat/features/dependencies/domain/models/pub_package.dart';
+import 'package:neat/features/generation/domain/services/feature_scaffolder.dart';
 import 'package:neat/features/generation/domain/services/templates/config_templates.dart';
 import 'package:neat/features/generation/domain/services/templates/core_templates.dart';
 import 'package:neat/features/generation/domain/services/templates/dart/app_templates.dart';
 import 'package:neat/features/generation/domain/services/templates/dart/core_dart_templates.dart';
-import 'package:neat/features/generation/domain/services/templates/dart/data_templates.dart';
-import 'package:neat/features/generation/domain/services/templates/dart/domain_templates.dart';
-import 'package:neat/features/generation/domain/services/templates/dart/presentation_templates.dart';
-import 'package:neat/features/generation/domain/services/templates/dart/state_templates.dart';
 import 'package:neat/features/generation/domain/services/templates/local_storage_templates.dart';
 import 'package:neat/features/identity/domain/models/identity_state.dart';
 import 'package:neat/features/theme_engine/domain/models/theme_engine_state.dart';
@@ -790,190 +787,25 @@ dev_dependencies:
     String? localStoragePackage,
     bool hasSync = false,
   }) async {
-    final isFeatureFirst = architecture.pattern == StructuralPattern.featureFirst;
-    final offlineFirst = localStoragePackage != null;
-
-    String domainBase;
-    String dataBase;
-    String presentationBase;
-
-    if (isFeatureFirst) {
-      domainBase = '$lib/features/$featureName/domain';
-      dataBase = '$lib/features/$featureName/data';
-      presentationBase = '$lib/features/$featureName/presentation';
-    } else {
-      domainBase = '$lib/domain/$featureName';
-      dataBase = '$lib/data/$featureName';
-      presentationBase = '$lib/presentation/$featureName';
-    }
-
-    // domain/entities
-    await _write(
-      '$domainBase/entities/${featureName}_entity.dart',
-      DomainTemplates.featureEntity(featureName: featureName, hasFreezed: hasFreezed),
+    await const FeatureScaffolder().writeFeature(
+      lib: lib,
+      featureName: featureName,
+      packageName: packageName,
+      isFeatureFirst: architecture.pattern == StructuralPattern.featureFirst,
+      mirrorTestStructure: architecture.mirrorTestStructure,
+      hasRiverpod: hasRiverpod,
+      hasBloc: hasBloc,
+      useCubit: useCubit,
+      useAnnotations: useAnnotations,
+      hasGoRouter: hasGoRouter,
+      hasGoRouterBuilder: hasGoRouterBuilder,
+      hasHttpClient: hasHttpClient,
+      httpClient: httpClient,
+      hasFreezed: hasFreezed,
+      hasJsonSerializable: hasJsonSerializable,
+      localStoragePackage: localStoragePackage,
+      hasSync: hasSync,
     );
-
-    // domain/repositories
-    await _write(
-      '$domainBase/repositories/i_${featureName}_repository.dart',
-      DomainTemplates.featureIRepository(
-        featureName: featureName,
-        packageName: packageName,
-        hasHttpClient: hasHttpClient,
-      ),
-    );
-
-    // domain/usecases
-    await _write(
-      '$domainBase/usecases/get_${featureName}_usecase.dart',
-      DomainTemplates.featureGetUsecase(featureName: featureName, packageName: packageName),
-    );
-    // CRUD write usecases require a remote source.
-    if (hasHttpClient) {
-      await _write(
-        '$domainBase/usecases/${featureName}_crud_usecases.dart',
-        DomainTemplates.featureCrudUsecases(featureName: featureName, packageName: packageName),
-      );
-    }
-
-    // data/models
-    await _write(
-      '$dataBase/models/${featureName}_model.dart',
-      DataTemplates.featureModel(
-        featureName: featureName,
-        packageName: packageName,
-        hasFreezed: hasFreezed,
-        hasJsonSerializable: hasJsonSerializable,
-      ),
-    );
-
-    // data/repositories
-    await _write(
-      '$dataBase/repositories/${featureName}_repository_impl.dart',
-      DataTemplates.featureRepositoryImpl(
-        featureName: featureName,
-        packageName: packageName,
-        hasHttpClient: hasHttpClient,
-        httpClient: httpClient,
-        offlineFirst: offlineFirst,
-        hasSync: hasSync,
-      ),
-    );
-
-    // data/sources
-    if (hasHttpClient) {
-      await _write(
-        '$dataBase/sources/${featureName}_api_source.dart',
-        DataTemplates.featureApiSource(
-          featureName: featureName,
-          packageName: packageName,
-          httpClient: httpClient,
-        ),
-      );
-    }
-    await _write(
-      '$dataBase/sources/${featureName}_local_source.dart',
-      DataTemplates.featureLocalSource(
-        featureName: featureName,
-        packageName: packageName,
-        offlineFirst: offlineFirst,
-        hasSync: hasSync,
-        localStoragePackage: localStoragePackage,
-      ),
-    );
-
-    // presentation/pages
-    await _write(
-      '$presentationBase/pages/${featureName}_page.dart',
-      PresentationTemplates.featurePage(
-        featureName: featureName,
-        packageName: packageName,
-        hasRiverpod: hasRiverpod,
-        useAnnotations: useAnnotations,
-        hasBloc: hasBloc,
-        useCubit: useCubit,
-      ),
-    );
-
-    // presentation/providers or bloc/cubit
-    if (hasRiverpod) {
-      await _write(
-        '$presentationBase/providers/${featureName}_provider.dart',
-        PresentationTemplates.featureProvider(
-          featureName: featureName,
-          useAnnotations: useAnnotations,
-          useCubit: false,
-        ),
-      );
-      // Ready-to-use DI graph: API source → repository → usecases, wired to the
-      // core dio/chopper provider (so API_BASE_URL flows in). Needs annotations.
-      if (useAnnotations && hasHttpClient) {
-        await _write(
-          '$presentationBase/providers/${featureName}_providers.dart',
-          PresentationTemplates.featureDi(
-            featureName: featureName,
-            packageName: packageName,
-            httpClient: httpClient,
-            offlineFirst: offlineFirst,
-            hasSync: hasSync,
-            localStoragePackage: localStoragePackage,
-          ),
-        );
-      }
-    } else if (useCubit) {
-      await _write(
-        '$presentationBase/cubit/${featureName}_cubit.dart',
-        StateTemplates.featureCubit(featureName: featureName),
-      );
-      await _write(
-        '$presentationBase/cubit/${featureName}_state.dart',
-        StateTemplates.featureCubitState(featureName: featureName),
-      );
-    } else if (hasBloc) {
-      await _write(
-        '$presentationBase/bloc/${featureName}_bloc.dart',
-        StateTemplates.featureBloc(featureName: featureName),
-      );
-      await _write(
-        '$presentationBase/bloc/${featureName}_event.dart',
-        StateTemplates.featureBlocEvent(featureName: featureName),
-      );
-      await _write(
-        '$presentationBase/bloc/${featureName}_state.dart',
-        StateTemplates.featureBlocState(featureName: featureName),
-      );
-    }
-
-    // presentation/routes
-    if (hasGoRouterBuilder) {
-      // Typed go_router_builder routes, aggregated in core/router/routes.dart.
-      await _write(
-        '$presentationBase/routes/${featureName}_routes.dart',
-        CoreTemplates.featureRoutes(packageName: packageName, featureName: featureName),
-      );
-    } else if (hasGoRouter) {
-      await _write(
-        '$presentationBase/routes/${featureName}_route.dart',
-        PresentationTemplates.featureRoute(
-          featureName: featureName,
-          packageName: packageName,
-          useBuilder: false,
-        ),
-      );
-    }
-
-    // presentation/widgets
-    await _write('$presentationBase/widgets/.gitkeep', '');
-
-    // Mirror test structure
-    if (architecture.mirrorTestStructure) {
-      final testDomainBase = domainBase.replaceFirst('/lib/', '/test/');
-      final testDataBase = dataBase.replaceFirst('/lib/', '/test/');
-      final testPresentationBase = presentationBase.replaceFirst('/lib/', '/test/');
-      await _write('$testDomainBase/.gitkeep', '');
-      await _write('$testDataBase/.gitkeep', '');
-      await _write('$testPresentationBase/.gitkeep', '');
-    }
   }
 
   // ── File writer ───────────────────────────────────────────────────────────
