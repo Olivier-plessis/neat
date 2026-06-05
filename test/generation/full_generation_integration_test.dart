@@ -176,6 +176,17 @@ void main() {
       expect(di, contains('GetUserProfileUsecase'));
       expect(di, contains('CreateUserProfileUsecase'));
 
+      // Workspace Contract (.neat.json) captures the stack for feature gen.
+      final contractFile = File('${projectDir.path}/.neat.json');
+      expect(contractFile.existsSync(), isTrue, reason: '.neat.json missing');
+      final contract = jsonDecode(contractFile.readAsStringSync()) as Map<String, dynamic>;
+      expect(contract['schemaVersion'], 1);
+      expect(contract['projectName'], projectName);
+      expect(contract['stateManagement'], 'riverpod');
+      expect(contract['httpClient'], 'chopper');
+      expect(contract['storageStrategy'], 'offlineFirstSync');
+      expect(contract['architecture'], 'feature_first');
+
       // Run the analyzer on the generated project.
       final analyze = await Process.run(
         'flutter',
