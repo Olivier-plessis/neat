@@ -590,6 +590,98 @@ void main() {
     },
     timeout: const Timeout(Duration(minutes: 12)),
   );
+
+  test(
+    'FlexColorScheme + extracted UI package form a clean workspace',
+    () async {
+      const projectName = 'neat_flex_test';
+      final logs = <String>[];
+      const uiPkg = '${projectName}_ui';
+
+      final flexPackages = <PubPackage>[
+        _dep('hooks_riverpod', '3.3.1'),
+        _dep('flutter_hooks', '0.21.3+1'),
+        _dep('riverpod_annotation', '4.0.2'),
+        _dep('flex_color_scheme', '8.4.0'),
+        _dev('riverpod_generator', '4.0.3'),
+        _dev('build_runner', '2.15.0'),
+      ];
+
+      final identity = IdentityState(
+        name: projectName,
+        organization: 'com.neat.test',
+        projectPath: tempRoot.path,
+        description: 'NEAT flex + UI-package integration test',
+        targetPlatforms: const ['macos'],
+      );
+
+      const architecture = ArchitectureState(firstFeatureName: 'user_profile');
+
+      // FlexColorScheme approach (default config, no pasted code) + UI extraction.
+      const theme = ThemeEngineState(
+        approach: ThemeApproach.flexColorScheme,
+        extractUiPackage: true,
+      );
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: identity,
+          packages: flexPackages,
+          architecture: architecture,
+          cicd: const CicdState(),
+          theme: theme,
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('Flex + UI-package generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+
+      // Flex theme relocated into the UI package + flex dep in the package.
+      final themeFile =
+          File('${projectDir.path}/packages/$uiPkg/lib/core/theme/app_theme.dart');
+      expect(themeFile.existsSync(), isTrue, reason: 'UI package app_theme.dart missing');
+      expect(themeFile.readAsStringSync(), contains('FlexThemeData'));
+      final uiPubspec =
+          File('${projectDir.path}/packages/$uiPkg/pubspec.yaml').readAsStringSync();
+      expect(uiPubspec, contains('flex_color_scheme'));
+
+      // App imports the package; workspace lists it.
+      expect(
+        File('${projectDir.path}/lib/app.dart').readAsStringSync(),
+        contains("import 'package:$uiPkg/$uiPkg.dart';"),
+      );
+      expect(
+        File('${projectDir.path}/pubspec.yaml').readAsStringSync(),
+        contains('packages/$uiPkg'),
+      );
+
+      // Whole workspace analyzes without errors or warnings.
+      final analyze = await Process.run(
+        'flutter',
+        ['analyze', '--no-pub'],
+        workingDirectory: projectDir.path,
+      );
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      expect(
+        RegExp(r'(\d+ issues? found|No issues found)').hasMatch(out),
+        isTrue,
+        reason: 'flutter analyze did not run as expected:\n$out',
+      );
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where((l) => l.contains(' error •') || l.contains(' warning •'))
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason: 'flex + UI-package workspace analyze reported issues:\n'
+            '${errorLines.join('\n')}\n\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
 }
 
 PubPackage _dep(String name, String version) =>
