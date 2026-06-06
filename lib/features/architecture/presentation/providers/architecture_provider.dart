@@ -17,4 +17,7 @@ class ArchitectureNotifier extends _$ArchitectureNotifier {
       state = state.copyWith(firstFeatureName: val.trim());
   void setStorageStrategy(StorageStrategy strategy) =>
       state = state.copyWith(storageStrategy: strategy);
+  void toggleNavigationShell(bool val) => state = state.copyWith(useNavigationShell: val);
+  void setShellIcon(String icon) => state = state.copyWith(shellIcon: icon);
+  void setShellLabel(String label) => state = state.copyWith(shellLabel: label);
 }

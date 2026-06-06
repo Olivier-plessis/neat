@@ -741,6 +741,229 @@ final List<RouteBase> appRoutes = [
 ];
 ''';
 
+  // ── routes.dart rooted in a navigation shell (bottom nav from launch) ─────
+
+  /// `routes.dart` for a shell-rooted app (go_router_builder): the only top-level
+  /// route is the typed shell, so the bottom NavigationBar is the app's spine.
+  static String routesAggregatorShell({required String packageName}) =>
+      '''import 'package:go_router/go_router.dart';
+import 'package:$packageName/core/router/app_shell_route.dart' as app_shell;
+// neat:route-imports
+
+/// Aggregated app routes. The app boots into the navigation shell; NEAT inserts
+/// new features at the anchors below.
+final List<RouteBase> appRoutes = [
+  ...app_shell.\$appRoutes,
+  // neat:route-entries
+];
+''';
+
+  /// `routes.dart` for a shell-rooted app (plain go_router): the first feature is
+  /// the shell's first branch, wrapped in a [StatefulShellRoute].
+  static String routesManualShell({required String packageName, required String featureName}) =>
+      '''import 'package:go_router/go_router.dart';
+import 'package:$packageName/core/constants/app_route_path.dart';
+import 'package:$packageName/core/router/scaffold_with_nav_bar.dart';
+import 'package:$packageName/features/$featureName/presentation/pages/${featureName}_page.dart';
+// neat:route-imports
+
+/// Aggregated app routes. The app boots into the navigation shell; NEAT inserts
+/// new features at the anchors below.
+final List<RouteBase> appRoutes = [
+${shellRouteEntryPlain(featureName: featureName)}
+  // neat:route-entries
+];
+''';
+
+  // ── core/providers/infrastructure_providers.dart (shared singletons) ──────
+
+  /// App-wide infrastructure singletons (Drift database + connectivity),
+  /// declared ONCE here rather than in each feature's DI graph. This guarantees
+  /// every feature shares a single SQLite connection and a single connectivity
+  /// stream — avoiding duplicate `AppDatabase` instances and lock contention.
+  static String infrastructureProviders({
+    required String packageName,
+    required String localStoragePackage,
+  }) =>
+      '''import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:$localStoragePackage/$localStoragePackage.dart';
+import 'package:$packageName/core/network/network_info.dart';
+
+part 'infrastructure_providers.g.dart';
+
+/// The single Drift database for the whole app. Every feature's local source
+/// watches this provider, so they all share one connection.
+@Riverpod(keepAlive: true)
+AppDatabase appDatabase(Ref ref) => AppDatabase();
+
+/// App-wide connectivity. Shared by every offline-first repository + the
+/// SyncService so connectivity is observed once.
+@Riverpod(keepAlive: true)
+NetworkInfo networkInfo(Ref ref) => NetworkInfo(Connectivity());
+''';
+
+  // ── Shell scaffold (bottom NavigationBar driven by a StatefulShellRoute) ──
+
+  /// `lib/core/router/scaffold_with_nav_bar.dart` — created with the first shell
+  /// branch. Subsequent branches insert a [NavigationDestination] at the anchor.
+  static String scaffoldWithNavBar({required String firstIcon, required String firstLabel}) =>
+      '''import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+
+/// Shell scaffold: a bottom [NavigationBar] driven by the [StatefulShellRoute].
+/// Each branch keeps its own navigation stack; tapping a destination switches
+/// branches (re-tapping the current one pops to its root).
+class ScaffoldWithNavBar extends StatelessWidget {
+  const ScaffoldWithNavBar({required this.navigationShell, super.key});
+
+  final StatefulNavigationShell navigationShell;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: navigationShell,
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: navigationShell.currentIndex,
+        onDestinationSelected: (index) => navigationShell.goBranch(
+          index,
+          initialLocation: index == navigationShell.currentIndex,
+        ),
+        destinations: const [
+          NavigationDestination(icon: Icon(Icons.$firstIcon), label: '$firstLabel'),
+          // neat:shell-destinations
+        ],
+      ),
+    );
+  }
+}
+''';
+
+  /// A single `NavigationDestination` line, inserted at the destinations anchor.
+  static String shellDestination({required String icon, required String label}) =>
+      "          NavigationDestination(icon: Icon(Icons.$icon), label: '$label'),";
+
+  // ── Shell route — plain go_router ─────────────────────────────────────────
+
+  /// The whole `StatefulShellRoute.indexedStack(...)` block (first branch +
+  /// anchors), inserted into `appRoutes` when the first shell branch is added.
+  static String shellRouteEntryPlain({required String featureName}) {
+    final p = _pascal(featureName);
+    final c = _camel(featureName);
+    return '''  StatefulShellRoute.indexedStack(
+    builder: (context, state, navigationShell) =>
+        ScaffoldWithNavBar(navigationShell: navigationShell),
+    branches: [
+      StatefulShellBranch(
+        routes: [
+          GoRoute(
+            path: AppRoutePath.$c,
+            builder: (context, state) => const ${p}Page(),
+          ),
+        ],
+      ),
+      // neat:shell-branches
+    ],
+  ),''';
+  }
+
+  /// A single `StatefulShellBranch` block, inserted at the branches anchor.
+  static String shellBranchPlain({required String featureName}) {
+    final p = _pascal(featureName);
+    final c = _camel(featureName);
+    return '''      StatefulShellBranch(
+        routes: [
+          GoRoute(
+            path: AppRoutePath.$c,
+            builder: (context, state) => const ${p}Page(),
+          ),
+        ],
+      ),''';
+  }
+
+  // ── Shell route — go_router_builder (typed) ───────────────────────────────
+
+  /// The full `lib/core/router/app_shell_route.dart` (typed shell with the first
+  /// branch + anchors), created when the first shell branch is added.
+  static String appShellRouteBuilder({
+    required String packageName,
+    required String featureName,
+  }) {
+    final p = _pascal(featureName);
+    final c = _camel(featureName);
+    return '''import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:$packageName/core/constants/app_route_path.dart';
+import 'package:$packageName/core/router/scaffold_with_nav_bar.dart';
+import 'package:$packageName/features/$featureName/presentation/pages/${featureName}_page.dart';
+// neat:shell-imports
+
+part 'app_shell_route.g.dart';
+
+@TypedStatefulShellRoute<AppShellRouteData>(
+  branches: [
+    TypedStatefulShellBranch<${p}BranchData>(
+      routes: [
+        TypedGoRoute<${p}Route>(path: AppRoutePath.$c),
+      ],
+    ),
+    // neat:shell-branches
+  ],
+)
+class AppShellRouteData extends StatefulShellRouteData {
+  const AppShellRouteData();
+
+  @override
+  Widget builder(
+    BuildContext context,
+    GoRouterState state,
+    StatefulNavigationShell navigationShell,
+  ) =>
+      ScaffoldWithNavBar(navigationShell: navigationShell);
+}
+
+class ${p}BranchData extends StatefulShellBranchData {
+  const ${p}BranchData();
+}
+
+class ${p}Route extends GoRouteData with \$${p}Route {
+  const ${p}Route();
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) => const ${p}Page();
+}
+// neat:shell-classes
+''';
+  }
+
+  /// A single `TypedStatefulShellBranch` block, inserted at the branches anchor.
+  static String shellBranchBuilder({required String featureName}) {
+    final p = _pascal(featureName);
+    final c = _camel(featureName);
+    return '''    TypedStatefulShellBranch<${p}BranchData>(
+      routes: [
+        TypedGoRoute<${p}Route>(path: AppRoutePath.$c),
+      ],
+    ),''';
+  }
+
+  /// The branch's `BranchData` + `GoRouteData` classes, inserted at the classes
+  /// anchor (the builder generates the `\$<Feature>Route` mixin from the tree).
+  static String shellBranchClassesBuilder({required String featureName}) {
+    final p = _pascal(featureName);
+    return '''class ${p}BranchData extends StatefulShellBranchData {
+  const ${p}BranchData();
+}
+
+class ${p}Route extends GoRouteData with \$${p}Route {
+  const ${p}Route();
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) => const ${p}Page();
+}
+''';
+  }
+
   static String _pascal(String s) => s.isEmpty
       ? s
       : s.split('_').map((w) => w.isEmpty ? '' : w[0].toUpperCase() + w.substring(1)).join();

@@ -237,6 +237,7 @@ class LaunchGenerationUsecase {
         includeMappers: architecture.includeMappers,
         mirrorTestStructure: architecture.mirrorTestStructure,
         generateWidgetbook: theme.generateWidgetbook,
+        useNavigationShell: architecture.useNavigationShell && hasGoRouter,
         components: theme.components.map((c) => c.name).toList(),
       ),
     );
@@ -398,6 +399,18 @@ class LaunchGenerationUsecase {
       await _write('$lib/core/network/network_info.dart', CoreTemplates.networkInfo());
     }
 
+    // ── core/providers (shared infrastructure singletons) ────────────────────
+    // Drift db + connectivity, declared once for the whole app (not per feature).
+    if (localStoragePackage != null && useAnnotations) {
+      await _write(
+        '$lib/core/providers/infrastructure_providers.dart',
+        CoreTemplates.infrastructureProviders(
+          packageName: packageName,
+          localStoragePackage: localStoragePackage,
+        ),
+      );
+    }
+
     // ── core/sync (offline-first + sync / Outbox) ────────────────────────────
     if (localStoragePackage != null && hasSync) {
       await _write(
@@ -439,6 +452,10 @@ class LaunchGenerationUsecase {
       flexVersion: flexMatches.isEmpty ? null : flexMatches.first.version,
     );
 
+    // Bottom-nav shell from launch: the first feature becomes the shell's
+    // first branch (so it isn't also a plain top-level route).
+    final useShell = architecture.useNavigationShell && hasGoRouter;
+
     // ── core/router ───────────────────────────────────────────────────────
     if (hasGoRouter) {
       await _writeRouter(
@@ -447,6 +464,9 @@ class LaunchGenerationUsecase {
         featureName: featureName,
         hasGoRouterBuilder: hasGoRouterBuilder,
         useAnnotations: useAnnotations,
+        useShell: useShell,
+        shellIcon: architecture.shellIcon,
+        shellLabel: architecture.effectiveShellLabel,
       );
     }
 
@@ -471,6 +491,7 @@ class LaunchGenerationUsecase {
       hasJsonSerializable: hasJsonSerializable,
       localStoragePackage: localStoragePackage,
       hasSync: hasSync,
+      isShellBranch: useShell,
     );
   }
 
@@ -739,32 +760,53 @@ dev_dependencies:
     required String featureName,
     required bool hasGoRouterBuilder,
     required bool useAnnotations,
+    bool useShell = false,
+    String shellIcon = 'home',
+    String shellLabel = '',
   }) async {
     final r = '$lib/core/router';
 
-    if (hasGoRouterBuilder) {
+    // app_router.dart is unchanged: initialLocation = AppRoutePath.<first> = '/',
+    // which is exactly the shell's first branch path → the app boots in the shell.
+    await _write(
+      '$r/app_router.dart',
+      hasGoRouterBuilder
+          ? CoreTemplates.appRouterBuilder(
+              packageName: packageName,
+              featureName: featureName,
+              useAnnotations: useAnnotations,
+            )
+          : CoreTemplates.appRouter(packageName: packageName, featureName: featureName),
+    );
+
+    if (useShell) {
+      // The bottom-nav scaffold + the shell route, with the first feature as
+      // branch 0. routes.dart aggregates the shell instead of a flat route.
       await _write(
-        '$r/app_router.dart',
-        CoreTemplates.appRouterBuilder(
-          packageName: packageName,
-          featureName: featureName,
-          useAnnotations: useAnnotations,
-        ),
+        '$r/scaffold_with_nav_bar.dart',
+        CoreTemplates.scaffoldWithNavBar(firstIcon: shellIcon, firstLabel: shellLabel),
       );
-      await _write(
-        '$r/routes.dart',
-        CoreTemplates.routesAggregator(packageName: packageName, featureName: featureName),
-      );
-    } else {
-      await _write(
-        '$r/app_router.dart',
-        CoreTemplates.appRouter(packageName: packageName, featureName: featureName),
-      );
-      await _write(
-        '$r/routes.dart',
-        CoreTemplates.routesManual(packageName: packageName, featureName: featureName),
-      );
+      if (hasGoRouterBuilder) {
+        await _write(
+          '$r/app_shell_route.dart',
+          CoreTemplates.appShellRouteBuilder(packageName: packageName, featureName: featureName),
+        );
+        await _write('$r/routes.dart', CoreTemplates.routesAggregatorShell(packageName: packageName));
+      } else {
+        await _write(
+          '$r/routes.dart',
+          CoreTemplates.routesManualShell(packageName: packageName, featureName: featureName),
+        );
+      }
+      return;
     }
+
+    await _write(
+      '$r/routes.dart',
+      hasGoRouterBuilder
+          ? CoreTemplates.routesAggregator(packageName: packageName, featureName: featureName)
+          : CoreTemplates.routesManual(packageName: packageName, featureName: featureName),
+    );
   }
 
   // ── Feature files ─────────────────────────────────────────────────────────
@@ -786,6 +828,7 @@ dev_dependencies:
     required bool hasJsonSerializable,
     String? localStoragePackage,
     bool hasSync = false,
+    bool isShellBranch = false,
   }) async {
     await const FeatureScaffolder().writeFeature(
       lib: lib,
@@ -805,6 +848,7 @@ dev_dependencies:
       hasJsonSerializable: hasJsonSerializable,
       localStoragePackage: localStoragePackage,
       hasSync: hasSync,
+      isShellBranch: isShellBranch,
     );
   }
 
