@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:neat/features/architecture/domain/models/architecture_state.dart';
 import 'package:neat/features/cicd/domain/models/cicd_state.dart';
 import 'package:neat/features/dependencies/domain/models/pub_package.dart';
+import 'package:neat/features/feature_gen/domain/models/feature_gen_options.dart';
 import 'package:neat/features/feature_gen/domain/services/project_loader.dart';
 import 'package:neat/features/feature_gen/domain/usecases/generate_feature_usecase.dart';
 import 'package:neat/features/generation/domain/usecases/launch_generation_usecase.dart';
@@ -303,15 +304,29 @@ void main() {
         reason: 'logger_interceptor.dart missing',
       );
 
-      // Ready-to-use DI graph: dio-backed source + Drift db + NetworkInfo + repo.
+      // Ready-to-use DI graph: dio-backed source + local source + repo. The
+      // shared Drift db + NetworkInfo singletons live in core, not here, so the
+      // feature DI references them instead of redeclaring them.
       final di = File(
         '${projectDir.path}/lib/features/user_profile/presentation/providers/'
         'user_profile_providers.dart',
       ).readAsStringSync();
       expect(di, contains('UserProfileApiSource(ref.watch(dioProvider))'));
-      expect(di, contains('AppDatabase appDatabase(Ref ref)'));
-      expect(di, contains('NetworkInfo networkInfo(Ref ref)'));
+      expect(di, contains('ref.watch(appDatabaseProvider)'));
       expect(di, contains('ref.watch(networkInfoProvider)'));
+      expect(di, contains("import 'package:$projectName/core/providers/infrastructure_providers.dart'"));
+      // The feature DI must NOT redeclare the shared singletons.
+      expect(di, isNot(contains('AppDatabase appDatabase(Ref ref)')));
+      expect(di, isNot(contains('NetworkInfo networkInfo(Ref ref)')));
+
+      // Shared infrastructure providers exist once, in core.
+      final infra = File(
+        '${projectDir.path}/lib/core/providers/infrastructure_providers.dart',
+      );
+      expect(infra.existsSync(), isTrue, reason: 'core infrastructure_providers.dart missing');
+      final infraSrc = infra.readAsStringSync();
+      expect(infraSrc, contains('AppDatabase appDatabase(Ref ref)'));
+      expect(infraSrc, contains('NetworkInfo networkInfo(Ref ref)'));
 
       // Offline usage guide ships with the project.
       expect(
@@ -744,8 +759,11 @@ void main() {
       expect(project.contract.httpClient, 'dio');
 
       // 3. Add a 2nd feature, matching the stack derived from the contract.
-      await const GenerateFeatureUsecase()
-          .execute(project: project, featureName: 'orders', onLog: logs.add);
+      await const GenerateFeatureUsecase().execute(
+        project: project,
+        options: const FeatureGenOptions(name: 'orders'),
+        onLog: logs.add,
+      );
 
       // The new feature exists; the original is untouched.
       expect(
@@ -780,8 +798,11 @@ void main() {
 
       // 5. Non-destructive guard: re-adding an existing feature throws.
       expect(
-        () => const GenerateFeatureUsecase()
-            .execute(project: project, featureName: 'home', onLog: logs.add),
+        () => const GenerateFeatureUsecase().execute(
+          project: project,
+          options: const FeatureGenOptions(name: 'home'),
+          onLog: logs.add,
+        ),
         throwsA(isA<Exception>()),
       );
 
@@ -858,8 +879,11 @@ void main() {
       expect(project!.contract.storageStrategy, 'offlineFirstSync');
 
       // Add a feature → its Drift table + DAO must be injected into the package.
-      await const GenerateFeatureUsecase()
-          .execute(project: project, featureName: 'orders', onLog: logs.add);
+      await const GenerateFeatureUsecase().execute(
+        project: project,
+        options: const FeatureGenOptions(name: 'orders'),
+        onLog: logs.add,
+      );
 
       final dbDart = File(
         '${projectDir.path}/packages/$uiPkg/lib/src/database.dart',
@@ -888,6 +912,115 @@ void main() {
         errorLines,
         isEmpty,
         reason: 'offline feature-gen analyze reported issues:\n${errorLines.join('\n')}\n\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
+
+  test(
+    'navigation-shell app boots into a bottom-nav shell and analyzes cleanly',
+    () async {
+      const projectName = 'neat_shell_test';
+      final logs = <String>[];
+
+      final pkgs = <PubPackage>[
+        _dep('hooks_riverpod', '3.3.1'),
+        _dep('flutter_hooks', '0.21.3+1'),
+        _dep('riverpod_annotation', '4.0.2'),
+        _dep('go_router', '17.2.3'),
+        _dev('riverpod_generator', '4.0.3'),
+        _dev('build_runner', '2.15.0'),
+        _dev('go_router_builder', '4.3.0'),
+      ];
+
+      final identity = IdentityState(
+        name: projectName,
+        organization: 'com.neat.test',
+        projectPath: tempRoot.path,
+        description: 'NEAT navigation-shell integration test',
+        targetPlatforms: const ['macos'],
+      );
+
+      // Bottom-nav shell from launch: the first feature ('home', the default) is
+      // the first tab.
+      const architecture = ArchitectureState(
+        useNavigationShell: true,
+        shellIcon: 'dashboard',
+        shellLabel: 'Home',
+      );
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: identity,
+          packages: pkgs,
+          architecture: architecture,
+          cicd: const CicdState(),
+          theme: const ThemeEngineState(approach: ThemeApproach.customM3),
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('Navigation-shell generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+
+      // The shell scaffold + typed shell route exist.
+      final scaffold = File('${projectDir.path}/lib/core/router/scaffold_with_nav_bar.dart');
+      expect(scaffold.existsSync(), isTrue, reason: 'scaffold_with_nav_bar.dart missing');
+      expect(scaffold.readAsStringSync(), contains('NavigationBar('));
+      expect(
+        scaffold.readAsStringSync(),
+        contains("NavigationDestination(icon: Icon(Icons.dashboard), label: 'Home')"),
+      );
+
+      final shellRoute = File('${projectDir.path}/lib/core/router/app_shell_route.dart');
+      expect(shellRoute.existsSync(), isTrue, reason: 'app_shell_route.dart missing');
+      expect(shellRoute.readAsStringSync(), contains('@TypedStatefulShellRoute<AppShellRouteData>'));
+      expect(shellRoute.readAsStringSync(), contains('TypedGoRoute<HomeRoute>(path: AppRoutePath.home)'));
+
+      // routes.dart aggregates the shell (not a flat first-feature route).
+      final routesDart =
+          File('${projectDir.path}/lib/core/router/routes.dart').readAsStringSync();
+      expect(routesDart, contains(r'...app_shell.$appRoutes'));
+
+      // The first feature did NOT get its own standalone route file (it lives in
+      // the shell), and the app boots into it (initialLocation = '/').
+      expect(
+        File('${projectDir.path}/lib/features/home/presentation/routes/home_routes.dart')
+            .existsSync(),
+        isFalse,
+        reason: 'shell-branch feature must not emit a standalone route file',
+      );
+      final appRouter =
+          File('${projectDir.path}/lib/core/router/app_router.dart').readAsStringSync();
+      expect(appRouter, contains('initialLocation: AppRoutePath.home'));
+
+      // Contract records the choice.
+      final contract = jsonDecode(
+        File('${projectDir.path}/.neat.json').readAsStringSync(),
+      ) as Map<String, dynamic>;
+      expect(contract['useNavigationShell'], isTrue);
+
+      // The whole project analyzes cleanly (build_runner generated the shell mixins).
+      final analyze = await Process.run(
+        'flutter',
+        ['analyze', '--no-pub'],
+        workingDirectory: projectDir.path,
+      );
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      expect(
+        RegExp(r'(\d+ issues? found|No issues found)').hasMatch(out),
+        isTrue,
+        reason: 'flutter analyze did not run as expected:\n$out',
+      );
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where((l) => l.contains(' error •') || l.contains(' warning •'))
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason: 'navigation-shell analyze reported issues:\n${errorLines.join('\n')}\n\n$out',
       );
     },
     timeout: const Timeout(Duration(minutes: 12)),

@@ -54,6 +54,17 @@ abstract class ArchitectureState with _$ArchitectureState {
     /// Data persistence strategy. [StorageStrategy.offlineFirst] switches the
     /// generated project to a workspace with a Drift local-storage package.
     @Default(StorageStrategy.remoteOnly) StorageStrategy storageStrategy,
+
+    /// When true (and go_router is in the stack), the app boots into a bottom
+    /// [NavigationBar] shell: the first feature is the first tab, so the nav bar
+    /// is the app's spine from launch. Requires go_router / go_router_builder.
+    @Default(false) bool useNavigationShell,
+
+    /// Material icon name for the first tab (only when [useNavigationShell]).
+    @Default('home') String shellIcon,
+
+    /// First tab label (blank → the feature name, capitalised).
+    @Default('') String shellLabel,
   }) = _ArchitectureState;
 
   /// Validates the first feature name (Dart folder/identifier rules).
@@ -63,5 +74,13 @@ abstract class ArchitectureState with _$ArchitectureState {
       return 'lowercase letters, digits & underscores; start with a letter';
     }
     return null;
+  }
+
+  /// The first tab's label (falls back to the feature name, capitalised).
+  String get effectiveShellLabel {
+    if (shellLabel.trim().isNotEmpty) return shellLabel.trim();
+    if (firstFeatureName.isEmpty) return '';
+    return firstFeatureName[0].toUpperCase() +
+        firstFeatureName.substring(1).replaceAll('_', ' ');
   }
 }

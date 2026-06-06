@@ -19,7 +19,12 @@ mixin _$ArchitectureState {
  bool get useCubit; bool get mirrorTestStructure;/// Name of the first feature scaffolded under lib/features/ (snake_case).
  String get firstFeatureName;/// Data persistence strategy. [StorageStrategy.offlineFirst] switches the
 /// generated project to a workspace with a Drift local-storage package.
- StorageStrategy get storageStrategy;
+ StorageStrategy get storageStrategy;/// When true (and go_router is in the stack), the app boots into a bottom
+/// [NavigationBar] shell: the first feature is the first tab, so the nav bar
+/// is the app's spine from launch. Requires go_router / go_router_builder.
+ bool get useNavigationShell;/// Material icon name for the first tab (only when [useNavigationShell]).
+ String get shellIcon;/// First tab label (blank → the feature name, capitalised).
+ String get shellLabel;
 /// Create a copy of ArchitectureState
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -30,16 +35,16 @@ $ArchitectureStateCopyWith<ArchitectureState> get copyWith => _$ArchitectureStat
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ArchitectureState&&(identical(other.pattern, pattern) || other.pattern == pattern)&&(identical(other.includeMappers, includeMappers) || other.includeMappers == includeMappers)&&(identical(other.useRiverpodAnnotations, useRiverpodAnnotations) || other.useRiverpodAnnotations == useRiverpodAnnotations)&&(identical(other.useCubit, useCubit) || other.useCubit == useCubit)&&(identical(other.mirrorTestStructure, mirrorTestStructure) || other.mirrorTestStructure == mirrorTestStructure)&&(identical(other.firstFeatureName, firstFeatureName) || other.firstFeatureName == firstFeatureName)&&(identical(other.storageStrategy, storageStrategy) || other.storageStrategy == storageStrategy));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ArchitectureState&&(identical(other.pattern, pattern) || other.pattern == pattern)&&(identical(other.includeMappers, includeMappers) || other.includeMappers == includeMappers)&&(identical(other.useRiverpodAnnotations, useRiverpodAnnotations) || other.useRiverpodAnnotations == useRiverpodAnnotations)&&(identical(other.useCubit, useCubit) || other.useCubit == useCubit)&&(identical(other.mirrorTestStructure, mirrorTestStructure) || other.mirrorTestStructure == mirrorTestStructure)&&(identical(other.firstFeatureName, firstFeatureName) || other.firstFeatureName == firstFeatureName)&&(identical(other.storageStrategy, storageStrategy) || other.storageStrategy == storageStrategy)&&(identical(other.useNavigationShell, useNavigationShell) || other.useNavigationShell == useNavigationShell)&&(identical(other.shellIcon, shellIcon) || other.shellIcon == shellIcon)&&(identical(other.shellLabel, shellLabel) || other.shellLabel == shellLabel));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,pattern,includeMappers,useRiverpodAnnotations,useCubit,mirrorTestStructure,firstFeatureName,storageStrategy);
+int get hashCode => Object.hash(runtimeType,pattern,includeMappers,useRiverpodAnnotations,useCubit,mirrorTestStructure,firstFeatureName,storageStrategy,useNavigationShell,shellIcon,shellLabel);
 
 @override
 String toString() {
-  return 'ArchitectureState(pattern: $pattern, includeMappers: $includeMappers, useRiverpodAnnotations: $useRiverpodAnnotations, useCubit: $useCubit, mirrorTestStructure: $mirrorTestStructure, firstFeatureName: $firstFeatureName, storageStrategy: $storageStrategy)';
+  return 'ArchitectureState(pattern: $pattern, includeMappers: $includeMappers, useRiverpodAnnotations: $useRiverpodAnnotations, useCubit: $useCubit, mirrorTestStructure: $mirrorTestStructure, firstFeatureName: $firstFeatureName, storageStrategy: $storageStrategy, useNavigationShell: $useNavigationShell, shellIcon: $shellIcon, shellLabel: $shellLabel)';
 }
 
 
@@ -50,7 +55,7 @@ abstract mixin class $ArchitectureStateCopyWith<$Res>  {
   factory $ArchitectureStateCopyWith(ArchitectureState value, $Res Function(ArchitectureState) _then) = _$ArchitectureStateCopyWithImpl;
 @useResult
 $Res call({
- StructuralPattern pattern, bool includeMappers, bool useRiverpodAnnotations, bool useCubit, bool mirrorTestStructure, String firstFeatureName, StorageStrategy storageStrategy
+ StructuralPattern pattern, bool includeMappers, bool useRiverpodAnnotations, bool useCubit, bool mirrorTestStructure, String firstFeatureName, StorageStrategy storageStrategy, bool useNavigationShell, String shellIcon, String shellLabel
 });
 
 
@@ -67,7 +72,7 @@ class _$ArchitectureStateCopyWithImpl<$Res>
 
 /// Create a copy of ArchitectureState
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? pattern = null,Object? includeMappers = null,Object? useRiverpodAnnotations = null,Object? useCubit = null,Object? mirrorTestStructure = null,Object? firstFeatureName = null,Object? storageStrategy = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? pattern = null,Object? includeMappers = null,Object? useRiverpodAnnotations = null,Object? useCubit = null,Object? mirrorTestStructure = null,Object? firstFeatureName = null,Object? storageStrategy = null,Object? useNavigationShell = null,Object? shellIcon = null,Object? shellLabel = null,}) {
   return _then(_self.copyWith(
 pattern: null == pattern ? _self.pattern : pattern // ignore: cast_nullable_to_non_nullable
 as StructuralPattern,includeMappers: null == includeMappers ? _self.includeMappers : includeMappers // ignore: cast_nullable_to_non_nullable
@@ -76,7 +81,10 @@ as bool,useCubit: null == useCubit ? _self.useCubit : useCubit // ignore: cast_n
 as bool,mirrorTestStructure: null == mirrorTestStructure ? _self.mirrorTestStructure : mirrorTestStructure // ignore: cast_nullable_to_non_nullable
 as bool,firstFeatureName: null == firstFeatureName ? _self.firstFeatureName : firstFeatureName // ignore: cast_nullable_to_non_nullable
 as String,storageStrategy: null == storageStrategy ? _self.storageStrategy : storageStrategy // ignore: cast_nullable_to_non_nullable
-as StorageStrategy,
+as StorageStrategy,useNavigationShell: null == useNavigationShell ? _self.useNavigationShell : useNavigationShell // ignore: cast_nullable_to_non_nullable
+as bool,shellIcon: null == shellIcon ? _self.shellIcon : shellIcon // ignore: cast_nullable_to_non_nullable
+as String,shellLabel: null == shellLabel ? _self.shellLabel : shellLabel // ignore: cast_nullable_to_non_nullable
+as String,
   ));
 }
 
@@ -161,10 +169,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( StructuralPattern pattern,  bool includeMappers,  bool useRiverpodAnnotations,  bool useCubit,  bool mirrorTestStructure,  String firstFeatureName,  StorageStrategy storageStrategy)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( StructuralPattern pattern,  bool includeMappers,  bool useRiverpodAnnotations,  bool useCubit,  bool mirrorTestStructure,  String firstFeatureName,  StorageStrategy storageStrategy,  bool useNavigationShell,  String shellIcon,  String shellLabel)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _ArchitectureState() when $default != null:
-return $default(_that.pattern,_that.includeMappers,_that.useRiverpodAnnotations,_that.useCubit,_that.mirrorTestStructure,_that.firstFeatureName,_that.storageStrategy);case _:
+return $default(_that.pattern,_that.includeMappers,_that.useRiverpodAnnotations,_that.useCubit,_that.mirrorTestStructure,_that.firstFeatureName,_that.storageStrategy,_that.useNavigationShell,_that.shellIcon,_that.shellLabel);case _:
   return orElse();
 
 }
@@ -182,10 +190,10 @@ return $default(_that.pattern,_that.includeMappers,_that.useRiverpodAnnotations,
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( StructuralPattern pattern,  bool includeMappers,  bool useRiverpodAnnotations,  bool useCubit,  bool mirrorTestStructure,  String firstFeatureName,  StorageStrategy storageStrategy)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( StructuralPattern pattern,  bool includeMappers,  bool useRiverpodAnnotations,  bool useCubit,  bool mirrorTestStructure,  String firstFeatureName,  StorageStrategy storageStrategy,  bool useNavigationShell,  String shellIcon,  String shellLabel)  $default,) {final _that = this;
 switch (_that) {
 case _ArchitectureState():
-return $default(_that.pattern,_that.includeMappers,_that.useRiverpodAnnotations,_that.useCubit,_that.mirrorTestStructure,_that.firstFeatureName,_that.storageStrategy);case _:
+return $default(_that.pattern,_that.includeMappers,_that.useRiverpodAnnotations,_that.useCubit,_that.mirrorTestStructure,_that.firstFeatureName,_that.storageStrategy,_that.useNavigationShell,_that.shellIcon,_that.shellLabel);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -202,10 +210,10 @@ return $default(_that.pattern,_that.includeMappers,_that.useRiverpodAnnotations,
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( StructuralPattern pattern,  bool includeMappers,  bool useRiverpodAnnotations,  bool useCubit,  bool mirrorTestStructure,  String firstFeatureName,  StorageStrategy storageStrategy)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( StructuralPattern pattern,  bool includeMappers,  bool useRiverpodAnnotations,  bool useCubit,  bool mirrorTestStructure,  String firstFeatureName,  StorageStrategy storageStrategy,  bool useNavigationShell,  String shellIcon,  String shellLabel)?  $default,) {final _that = this;
 switch (_that) {
 case _ArchitectureState() when $default != null:
-return $default(_that.pattern,_that.includeMappers,_that.useRiverpodAnnotations,_that.useCubit,_that.mirrorTestStructure,_that.firstFeatureName,_that.storageStrategy);case _:
+return $default(_that.pattern,_that.includeMappers,_that.useRiverpodAnnotations,_that.useCubit,_that.mirrorTestStructure,_that.firstFeatureName,_that.storageStrategy,_that.useNavigationShell,_that.shellIcon,_that.shellLabel);case _:
   return null;
 
 }
@@ -217,7 +225,7 @@ return $default(_that.pattern,_that.includeMappers,_that.useRiverpodAnnotations,
 
 
 class _ArchitectureState extends ArchitectureState {
-  const _ArchitectureState({this.pattern = StructuralPattern.featureFirst, this.includeMappers = true, this.useRiverpodAnnotations = true, this.useCubit = false, this.mirrorTestStructure = true, this.firstFeatureName = 'home', this.storageStrategy = StorageStrategy.remoteOnly}): super._();
+  const _ArchitectureState({this.pattern = StructuralPattern.featureFirst, this.includeMappers = true, this.useRiverpodAnnotations = true, this.useCubit = false, this.mirrorTestStructure = true, this.firstFeatureName = 'home', this.storageStrategy = StorageStrategy.remoteOnly, this.useNavigationShell = false, this.shellIcon = 'home', this.shellLabel = ''}): super._();
   
 
 @override@JsonKey() final  StructuralPattern pattern;
@@ -232,6 +240,14 @@ class _ArchitectureState extends ArchitectureState {
 /// Data persistence strategy. [StorageStrategy.offlineFirst] switches the
 /// generated project to a workspace with a Drift local-storage package.
 @override@JsonKey() final  StorageStrategy storageStrategy;
+/// When true (and go_router is in the stack), the app boots into a bottom
+/// [NavigationBar] shell: the first feature is the first tab, so the nav bar
+/// is the app's spine from launch. Requires go_router / go_router_builder.
+@override@JsonKey() final  bool useNavigationShell;
+/// Material icon name for the first tab (only when [useNavigationShell]).
+@override@JsonKey() final  String shellIcon;
+/// First tab label (blank → the feature name, capitalised).
+@override@JsonKey() final  String shellLabel;
 
 /// Create a copy of ArchitectureState
 /// with the given fields replaced by the non-null parameter values.
@@ -243,16 +259,16 @@ _$ArchitectureStateCopyWith<_ArchitectureState> get copyWith => __$ArchitectureS
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ArchitectureState&&(identical(other.pattern, pattern) || other.pattern == pattern)&&(identical(other.includeMappers, includeMappers) || other.includeMappers == includeMappers)&&(identical(other.useRiverpodAnnotations, useRiverpodAnnotations) || other.useRiverpodAnnotations == useRiverpodAnnotations)&&(identical(other.useCubit, useCubit) || other.useCubit == useCubit)&&(identical(other.mirrorTestStructure, mirrorTestStructure) || other.mirrorTestStructure == mirrorTestStructure)&&(identical(other.firstFeatureName, firstFeatureName) || other.firstFeatureName == firstFeatureName)&&(identical(other.storageStrategy, storageStrategy) || other.storageStrategy == storageStrategy));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ArchitectureState&&(identical(other.pattern, pattern) || other.pattern == pattern)&&(identical(other.includeMappers, includeMappers) || other.includeMappers == includeMappers)&&(identical(other.useRiverpodAnnotations, useRiverpodAnnotations) || other.useRiverpodAnnotations == useRiverpodAnnotations)&&(identical(other.useCubit, useCubit) || other.useCubit == useCubit)&&(identical(other.mirrorTestStructure, mirrorTestStructure) || other.mirrorTestStructure == mirrorTestStructure)&&(identical(other.firstFeatureName, firstFeatureName) || other.firstFeatureName == firstFeatureName)&&(identical(other.storageStrategy, storageStrategy) || other.storageStrategy == storageStrategy)&&(identical(other.useNavigationShell, useNavigationShell) || other.useNavigationShell == useNavigationShell)&&(identical(other.shellIcon, shellIcon) || other.shellIcon == shellIcon)&&(identical(other.shellLabel, shellLabel) || other.shellLabel == shellLabel));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,pattern,includeMappers,useRiverpodAnnotations,useCubit,mirrorTestStructure,firstFeatureName,storageStrategy);
+int get hashCode => Object.hash(runtimeType,pattern,includeMappers,useRiverpodAnnotations,useCubit,mirrorTestStructure,firstFeatureName,storageStrategy,useNavigationShell,shellIcon,shellLabel);
 
 @override
 String toString() {
-  return 'ArchitectureState(pattern: $pattern, includeMappers: $includeMappers, useRiverpodAnnotations: $useRiverpodAnnotations, useCubit: $useCubit, mirrorTestStructure: $mirrorTestStructure, firstFeatureName: $firstFeatureName, storageStrategy: $storageStrategy)';
+  return 'ArchitectureState(pattern: $pattern, includeMappers: $includeMappers, useRiverpodAnnotations: $useRiverpodAnnotations, useCubit: $useCubit, mirrorTestStructure: $mirrorTestStructure, firstFeatureName: $firstFeatureName, storageStrategy: $storageStrategy, useNavigationShell: $useNavigationShell, shellIcon: $shellIcon, shellLabel: $shellLabel)';
 }
 
 
@@ -263,7 +279,7 @@ abstract mixin class _$ArchitectureStateCopyWith<$Res> implements $ArchitectureS
   factory _$ArchitectureStateCopyWith(_ArchitectureState value, $Res Function(_ArchitectureState) _then) = __$ArchitectureStateCopyWithImpl;
 @override @useResult
 $Res call({
- StructuralPattern pattern, bool includeMappers, bool useRiverpodAnnotations, bool useCubit, bool mirrorTestStructure, String firstFeatureName, StorageStrategy storageStrategy
+ StructuralPattern pattern, bool includeMappers, bool useRiverpodAnnotations, bool useCubit, bool mirrorTestStructure, String firstFeatureName, StorageStrategy storageStrategy, bool useNavigationShell, String shellIcon, String shellLabel
 });
 
 
@@ -280,7 +296,7 @@ class __$ArchitectureStateCopyWithImpl<$Res>
 
 /// Create a copy of ArchitectureState
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? pattern = null,Object? includeMappers = null,Object? useRiverpodAnnotations = null,Object? useCubit = null,Object? mirrorTestStructure = null,Object? firstFeatureName = null,Object? storageStrategy = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? pattern = null,Object? includeMappers = null,Object? useRiverpodAnnotations = null,Object? useCubit = null,Object? mirrorTestStructure = null,Object? firstFeatureName = null,Object? storageStrategy = null,Object? useNavigationShell = null,Object? shellIcon = null,Object? shellLabel = null,}) {
   return _then(_ArchitectureState(
 pattern: null == pattern ? _self.pattern : pattern // ignore: cast_nullable_to_non_nullable
 as StructuralPattern,includeMappers: null == includeMappers ? _self.includeMappers : includeMappers // ignore: cast_nullable_to_non_nullable
@@ -289,7 +305,10 @@ as bool,useCubit: null == useCubit ? _self.useCubit : useCubit // ignore: cast_n
 as bool,mirrorTestStructure: null == mirrorTestStructure ? _self.mirrorTestStructure : mirrorTestStructure // ignore: cast_nullable_to_non_nullable
 as bool,firstFeatureName: null == firstFeatureName ? _self.firstFeatureName : firstFeatureName // ignore: cast_nullable_to_non_nullable
 as String,storageStrategy: null == storageStrategy ? _self.storageStrategy : storageStrategy // ignore: cast_nullable_to_non_nullable
-as StorageStrategy,
+as StorageStrategy,useNavigationShell: null == useNavigationShell ? _self.useNavigationShell : useNavigationShell // ignore: cast_nullable_to_non_nullable
+as bool,shellIcon: null == shellIcon ? _self.shellIcon : shellIcon // ignore: cast_nullable_to_non_nullable
+as String,shellLabel: null == shellLabel ? _self.shellLabel : shellLabel // ignore: cast_nullable_to_non_nullable
+as String,
   ));
 }
 

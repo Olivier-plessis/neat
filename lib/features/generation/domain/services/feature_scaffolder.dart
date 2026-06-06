@@ -34,8 +34,21 @@ class FeatureScaffolder {
     required bool hasJsonSerializable,
     String? localStoragePackage,
     bool hasSync = false,
+    // Per-feature layer toggles (Workshop). Default true = full feature.
+    bool includeLocalSource = true,
+    bool includeUseCases = true,
+    // A child route lives inside its parent's route tree, and a shell branch
+    // lives inside the shell's tree, so neither emits its own standalone
+    // (aggregated) route file — the caller wires them instead.
+    bool isChildRoute = false,
+    bool isShellBranch = false,
   }) async {
-    final offlineFirst = localStoragePackage != null;
+    // The project ships a Drift package → any local source is Drift-backed.
+    final localIsDrift = localStoragePackage != null;
+    // A local-only feature (no remote) always needs its local source.
+    final writeLocal = includeLocalSource || !hasHttpClient;
+    // The offline 3-source repository requires BOTH a remote and a local source.
+    final offlineFirst = localIsDrift && hasHttpClient && includeLocalSource;
 
     final String domainBase;
     final String dataBase;
@@ -68,15 +81,17 @@ class FeatureScaffolder {
     );
 
     // domain/usecases
-    await _write(
-      '$domainBase/usecases/get_${featureName}_usecase.dart',
-      DomainTemplates.featureGetUsecase(featureName: featureName, packageName: packageName),
-    );
-    if (hasHttpClient) {
+    if (includeUseCases) {
       await _write(
-        '$domainBase/usecases/${featureName}_crud_usecases.dart',
-        DomainTemplates.featureCrudUsecases(featureName: featureName, packageName: packageName),
+        '$domainBase/usecases/get_${featureName}_usecase.dart',
+        DomainTemplates.featureGetUsecase(featureName: featureName, packageName: packageName),
       );
+      if (hasHttpClient) {
+        await _write(
+          '$domainBase/usecases/${featureName}_crud_usecases.dart',
+          DomainTemplates.featureCrudUsecases(featureName: featureName, packageName: packageName),
+        );
+      }
     }
 
     // data/models
@@ -114,16 +129,18 @@ class FeatureScaffolder {
         ),
       );
     }
-    await _write(
-      '$dataBase/sources/${featureName}_local_source.dart',
-      DataTemplates.featureLocalSource(
-        featureName: featureName,
-        packageName: packageName,
-        offlineFirst: offlineFirst,
-        hasSync: hasSync,
-        localStoragePackage: localStoragePackage,
-      ),
-    );
+    if (writeLocal) {
+      await _write(
+        '$dataBase/sources/${featureName}_local_source.dart',
+        DataTemplates.featureLocalSource(
+          featureName: featureName,
+          packageName: packageName,
+          offlineFirst: localIsDrift,
+          hasSync: hasSync,
+          localStoragePackage: localStoragePackage,
+        ),
+      );
+    }
 
     // presentation/pages
     await _write(
@@ -148,7 +165,8 @@ class FeatureScaffolder {
           useCubit: false,
         ),
       );
-      if (useAnnotations && hasHttpClient) {
+      // The DI graph wires the usecases → only emit it when both exist.
+      if (useAnnotations && hasHttpClient && includeUseCases) {
         await _write(
           '$presentationBase/providers/${featureName}_providers.dart',
           PresentationTemplates.featureDi(
@@ -185,8 +203,11 @@ class FeatureScaffolder {
       );
     }
 
-    // presentation/routes
-    if (hasGoRouterBuilder) {
+    // presentation/routes — skipped for child routes & shell branches (their
+    // route lives in the parent's/shell's tree, wired by the caller).
+    if (isChildRoute || isShellBranch) {
+      // nothing: the parent/shell owns this feature's route declaration.
+    } else if (hasGoRouterBuilder) {
       await _write(
         '$presentationBase/routes/${featureName}_routes.dart',
         CoreTemplates.featureRoutes(packageName: packageName, featureName: featureName),

@@ -19,6 +19,9 @@ class ArchitectureScreen extends ConsumerWidget {
     final hasBloc = ref.watch(
       selectedPackagesProvider.select((list) => list.any((p) => p.name.contains('bloc'))),
     );
+    final hasGoRouter = ref.watch(
+      selectedPackagesProvider.select((list) => list.any((p) => p.name.contains('go_router'))),
+    );
     final tree = const GenerateTreeUsecase().execute(
       state,
       hasRiverpod: hasRiverpod,
@@ -175,6 +178,31 @@ class ArchitectureScreen extends ConsumerWidget {
                         },
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
+
+                      if (hasGoRouter) ...[
+                        const SizedBox(height: 28),
+                        _SectionHeader(
+                          icon: Icons.space_dashboard_outlined,
+                          label: 'Navigation',
+                        ),
+                        const SizedBox(height: 12),
+                        _ToggleTile(
+                          title: 'Bottom navigation shell',
+                          description:
+                              'L\'app démarre dans un StatefulShellRoute : la 1ʳᵉ feature devient le 1er onglet d\'une NavigationBar. Les Shell Branch ajoutées ensuite deviennent des onglets.',
+                          value: state.useNavigationShell,
+                          onChanged: notifier.toggleNavigationShell,
+                        ),
+                        if (state.useNavigationShell) ...[
+                          const SizedBox(height: 12),
+                          _ShellTabConfig(
+                            icon: state.shellIcon,
+                            labelHint: state.effectiveShellLabel,
+                            onIcon: notifier.setShellIcon,
+                            onLabel: notifier.setShellLabel,
+                          ),
+                        ],
+                      ],
 
                       const SizedBox(height: 28),
                       _SectionHeader(
@@ -557,6 +585,94 @@ class _ToggleTile extends StatelessWidget {
         ],
       ),
       ),
+    );
+  }
+}
+
+// ── Shell first-tab config (icon + label) ──────────────────────────────────────
+
+/// Curated Material icons (kept so the generated `Icon(Icons.<name>)` compiles).
+const _shellIcons = <String, IconData>{
+  'home': Icons.home, 'dashboard': Icons.dashboard, 'person': Icons.person,
+  'settings': Icons.settings, 'search': Icons.search, 'favorite': Icons.favorite,
+  'notifications': Icons.notifications, 'list': Icons.list,
+  'shopping_cart': Icons.shopping_cart, 'explore': Icons.explore,
+  'calendar_today': Icons.calendar_today, 'chat': Icons.chat, 'map': Icons.map,
+  'star': Icons.star, 'folder': Icons.folder, 'account_circle': Icons.account_circle,
+};
+
+class _ShellTabConfig extends StatefulWidget {
+  const _ShellTabConfig({
+    required this.icon,
+    required this.labelHint,
+    required this.onIcon,
+    required this.onLabel,
+  });
+
+  final String icon;
+  final String labelHint;
+  final ValueChanged<String> onIcon;
+  final ValueChanged<String> onLabel;
+
+  @override
+  State<_ShellTabConfig> createState() => _ShellTabConfigState();
+}
+
+class _ShellTabConfigState extends State<_ShellTabConfig> {
+  final _labelCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _labelCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = _shellIcons.containsKey(widget.icon) ? widget.icon : 'home';
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 160,
+          child: InputDecorator(
+            decoration: const InputDecoration(labelText: 'First tab icon'),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: icon,
+                isExpanded: true,
+                dropdownColor: const Color(0xFF18181C),
+                style: const TextStyle(color: Colors.white, fontSize: 13),
+                onChanged: (v) => widget.onIcon(v ?? 'home'),
+                items: _shellIcons.entries
+                    .map((e) => DropdownMenuItem(
+                          value: e.key,
+                          child: Row(
+                            children: [
+                              Icon(e.value, size: 16, color: AppTheme.colorPrimaryCyan),
+                              const SizedBox(width: 8),
+                              Expanded(child: Text(e.key, overflow: TextOverflow.ellipsis)),
+                            ],
+                          ),
+                        ))
+                    .toList(),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: TextField(
+            controller: _labelCtrl,
+            onChanged: widget.onLabel,
+            style: const TextStyle(color: Colors.white, fontSize: 14),
+            decoration: InputDecoration(
+              labelText: 'First tab label',
+              hintText: widget.labelHint.isEmpty ? 'e.g. Home' : widget.labelHint,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

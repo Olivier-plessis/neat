@@ -72,14 +72,16 @@ $writeContract
   }) {
     final p = pascal(featureName);
     return '''import 'package:$packageName/core/result/result.dart';
+import 'package:$packageName/core/usecases/use_case.dart';
 import '../entities/${featureName}_entity.dart';
 import '../repositories/i_${featureName}_repository.dart';
 
-class Get${p}Usecase {
+class Get${p}Usecase extends NoParamsUseCase<Result<List<${p}Entity>>> {
   const Get${p}Usecase(this._repository);
 
   final I${p}Repository _repository;
 
+  @override
   Future<Result<List<${p}Entity>>> execute() => _repository.getAll();
 }
 ''';
@@ -92,30 +94,34 @@ class Get${p}Usecase {
   }) {
     final p = pascal(featureName);
     return '''import 'package:$packageName/core/result/result.dart';
+import 'package:$packageName/core/usecases/use_case.dart';
 import '../entities/${featureName}_entity.dart';
 import '../repositories/i_${featureName}_repository.dart';
 
-class Create${p}Usecase {
+class Create${p}Usecase extends UseCase<${p}Entity, Result<${p}Entity>> {
   const Create${p}Usecase(this._repository);
 
   final I${p}Repository _repository;
 
+  @override
   Future<Result<${p}Entity>> execute(${p}Entity entity) => _repository.create(entity);
 }
 
-class Update${p}Usecase {
+class Update${p}Usecase extends UseCase<${p}Entity, Result<${p}Entity>> {
   const Update${p}Usecase(this._repository);
 
   final I${p}Repository _repository;
 
+  @override
   Future<Result<${p}Entity>> execute(${p}Entity entity) => _repository.update(entity);
 }
 
-class Delete${p}Usecase {
+class Delete${p}Usecase extends UseCase<String, Result<bool>> {
   const Delete${p}Usecase(this._repository);
 
   final I${p}Repository _repository;
 
+  @override
   Future<Result<bool>> execute(String id) => _repository.delete(id);
 }
 ''';
