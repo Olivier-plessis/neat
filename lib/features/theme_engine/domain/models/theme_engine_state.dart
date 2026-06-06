@@ -216,6 +216,11 @@ abstract class ThemeEngineState with _$ThemeEngineState {
 
     // Preview
     @Default(Brightness.light) Brightness defaultBrightness,
+
+    /// Absolute path to a logo (PNG) the user picked. When set, NEAT copies it
+    /// into the project and generates app icons + splash (flutter_launcher_icons
+    /// + flutter_native_splash) at generation time.
+    @Default('') String logoPath,
   }) = _ThemeEngineState;
 
   // ── Helpers ───────────────────────────────────────────────────────────────
