@@ -803,6 +803,53 @@ AppDatabase appDatabase(Ref ref) => AppDatabase();
 NetworkInfo networkInfo(Ref ref) => NetworkInfo(Connectivity());
 ''';
 
+  // ── Branding: app icons + splash from a logo ──────────────────────────────
+
+  /// `flutter_launcher_icons.yaml` — generates platform app icons from the logo.
+  static String launcherIconsConfig({
+    String imagePath = 'assets/branding/logo.png',
+    String adaptiveBackground = '#FFFFFF',
+  }) =>
+      '''flutter_launcher_icons:
+  image_path: "$imagePath"
+  android: true
+  ios: true
+  min_sdk_android: 21
+  remove_alpha_ios: true
+  adaptive_icon_background: "$adaptiveBackground"
+  adaptive_icon_foreground: "$imagePath"
+  web:
+    generate: true
+    image_path: "$imagePath"
+  macos:
+    generate: true
+    image_path: "$imagePath"
+  windows:
+    generate: true
+    image_path: "$imagePath"
+''';
+
+  /// `flutter_native_splash.yaml` — generates the native splash screen.
+  static String nativeSplashConfig({
+    String imagePath = 'assets/branding/logo.png',
+    String colorLight = '#FFFFFF',
+    String colorDark = '#0E0E0E',
+  }) =>
+      '''flutter_native_splash:
+  color: "$colorLight"
+  color_dark: "$colorDark"
+  image: $imagePath
+  image_dark: $imagePath
+  android_12:
+    image: $imagePath
+    icon_background_color: "$colorLight"
+    image_dark: $imagePath
+    icon_background_color_dark: "$colorDark"
+  android: true
+  ios: true
+  web: true
+''';
+
   // ── Shell scaffold (bottom NavigationBar driven by a StatefulShellRoute) ──
 
   /// `lib/core/router/scaffold_with_nav_bar.dart` — created with the first shell

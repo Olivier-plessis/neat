@@ -857,6 +857,77 @@ $entries
     }
   }
 
+  // ── widgets/asset_images.dart (svg + image helpers in the UI package) ─────
+
+  /// Typed helpers to render SVG / raster assets that ship **inside** the
+  /// `<app>_ui` package (so features reference shared branding without copying
+  /// files). Assets live under `packages/<ui>/assets/` and are loaded with the
+  /// `package:` parameter automatically.
+  static String assetWidgets({required String packageName}) =>
+      '''import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+
+/// Renders an SVG asset shipped inside the `$packageName` package.
+class SvgPictureCustom extends StatelessWidget {
+  const SvgPictureCustom({
+    super.key,
+    required this.path,
+    this.width,
+    this.height,
+    this.fit,
+    this.colorFilter,
+    this.semanticsLabel,
+  });
+
+  final String path;
+  final double? width;
+  final double? height;
+  final BoxFit? fit;
+  final ColorFilter? colorFilter;
+  final String? semanticsLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    return SvgPicture.asset(
+      path,
+      package: '$packageName',
+      width: width,
+      height: height,
+      fit: fit ?? BoxFit.contain,
+      colorFilter: colorFilter,
+      semanticsLabel: semanticsLabel,
+    );
+  }
+}
+
+/// Renders a raster image asset shipped inside the `$packageName` package.
+class ImagePictureCustom extends StatelessWidget {
+  const ImagePictureCustom({
+    super.key,
+    required this.path,
+    this.width,
+    this.height,
+    this.fit,
+  });
+
+  final String path;
+  final double? width;
+  final double? height;
+  final BoxFit? fit;
+
+  @override
+  Widget build(BuildContext context) {
+    return Image.asset(
+      path,
+      package: '$packageName',
+      width: width,
+      height: height,
+      fit: fit ?? BoxFit.contain,
+    );
+  }
+}
+''';
+
   // ── app_theme.dart (from the live ThemeEngineState) ───────────────────────
 
   /// Single source of truth for generating `app_theme.dart` from the current

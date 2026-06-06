@@ -7,12 +7,39 @@ class PresentationTemplates {
 
   static String featureProvider({
     required String featureName,
+    required String packageName,
     required bool useAnnotations,
     required bool useCubit,
+    bool dataList = false,
   }) {
     if (useCubit) return _cubitTemplate(featureName);
-    if (useAnnotations) return _riverpodAnnotationTemplate(featureName);
+    if (useAnnotations) {
+      return dataList
+          ? _riverpodListNotifier(featureName, packageName)
+          : _riverpodAnnotationTemplate(featureName);
+    }
     return _riverpodManualTemplate(featureName);
+  }
+
+  /// Notifier that loads the feature's items via its usecase. `build()` is async
+  /// so the UI gets `AsyncValue<List<Entity>>` (loading → Skeletonizer).
+  static String _riverpodListNotifier(String featureName, String packageName) {
+    final p = pascal(featureName);
+    return '''import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:$packageName/features/$featureName/domain/entities/${featureName}_entity.dart';
+import '${featureName}_providers.dart';
+
+part '${featureName}_provider.g.dart';
+
+@riverpod
+class ${p}Notifier extends _\$${p}Notifier {
+  @override
+  Future<List<${p}Entity>> build() async {
+    final result = await ref.watch(get${p}UsecaseProvider).execute();
+    return result.getOrThrow();
+  }
+}
+''';
   }
 
   // ── presentation/providers/<f>_providers.dart (ready-to-use DI graph) ─────
@@ -194,6 +221,90 @@ class ${p}Error extends ${p}State {
 
   // ── presentation/pages ────────────────────────────────────────────────────
 
+  /// A real list screen: renders the feature's items, shows a Skeletonizer
+  /// placeholder while loading, pull-to-refresh, and empty/error states.
+  static String _riverpodListPage(String featureName, String packageName) {
+    final p = pascal(featureName);
+    final c = camel(featureName);
+    return '''import 'package:flutter/material.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:skeletonizer/skeletonizer.dart';
+import 'package:$packageName/core/theme/theme_mode_controller.dart';
+import 'package:$packageName/features/$featureName/domain/entities/${featureName}_entity.dart';
+import 'package:$packageName/features/$featureName/presentation/providers/${featureName}_provider.dart';
+
+class ${p}Page extends ConsumerWidget {
+  const ${p}Page({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(${c}Provider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('$p'),
+        actions: [
+          IconButton(
+            icon: Icon(isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined),
+            onPressed: () => ref.read(themeModeControllerProvider.notifier).toggle(),
+          ),
+        ],
+      ),
+      body: RefreshIndicator(
+        onRefresh: () async => ref.invalidate(${c}Provider),
+        child: switch (state) {
+          AsyncData(:final value) => _${p}List(items: value),
+          AsyncError(:final error) => _${p}List.error(error.toString()),
+          _ => Skeletonizer(
+              child: _${p}List(
+                items: List.generate(
+                  8,
+                  (_) => const ${p}Entity(id: '000000', name: 'Placeholder item name'),
+                ),
+              ),
+            ),
+        },
+      ),
+    );
+  }
+}
+
+class _${p}List extends StatelessWidget {
+  const _${p}List({required this.items}) : error = null;
+  const _${p}List.error(this.error) : items = const [];
+
+  final List<${p}Entity> items;
+  final String? error;
+
+  @override
+  Widget build(BuildContext context) {
+    if (error != null) {
+      return ListView(
+        children: [Padding(padding: const EdgeInsets.all(24), child: Text(error!))],
+      );
+    }
+    if (items.isEmpty) {
+      return ListView(
+        children: const [Padding(padding: EdgeInsets.all(24), child: Text('No items yet.'))],
+      );
+    }
+    return ListView.separated(
+      itemCount: items.length,
+      separatorBuilder: (_, __) => const Divider(height: 1),
+      itemBuilder: (context, index) {
+        final item = items[index];
+        return ListTile(
+          leading: const CircleAvatar(child: Icon(Icons.label_outline)),
+          title: Text(item.name),
+          subtitle: Text('id: \${item.id}'),
+        );
+      },
+    );
+  }
+}
+''';
+  }
+
   static String featurePage({
     required String featureName,
     required String packageName,
@@ -201,8 +312,13 @@ class ${p}Error extends ${p}State {
     required bool useAnnotations,
     required bool hasBloc,
     required bool useCubit,
+    bool dataList = false,
   }) {
     final p = pascal(featureName);
+
+    if (hasRiverpod && useAnnotations && dataList) {
+      return _riverpodListPage(featureName, packageName);
+    }
 
     if (hasRiverpod) {
       final body = useAnnotations

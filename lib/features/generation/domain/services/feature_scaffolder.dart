@@ -49,6 +49,9 @@ class FeatureScaffolder {
     final writeLocal = includeLocalSource || !hasHttpClient;
     // The offline 3-source repository requires BOTH a remote and a local source.
     final offlineFirst = localIsDrift && hasHttpClient && includeLocalSource;
+    // A real list screen (provider fetches via the usecase → Skeletonizer) needs
+    // the DI graph, which exists only with annotations + a remote source + usecases.
+    final dataList = useAnnotations && hasHttpClient && includeUseCases;
 
     final String domainBase;
     final String dataBase;
@@ -152,6 +155,7 @@ class FeatureScaffolder {
         useAnnotations: useAnnotations,
         hasBloc: hasBloc,
         useCubit: useCubit,
+        dataList: dataList,
       ),
     );
 
@@ -161,8 +165,10 @@ class FeatureScaffolder {
         '$presentationBase/providers/${featureName}_provider.dart',
         PresentationTemplates.featureProvider(
           featureName: featureName,
+          packageName: packageName,
           useAnnotations: useAnnotations,
           useCubit: false,
+          dataList: dataList,
         ),
       );
       // The DI graph wires the usecases → only emit it when both exist.

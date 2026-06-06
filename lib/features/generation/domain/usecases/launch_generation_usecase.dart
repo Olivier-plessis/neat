@@ -8,6 +8,7 @@ import 'package:neat/features/cicd/domain/models/cicd_state.dart';
 import 'package:neat/features/cicd/domain/usecases/generate_yaml_usecase.dart';
 import 'package:neat/features/dependencies/domain/models/pub_package.dart';
 import 'package:neat/features/generation/domain/services/feature_scaffolder.dart';
+import 'package:neat/features/generation/domain/services/templates/agents_md_template.dart';
 import 'package:neat/features/generation/domain/services/templates/config_templates.dart';
 import 'package:neat/features/generation/domain/services/templates/core_templates.dart';
 import 'package:neat/features/generation/domain/services/templates/dart/app_templates.dart';
@@ -156,6 +157,9 @@ class LaunchGenerationUsecase {
       onLog('[✓] packages/$localStoragePackage created.');
     }
 
+    // Branding: a logo was picked → generate app icons + splash.
+    final hasLogo = theme.logoPath.isNotEmpty && File(theme.logoPath).existsSync();
+
     // 3. pubspec.yaml
     onLog('[▶] Configuring pubspec.yaml...');
     await _writePubspec(
@@ -168,8 +172,18 @@ class LaunchGenerationUsecase {
       pathPackages: pathPackages,
       extraWorkspaceMembers: extraWorkspaceMembers,
       addConnectivity: offlineFirst,
+      // The first feature gets a real list screen (Skeletonizer) when it has the
+      // DI graph: annotations + a remote source.
+      addSkeletonizer: useAnnotations && hasHttpClient,
+      addBranding: hasLogo,
     );
     onLog('[✓] Dependencies added to pubspec.yaml.');
+
+    // 3b. Branding files: copy the logo + write the icon/splash configs.
+    if (hasLogo) {
+      onLog('[▶] Setting up branding (icons + splash)...');
+      await _writeBranding(projectDir, theme.logoPath);
+    }
 
     // 4. CI/CD files
     if (cicd.selectedTools.isNotEmpty) {
@@ -202,46 +216,56 @@ class LaunchGenerationUsecase {
       );
     }
 
+    // 6b. Branding tools — generate app icons + native splash from the logo.
+    // Best-effort: a failure (e.g. missing native folders) never breaks the run.
+    if (hasLogo) {
+      onLog('[▶] Generating app icons + splash...');
+      await _runBrandingTools(projectDir, flutter, onLog);
+    }
+
     // 7. dart format — guarantees clean, consistent formatting on all output
     onLog('[▶] Formatting generated code...');
     await _dartFormat(projectDir, onLog);
 
     // 8. .neat.json — the Workspace Contract (stack fingerprint) for feature gen.
-    onLog('[▶] Writing .neat.json (Workspace Contract)...');
-    await _writeContract(
-      projectDir,
-      NeatContract(
-        projectName: packageName,
-        architecture: architecture.pattern == StructuralPattern.featureFirst
-            ? 'feature_first'
-            : 'layer_first',
-        stateManagement: hasRiverpod
-            ? 'riverpod'
-            : hasBloc
-            ? 'bloc'
-            : 'none',
-        useRiverpodAnnotations: useAnnotations,
-        navigation: hasGoRouterBuilder
-            ? 'go_router_builder'
-            : hasGoRouter
-            ? 'go_router'
-            : 'none',
-        httpClient: hasHttpClient ? httpClient : 'none',
-        themeApproach: theme.approach.name,
-        storageStrategy: architecture.storageStrategy.name,
-        extractUiPackage: theme.extractUiPackage,
-        useScreenUtil: useScreenUtil,
-        hasEnvied: hasEnvied,
-        hasFreezed: hasFreezed,
-        hasJsonSerializable: hasJsonSerializable,
-        includeMappers: architecture.includeMappers,
-        mirrorTestStructure: architecture.mirrorTestStructure,
-        generateWidgetbook: theme.generateWidgetbook,
-        useNavigationShell: architecture.useNavigationShell && hasGoRouter,
-        components: theme.components.map((c) => c.name).toList(),
-      ),
+    final contract = NeatContract(
+      projectName: packageName,
+      architecture: architecture.pattern == StructuralPattern.featureFirst
+          ? 'feature_first'
+          : 'layer_first',
+      stateManagement: hasRiverpod
+          ? 'riverpod'
+          : hasBloc
+          ? 'bloc'
+          : 'none',
+      useRiverpodAnnotations: useAnnotations,
+      navigation: hasGoRouterBuilder
+          ? 'go_router_builder'
+          : hasGoRouter
+          ? 'go_router'
+          : 'none',
+      httpClient: hasHttpClient ? httpClient : 'none',
+      themeApproach: theme.approach.name,
+      storageStrategy: architecture.storageStrategy.name,
+      extractUiPackage: theme.extractUiPackage,
+      useScreenUtil: useScreenUtil,
+      hasEnvied: hasEnvied,
+      hasFreezed: hasFreezed,
+      hasJsonSerializable: hasJsonSerializable,
+      includeMappers: architecture.includeMappers,
+      mirrorTestStructure: architecture.mirrorTestStructure,
+      generateWidgetbook: theme.generateWidgetbook,
+      useNavigationShell: architecture.useNavigationShell && hasGoRouter,
+      components: theme.components.map((c) => c.name).toList(),
     );
+    onLog('[▶] Writing .neat.json (Workspace Contract)...');
+    await _writeContract(projectDir, contract);
     onLog('[✓] .neat.json written.');
+
+    // 9. AGENTS.md — contract-aware AI rules (accurate to this exact stack).
+    onLog('[▶] Writing AGENTS.md (AI agent guide)...');
+    await _write('${projectDir.path}/AGENTS.md', AgentsMdTemplate.generate(contract));
+    onLog('[✓] AGENTS.md written.');
 
     onLog('');
     onLog('[✓✓] Project successfully generated at ${projectDir.path}');
@@ -653,7 +677,8 @@ class LaunchGenerationUsecase {
     final deps = StringBuffer()
       ..writeln('  flutter:')
       ..writeln('    sdk: flutter')
-      ..writeln('  google_fonts: ^8.1.0');
+      ..writeln('  google_fonts: ^8.1.0')
+      ..writeln('  flutter_svg: ^2.0.16');
     if (useScreenUtil) deps.writeln('  flutter_screenutil: ^5.9.3');
     if (flexVersion != null) deps.writeln('  flex_color_scheme: ^$flexVersion');
 
@@ -672,13 +697,25 @@ ${deps.toString().trimRight()}
 
 dev_dependencies:
   flutter_lints: ^6.0.0
+
+flutter:
+  # Branding assets shipped inside the package, rendered via SvgPictureCustom /
+  # ImagePictureCustom (loaded with package: '$uiPackage').
+  assets:
+    - assets/
 ''');
+
+    // Shared SVG/image widgets + an assets folder for branding.
+    await _write('$root/lib/widgets/asset_images.dart',
+        ThemeTemplates.assetWidgets(packageName: uiPackage));
+    await _write('$root/assets/.gitkeep', '');
 
     // Public barrel.
     final exports = StringBuffer()
       ..writeln("export 'core/theme/app_theme.dart';")
       ..writeln("export 'core/theme/constant/constant.dart';")
-      ..writeln("export 'core/theme/typography/typography.dart';");
+      ..writeln("export 'core/theme/typography/typography.dart';")
+      ..writeln("export 'widgets/asset_images.dart';");
     for (final c in components) {
       exports.writeln("export 'components/${c.fileName}';");
     }
@@ -860,6 +897,52 @@ dev_dependencies:
     await file.writeAsString(content);
   }
 
+  // ── branding (logo → icons + splash) ───────────────────────────────────────
+
+  /// Copies the picked logo into `assets/branding/logo.png` and writes the
+  /// flutter_launcher_icons / flutter_native_splash configs.
+  Future<void> _writeBranding(Directory projectDir, String logoPath) async {
+    final src = File(logoPath);
+    if (!src.existsSync()) return;
+    final dest = File('${projectDir.path}/assets/branding/logo.png');
+    await dest.create(recursive: true);
+    await dest.writeAsBytes(await src.readAsBytes());
+    await _write('${projectDir.path}/flutter_launcher_icons.yaml', CoreTemplates.launcherIconsConfig());
+    await _write('${projectDir.path}/flutter_native_splash.yaml', CoreTemplates.nativeSplashConfig());
+  }
+
+  /// Runs flutter_launcher_icons + flutter_native_splash. Best-effort: failures
+  /// (e.g. a platform folder absent) are logged but never abort generation.
+  Future<void> _runBrandingTools(
+    Directory projectDir,
+    String flutter,
+    void Function(String) onLog,
+  ) async {
+    final dart = '${File(flutter).parent.path}/dart';
+    const tasks = [
+      ['run', 'flutter_launcher_icons'],
+      ['run', 'flutter_native_splash:create'],
+    ];
+    for (final args in tasks) {
+      try {
+        final result = await Process.run(
+          dart,
+          args,
+          workingDirectory: projectDir.path,
+          environment: {
+            ...Platform.environment,
+            'PATH': '${Platform.environment['PATH']}:/usr/local/bin:/opt/homebrew/bin',
+          },
+        ).timeout(const Duration(minutes: 3));
+        onLog(result.exitCode == 0
+            ? '[✓] ${args.last} done.'
+            : '[!] ${args.last}: ${result.stderr.toString().trim().split('\n').take(1).join()}');
+      } catch (e) {
+        onLog('[!] ${args.last} skipped: $e');
+      }
+    }
+  }
+
   // ── pub get ───────────────────────────────────────────────────────────────
 
   Future<void> _pubGet(Directory projectDir, String flutter, void Function(String) onLog) async {
@@ -911,6 +994,8 @@ dev_dependencies:
     List<String> pathPackages = const [],
     List<String> extraWorkspaceMembers = const [],
     bool addConnectivity = false,
+    bool addSkeletonizer = false,
+    bool addBranding = false,
   }) async {
     final pubspecFile = File('${projectDir.path}/pubspec.yaml');
     if (!pubspecFile.existsSync()) return;
@@ -924,6 +1009,8 @@ dev_dependencies:
       pathPackages: pathPackages,
       extraWorkspaceMembers: extraWorkspaceMembers,
       addConnectivity: addConnectivity,
+      addSkeletonizer: addSkeletonizer,
+      addBranding: addBranding,
     );
 
     await pubspecFile.writeAsString(content);
@@ -968,6 +1055,8 @@ dev_dependencies:
     List<String> pathPackages = const [],
     List<String> extraWorkspaceMembers = const [],
     bool addConnectivity = false,
+    bool addSkeletonizer = false,
+    bool addBranding = false,
   }) {
     final deps = StringBuffer();
     final devDeps = StringBuffer();
@@ -1029,6 +1118,19 @@ dev_dependencies:
     // connectivity_plus for the offline NetworkInfo brick.
     if (addConnectivity && !uniquePackages.any((p) => p.name == 'connectivity_plus')) {
       deps.write('  connectivity_plus: ^7.1.1\n');
+    }
+    // skeletonizer for the generated list screen's loading placeholders.
+    if (addSkeletonizer && !uniquePackages.any((p) => p.name == 'skeletonizer')) {
+      deps.write('  skeletonizer: ^2.1.3\n');
+    }
+    // Branding tooling: app icons + splash from the uploaded logo.
+    if (addBranding) {
+      if (!uniquePackages.any((p) => p.name == 'flutter_launcher_icons')) {
+        devDeps.write('  flutter_launcher_icons: ^0.14.4\n');
+      }
+      if (!uniquePackages.any((p) => p.name == 'flutter_native_splash')) {
+        devDeps.write('  flutter_native_splash: ^2.4.6\n');
+      }
     }
     // Path deps on local workspace packages (e.g. <app>_ui, <app>_local_storage).
     for (final pkg in pathPackages) {
