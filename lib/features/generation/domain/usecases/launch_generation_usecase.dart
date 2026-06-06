@@ -608,6 +608,7 @@ class LaunchGenerationUsecase {
         components: theme.components,
         useScreenUtil: useScreenUtil,
         flexVersion: useFlexColorScheme ? flexVersion : null,
+        logoPath: theme.logoPath,
       );
     }
 
@@ -671,6 +672,7 @@ class LaunchGenerationUsecase {
     required Set<AppComponent> components,
     required bool useScreenUtil,
     String? flexVersion,
+    String logoPath = '',
   }) async {
     final root = '${projectDir.path}/packages/$uiPackage';
 
@@ -697,6 +699,7 @@ ${deps.toString().trimRight()}
 
 dev_dependencies:
   flutter_lints: ^6.0.0
+  spider: ^4.2.3
 
 flutter:
   # Branding assets shipped inside the package, rendered via SvgPictureCustom /
@@ -710,12 +713,23 @@ flutter:
         ThemeTemplates.assetWidgets(packageName: uiPackage));
     await _write('$root/assets/.gitkeep', '');
 
+    // A displayable copy of the logo + typed asset paths (spider-compatible).
+    final hasLogo = logoPath.isNotEmpty && File(logoPath).existsSync();
+    if (hasLogo) {
+      final dest = File('$root/assets/branding/logo.png');
+      await dest.create(recursive: true);
+      await dest.writeAsBytes(await File(logoPath).readAsBytes());
+    }
+    await _write('$root/spider.yaml', ThemeTemplates.spiderConfig());
+    await _write('$root/lib/gen/assets.dart', ThemeTemplates.assetsClass(hasLogo: hasLogo));
+
     // Public barrel.
     final exports = StringBuffer()
       ..writeln("export 'core/theme/app_theme.dart';")
       ..writeln("export 'core/theme/constant/constant.dart';")
       ..writeln("export 'core/theme/typography/typography.dart';")
-      ..writeln("export 'widgets/asset_images.dart';");
+      ..writeln("export 'widgets/asset_images.dart';")
+      ..writeln("export 'gen/assets.dart';");
     for (final c in components) {
       exports.writeln("export 'components/${c.fileName}';");
     }

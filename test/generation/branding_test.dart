@@ -2,8 +2,28 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:neat/features/dependencies/domain/models/pub_package.dart';
 import 'package:neat/features/generation/domain/services/templates/core_templates.dart';
 import 'package:neat/features/generation/domain/usecases/launch_generation_usecase.dart';
+import 'package:neat/features/theme_engine/domain/services/theme_templates.dart';
 
 void main() {
+  group('spider typed assets', () {
+    test('spider config scans assets/ into an Assets class', () {
+      final yaml = ThemeTemplates.spiderConfig();
+      expect(yaml, contains('class_name: Assets'));
+      expect(yaml, contains('path: assets'));
+      expect(yaml, contains('.svg'));
+    });
+
+    test('Assets class includes the logo when present, empty otherwise', () {
+      final withLogo = ThemeTemplates.assetsClass(hasLogo: true);
+      expect(withLogo, contains('class Assets'));
+      expect(withLogo, contains("brandingLogo = 'assets/branding/logo.png'"));
+
+      final empty = ThemeTemplates.assetsClass(hasLogo: false);
+      expect(empty, contains('class Assets'));
+      expect(empty, isNot(contains('brandingLogo')));
+    });
+  });
+
   group('branding config templates', () {
     test('launcher icons config points at the logo across platforms', () {
       final yaml = CoreTemplates.launcherIconsConfig();
