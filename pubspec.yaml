@@ -1,5 +1,5 @@
 name: neat
-description: "App generator."
+description: "A Flutter Clean Architecture project generator with a Workshop that adds features to existing projects."
 publish_to: 'none'
 version: 1.0.0+1
 

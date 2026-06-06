@@ -45,3 +45,6 @@ app.*.map.json
 /android/app/release
 
 /memory
+
+# Local brainstorming notes (not for the public repo)
+gemini_discussion
