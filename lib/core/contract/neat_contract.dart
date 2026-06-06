@@ -43,6 +43,7 @@ abstract class NeatContract with _$NeatContract {
     @Default(true) bool includeMappers,
     @Default(true) bool mirrorTestStructure,
     @Default(false) bool generateWidgetbook,
+    @Default(false) bool useNavigationShell,
     @Default(<String>[]) List<String> components,
   }) = _NeatContract;
 

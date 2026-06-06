@@ -37,16 +37,14 @@ class PresentationTemplates {
     if (hasSync) imports.writeln("import 'dart:convert';\n");
     imports.writeln("import 'package:riverpod_annotation/riverpod_annotation.dart';");
     if (offlineFirst) {
-      imports
-        ..writeln("import 'package:connectivity_plus/connectivity_plus.dart';")
-        ..writeln("import 'package:$localStoragePackage/$localStoragePackage.dart';");
+      // Shared app-wide singletons (Drift db + connectivity) live in core, not
+      // per feature, so every feature reuses the same instances.
+      imports.writeln(
+          "import 'package:$packageName/core/providers/infrastructure_providers.dart';");
     }
     imports.writeln(isChopper
         ? "import 'package:$packageName/core/network/chopper_client_provider.dart';"
         : "import 'package:$packageName/core/network/dio_provider.dart';");
-    if (offlineFirst) {
-      imports.writeln("import 'package:$packageName/core/network/network_info.dart';");
-    }
     if (hasSync) {
       imports.writeln("import 'package:$packageName/core/sync/sync_service.dart';");
     }
@@ -75,17 +73,13 @@ class PresentationTemplates {
         ? '${p}ApiSource.create(ref.watch(chopperClientProvider))'
         : '${p}ApiSource(ref.watch(dioProvider))';
 
+    // appDatabaseProvider + networkInfoProvider come from the shared
+    // core/providers/infrastructure_providers.dart (single instance app-wide).
     final offlineProviders = offlineFirst
         ? '''
 
 @Riverpod(keepAlive: true)
-AppDatabase appDatabase(Ref ref) => AppDatabase();
-
-@Riverpod(keepAlive: true)
-${p}LocalSource ${c}LocalSource(Ref ref) => ${p}LocalSource(ref.watch(appDatabaseProvider));
-
-@Riverpod(keepAlive: true)
-NetworkInfo networkInfo(Ref ref) => NetworkInfo(Connectivity());'''
+${p}LocalSource ${c}LocalSource(Ref ref) => ${p}LocalSource(ref.watch(appDatabaseProvider));'''
         : '';
 
     final repoConstruct = offlineFirst
