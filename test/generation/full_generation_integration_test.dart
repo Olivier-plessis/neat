@@ -144,6 +144,24 @@ void main() {
       expect(apiSrc, contains('update('));
       expect(apiSrc, contains('delete('));
 
+      // The feature ships a real list screen with Skeletonizer loading states.
+      final page = File(
+        '${projectDir.path}/lib/features/user_profile/presentation/pages/'
+        'user_profile_page.dart',
+      ).readAsStringSync();
+      expect(page, contains('Skeletonizer('));
+      expect(page, contains('ListView.separated('));
+      final provider = File(
+        '${projectDir.path}/lib/features/user_profile/presentation/providers/'
+        'user_profile_provider.dart',
+      ).readAsStringSync();
+      expect(provider, contains('Future<List<UserProfileEntity>> build()'));
+      expect(provider, contains('getUserProfileUsecaseProvider'));
+      expect(
+        File('${projectDir.path}/pubspec.yaml').readAsStringSync(),
+        contains('skeletonizer:'),
+      );
+
       // Observability + networking bricks (chopper variant).
       for (final relPath in const [
         'lib/core/utils/app_logger.dart',
@@ -584,8 +602,22 @@ void main() {
           File('${projectDir.path}/packages/$uiPkg/lib/$uiPkg.dart').readAsStringSync();
       expect(barrel, contains("export 'core/theme/app_theme.dart';"));
       expect(barrel, contains("export 'components/app_button.dart';"));
+      expect(barrel, contains("export 'widgets/asset_images.dart';"));
       final appDart = File('${projectDir.path}/lib/app.dart').readAsStringSync();
       expect(appDart, contains("import 'package:$uiPkg/$uiPkg.dart';"));
+
+      // Shared SVG/image asset widgets ship in the UI package (flutter_svg dep +
+      // a package-scoped assets folder).
+      final assetWidgets = File(
+        '${projectDir.path}/packages/$uiPkg/lib/widgets/asset_images.dart',
+      ).readAsStringSync();
+      expect(assetWidgets, contains('class SvgPictureCustom'));
+      expect(assetWidgets, contains('class ImagePictureCustom'));
+      expect(assetWidgets, contains("package: '$uiPkg'"));
+      final uiPubspec =
+          File('${projectDir.path}/packages/$uiPkg/pubspec.yaml').readAsStringSync();
+      expect(uiPubspec, contains('flutter_svg'));
+      expect(uiPubspec, contains('assets/'));
 
       // Root workspace lists the UI package + widgetbook; widgetbook depends on it.
       final rootPubspec = File('${projectDir.path}/pubspec.yaml').readAsStringSync();
@@ -1021,6 +1053,87 @@ void main() {
         errorLines,
         isEmpty,
         reason: 'navigation-shell analyze reported issues:\n${errorLines.join('\n')}\n\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
+
+  test(
+    'branding (logo) generates icon + splash config and still analyzes cleanly',
+    () async {
+      const projectName = 'neat_brand_test';
+      final logs = <String>[];
+
+      // A minimal valid 1x1 PNG to act as the uploaded logo.
+      final logo = File('${tempRoot.path}/logo.png')
+        ..writeAsBytesSync(base64Decode(
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+        ));
+
+      final identity = IdentityState(
+        name: projectName,
+        organization: 'com.neat.test',
+        projectPath: tempRoot.path,
+        description: 'NEAT branding integration test',
+        targetPlatforms: const ['macos'],
+      );
+
+      final theme = ThemeEngineState(approach: ThemeApproach.customM3, logoPath: logo.path);
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: identity,
+          packages: <PubPackage>[
+            _dep('hooks_riverpod', '3.3.1'),
+            _dep('flutter_hooks', '0.21.3+1'),
+            _dep('riverpod_annotation', '4.0.2'),
+            _dev('riverpod_generator', '4.0.3'),
+            _dev('build_runner', '2.15.0'),
+          ],
+          architecture: const ArchitectureState(),
+          cicd: const CicdState(),
+          theme: theme,
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('Branding generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+
+      // Logo copied + both configs written.
+      expect(
+        File('${projectDir.path}/assets/branding/logo.png').existsSync(),
+        isTrue,
+        reason: 'logo not copied into the project',
+      );
+      expect(File('${projectDir.path}/flutter_launcher_icons.yaml').existsSync(), isTrue);
+      expect(File('${projectDir.path}/flutter_native_splash.yaml').existsSync(), isTrue);
+      // Dev deps resolved (pub get would have thrown otherwise).
+      final pubspec = File('${projectDir.path}/pubspec.yaml').readAsStringSync();
+      expect(pubspec, contains('flutter_launcher_icons:'));
+      expect(pubspec, contains('flutter_native_splash:'));
+
+      // Branding adds only config + assets → the project still analyzes clean.
+      final analyze = await Process.run(
+        'flutter',
+        ['analyze', '--no-pub'],
+        workingDirectory: projectDir.path,
+      );
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      expect(
+        RegExp(r'(\d+ issues? found|No issues found)').hasMatch(out),
+        isTrue,
+        reason: 'flutter analyze did not run as expected:\n$out',
+      );
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where((l) => l.contains(' error •') || l.contains(' warning •'))
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason: 'branding project analyze reported issues:\n${errorLines.join('\n')}\n\n$out',
       );
     },
     timeout: const Timeout(Duration(minutes: 12)),

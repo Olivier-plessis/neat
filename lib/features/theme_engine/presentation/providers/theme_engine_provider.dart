@@ -15,6 +15,9 @@ class ThemeEngine extends _$ThemeEngine {
   void setApproach(ThemeApproach approach) => state = state.copyWith(approach: approach);
   void resetApproach() => state = state.copyWith(approach: ThemeApproach.none);
 
+  // Branding (logo → app icons + splash)
+  void setLogoPath(String path) => state = state.copyWith(logoPath: path);
+
   // Colors
   void setSeedColor(Color color) => state = state.copyWith(seedColor: color);
   void setImagePath(String path) => state = state.copyWith(imagePath: path);

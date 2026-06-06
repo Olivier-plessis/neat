@@ -1232,6 +1232,101 @@ class _ButtonsShapesTab extends ConsumerWidget {
           ),
 
           const SizedBox(height: 24),
+          _SectionHeader(icon: Icons.image_outlined, label: 'Branding (App Icon & Splash)'),
+          const SizedBox(height: 16),
+          _BrandingCard(
+            logoPath: state.logoPath,
+            onPick: () async {
+              final result = await FilePicker.pickFiles(
+                type: FileType.custom,
+                allowedExtensions: const ['png'],
+              );
+              final path = result?.files.single.path;
+              if (path != null) notifier.setLogoPath(path);
+            },
+            onRemove: () => notifier.setLogoPath(''),
+          ),
+
+          const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+}
+
+/// Upload a PNG logo → NEAT copies it in and generates app icons + native splash
+/// (flutter_launcher_icons + flutter_native_splash) at generation time.
+class _BrandingCard extends StatelessWidget {
+  const _BrandingCard({
+    required this.logoPath,
+    required this.onPick,
+    required this.onRemove,
+  });
+
+  final String logoPath;
+  final Future<void> Function() onPick;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasLogo = logoPath.isNotEmpty && File(logoPath).existsSync();
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF18181C),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: hasLogo
+                ? Image.file(File(logoPath), width: 52, height: 52, fit: BoxFit.cover)
+                : Container(
+                    width: 52,
+                    height: 52,
+                    color: Colors.white10,
+                    child: Icon(Icons.image_outlined, color: Colors.grey[600]),
+                  ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'App icon & splash',
+                  style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  hasLogo
+                      ? logoPath.split('/').last
+                      : 'Upload a square PNG logo → icons + splash generated for you.',
+                  style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          if (hasLogo)
+            TextButton(
+              onPressed: onRemove,
+              style: TextButton.styleFrom(foregroundColor: Colors.white54),
+              child: const Text('Remove'),
+            ),
+          FilledButton.icon(
+            onPressed: onPick,
+            icon: const Icon(Icons.upload_outlined, size: 16),
+            label: Text(hasLogo ? 'Replace' : 'Upload PNG'),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppTheme.colorPrimaryCyan,
+              foregroundColor: const Color(0xFF0E0E0E),
+            ),
+          ),
         ],
       ),
     );
@@ -2123,6 +2218,22 @@ class _FlexColorSchemeTabState extends ConsumerState<_FlexColorSchemeTab> {
                 'The app and Widgetbook depend on it — clean decoupling.',
             enabled: state.extractUiPackage,
             onChanged: notifier.setExtractUiPackage,
+          ),
+
+          const SizedBox(height: 24),
+          _SectionHeader(icon: Icons.image_outlined, label: 'Branding (App Icon & Splash)'),
+          const SizedBox(height: 16),
+          _BrandingCard(
+            logoPath: state.logoPath,
+            onPick: () async {
+              final result = await FilePicker.pickFiles(
+                type: FileType.custom,
+                allowedExtensions: const ['png'],
+              );
+              final path = result?.files.single.path;
+              if (path != null) notifier.setLogoPath(path);
+            },
+            onRemove: () => notifier.setLogoPath(''),
           ),
 
           const SizedBox(height: 24),

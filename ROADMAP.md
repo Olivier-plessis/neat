@@ -37,18 +37,26 @@ theming (customM3 / FlexColorScheme) + extractable UI package + Widgetbook + CI/
   + go_router_builder…), including where to add a feature and the anchor system.
 - Nobody does this. Cheap to build (we already have the contract + templates).
 
-### 3. Polish wins (self-contained, high visual impact)
-- **Skeletonizer** loading states: wrap the generated pages' `AsyncValue.loading`.
-- **Logo → assets**: upload a logo, generate app icons + splash
-  (`flutter_launcher_icons` + `flutter_native_splash`).
+### 3. Polish wins (self-contained, high visual impact) — **done**
+- ✅ **Asset widgets**: `SvgPictureCustom` / `ImagePictureCustom` in the UI package
+  (flutter_svg + package-scoped `assets/`).
+- ✅ **Skeletonizer**: the generated feature is now a real list screen (provider
+  fetches via the usecase, ListView + pull-to-refresh + empty/error, loading = skeleton).
+- ✅ **Logo → assets**: Branding section (theme step) → copy logo + generate app
+  icons + splash (`flutter_launcher_icons` + `flutter_native_splash`), run at gen time.
+- ⏭️ **Next (typed assets): spider** — generate `Assets.<...>` typed constants for
+  asset paths, fed into `SvgPictureCustom` / `ImagePictureCustom`. On-brand (typed).
 
 ### 4. Firebase / Supabase backends
 - New `httpClient`/backend option beyond REST (dio/chopper). The feature gap that most
   broadens the target audience (indies/startups). Must cohabit with the offline layer.
 
-### 5. Internationalisation
-- Prefer **slang** (type-safe, codegen) over easy_localization — it matches NEAT's
-  "everything typed" DNA. easy_localization has great DX but no compile-time key safety.
+### 5. Internationalisation — **decided: slang**
+- **slang** (type-safe keys, codegen, typed pluralization/interpolation) over
+  easy_localization. It matches NEAT's "everything typed" DNA. The "no codegen"
+  argument for easy_localization is moot — it ships its own `locale_keys.g.dart` —
+  so we take the compile-time-safe option. Generate the slang setup + a sample
+  feature consuming `t.<feature>.…`.
 
 ### 6. Multiple architectures — later, with caution
 - The harness makes **every** architecture a ~3× maintenance cost (each must be proven).
