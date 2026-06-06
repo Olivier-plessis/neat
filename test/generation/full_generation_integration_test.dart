@@ -603,8 +603,16 @@ void main() {
       expect(barrel, contains("export 'core/theme/app_theme.dart';"));
       expect(barrel, contains("export 'components/app_button.dart';"));
       expect(barrel, contains("export 'widgets/asset_images.dart';"));
+      expect(barrel, contains("export 'gen/assets.dart';"));
       final appDart = File('${projectDir.path}/lib/app.dart').readAsStringSync();
       expect(appDart, contains("import 'package:$uiPkg/$uiPkg.dart';"));
+
+      // spider: typed asset paths (config + generated Assets class).
+      expect(File('${projectDir.path}/packages/$uiPkg/spider.yaml').existsSync(), isTrue);
+      final assetsClass = File(
+        '${projectDir.path}/packages/$uiPkg/lib/gen/assets.dart',
+      ).readAsStringSync();
+      expect(assetsClass, contains('class Assets'));
 
       // Shared SVG/image asset widgets ship in the UI package (flutter_svg dep +
       // a package-scoped assets folder).
@@ -618,6 +626,7 @@ void main() {
           File('${projectDir.path}/packages/$uiPkg/pubspec.yaml').readAsStringSync();
       expect(uiPubspec, contains('flutter_svg'));
       expect(uiPubspec, contains('assets/'));
+      expect(uiPubspec, contains('spider'));
 
       // Root workspace lists the UI package + widgetbook; widgetbook depends on it.
       final rootPubspec = File('${projectDir.path}/pubspec.yaml').readAsStringSync();

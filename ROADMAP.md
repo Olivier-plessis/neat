@@ -44,8 +44,9 @@ theming (customM3 / FlexColorScheme) + extractable UI package + Widgetbook + CI/
   fetches via the usecase, ListView + pull-to-refresh + empty/error, loading = skeleton).
 - ✅ **Logo → assets**: Branding section (theme step) → copy logo + generate app
   icons + splash (`flutter_launcher_icons` + `flutter_native_splash`), run at gen time.
-- ⏭️ **Next (typed assets): spider** — generate `Assets.<...>` typed constants for
-  asset paths, fed into `SvgPictureCustom` / `ImagePictureCustom`. On-brand (typed).
+- ✅ **spider (typed assets)** — UI package ships `spider.yaml` + a generated `Assets`
+  class (`lib/gen/assets.dart`); the logo becomes `Assets.brandingLogo`. Fed into
+  `SvgPictureCustom` / `ImagePictureCustom`. Regenerate with `dart run spider build`.
 
 ### 4. Firebase / Supabase backends
 - New `httpClient`/backend option beyond REST (dio/chopper). The feature gap that most
