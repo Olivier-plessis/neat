@@ -17,15 +17,15 @@ class CoreTemplates {
 
   // ── core/env/app_env.dart (envied — flavor contract + singleton) ─────────
 
-  static String appEnv({bool hasSupabase = false}) {
+  static String appEnv({bool hasApiBaseUrl = true, bool hasSupabase = false}) {
+    final api = hasApiBaseUrl ? '  abstract final String apiBaseUrl;\n' : '';
     final supa = hasSupabase
         ? '  abstract final String supabaseUrl;\n  abstract final String supabaseAnonKey;\n'
         : '';
     return '''/// The environment contract shared by every flavor.
 abstract interface class AppEnvFields {
   abstract final String appName;
-  abstract final String apiBaseUrl;
-$supa}
+$api$supa}
 
 /// Global access to the active environment.
 /// Call [AppEnv.setEnv] in main() before runApp().
@@ -46,9 +46,17 @@ abstract interface class AppEnv implements AppEnvFields {
   static String flavorEnv({
     required String packageName,
     required String flavor,
+    bool hasApiBaseUrl = true,
     bool hasSupabase = false,
   }) {
     final p = _pascal(flavor); // Dev / Staging / Prod
+    final apiField = hasApiBaseUrl
+        ? "\n\n  @EnviedField(varName: 'API_BASE_URL')\n"
+            '  static final String apiBaseUrl = _${p}EnvVars.apiBaseUrl;'
+        : '';
+    final apiImpl = hasApiBaseUrl
+        ? '\n\n  @override\n  final String apiBaseUrl = ${p}EnvVars.apiBaseUrl;'
+        : '';
     final supaFields = hasSupabase
         ? '''
 
@@ -75,28 +83,26 @@ part '${flavor}_env.g.dart';
 @Envied(path: '.env.$flavor', obfuscate: true)
 abstract class ${p}EnvVars {
   @EnviedField(varName: 'APP_NAME')
-  static final String appName = _${p}EnvVars.appName;
-
-  @EnviedField(varName: 'API_BASE_URL')
-  static final String apiBaseUrl = _${p}EnvVars.apiBaseUrl;$supaFields
+  static final String appName = _${p}EnvVars.appName;$apiField$supaFields
 }
 
 class ${p}Env implements AppEnv {
   @override
-  final String appName = ${p}EnvVars.appName;
-
-  @override
-  final String apiBaseUrl = ${p}EnvVars.apiBaseUrl;$supaImpl
+  final String appName = ${p}EnvVars.appName;$apiImpl$supaImpl
 }
 ''';
   }
 
   /// Contents of a `.env.<flavor>` (or `.env.example`) file.
-  static String envFile({required String appName, bool hasSupabase = false}) {
+  static String envFile({
+    required String appName,
+    bool hasApiBaseUrl = true,
+    bool hasSupabase = false,
+  }) {
+    final api = hasApiBaseUrl ? 'API_BASE_URL=\n' : '';
     final supa = hasSupabase ? 'SUPABASE_URL=\nSUPABASE_ANON_KEY=\n' : '';
     return '''APP_NAME=$appName
-API_BASE_URL=
-$supa''';
+$api$supa''';
   }
 
   // ── core/network/network_info.dart (offline-first) ───────────────────────

@@ -1147,15 +1147,13 @@ void main() {
       final bootstrap = File('${projectDir.path}/lib/core/bootstrap.dart').readAsStringSync();
       expect(bootstrap, contains('Supabase.initialize('));
       expect(bootstrap, contains('AppEnv.current.supabaseUrl'));
-      // envied contract carries the supabase keys.
-      expect(
-        File('${projectDir.path}/lib/core/env/app_env.dart').readAsStringSync(),
-        contains('supabaseAnonKey'),
-      );
-      expect(
-        File('${projectDir.path}/.env.dev').readAsStringSync(),
-        contains('SUPABASE_URL='),
-      );
+      // envied contract carries the supabase keys — and NOT the REST apiBaseUrl.
+      final appEnv = File('${projectDir.path}/lib/core/env/app_env.dart').readAsStringSync();
+      expect(appEnv, contains('supabaseAnonKey'));
+      expect(appEnv, isNot(contains('apiBaseUrl')), reason: 'REST leftover in a Supabase project');
+      final envDev = File('${projectDir.path}/.env.dev').readAsStringSync();
+      expect(envDev, contains('SUPABASE_URL='));
+      expect(envDev, isNot(contains('API_BASE_URL')));
 
       // The whole project analyzes without errors or warnings.
       final analyze = await Process.run(
