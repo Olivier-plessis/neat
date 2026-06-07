@@ -410,6 +410,47 @@ abstract class ${p}ApiSource extends ChopperService {
 ''';
     }
 
+    if (httpClient == 'supabase') {
+      return '''import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:$packageName/features/$featureName/data/models/${featureName}_model.dart';
+
+/// Supabase-backed remote source. Exposes the same contract as the REST api
+/// source, so the repository / usecases / providers stay unchanged.
+class ${p}ApiSource {
+  const ${p}ApiSource(this._client);
+
+  final SupabaseClient _client;
+
+  static const String _table = '${featureName}s';
+
+  Future<List<${p}Model>> getAll() async {
+    final rows = await _client.from(_table).select();
+    return rows.map(${p}Model.fromJson).toList();
+  }
+
+  Future<${p}Model> getById(String id) async {
+    final row = await _client.from(_table).select().eq('id', id).single();
+    return ${p}Model.fromJson(row);
+  }
+
+  Future<${p}Model> add(${p}Model body) async {
+    final row = await _client.from(_table).insert(body.toJson()).select().single();
+    return ${p}Model.fromJson(row);
+  }
+
+  Future<${p}Model> update(String id, ${p}Model body) async {
+    final row =
+        await _client.from(_table).update(body.toJson()).eq('id', id).select().single();
+    return ${p}Model.fromJson(row);
+  }
+
+  Future<void> delete(String id) async {
+    await _client.from(_table).delete().eq('id', id);
+  }
+}
+''';
+    }
+
     // Dio plain
     return '''import 'package:dio/dio.dart';
 import 'package:$packageName/features/$featureName/data/models/${featureName}_model.dart';

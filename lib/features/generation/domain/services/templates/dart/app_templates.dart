@@ -32,6 +32,7 @@ void main() => $call;
     required bool useAnnotations,
     required bool useEnvied,
     required bool isWeb,
+    bool hasSupabase = false,
   }) {
     final imports = StringBuffer()
       ..writeln("import 'dart:async';")
@@ -39,6 +40,9 @@ void main() => $call;
       ..writeln("import 'package:flutter/widgets.dart';");
     if (isWeb) {
       imports.writeln("import 'package:flutter_web_plugins/url_strategy.dart';");
+    }
+    if (hasSupabase) {
+      imports.writeln("import 'package:supabase_flutter/supabase_flutter.dart';");
     }
     if (hasRiverpod) {
       imports.writeln(useAnnotations
@@ -59,6 +63,14 @@ void main() => $call;
         useEnvied ? 'Future<void> bootstrap(AppEnv env) async' : 'Future<void> bootstrap() async';
     final setEnv = useEnvied ? '  AppEnv.setEnv(env);\n' : '';
     final pathUrl = isWeb ? '\n      usePathUrlStrategy();' : '';
+    final supaInit = hasSupabase
+        ? (useEnvied
+            ? '\n      await Supabase.initialize(\n'
+                '        url: AppEnv.current.supabaseUrl,\n'
+                '        anonKey: AppEnv.current.supabaseAnonKey,\n'
+                '      );'
+            : "\n      await Supabase.initialize(url: '', anonKey: ''); // TODO: set URL + anon key")
+        : '';
     final root = hasRiverpod
         ? 'ProviderScope(observers: [RiverpodObserver()], child: const App())'
         : 'const App()';
@@ -74,7 +86,7 @@ $docComment$sig {
 $setEnv  await runZonedGuarded(
     () async {
       WidgetsFlutterBinding.ensureInitialized();
-      registerErrorHandler();$pathUrl
+      registerErrorHandler();$pathUrl$supaInit
       runApp($root);
     },
     (error, stack) => AppLogger.f('Uncaught exception', error: error, stackTrace: stack),
