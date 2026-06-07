@@ -58,7 +58,6 @@ class ${p}Notifier extends _\$${p}Notifier {
   }) {
     final p = pascal(featureName);
     final c = camel(featureName);
-    final isChopper = httpClient == 'chopper';
 
     final imports = StringBuffer();
     if (hasSync) imports.writeln("import 'dart:convert';\n");
@@ -69,9 +68,11 @@ class ${p}Notifier extends _\$${p}Notifier {
       imports.writeln(
           "import 'package:$packageName/core/providers/infrastructure_providers.dart';");
     }
-    imports.writeln(isChopper
-        ? "import 'package:$packageName/core/network/chopper_client_provider.dart';"
-        : "import 'package:$packageName/core/network/dio_provider.dart';");
+    imports.writeln(switch (httpClient) {
+      'chopper' => "import 'package:$packageName/core/network/chopper_client_provider.dart';",
+      'supabase' => "import 'package:$packageName/core/network/supabase_provider.dart';",
+      _ => "import 'package:$packageName/core/network/dio_provider.dart';",
+    });
     if (hasSync) {
       imports.writeln("import 'package:$packageName/core/sync/sync_service.dart';");
     }
@@ -96,9 +97,11 @@ class ${p}Notifier extends _\$${p}Notifier {
       ..writeln(
           "import 'package:$packageName/features/$featureName/domain/usecases/${featureName}_crud_usecases.dart';");
 
-    final apiConstruct = isChopper
-        ? '${p}ApiSource.create(ref.watch(chopperClientProvider))'
-        : '${p}ApiSource(ref.watch(dioProvider))';
+    final apiConstruct = switch (httpClient) {
+      'chopper' => '${p}ApiSource.create(ref.watch(chopperClientProvider))',
+      'supabase' => '${p}ApiSource(ref.watch(supabaseClientProvider))',
+      _ => '${p}ApiSource(ref.watch(dioProvider))',
+    };
 
     // appDatabaseProvider + networkInfoProvider come from the shared
     // core/providers/infrastructure_providers.dart (single instance app-wide).

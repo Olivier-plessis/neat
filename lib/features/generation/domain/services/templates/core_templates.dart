@@ -17,11 +17,15 @@ class CoreTemplates {
 
   // ── core/env/app_env.dart (envied — flavor contract + singleton) ─────────
 
-  static String appEnv() => r'''/// The environment contract shared by every flavor.
+  static String appEnv({bool hasSupabase = false}) {
+    final supa = hasSupabase
+        ? '  abstract final String supabaseUrl;\n  abstract final String supabaseAnonKey;\n'
+        : '';
+    return '''/// The environment contract shared by every flavor.
 abstract interface class AppEnvFields {
   abstract final String appName;
   abstract final String apiBaseUrl;
-}
+$supa}
 
 /// Global access to the active environment.
 /// Call [AppEnv.setEnv] in main() before runApp().
@@ -34,12 +38,35 @@ abstract interface class AppEnv implements AppEnvFields {
   static void setEnv(AppEnv env) => _instance = env;
 }
 ''';
+  }
 
   // ── core/env/envs/<flavor>_env.dart (envied generated vars + AppEnv impl) ──
 
   /// [flavor] is one of: dev, staging, prod.
-  static String flavorEnv({required String packageName, required String flavor}) {
+  static String flavorEnv({
+    required String packageName,
+    required String flavor,
+    bool hasSupabase = false,
+  }) {
     final p = _pascal(flavor); // Dev / Staging / Prod
+    final supaFields = hasSupabase
+        ? '''
+
+  @EnviedField(varName: 'SUPABASE_URL')
+  static final String supabaseUrl = _${p}EnvVars.supabaseUrl;
+
+  @EnviedField(varName: 'SUPABASE_ANON_KEY')
+  static final String supabaseAnonKey = _${p}EnvVars.supabaseAnonKey;'''
+        : '';
+    final supaImpl = hasSupabase
+        ? '''
+
+  @override
+  final String supabaseUrl = ${p}EnvVars.supabaseUrl;
+
+  @override
+  final String supabaseAnonKey = ${p}EnvVars.supabaseAnonKey;'''
+        : '';
     return '''import 'package:envied/envied.dart';
 import 'package:$packageName/core/env/app_env.dart';
 
@@ -51,7 +78,7 @@ abstract class ${p}EnvVars {
   static final String appName = _${p}EnvVars.appName;
 
   @EnviedField(varName: 'API_BASE_URL')
-  static final String apiBaseUrl = _${p}EnvVars.apiBaseUrl;
+  static final String apiBaseUrl = _${p}EnvVars.apiBaseUrl;$supaFields
 }
 
 class ${p}Env implements AppEnv {
@@ -59,15 +86,18 @@ class ${p}Env implements AppEnv {
   final String appName = ${p}EnvVars.appName;
 
   @override
-  final String apiBaseUrl = ${p}EnvVars.apiBaseUrl;
+  final String apiBaseUrl = ${p}EnvVars.apiBaseUrl;$supaImpl
 }
 ''';
   }
 
   /// Contents of a `.env.<flavor>` (or `.env.example`) file.
-  static String envFile({required String appName}) => '''APP_NAME=$appName
+  static String envFile({required String appName, bool hasSupabase = false}) {
+    final supa = hasSupabase ? 'SUPABASE_URL=\nSUPABASE_ANON_KEY=\n' : '';
+    return '''APP_NAME=$appName
 API_BASE_URL=
-''';
+$supa''';
+  }
 
   // ── core/network/network_info.dart (offline-first) ───────────────────────
 
@@ -393,6 +423,39 @@ final chopperClientProvider = Provider<ChopperClient>((ref) {
     services: const [],
   );
 });
+''';
+  }
+
+  // ── core/network/supabase_provider.dart (Supabase backend) ────────────────
+
+  /// Exposes the initialized [SupabaseClient] as a provider. The client is set
+  /// up once in bootstrap via `Supabase.initialize(...)`.
+  static String supabaseProvider({
+    required String packageName,
+    required bool useAnnotations,
+  }) {
+    if (useAnnotations) {
+      return '''import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+part 'supabase_provider.g.dart';
+
+/// The app-wide Supabase client (initialized in bootstrap).
+@Riverpod(keepAlive: true)
+SupabaseClient supabaseClient(Ref ref) => Supabase.instance.client;
+
+/// Convenience: the current auth state stream.
+@Riverpod(keepAlive: true)
+Stream<AuthState> authState(Ref ref) =>
+    ref.watch(supabaseClientProvider).auth.onAuthStateChange;
+''';
+    }
+    return '''import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+/// The app-wide Supabase client (initialized in bootstrap).
+final supabaseClientProvider =
+    Provider<SupabaseClient>((ref) => Supabase.instance.client);
 ''';
   }
 
