@@ -343,7 +343,13 @@ class LaunchGenerationUsecase {
 
     // ── core/env (envied flavors) ───────────────────────────────────────────
     if (hasEnvied) {
-      await _writeEnv(projectDir, lib, packageName, hasSupabase: httpClient == 'supabase');
+      await _writeEnv(
+        projectDir,
+        lib,
+        packageName,
+        hasSupabase: httpClient == 'supabase',
+        hasApiBaseUrl: httpClient != 'supabase',
+      );
     }
 
     // ── app.dart ──────────────────────────────────────────────────────────
@@ -787,17 +793,20 @@ dev_dependencies:
     String lib,
     String packageName, {
     bool hasSupabase = false,
+    bool hasApiBaseUrl = true,
   }) async {
     const flavors = ['dev', 'staging', 'prod'];
 
     // Dart: contract + per-flavor envied classes.
-    await _write('$lib/core/env/app_env.dart', CoreTemplates.appEnv(hasSupabase: hasSupabase));
+    await _write('$lib/core/env/app_env.dart',
+        CoreTemplates.appEnv(hasApiBaseUrl: hasApiBaseUrl, hasSupabase: hasSupabase));
     for (final flavor in flavors) {
       await _write(
         '$lib/core/env/envs/${flavor}_env.dart',
         CoreTemplates.flavorEnv(
           packageName: packageName,
           flavor: flavor,
+          hasApiBaseUrl: hasApiBaseUrl,
           hasSupabase: hasSupabase,
         ),
       );
@@ -806,10 +815,10 @@ dev_dependencies:
     // .env files (must exist before build_runner so envied can read them).
     for (final flavor in flavors) {
       await _write('${projectDir.path}/.env.$flavor',
-          CoreTemplates.envFile(appName: packageName, hasSupabase: hasSupabase));
+          CoreTemplates.envFile(appName: packageName, hasApiBaseUrl: hasApiBaseUrl, hasSupabase: hasSupabase));
     }
     await _write('${projectDir.path}/.env.example',
-        CoreTemplates.envFile(appName: packageName, hasSupabase: hasSupabase));
+        CoreTemplates.envFile(appName: packageName, hasApiBaseUrl: hasApiBaseUrl, hasSupabase: hasSupabase));
 
     // Keep secrets out of git (but commit .env.example).
     await _appendGitignore(projectDir, '''
