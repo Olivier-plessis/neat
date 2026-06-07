@@ -1068,6 +1068,121 @@ void main() {
   );
 
   test(
+    'Supabase backend: SDK-backed source + init + envied config, analyzes cleanly',
+    () async {
+      const projectName = 'neat_supabase_test';
+      final logs = <String>[];
+
+      final pkgs = <PubPackage>[
+        _dep('hooks_riverpod', '3.3.1'),
+        _dep('flutter_hooks', '0.21.3+1'),
+        _dep('riverpod_annotation', '4.0.2'),
+        _dep('supabase_flutter', '2.14.1'),
+        _dep('go_router', '17.2.3'),
+        _dep('json_annotation', '4.11.0'),
+        _dep('freezed_annotation', '3.1.0'),
+        _dep('envied', '1.3.5'),
+        _dev('riverpod_generator', '4.0.3'),
+        _dev('build_runner', '2.15.0'),
+        _dev('freezed', '3.2.5'),
+        _dev('json_serializable', '6.13.0'),
+        _dev('envied_generator', '1.3.5'),
+      ];
+
+      final identity = IdentityState(
+        name: projectName,
+        organization: 'com.neat.test',
+        projectPath: tempRoot.path,
+        description: 'NEAT Supabase backend integration test',
+        targetPlatforms: const ['macos'],
+      );
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: identity,
+          packages: pkgs,
+          architecture: const ArchitectureState(firstFeatureName: 'todo'),
+          cicd: const CicdState(),
+          theme: const ThemeEngineState(approach: ThemeApproach.customM3),
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('Supabase generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+
+      // Backend recorded as supabase.
+      final contract = jsonDecode(
+        File('${projectDir.path}/.neat.json').readAsStringSync(),
+      ) as Map<String, dynamic>;
+      expect(contract['httpClient'], 'supabase');
+
+      // Supabase client provider (not dio/chopper).
+      expect(
+        File('${projectDir.path}/lib/core/network/supabase_provider.dart').existsSync(),
+        isTrue,
+      );
+      expect(
+        File('${projectDir.path}/lib/core/network/dio_provider.dart').existsSync(),
+        isFalse,
+      );
+
+      // The remote source talks to Supabase (same getAll/add/... contract).
+      final src = File(
+        '${projectDir.path}/lib/features/todo/data/sources/todo_api_source.dart',
+      ).readAsStringSync();
+      expect(src, contains('SupabaseClient'));
+      expect(src, contains('.from(_table).select()'));
+      expect(src, contains('Future<List<TodoModel>> getAll()'));
+      expect(src, contains('Future<void> delete(String id)'));
+
+      // DI wires the source from the supabase client provider.
+      final di = File(
+        '${projectDir.path}/lib/features/todo/presentation/providers/todo_providers.dart',
+      ).readAsStringSync();
+      expect(di, contains('TodoApiSource(ref.watch(supabaseClientProvider))'));
+
+      // bootstrap initializes Supabase from the typed env.
+      final bootstrap = File('${projectDir.path}/lib/core/bootstrap.dart').readAsStringSync();
+      expect(bootstrap, contains('Supabase.initialize('));
+      expect(bootstrap, contains('AppEnv.current.supabaseUrl'));
+      // envied contract carries the supabase keys.
+      expect(
+        File('${projectDir.path}/lib/core/env/app_env.dart').readAsStringSync(),
+        contains('supabaseAnonKey'),
+      );
+      expect(
+        File('${projectDir.path}/.env.dev').readAsStringSync(),
+        contains('SUPABASE_URL='),
+      );
+
+      // The whole project analyzes without errors or warnings.
+      final analyze = await Process.run(
+        'flutter',
+        ['analyze', '--no-pub'],
+        workingDirectory: projectDir.path,
+      );
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      expect(
+        RegExp(r'(\d+ issues? found|No issues found)').hasMatch(out),
+        isTrue,
+        reason: 'flutter analyze did not run as expected:\n$out',
+      );
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where((l) => l.contains(' error •') || l.contains(' warning •'))
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason: 'Supabase project analyze reported issues:\n${errorLines.join('\n')}\n\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
+
+  test(
     'branding (logo) generates icon + splash config and still analyzes cleanly',
     () async {
       const projectName = 'neat_brand_test';

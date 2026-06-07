@@ -77,8 +77,13 @@ class LaunchGenerationUsecase {
     final hasRetrofit = packages.any((p) => p.name == 'retrofit');
     final hasChopper = packages.any((p) => p.name == 'chopper');
     final hasDio = packages.any((p) => p.name == 'dio');
-    final hasHttpClient = hasRetrofit || hasChopper || hasDio;
-    final httpClient = hasRetrofit
+    // Supabase is a *backend* (SDK) that plays the same role as a REST client:
+    // it backs the feature's remote source. It takes precedence as the source.
+    final hasSupabase = packages.any((p) => p.name == 'supabase_flutter');
+    final hasHttpClient = hasRetrofit || hasChopper || hasDio || hasSupabase;
+    final httpClient = hasSupabase
+        ? 'supabase'
+        : hasRetrofit
         ? 'retrofit'
         : hasChopper
         ? 'chopper'
@@ -332,12 +337,13 @@ class LaunchGenerationUsecase {
         useAnnotations: useAnnotations,
         useEnvied: hasEnvied,
         isWeb: isWeb,
+        hasSupabase: httpClient == 'supabase',
       ),
     );
 
     // ── core/env (envied flavors) ───────────────────────────────────────────
     if (hasEnvied) {
-      await _writeEnv(projectDir, lib, packageName);
+      await _writeEnv(projectDir, lib, packageName, hasSupabase: httpClient == 'supabase');
     }
 
     // ── app.dart ──────────────────────────────────────────────────────────
@@ -389,8 +395,10 @@ class LaunchGenerationUsecase {
         CoreTemplates.riverpodObserver(packageName: packageName, useAnnotations: useAnnotations),
       );
     }
-    // HTTP logging interceptor + a client provider, adapted to the chosen client.
-    if (hasHttpClient) {
+    // HTTP logging interceptor — REST clients only (Supabase has its own).
+    final isRestClient =
+        httpClient == 'dio' || httpClient == 'chopper' || httpClient == 'retrofit';
+    if (isRestClient) {
       await _write(
         '$lib/core/observers/logger_interceptor.dart',
         CoreTemplates.loggerInterceptor(packageName: packageName, httpClient: httpClient),
@@ -415,6 +423,12 @@ class LaunchGenerationUsecase {
           useAnnotations: useAnnotations,
           useEnvied: hasEnvied,
         ),
+      );
+    }
+    if (httpClient == 'supabase' && hasRiverpod) {
+      await _write(
+        '$lib/core/network/supabase_provider.dart',
+        CoreTemplates.supabaseProvider(packageName: packageName, useAnnotations: useAnnotations),
       );
     }
 
@@ -768,23 +782,34 @@ dev_dependencies:
 
   // ── envied environment system ───────────────────────────────────────────
 
-  Future<void> _writeEnv(Directory projectDir, String lib, String packageName) async {
+  Future<void> _writeEnv(
+    Directory projectDir,
+    String lib,
+    String packageName, {
+    bool hasSupabase = false,
+  }) async {
     const flavors = ['dev', 'staging', 'prod'];
 
     // Dart: contract + per-flavor envied classes.
-    await _write('$lib/core/env/app_env.dart', CoreTemplates.appEnv());
+    await _write('$lib/core/env/app_env.dart', CoreTemplates.appEnv(hasSupabase: hasSupabase));
     for (final flavor in flavors) {
       await _write(
         '$lib/core/env/envs/${flavor}_env.dart',
-        CoreTemplates.flavorEnv(packageName: packageName, flavor: flavor),
+        CoreTemplates.flavorEnv(
+          packageName: packageName,
+          flavor: flavor,
+          hasSupabase: hasSupabase,
+        ),
       );
     }
 
     // .env files (must exist before build_runner so envied can read them).
     for (final flavor in flavors) {
-      await _write('${projectDir.path}/.env.$flavor', CoreTemplates.envFile(appName: packageName));
+      await _write('${projectDir.path}/.env.$flavor',
+          CoreTemplates.envFile(appName: packageName, hasSupabase: hasSupabase));
     }
-    await _write('${projectDir.path}/.env.example', CoreTemplates.envFile(appName: packageName));
+    await _write('${projectDir.path}/.env.example',
+        CoreTemplates.envFile(appName: packageName, hasSupabase: hasSupabase));
 
     // Keep secrets out of git (but commit .env.example).
     await _appendGitignore(projectDir, '''
