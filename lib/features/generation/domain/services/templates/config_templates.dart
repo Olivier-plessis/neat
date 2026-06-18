@@ -41,11 +41,21 @@ flutter:
 }
 ''';
 
-  static String analysisOptions({bool veryGoodAnalysis = false}) => veryGoodAnalysis
-      ? '''include: package:very_good_analysis/analysis_options.yaml
-'''
-      : '''include: package:flutter_lints/flutter.yaml
+  static String analysisOptions({bool veryGoodAnalysis = false}) {
+    final include = veryGoodAnalysis
+        ? 'package:very_good_analysis/analysis_options.yaml'
+        : 'package:flutter_lints/flutter.yaml';
+    // Exclude build artifacts from analysis. This matters for Firebase: on
+    // macOS, Swift Package Manager checks out flutterfire's own (error-ridden)
+    // Dart test sources under `build/`, which would otherwise pollute
+    // `flutter analyze`.
+    return '''include: $include
+
+analyzer:
+  exclude:
+    - build/**
 ''';
+  }
 
   static String gitignore() => r'''# Miscellaneous
 *.class

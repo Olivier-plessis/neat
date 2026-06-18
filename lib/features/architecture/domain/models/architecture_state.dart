@@ -78,6 +78,16 @@ abstract class ArchitectureState with _$ArchitectureState {
     /// Opt-in: generate a Supabase **Storage** service (+ provider + a sample
     /// avatar upload widget). Only effective with a Supabase backend + riverpod.
     @Default(false) bool generateStorage,
+
+    /// Path to an uploaded Firebase config JSON (the web app config or a
+    /// FlutterFire export). When a Firebase backend is selected, NEAT generates
+    /// `firebase_options.dart` from it. Blank → compile-safe placeholders.
+    @Default('') String firebaseConfigPath,
+
+    /// Opt-in: add Google + Apple OAuth sign-in to the auth feature (via
+    /// `FirebaseAuth.signInWithProvider`). Only effective with a Firebase
+    /// backend + auth enabled.
+    @Default(false) bool generateOAuth,
   }) = _ArchitectureState;
 
   /// Validates the first feature name (Dart folder/identifier rules).

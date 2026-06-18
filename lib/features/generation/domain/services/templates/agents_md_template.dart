@@ -110,16 +110,28 @@ class AgentsMdTemplate {
 
     // ── Networking ──────────────────────────────────────────────────────────
     final isSupabase = c.httpClient == 'supabase';
+    final isFirebase = c.httpClient == 'firebase';
     b.writeln('## Networking\n');
-    if (isSupabase) {
-      b.writeln('- Backend is **Supabase** (`supabase_flutter` SDK). The client provider is '
-          '`supabaseClientProvider` (`lib/core/network/supabase_provider.dart`); the SDK is '
-          'initialized in `lib/core/bootstrap.dart` from the typed env.');
-      b.writeln('- Data access goes through `data/sources/<feature>_api_source.dart` (`.from(table)…`) → '
-          'repository → `Result<T>`. **Never call the client from widgets or domain.**');
+    if (isSupabase || isFirebase) {
+      if (isFirebase) {
+        b.writeln('- Backend is **Firebase** (Firestore). The provider is `firestoreProvider` '
+            '(`lib/core/network/firebase_provider.dart`); Firebase is initialized in '
+            '`lib/core/bootstrap.dart` from `lib/firebase_options.dart` (regenerate with '
+            '`flutterfire configure` for production — see `docs/FIREBASE.md`).');
+        b.writeln('- Data access goes through `data/sources/<feature>_api_source.dart` '
+            '(`collection(...)…`, doc id merged into the model) → repository → `Result<T>`. '
+            '**Never call Firestore from widgets or domain.**');
+      } else {
+        b.writeln('- Backend is **Supabase** (`supabase_flutter` SDK). The client provider is '
+            '`supabaseClientProvider` (`lib/core/network/supabase_provider.dart`); the SDK is '
+            'initialized in `lib/core/bootstrap.dart` from the typed env.');
+        b.writeln('- Data access goes through `data/sources/<feature>_api_source.dart` (`.from(table)…`) → '
+            'repository → `Result<T>`. **Never call the client from widgets or domain.**');
+      }
       if (c.generateRealtime) {
+        final how = isFirebase ? 'Firestore `.snapshots()`' : "`.stream(primaryKey: ['id'])`";
         b.writeln('- **Realtime is on**: the first feature\'s list is a `StreamNotifier` over '
-            '`.stream(primaryKey: [\'id\'])`. The repository exposes `watchAll()`; the screen updates live.');
+            '$how. The repository exposes `watchAll()`; the screen updates live.');
       }
       if (c.generateStorage) {
         b.writeln('- **Storage is on**: use `StorageService` (`lib/core/storage/storage_service.dart`, '
@@ -128,6 +140,16 @@ class AgentsMdTemplate {
       if (c.generateAuth) {
         b.writeln('- **Auth is on**: `features/auth` (login/signup/forgot) + `AuthController`; a '
             '`RouterNotifier` guards routes (`lib/core/router/router_notifier.dart`).');
+        if (c.generateOAuth) {
+          b.writeln('- **OAuth is on**: Google + Apple via `FirebaseAuth.signInWithProvider` '
+              '(`IAuthRepository.signInWithGoogle/signInWithApple`). Enable the providers in the '
+              'Firebase console.');
+        }
+      }
+      if (isFirebase) {
+        b.writeln('- **Security Rules**: `firestore.rules` (default-deny + a rule for the first '
+            'collection) + `firebase.json`. Deploy with `firebase deploy --only firestore:rules`. '
+            'See `docs/FIREBASE.md`.');
       }
       b.writeln();
     } else if (hasHttp) {

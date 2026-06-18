@@ -59,9 +59,20 @@ theming (customM3 / FlexColorScheme) + extractable UI package + Widgetbook + CI/
   `watchAll()`. Needs riverpod annotations.
 - ✅ **Storage** (opt-in): `StorageService` (upload/download/publicUrl/remove) +
   provider + a sample avatar-upload widget (`image_picker`).
-- All harness-proven (3 Supabase integration tests, analyze 0/0).
-- ⏭️ Firebase next (Firestore + Auth; gate NEAT's Drift since Firestore has its
-  own offline). Supabase OAuth providers as a follow-up.
+- ✅ **Firebase** (V1, full parity): backend = `cloud_firestore` → Firestore-backed
+  remote source (doc id merged into the model), `firebase_provider` (firestore +
+  optional auth/storage singletons), `Firebase.initializeApp` in bootstrap with
+  **Firestore offline persistence** (NEAT's Drift layer is gated off). Init via an
+  **uploaded config JSON** → generated `lib/firebase_options.dart` (+ `docs/FIREBASE.md`
+  pointing to `flutterfire configure` for production). Opt-in **Auth** (FirebaseAuth),
+  **Realtime** (`.snapshots()`), **Storage** (firebase_storage) — same toggles as Supabase.
+- ✅ **OAuth** (Firebase, opt-in): Google + Apple via `FirebaseAuth.signInWithProvider`
+  (zero extra deps) — buttons on the login screen, methods on `IAuthRepository`.
+- ✅ **Firestore Security Rules scaffold**: `firestore.rules` (default-deny + an
+  auth-aware rule for the first collection) + `firestore.indexes.json` + `firebase.json`.
+- All harness-proven (Supabase ×3 + Firebase full-stack with OAuth + rules, analyze 0/0).
+- ⏭️ Follow-ups: Supabase OAuth providers, native Google account picker
+  (`google_sign_in`), Supabase Storage bucket-policy doc.
 
 ### 5. Internationalisation — **decided: slang**
 - **slang** (type-safe keys, codegen, typed pluralization/interpolation) over
