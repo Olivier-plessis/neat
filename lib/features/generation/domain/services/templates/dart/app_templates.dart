@@ -67,9 +67,9 @@ void main() => $call;
         ? (useEnvied
             ? '\n      await Supabase.initialize(\n'
                 '        url: AppEnv.current.supabaseUrl,\n'
-                '        anonKey: AppEnv.current.supabaseAnonKey,\n'
+                '        publishableKey: AppEnv.current.supabasePublishableKey,\n'
                 '      );'
-            : "\n      await Supabase.initialize(url: '', anonKey: ''); // TODO: set URL + anon key")
+            : "\n      await Supabase.initialize(url: '', publishableKey: ''); // TODO: set URL + publishable key")
         : '';
     final root = hasRiverpod
         ? 'ProviderScope(observers: [RiverpodObserver()], child: const App())'

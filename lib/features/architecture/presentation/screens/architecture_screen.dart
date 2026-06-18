@@ -22,6 +22,14 @@ class ArchitectureScreen extends ConsumerWidget {
     final hasGoRouter = ref.watch(
       selectedPackagesProvider.select((list) => list.any((p) => p.name.contains('go_router'))),
     );
+    // Auth requires the typed router (a provider GoRouter) + the Supabase backend.
+    final hasGoRouterBuilder = ref.watch(
+      selectedPackagesProvider.select((list) => list.any((p) => p.name == 'go_router_builder')),
+    );
+    final hasSupabase = ref.watch(
+      selectedPackagesProvider.select((list) => list.any((p) => p.name == 'supabase_flutter')),
+    );
+    final canAuth = hasSupabase && hasGoRouterBuilder;
     final tree = const GenerateTreeUsecase().execute(
       state,
       hasRiverpod: hasRiverpod,
@@ -200,6 +208,17 @@ class ArchitectureScreen extends ConsumerWidget {
                             labelHint: state.effectiveShellLabel,
                             onIcon: notifier.setShellIcon,
                             onLabel: notifier.setShellLabel,
+                          ),
+                        ],
+                        if (canAuth) ...[
+                          const SizedBox(height: 12),
+                          _ToggleTile(
+                            title: 'Generate Auth (Supabase)',
+                            description:
+                                'Feature auth complète : écrans login/signup/forgot, AuthController, '
+                                'et un guard go_router (redirect → /login si non connecté).',
+                            value: state.generateAuth,
+                            onChanged: notifier.toggleGenerateAuth,
                           ),
                         ],
                       ],

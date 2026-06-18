@@ -49,8 +49,13 @@ theming (customM3 / FlexColorScheme) + extractable UI package + Widgetbook + CI/
   `SvgPictureCustom` / `ImagePictureCustom`. Regenerate with `dart run spider build`.
 
 ### 4. Firebase / Supabase backends
-- New `httpClient`/backend option beyond REST (dio/chopper). The feature gap that most
-  broadens the target audience (indies/startups). Must cohabit with the offline layer.
+- ✅ **Supabase** (V1): backend = `supabase_flutter` → SDK-backed remote source
+  (reuses the REST contract), `supabase_provider`, `Supabase.initialize` in
+  bootstrap, envied `SUPABASE_URL`/`SUPABASE_PUBLISHABLE_KEY`. **Opt-in Auth**:
+  login/signup/forgot + `AuthController` + a `RouterNotifier` go_router guard
+  (requires go_router_builder). All harness-proven (analyze 0/0).
+- ⏭️ Firebase next (Firestore + Auth; gate NEAT's Drift since Firestore has its
+  own offline). Supabase Storage as a follow-up.
 
 ### 5. Internationalisation — **decided: slang**
 - **slang** (type-safe keys, codegen, typed pluralization/interpolation) over

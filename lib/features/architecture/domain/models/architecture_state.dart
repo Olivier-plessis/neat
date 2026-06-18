@@ -65,6 +65,10 @@ abstract class ArchitectureState with _$ArchitectureState {
 
     /// First tab label (blank → the feature name, capitalised).
     @Default('') String shellLabel,
+
+    /// Opt-in: generate a Supabase **auth** feature (login/signup/forgot) + a
+    /// go_router guard. Only effective with a Supabase backend + go_router_builder.
+    @Default(false) bool generateAuth,
   }) = _ArchitectureState;
 
   /// Validates the first feature name (Dart folder/identifier rules).
