@@ -44,6 +44,7 @@ abstract class ${p}Entity with _\$${p}Entity {
     required String featureName,
     required String packageName,
     bool hasHttpClient = false,
+    bool realtime = false,
   }) {
     final p = pascal(featureName);
     // A remote source unlocks the full CRUD write contract.
@@ -53,13 +54,15 @@ abstract class ${p}Entity with _\$${p}Entity {
   Future<Result<${p}Entity>> update(${p}Entity entity);
   Future<Result<bool>> delete(String id);'''
         : '';
+    // Realtime: a live stream of the full list (Supabase `.stream()`).
+    final watchContract = realtime ? '\n  Stream<List<${p}Entity>> watchAll();' : '';
     return '''import 'package:$packageName/core/result/result.dart';
 import '../entities/${featureName}_entity.dart';
 
 abstract class I${p}Repository {
   Future<Result<List<${p}Entity>>> getAll();
   Future<Result<${p}Entity>> getById(String id);
-$writeContract
+$writeContract$watchContract
 }
 ''';
   }

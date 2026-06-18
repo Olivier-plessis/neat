@@ -223,6 +223,34 @@ class ArchitectureScreen extends ConsumerWidget {
                         ],
                       ],
 
+                      if (hasSupabase && hasRiverpod) ...[
+                        const SizedBox(height: 28),
+                        _SectionHeader(
+                          icon: Icons.cloud_outlined,
+                          label: 'Backend (Supabase)',
+                        ),
+                        const SizedBox(height: 12),
+                        if (state.useRiverpodAnnotations)
+                          _ToggleTile(
+                            title: 'Realtime list',
+                            description:
+                                'La liste de la 1ʳᵉ feature devient live : un StreamNotifier '
+                                's\'abonne à Supabase `.stream()` et l\'écran se met à jour à '
+                                'chaque INSERT/UPDATE/DELETE.',
+                            value: state.generateRealtime,
+                            onChanged: notifier.toggleGenerateRealtime,
+                          ),
+                        if (state.useRiverpodAnnotations) const SizedBox(height: 12),
+                        _ToggleTile(
+                          title: 'Storage',
+                          description:
+                              'StorageService (upload/download/publicUrl/remove sur un bucket) '
+                              '+ provider + un widget exemple d\'upload d\'avatar (image_picker).',
+                          value: state.generateStorage,
+                          onChanged: notifier.toggleGenerateStorage,
+                        ),
+                      ],
+
                       const SizedBox(height: 28),
                       _SectionHeader(
                         icon: Icons.bug_report_outlined,

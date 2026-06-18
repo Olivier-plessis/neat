@@ -1294,6 +1294,128 @@ void main() {
   );
 
   test(
+    'Supabase realtime + storage: live list + StorageService + avatar widget, analyzes cleanly',
+    () async {
+      const projectName = 'neat_realtime_test';
+      final logs = <String>[];
+
+      final pkgs = <PubPackage>[
+        _dep('hooks_riverpod', '3.3.1'),
+        _dep('flutter_hooks', '0.21.3+1'),
+        _dep('riverpod_annotation', '4.0.2'),
+        _dep('supabase_flutter', '2.14.1'),
+        _dep('go_router', '17.2.3'),
+        _dep('json_annotation', '4.11.0'),
+        _dep('freezed_annotation', '3.1.0'),
+        _dep('envied', '1.3.5'),
+        _dev('riverpod_generator', '4.0.3'),
+        _dev('build_runner', '2.15.0'),
+        _dev('freezed', '3.2.5'),
+        _dev('json_serializable', '6.13.0'),
+        _dev('envied_generator', '1.3.5'),
+      ];
+
+      final identity = IdentityState(
+        name: projectName,
+        organization: 'com.neat.test',
+        projectPath: tempRoot.path,
+        description: 'NEAT Supabase realtime + storage integration test',
+        targetPlatforms: const ['macos'],
+      );
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: identity,
+          packages: pkgs,
+          architecture: const ArchitectureState(
+            firstFeatureName: 'todo',
+            generateRealtime: true,
+            generateStorage: true,
+          ),
+          cicd: const CicdState(),
+          theme: const ThemeEngineState(approach: ThemeApproach.customM3),
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('Realtime/storage generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+
+      // Contract records both opt-ins.
+      final contract = jsonDecode(
+        File('${projectDir.path}/.neat.json').readAsStringSync(),
+      ) as Map<String, dynamic>;
+      expect(contract['generateRealtime'], isTrue);
+      expect(contract['generateStorage'], isTrue);
+
+      // ── Realtime ────────────────────────────────────────────────────────────
+      // The api source exposes a live stream.
+      final src = File(
+        '${projectDir.path}/lib/features/todo/data/sources/todo_api_source.dart',
+      ).readAsStringSync();
+      expect(src, contains('Stream<List<TodoModel>> watchAll()'));
+      expect(src, contains(".stream(primaryKey: ['id'])"));
+
+      // The repository interface + impl carry watchAll().
+      final iRepo = File(
+        '${projectDir.path}/lib/features/todo/domain/repositories/i_todo_repository.dart',
+      ).readAsStringSync();
+      expect(iRepo, contains('Stream<List<TodoEntity>> watchAll();'));
+
+      // The list notifier became a StreamNotifier over the repository stream.
+      final notifier = File(
+        '${projectDir.path}/lib/features/todo/presentation/providers/todo_provider.dart',
+      ).readAsStringSync();
+      expect(notifier, contains('Stream<List<TodoEntity>> build()'));
+      expect(notifier, contains('todoRepositoryProvider).watchAll()'));
+
+      // ── Storage ─────────────────────────────────────────────────────────────
+      final storage = File(
+        '${projectDir.path}/lib/core/storage/storage_service.dart',
+      ).readAsStringSync();
+      expect(storage, contains('class StorageService'));
+      expect(storage, contains('uploadBinary'));
+      // riverpod_generator turns this into `storageServiceProvider`.
+      expect(storage, contains('StorageService storageService(Ref ref)'));
+
+      // The sample widget consumes the generated provider + uploads.
+      final avatar = File(
+        '${projectDir.path}/lib/core/storage/avatar_upload_field.dart',
+      ).readAsStringSync();
+      expect(avatar, contains('ref.read(storageServiceProvider)'));
+      expect(avatar, contains('ImagePicker()'));
+
+      // image_picker was injected.
+      final pubspec = File('${projectDir.path}/pubspec.yaml').readAsStringSync();
+      expect(pubspec, contains('image_picker:'));
+
+      // The whole project analyzes without errors or warnings.
+      final analyze = await Process.run(
+        'flutter',
+        ['analyze', '--no-pub'],
+        workingDirectory: projectDir.path,
+      );
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      expect(
+        RegExp(r'(\d+ issues? found|No issues found)').hasMatch(out),
+        isTrue,
+        reason: 'flutter analyze did not run as expected:\n$out',
+      );
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where((l) => l.contains(' error •') || l.contains(' warning •'))
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason: 'realtime/storage project analyze reported issues:\n${errorLines.join('\n')}\n\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
+
+  test(
     'branding (logo) generates icon + splash config and still analyzes cleanly',
     () async {
       const projectName = 'neat_brand_test';

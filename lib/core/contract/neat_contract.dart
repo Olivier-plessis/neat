@@ -45,6 +45,8 @@ abstract class NeatContract with _$NeatContract {
     @Default(false) bool generateWidgetbook,
     @Default(false) bool useNavigationShell,
     @Default(false) bool generateAuth,
+    @Default(false) bool generateRealtime,
+    @Default(false) bool generateStorage,
     @Default(<String>[]) List<String> components,
   }) = _NeatContract;
 

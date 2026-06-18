@@ -109,8 +109,28 @@ class AgentsMdTemplate {
     }
 
     // ── Networking ──────────────────────────────────────────────────────────
+    final isSupabase = c.httpClient == 'supabase';
     b.writeln('## Networking\n');
-    if (hasHttp) {
+    if (isSupabase) {
+      b.writeln('- Backend is **Supabase** (`supabase_flutter` SDK). The client provider is '
+          '`supabaseClientProvider` (`lib/core/network/supabase_provider.dart`); the SDK is '
+          'initialized in `lib/core/bootstrap.dart` from the typed env.');
+      b.writeln('- Data access goes through `data/sources/<feature>_api_source.dart` (`.from(table)…`) → '
+          'repository → `Result<T>`. **Never call the client from widgets or domain.**');
+      if (c.generateRealtime) {
+        b.writeln('- **Realtime is on**: the first feature\'s list is a `StreamNotifier` over '
+            '`.stream(primaryKey: [\'id\'])`. The repository exposes `watchAll()`; the screen updates live.');
+      }
+      if (c.generateStorage) {
+        b.writeln('- **Storage is on**: use `StorageService` (`lib/core/storage/storage_service.dart`, '
+            'provider `storageServiceProvider`) for uploads/downloads. Sample: `avatar_upload_field.dart`.');
+      }
+      if (c.generateAuth) {
+        b.writeln('- **Auth is on**: `features/auth` (login/signup/forgot) + `AuthController`; a '
+            '`RouterNotifier` guards routes (`lib/core/router/router_notifier.dart`).');
+      }
+      b.writeln();
+    } else if (hasHttp) {
       final provider = c.httpClient == 'chopper' ? 'chopperClientProvider' : 'dioProvider';
       b.writeln('- HTTP via **${c.httpClient}**. The client provider is `$provider` '
           '(`lib/core/network/`).');

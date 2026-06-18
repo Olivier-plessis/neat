@@ -111,6 +111,16 @@ class LaunchGenerationUsecase {
         hasGoRouterBuilder &&
         useAnnotations;
 
+    // Opt-in Supabase Realtime: the first feature's list screen becomes live
+    // (StreamNotifier over `.stream()`). Needs the full DI graph (annotations).
+    final hasRealtime =
+        architecture.generateRealtime && httpClient == 'supabase' && useAnnotations;
+
+    // Opt-in Supabase Storage: a StorageService (+ provider + sample avatar
+    // upload widget). Needs riverpod for the provider + the supabase client.
+    final hasStorage =
+        architecture.generateStorage && httpClient == 'supabase' && hasRiverpod;
+
     // Offline-first turns the project into a Dart workspace with a dedicated
     // local-storage package (Drift). null when remote-only.
     final offlineFirst = architecture.storageStrategy.isOfflineFirst;
@@ -156,6 +166,8 @@ class LaunchGenerationUsecase {
       isWeb: isWeb,
       uiPackage: uiPackage,
       hasAuth: hasAuth,
+      hasRealtime: hasRealtime,
+      hasStorage: hasStorage,
     );
     onLog('[✓] Scaffold created.');
 
@@ -190,6 +202,7 @@ class LaunchGenerationUsecase {
       // DI graph: annotations + a remote source.
       addSkeletonizer: useAnnotations && hasHttpClient,
       addBranding: hasLogo,
+      addImagePicker: hasStorage,
     );
     onLog('[✓] Dependencies added to pubspec.yaml.');
 
@@ -270,6 +283,8 @@ class LaunchGenerationUsecase {
       mirrorTestStructure: architecture.mirrorTestStructure,
       generateWidgetbook: theme.generateWidgetbook,
       generateAuth: hasAuth,
+      generateRealtime: hasRealtime,
+      generateStorage: hasStorage,
       useNavigationShell: architecture.useNavigationShell && hasGoRouter,
       components: theme.components.map((c) => c.name).toList(),
     );
@@ -332,6 +347,8 @@ class LaunchGenerationUsecase {
     bool isWeb = false,
     String? uiPackage,
     bool hasAuth = false,
+    bool hasRealtime = false,
+    bool hasStorage = false,
   }) async {
     final lib = '${projectDir.path}/lib';
 
@@ -449,6 +466,18 @@ class LaunchGenerationUsecase {
       );
     }
 
+    // ── core/storage (Supabase Storage, opt-in) ──────────────────────────────
+    if (hasStorage) {
+      await _write(
+        '$lib/core/storage/storage_service.dart',
+        CoreTemplates.storageService(packageName: packageName, useAnnotations: useAnnotations),
+      );
+      await _write(
+        '$lib/core/storage/avatar_upload_field.dart',
+        CoreTemplates.avatarUploadField(packageName: packageName),
+      );
+    }
+
     // ── core/network (offline-first) ────────────────────────────────────────
     if (localStoragePackage != null) {
       await _write('$lib/core/network/network_info.dart', CoreTemplates.networkInfo());
@@ -553,6 +582,7 @@ class LaunchGenerationUsecase {
       localStoragePackage: localStoragePackage,
       hasSync: hasSync,
       isShellBranch: useShell,
+      realtime: hasRealtime,
     );
   }
 
@@ -989,6 +1019,7 @@ dev_dependencies:
     String? localStoragePackage,
     bool hasSync = false,
     bool isShellBranch = false,
+    bool realtime = false,
   }) async {
     await const FeatureScaffolder().writeFeature(
       lib: lib,
@@ -1009,6 +1040,7 @@ dev_dependencies:
       localStoragePackage: localStoragePackage,
       hasSync: hasSync,
       isShellBranch: isShellBranch,
+      realtime: realtime,
     );
   }
 
@@ -1119,6 +1151,7 @@ dev_dependencies:
     bool addConnectivity = false,
     bool addSkeletonizer = false,
     bool addBranding = false,
+    bool addImagePicker = false,
   }) async {
     final pubspecFile = File('${projectDir.path}/pubspec.yaml');
     if (!pubspecFile.existsSync()) return;
@@ -1134,6 +1167,7 @@ dev_dependencies:
       addConnectivity: addConnectivity,
       addSkeletonizer: addSkeletonizer,
       addBranding: addBranding,
+      addImagePicker: addImagePicker,
     );
 
     await pubspecFile.writeAsString(content);
@@ -1180,6 +1214,7 @@ dev_dependencies:
     bool addConnectivity = false,
     bool addSkeletonizer = false,
     bool addBranding = false,
+    bool addImagePicker = false,
   }) {
     final deps = StringBuffer();
     final devDeps = StringBuffer();
@@ -1245,6 +1280,10 @@ dev_dependencies:
     // skeletonizer for the generated list screen's loading placeholders.
     if (addSkeletonizer && !uniquePackages.any((p) => p.name == 'skeletonizer')) {
       deps.write('  skeletonizer: ^2.1.3\n');
+    }
+    // image_picker for the Supabase Storage sample avatar upload widget.
+    if (addImagePicker && !uniquePackages.any((p) => p.name == 'image_picker')) {
+      deps.write('  image_picker: ^1.1.2\n');
     }
     // Branding tooling: app icons + splash from the uploaded logo.
     if (addBranding) {
