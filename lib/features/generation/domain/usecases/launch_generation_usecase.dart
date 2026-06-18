@@ -12,6 +12,7 @@ import 'package:neat/features/generation/domain/services/templates/agents_md_tem
 import 'package:neat/features/generation/domain/services/templates/config_templates.dart';
 import 'package:neat/features/generation/domain/services/templates/core_templates.dart';
 import 'package:neat/features/generation/domain/services/templates/dart/app_templates.dart';
+import 'package:neat/features/generation/domain/services/templates/dart/auth_templates.dart';
 import 'package:neat/features/generation/domain/services/templates/dart/core_dart_templates.dart';
 import 'package:neat/features/generation/domain/services/templates/local_storage_templates.dart';
 import 'package:neat/features/identity/domain/models/identity_state.dart';
@@ -103,6 +104,13 @@ class LaunchGenerationUsecase {
     // Web among targets → bootstrap uses usePathUrlStrategy().
     final isWeb = identity.targetPlatforms.contains('web');
 
+    // Opt-in Supabase auth (login/signup/forgot + go_router guard). Requires the
+    // typed router (a riverpod-provider GoRouter) to wire the guard.
+    final hasAuth = architecture.generateAuth &&
+        httpClient == 'supabase' &&
+        hasGoRouterBuilder &&
+        useAnnotations;
+
     // Offline-first turns the project into a Dart workspace with a dedicated
     // local-storage package (Drift). null when remote-only.
     final offlineFirst = architecture.storageStrategy.isOfflineFirst;
@@ -147,6 +155,7 @@ class LaunchGenerationUsecase {
       hasSync: hasSync,
       isWeb: isWeb,
       uiPackage: uiPackage,
+      hasAuth: hasAuth,
     );
     onLog('[✓] Scaffold created.');
 
@@ -260,6 +269,7 @@ class LaunchGenerationUsecase {
       includeMappers: architecture.includeMappers,
       mirrorTestStructure: architecture.mirrorTestStructure,
       generateWidgetbook: theme.generateWidgetbook,
+      generateAuth: hasAuth,
       useNavigationShell: architecture.useNavigationShell && hasGoRouter,
       components: theme.components.map((c) => c.name).toList(),
     );
@@ -321,6 +331,7 @@ class LaunchGenerationUsecase {
     bool hasSync = false,
     bool isWeb = false,
     String? uiPackage,
+    bool hasAuth = false,
   }) async {
     final lib = '${projectDir.path}/lib';
 
@@ -377,7 +388,7 @@ class LaunchGenerationUsecase {
     // ── core/constants ────────────────────────────────────────────────────
     await _write(
       '$lib/core/constants/app_route_path.dart',
-      CoreTemplates.appRoutePath(featureName: featureName),
+      CoreTemplates.appRoutePath(featureName: featureName, hasAuth: hasAuth),
     );
 
     // ── core/error ────────────────────────────────────────────────────────
@@ -511,7 +522,13 @@ class LaunchGenerationUsecase {
         useShell: useShell,
         shellIcon: architecture.shellIcon,
         shellLabel: architecture.effectiveShellLabel,
+        hasAuth: hasAuth,
       );
+    }
+
+    // ── auth feature (opt-in, Supabase + go_router_builder) ──────────────────
+    if (hasAuth) {
+      await _writeAuth(lib: lib, packageName: packageName, featureName: featureName);
     }
 
     // ── components ────────────────────────────────────────────────────────
@@ -839,6 +856,62 @@ dev_dependencies:
     }
   }
 
+  // ── auth feature (opt-in: Supabase + go_router_builder + riverpod) ──────────
+
+  Future<void> _writeAuth({
+    required String lib,
+    required String packageName,
+    required String featureName,
+  }) async {
+    final a = '$lib/features/auth';
+    await _write(
+        '$a/domain/repositories/i_auth_repository.dart', AuthTemplates.iAuthRepository(packageName: packageName));
+    await _write('$a/data/repositories/auth_repository_impl.dart',
+        AuthTemplates.authRepositoryImpl(packageName: packageName));
+    await _write(
+        '$a/presentation/providers/auth_provider.dart', AuthTemplates.authProvider(packageName: packageName));
+    await _write(
+        '$a/presentation/providers/auth_providers.dart', AuthTemplates.authDi(packageName: packageName));
+    await _write(
+        '$a/presentation/screens/login_screen.dart', AuthTemplates.loginScreen(packageName: packageName));
+    await _write(
+        '$a/presentation/screens/signup_screen.dart', AuthTemplates.signupScreen(packageName: packageName));
+    await _write('$a/presentation/screens/forgot_password_screen.dart',
+        AuthTemplates.forgotPasswordScreen(packageName: packageName));
+    await _write(
+        '$a/presentation/routes/auth_routes.dart', AuthTemplates.authRoutesBuilder(packageName: packageName));
+
+    // The go_router guard. Logged-in users on an auth route go to the first
+    // feature's route ('/').
+    final homeRoute = 'AppRoutePath.${_camelCase(featureName)}';
+    await _write('$lib/core/router/router_notifier.dart',
+        AuthTemplates.routerNotifier(packageName: packageName, homeRoute: homeRoute));
+
+    // Aggregate the auth routes into the shared route table (at the anchors).
+    final routes = File('$lib/core/router/routes.dart');
+    if (routes.existsSync()) {
+      var s = await routes.readAsString();
+      s = _insertBeforeAnchor(s, '// neat:route-imports',
+          "import 'package:$packageName/features/auth/presentation/routes/auth_routes.dart' as auth;");
+      s = _insertBeforeAnchor(s, '// neat:route-entries', r'  ...auth.$appRoutes,');
+      await routes.writeAsString(s);
+    }
+  }
+
+  /// Inserts [line] before the line containing [anchor]. No-op if absent.
+  String _insertBeforeAnchor(String content, String anchor, String line) {
+    final idx = content.indexOf(anchor);
+    if (idx < 0) return content;
+    final lineStart = content.lastIndexOf('\n', idx) + 1;
+    return '${content.substring(0, lineStart)}$line\n${content.substring(lineStart)}';
+  }
+
+  static String _camelCase(String s) {
+    final parts = s.split('_');
+    final pascal = parts.map((w) => w.isEmpty ? '' : w[0].toUpperCase() + w.substring(1)).join();
+    return pascal.isEmpty ? pascal : pascal[0].toLowerCase() + pascal.substring(1);
+  }
+
   Future<void> _writeRouter({
     required String lib,
     required String packageName,
@@ -848,11 +921,12 @@ dev_dependencies:
     bool useShell = false,
     String shellIcon = 'home',
     String shellLabel = '',
+    bool hasAuth = false,
   }) async {
     final r = '$lib/core/router';
 
-    // app_router.dart is unchanged: initialLocation = AppRoutePath.<first> = '/',
-    // which is exactly the shell's first branch path → the app boots in the shell.
+    // app_router.dart: initialLocation = AppRoutePath.<first> = '/'. With auth a
+    // RouterNotifier guard is wired (refreshListenable + redirect).
     await _write(
       '$r/app_router.dart',
       hasGoRouterBuilder
@@ -860,6 +934,7 @@ dev_dependencies:
               packageName: packageName,
               featureName: featureName,
               useAnnotations: useAnnotations,
+              hasAuth: hasAuth,
             )
           : CoreTemplates.appRouter(packageName: packageName, featureName: featureName),
     );
