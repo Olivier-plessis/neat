@@ -26,6 +26,7 @@ _NeatContract _$NeatContractFromJson(Map<String, dynamic> json) =>
       mirrorTestStructure: json['mirrorTestStructure'] as bool? ?? true,
       generateWidgetbook: json['generateWidgetbook'] as bool? ?? false,
       useNavigationShell: json['useNavigationShell'] as bool? ?? false,
+      generateAuth: json['generateAuth'] as bool? ?? false,
       components:
           (json['components'] as List<dynamic>?)
               ?.map((e) => e as String)
@@ -53,5 +54,6 @@ Map<String, dynamic> _$NeatContractToJson(_NeatContract instance) =>
       'mirrorTestStructure': instance.mirrorTestStructure,
       'generateWidgetbook': instance.generateWidgetbook,
       'useNavigationShell': instance.useNavigationShell,
+      'generateAuth': instance.generateAuth,
       'components': instance.components,
     };

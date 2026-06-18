@@ -1143,13 +1143,13 @@ void main() {
       ).readAsStringSync();
       expect(di, contains('TodoApiSource(ref.watch(supabaseClientProvider))'));
 
-      // bootstrap initializes Supabase from the typed env.
+      // bootstrap initializes Supabase from the typed env (modern publishableKey).
       final bootstrap = File('${projectDir.path}/lib/core/bootstrap.dart').readAsStringSync();
       expect(bootstrap, contains('Supabase.initialize('));
-      expect(bootstrap, contains('AppEnv.current.supabaseUrl'));
+      expect(bootstrap, contains('publishableKey: AppEnv.current.supabasePublishableKey'));
       // envied contract carries the supabase keys — and NOT the REST apiBaseUrl.
       final appEnv = File('${projectDir.path}/lib/core/env/app_env.dart').readAsStringSync();
-      expect(appEnv, contains('supabaseAnonKey'));
+      expect(appEnv, contains('supabasePublishableKey'));
       expect(appEnv, isNot(contains('apiBaseUrl')), reason: 'REST leftover in a Supabase project');
       final envDev = File('${projectDir.path}/.env.dev').readAsStringSync();
       expect(envDev, contains('SUPABASE_URL='));
@@ -1175,6 +1175,119 @@ void main() {
         errorLines,
         isEmpty,
         reason: 'Supabase project analyze reported issues:\n${errorLines.join('\n')}\n\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
+
+  test(
+    'Supabase auth: login/signup/forgot + go_router guard, analyzes cleanly',
+    () async {
+      const projectName = 'neat_auth_test';
+      final logs = <String>[];
+
+      final pkgs = <PubPackage>[
+        _dep('hooks_riverpod', '3.3.1'),
+        _dep('flutter_hooks', '0.21.3+1'),
+        _dep('riverpod_annotation', '4.0.2'),
+        _dep('supabase_flutter', '2.14.1'),
+        _dep('go_router', '17.2.3'),
+        _dep('json_annotation', '4.11.0'),
+        _dep('freezed_annotation', '3.1.0'),
+        _dep('envied', '1.3.5'),
+        _dev('riverpod_generator', '4.0.3'),
+        _dev('build_runner', '2.15.0'),
+        _dev('freezed', '3.2.5'),
+        _dev('json_serializable', '6.13.0'),
+        _dev('envied_generator', '1.3.5'),
+        _dev('go_router_builder', '4.3.0'),
+      ];
+
+      final identity = IdentityState(
+        name: projectName,
+        organization: 'com.neat.test',
+        projectPath: tempRoot.path,
+        description: 'NEAT Supabase auth integration test',
+        targetPlatforms: const ['macos'],
+      );
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: identity,
+          packages: pkgs,
+          architecture: const ArchitectureState(generateAuth: true),
+          cicd: const CicdState(),
+          theme: const ThemeEngineState(approach: ThemeApproach.customM3),
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('Auth generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+
+      // Contract records auth.
+      final contract = jsonDecode(
+        File('${projectDir.path}/.neat.json').readAsStringSync(),
+      ) as Map<String, dynamic>;
+      expect(contract['generateAuth'], isTrue);
+
+      // The auth feature + the three screens + repository + guard exist.
+      for (final relPath in const [
+        'lib/features/auth/domain/repositories/i_auth_repository.dart',
+        'lib/features/auth/data/repositories/auth_repository_impl.dart',
+        'lib/features/auth/presentation/providers/auth_provider.dart',
+        'lib/features/auth/presentation/providers/auth_providers.dart',
+        'lib/features/auth/presentation/screens/login_screen.dart',
+        'lib/features/auth/presentation/screens/signup_screen.dart',
+        'lib/features/auth/presentation/screens/forgot_password_screen.dart',
+        'lib/features/auth/presentation/routes/auth_routes.dart',
+        'lib/core/router/router_notifier.dart',
+      ]) {
+        expect(File('${projectDir.path}/$relPath').existsSync(), isTrue,
+            reason: 'expected auth file missing: $relPath');
+      }
+
+      // Repository talks to Supabase auth.
+      final repo = File(
+        '${projectDir.path}/lib/features/auth/data/repositories/auth_repository_impl.dart',
+      ).readAsStringSync();
+      expect(repo, contains('signInWithPassword'));
+      expect(repo, contains('_client.auth.signUp'));
+
+      // Path constants + the router guard are wired.
+      final routePath = File(
+        '${projectDir.path}/lib/core/constants/app_route_path.dart',
+      ).readAsStringSync();
+      expect(routePath, contains("static const String login = '/login';"));
+      final appRouter =
+          File('${projectDir.path}/lib/core/router/app_router.dart').readAsStringSync();
+      expect(appRouter, contains('refreshListenable: guard'));
+      expect(appRouter, contains('redirect: guard.redirect'));
+      final routes =
+          File('${projectDir.path}/lib/core/router/routes.dart').readAsStringSync();
+      expect(routes, contains(r'...auth.$appRoutes'));
+
+      // The whole project analyzes without errors or warnings.
+      final analyze = await Process.run(
+        'flutter',
+        ['analyze', '--no-pub'],
+        workingDirectory: projectDir.path,
+      );
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      expect(
+        RegExp(r'(\d+ issues? found|No issues found)').hasMatch(out),
+        isTrue,
+        reason: 'flutter analyze did not run as expected:\n$out',
+      );
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where((l) => l.contains(' error •') || l.contains(' warning •'))
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason: 'auth project analyze reported issues:\n${errorLines.join('\n')}\n\n$out',
       );
     },
     timeout: const Timeout(Duration(minutes: 12)),

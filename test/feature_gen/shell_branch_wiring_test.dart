@@ -15,6 +15,9 @@ void main() {
       expect(out, contains("NavigationDestination(icon: Icon(Icons.home), label: 'Home')"));
       expect(out, contains('// neat:shell-destinations'));
       expect(out, contains('navigationShell.goBranch('));
+      // A NavigationBar needs >= 2 destinations — guard so a single-branch shell
+      // doesn't crash at startup (Flutter asserts destinations.length >= 2).
+      expect(out, contains('destinations.length >= 2'));
     });
 
     test('shellDestination renders a single destination line', () {

@@ -3,14 +3,19 @@ class CoreTemplates {
 
   // ── core/constants/app_route_path.dart ────────────────────────────────────
 
-  static String appRoutePath({required String featureName}) {
+  static String appRoutePath({required String featureName, bool hasAuth = false}) {
     final c = _camel(featureName);
+    final auth = hasAuth
+        ? "\n  static const String login = '/login';\n"
+            "  static const String signup = '/signup';\n"
+            "  static const String forgotPassword = '/forgot-password';\n"
+        : '';
     return '''class AppRoutePath {
   AppRoutePath._();
 
   /// First feature — app entry point.
   static const String $c = '/';
-  // neat:routes — feature route constants are inserted above this line.
+$auth  // neat:routes — feature route constants are inserted above this line.
 }
 ''';
   }
@@ -20,7 +25,7 @@ class CoreTemplates {
   static String appEnv({bool hasApiBaseUrl = true, bool hasSupabase = false}) {
     final api = hasApiBaseUrl ? '  abstract final String apiBaseUrl;\n' : '';
     final supa = hasSupabase
-        ? '  abstract final String supabaseUrl;\n  abstract final String supabaseAnonKey;\n'
+        ? '  abstract final String supabaseUrl;\n  abstract final String supabasePublishableKey;\n'
         : '';
     return '''/// The environment contract shared by every flavor.
 abstract interface class AppEnvFields {
@@ -63,8 +68,8 @@ abstract interface class AppEnv implements AppEnvFields {
   @EnviedField(varName: 'SUPABASE_URL')
   static final String supabaseUrl = _${p}EnvVars.supabaseUrl;
 
-  @EnviedField(varName: 'SUPABASE_ANON_KEY')
-  static final String supabaseAnonKey = _${p}EnvVars.supabaseAnonKey;'''
+  @EnviedField(varName: 'SUPABASE_PUBLISHABLE_KEY')
+  static final String supabasePublishableKey = _${p}EnvVars.supabasePublishableKey;'''
         : '';
     final supaImpl = hasSupabase
         ? '''
@@ -73,7 +78,7 @@ abstract interface class AppEnv implements AppEnvFields {
   final String supabaseUrl = ${p}EnvVars.supabaseUrl;
 
   @override
-  final String supabaseAnonKey = ${p}EnvVars.supabaseAnonKey;'''
+  final String supabasePublishableKey = ${p}EnvVars.supabasePublishableKey;'''
         : '';
     return '''import 'package:envied/envied.dart';
 import 'package:$packageName/core/env/app_env.dart';
@@ -100,7 +105,7 @@ class ${p}Env implements AppEnv {
     bool hasSupabase = false,
   }) {
     final api = hasApiBaseUrl ? 'API_BASE_URL=\n' : '';
-    final supa = hasSupabase ? 'SUPABASE_URL=\nSUPABASE_ANON_KEY=\n' : '';
+    final supa = hasSupabase ? 'SUPABASE_URL=\nSUPABASE_PUBLISHABLE_KEY=\n' : '';
     return '''APP_NAME=$appName
 $api$supa''';
   }
@@ -724,23 +729,41 @@ final appRouter = GoRouter(
     required String packageName,
     required String featureName,
     required bool useAnnotations,
+    bool hasAuth = false,
   }) {
     final c = _camel(featureName);
     if (useAnnotations) {
+      // Auth wires a RouterNotifier guard (refreshListenable + redirect).
+      final authImport = hasAuth
+          ? "import 'package:$packageName/core/router/router_notifier.dart';\n"
+          : '';
+      final body = hasAuth
+          ? '''RouterConfig<Object> appRouter(Ref ref) {
+  // riverpod strips the "Notifier" suffix: RouterNotifier → routerProvider.
+  final guard = ref.watch(routerProvider.notifier);
+  return GoRouter(
+    initialLocation: AppRoutePath.$c,
+    debugLogDiagnostics: true,
+    refreshListenable: guard,
+    redirect: guard.redirect,
+    routes: appRoutes,
+  );
+}'''
+          : '''RouterConfig<Object> appRouter(Ref ref) => GoRouter(
+  initialLocation: AppRoutePath.$c,
+  debugLogDiagnostics: true,
+  routes: appRoutes,
+);''';
       return '''import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:$packageName/core/constants/app_route_path.dart';
-import 'routes.dart';
+${authImport}import 'routes.dart';
 
 part 'app_router.g.dart';
 
 @Riverpod(keepAlive: true)
-RouterConfig<Object> appRouter(Ref ref) => GoRouter(
-  initialLocation: AppRoutePath.$c,
-  debugLogDiagnostics: true,
-  routes: appRoutes,
-);
+$body
 ''';
     }
     return '''import 'package:go_router/go_router.dart';
@@ -937,19 +960,24 @@ class ScaffoldWithNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final destinations = <NavigationDestination>[
+      const NavigationDestination(icon: Icon(Icons.$firstIcon), label: '$firstLabel'),
+      // neat:shell-destinations
+    ];
     return Scaffold(
       body: navigationShell,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: navigationShell.currentIndex,
-        onDestinationSelected: (index) => navigationShell.goBranch(
-          index,
-          initialLocation: index == navigationShell.currentIndex,
-        ),
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.$firstIcon), label: '$firstLabel'),
-          // neat:shell-destinations
-        ],
-      ),
+      // A NavigationBar requires >= 2 destinations. With a single shell branch
+      // we show none until more branches are added (e.g. via the NEAT Workshop).
+      bottomNavigationBar: destinations.length >= 2
+          ? NavigationBar(
+              selectedIndex: navigationShell.currentIndex,
+              onDestinationSelected: (index) => navigationShell.goBranch(
+                index,
+                initialLocation: index == navigationShell.currentIndex,
+              ),
+              destinations: destinations,
+            )
+          : null,
     );
   }
 }
@@ -957,7 +985,7 @@ class ScaffoldWithNavBar extends StatelessWidget {
 
   /// A single `NavigationDestination` line, inserted at the destinations anchor.
   static String shellDestination({required String icon, required String label}) =>
-      "          NavigationDestination(icon: Icon(Icons.$icon), label: '$label'),";
+      "      const NavigationDestination(icon: Icon(Icons.$icon), label: '$label'),";
 
   // ── Shell route — plain go_router ─────────────────────────────────────────
 
