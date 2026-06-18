@@ -31,7 +31,13 @@ mixin _$ArchitectureState {
 /// annotations (the list becomes a StreamNotifier).
  bool get generateRealtime;/// Opt-in: generate a Supabase **Storage** service (+ provider + a sample
 /// avatar upload widget). Only effective with a Supabase backend + riverpod.
- bool get generateStorage;
+ bool get generateStorage;/// Path to an uploaded Firebase config JSON (the web app config or a
+/// FlutterFire export). When a Firebase backend is selected, NEAT generates
+/// `firebase_options.dart` from it. Blank → compile-safe placeholders.
+ String get firebaseConfigPath;/// Opt-in: add Google + Apple OAuth sign-in to the auth feature (via
+/// `FirebaseAuth.signInWithProvider`). Only effective with a Firebase
+/// backend + auth enabled.
+ bool get generateOAuth;
 /// Create a copy of ArchitectureState
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -42,16 +48,16 @@ $ArchitectureStateCopyWith<ArchitectureState> get copyWith => _$ArchitectureStat
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ArchitectureState&&(identical(other.pattern, pattern) || other.pattern == pattern)&&(identical(other.includeMappers, includeMappers) || other.includeMappers == includeMappers)&&(identical(other.useRiverpodAnnotations, useRiverpodAnnotations) || other.useRiverpodAnnotations == useRiverpodAnnotations)&&(identical(other.useCubit, useCubit) || other.useCubit == useCubit)&&(identical(other.mirrorTestStructure, mirrorTestStructure) || other.mirrorTestStructure == mirrorTestStructure)&&(identical(other.firstFeatureName, firstFeatureName) || other.firstFeatureName == firstFeatureName)&&(identical(other.storageStrategy, storageStrategy) || other.storageStrategy == storageStrategy)&&(identical(other.useNavigationShell, useNavigationShell) || other.useNavigationShell == useNavigationShell)&&(identical(other.shellIcon, shellIcon) || other.shellIcon == shellIcon)&&(identical(other.shellLabel, shellLabel) || other.shellLabel == shellLabel)&&(identical(other.generateAuth, generateAuth) || other.generateAuth == generateAuth)&&(identical(other.generateRealtime, generateRealtime) || other.generateRealtime == generateRealtime)&&(identical(other.generateStorage, generateStorage) || other.generateStorage == generateStorage));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ArchitectureState&&(identical(other.pattern, pattern) || other.pattern == pattern)&&(identical(other.includeMappers, includeMappers) || other.includeMappers == includeMappers)&&(identical(other.useRiverpodAnnotations, useRiverpodAnnotations) || other.useRiverpodAnnotations == useRiverpodAnnotations)&&(identical(other.useCubit, useCubit) || other.useCubit == useCubit)&&(identical(other.mirrorTestStructure, mirrorTestStructure) || other.mirrorTestStructure == mirrorTestStructure)&&(identical(other.firstFeatureName, firstFeatureName) || other.firstFeatureName == firstFeatureName)&&(identical(other.storageStrategy, storageStrategy) || other.storageStrategy == storageStrategy)&&(identical(other.useNavigationShell, useNavigationShell) || other.useNavigationShell == useNavigationShell)&&(identical(other.shellIcon, shellIcon) || other.shellIcon == shellIcon)&&(identical(other.shellLabel, shellLabel) || other.shellLabel == shellLabel)&&(identical(other.generateAuth, generateAuth) || other.generateAuth == generateAuth)&&(identical(other.generateRealtime, generateRealtime) || other.generateRealtime == generateRealtime)&&(identical(other.generateStorage, generateStorage) || other.generateStorage == generateStorage)&&(identical(other.firebaseConfigPath, firebaseConfigPath) || other.firebaseConfigPath == firebaseConfigPath)&&(identical(other.generateOAuth, generateOAuth) || other.generateOAuth == generateOAuth));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,pattern,includeMappers,useRiverpodAnnotations,useCubit,mirrorTestStructure,firstFeatureName,storageStrategy,useNavigationShell,shellIcon,shellLabel,generateAuth,generateRealtime,generateStorage);
+int get hashCode => Object.hash(runtimeType,pattern,includeMappers,useRiverpodAnnotations,useCubit,mirrorTestStructure,firstFeatureName,storageStrategy,useNavigationShell,shellIcon,shellLabel,generateAuth,generateRealtime,generateStorage,firebaseConfigPath,generateOAuth);
 
 @override
 String toString() {
-  return 'ArchitectureState(pattern: $pattern, includeMappers: $includeMappers, useRiverpodAnnotations: $useRiverpodAnnotations, useCubit: $useCubit, mirrorTestStructure: $mirrorTestStructure, firstFeatureName: $firstFeatureName, storageStrategy: $storageStrategy, useNavigationShell: $useNavigationShell, shellIcon: $shellIcon, shellLabel: $shellLabel, generateAuth: $generateAuth, generateRealtime: $generateRealtime, generateStorage: $generateStorage)';
+  return 'ArchitectureState(pattern: $pattern, includeMappers: $includeMappers, useRiverpodAnnotations: $useRiverpodAnnotations, useCubit: $useCubit, mirrorTestStructure: $mirrorTestStructure, firstFeatureName: $firstFeatureName, storageStrategy: $storageStrategy, useNavigationShell: $useNavigationShell, shellIcon: $shellIcon, shellLabel: $shellLabel, generateAuth: $generateAuth, generateRealtime: $generateRealtime, generateStorage: $generateStorage, firebaseConfigPath: $firebaseConfigPath, generateOAuth: $generateOAuth)';
 }
 
 
@@ -62,7 +68,7 @@ abstract mixin class $ArchitectureStateCopyWith<$Res>  {
   factory $ArchitectureStateCopyWith(ArchitectureState value, $Res Function(ArchitectureState) _then) = _$ArchitectureStateCopyWithImpl;
 @useResult
 $Res call({
- StructuralPattern pattern, bool includeMappers, bool useRiverpodAnnotations, bool useCubit, bool mirrorTestStructure, String firstFeatureName, StorageStrategy storageStrategy, bool useNavigationShell, String shellIcon, String shellLabel, bool generateAuth, bool generateRealtime, bool generateStorage
+ StructuralPattern pattern, bool includeMappers, bool useRiverpodAnnotations, bool useCubit, bool mirrorTestStructure, String firstFeatureName, StorageStrategy storageStrategy, bool useNavigationShell, String shellIcon, String shellLabel, bool generateAuth, bool generateRealtime, bool generateStorage, String firebaseConfigPath, bool generateOAuth
 });
 
 
@@ -79,7 +85,7 @@ class _$ArchitectureStateCopyWithImpl<$Res>
 
 /// Create a copy of ArchitectureState
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? pattern = null,Object? includeMappers = null,Object? useRiverpodAnnotations = null,Object? useCubit = null,Object? mirrorTestStructure = null,Object? firstFeatureName = null,Object? storageStrategy = null,Object? useNavigationShell = null,Object? shellIcon = null,Object? shellLabel = null,Object? generateAuth = null,Object? generateRealtime = null,Object? generateStorage = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? pattern = null,Object? includeMappers = null,Object? useRiverpodAnnotations = null,Object? useCubit = null,Object? mirrorTestStructure = null,Object? firstFeatureName = null,Object? storageStrategy = null,Object? useNavigationShell = null,Object? shellIcon = null,Object? shellLabel = null,Object? generateAuth = null,Object? generateRealtime = null,Object? generateStorage = null,Object? firebaseConfigPath = null,Object? generateOAuth = null,}) {
   return _then(_self.copyWith(
 pattern: null == pattern ? _self.pattern : pattern // ignore: cast_nullable_to_non_nullable
 as StructuralPattern,includeMappers: null == includeMappers ? _self.includeMappers : includeMappers // ignore: cast_nullable_to_non_nullable
@@ -94,6 +100,8 @@ as String,shellLabel: null == shellLabel ? _self.shellLabel : shellLabel // igno
 as String,generateAuth: null == generateAuth ? _self.generateAuth : generateAuth // ignore: cast_nullable_to_non_nullable
 as bool,generateRealtime: null == generateRealtime ? _self.generateRealtime : generateRealtime // ignore: cast_nullable_to_non_nullable
 as bool,generateStorage: null == generateStorage ? _self.generateStorage : generateStorage // ignore: cast_nullable_to_non_nullable
+as bool,firebaseConfigPath: null == firebaseConfigPath ? _self.firebaseConfigPath : firebaseConfigPath // ignore: cast_nullable_to_non_nullable
+as String,generateOAuth: null == generateOAuth ? _self.generateOAuth : generateOAuth // ignore: cast_nullable_to_non_nullable
 as bool,
   ));
 }
@@ -179,10 +187,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( StructuralPattern pattern,  bool includeMappers,  bool useRiverpodAnnotations,  bool useCubit,  bool mirrorTestStructure,  String firstFeatureName,  StorageStrategy storageStrategy,  bool useNavigationShell,  String shellIcon,  String shellLabel,  bool generateAuth,  bool generateRealtime,  bool generateStorage)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( StructuralPattern pattern,  bool includeMappers,  bool useRiverpodAnnotations,  bool useCubit,  bool mirrorTestStructure,  String firstFeatureName,  StorageStrategy storageStrategy,  bool useNavigationShell,  String shellIcon,  String shellLabel,  bool generateAuth,  bool generateRealtime,  bool generateStorage,  String firebaseConfigPath,  bool generateOAuth)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _ArchitectureState() when $default != null:
-return $default(_that.pattern,_that.includeMappers,_that.useRiverpodAnnotations,_that.useCubit,_that.mirrorTestStructure,_that.firstFeatureName,_that.storageStrategy,_that.useNavigationShell,_that.shellIcon,_that.shellLabel,_that.generateAuth,_that.generateRealtime,_that.generateStorage);case _:
+return $default(_that.pattern,_that.includeMappers,_that.useRiverpodAnnotations,_that.useCubit,_that.mirrorTestStructure,_that.firstFeatureName,_that.storageStrategy,_that.useNavigationShell,_that.shellIcon,_that.shellLabel,_that.generateAuth,_that.generateRealtime,_that.generateStorage,_that.firebaseConfigPath,_that.generateOAuth);case _:
   return orElse();
 
 }
@@ -200,10 +208,10 @@ return $default(_that.pattern,_that.includeMappers,_that.useRiverpodAnnotations,
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( StructuralPattern pattern,  bool includeMappers,  bool useRiverpodAnnotations,  bool useCubit,  bool mirrorTestStructure,  String firstFeatureName,  StorageStrategy storageStrategy,  bool useNavigationShell,  String shellIcon,  String shellLabel,  bool generateAuth,  bool generateRealtime,  bool generateStorage)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( StructuralPattern pattern,  bool includeMappers,  bool useRiverpodAnnotations,  bool useCubit,  bool mirrorTestStructure,  String firstFeatureName,  StorageStrategy storageStrategy,  bool useNavigationShell,  String shellIcon,  String shellLabel,  bool generateAuth,  bool generateRealtime,  bool generateStorage,  String firebaseConfigPath,  bool generateOAuth)  $default,) {final _that = this;
 switch (_that) {
 case _ArchitectureState():
-return $default(_that.pattern,_that.includeMappers,_that.useRiverpodAnnotations,_that.useCubit,_that.mirrorTestStructure,_that.firstFeatureName,_that.storageStrategy,_that.useNavigationShell,_that.shellIcon,_that.shellLabel,_that.generateAuth,_that.generateRealtime,_that.generateStorage);case _:
+return $default(_that.pattern,_that.includeMappers,_that.useRiverpodAnnotations,_that.useCubit,_that.mirrorTestStructure,_that.firstFeatureName,_that.storageStrategy,_that.useNavigationShell,_that.shellIcon,_that.shellLabel,_that.generateAuth,_that.generateRealtime,_that.generateStorage,_that.firebaseConfigPath,_that.generateOAuth);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -220,10 +228,10 @@ return $default(_that.pattern,_that.includeMappers,_that.useRiverpodAnnotations,
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( StructuralPattern pattern,  bool includeMappers,  bool useRiverpodAnnotations,  bool useCubit,  bool mirrorTestStructure,  String firstFeatureName,  StorageStrategy storageStrategy,  bool useNavigationShell,  String shellIcon,  String shellLabel,  bool generateAuth,  bool generateRealtime,  bool generateStorage)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( StructuralPattern pattern,  bool includeMappers,  bool useRiverpodAnnotations,  bool useCubit,  bool mirrorTestStructure,  String firstFeatureName,  StorageStrategy storageStrategy,  bool useNavigationShell,  String shellIcon,  String shellLabel,  bool generateAuth,  bool generateRealtime,  bool generateStorage,  String firebaseConfigPath,  bool generateOAuth)?  $default,) {final _that = this;
 switch (_that) {
 case _ArchitectureState() when $default != null:
-return $default(_that.pattern,_that.includeMappers,_that.useRiverpodAnnotations,_that.useCubit,_that.mirrorTestStructure,_that.firstFeatureName,_that.storageStrategy,_that.useNavigationShell,_that.shellIcon,_that.shellLabel,_that.generateAuth,_that.generateRealtime,_that.generateStorage);case _:
+return $default(_that.pattern,_that.includeMappers,_that.useRiverpodAnnotations,_that.useCubit,_that.mirrorTestStructure,_that.firstFeatureName,_that.storageStrategy,_that.useNavigationShell,_that.shellIcon,_that.shellLabel,_that.generateAuth,_that.generateRealtime,_that.generateStorage,_that.firebaseConfigPath,_that.generateOAuth);case _:
   return null;
 
 }
@@ -235,7 +243,7 @@ return $default(_that.pattern,_that.includeMappers,_that.useRiverpodAnnotations,
 
 
 class _ArchitectureState extends ArchitectureState {
-  const _ArchitectureState({this.pattern = StructuralPattern.featureFirst, this.includeMappers = true, this.useRiverpodAnnotations = true, this.useCubit = false, this.mirrorTestStructure = true, this.firstFeatureName = 'home', this.storageStrategy = StorageStrategy.remoteOnly, this.useNavigationShell = false, this.shellIcon = 'home', this.shellLabel = '', this.generateAuth = false, this.generateRealtime = false, this.generateStorage = false}): super._();
+  const _ArchitectureState({this.pattern = StructuralPattern.featureFirst, this.includeMappers = true, this.useRiverpodAnnotations = true, this.useCubit = false, this.mirrorTestStructure = true, this.firstFeatureName = 'home', this.storageStrategy = StorageStrategy.remoteOnly, this.useNavigationShell = false, this.shellIcon = 'home', this.shellLabel = '', this.generateAuth = false, this.generateRealtime = false, this.generateStorage = false, this.firebaseConfigPath = '', this.generateOAuth = false}): super._();
   
 
 @override@JsonKey() final  StructuralPattern pattern;
@@ -268,6 +276,14 @@ class _ArchitectureState extends ArchitectureState {
 /// Opt-in: generate a Supabase **Storage** service (+ provider + a sample
 /// avatar upload widget). Only effective with a Supabase backend + riverpod.
 @override@JsonKey() final  bool generateStorage;
+/// Path to an uploaded Firebase config JSON (the web app config or a
+/// FlutterFire export). When a Firebase backend is selected, NEAT generates
+/// `firebase_options.dart` from it. Blank → compile-safe placeholders.
+@override@JsonKey() final  String firebaseConfigPath;
+/// Opt-in: add Google + Apple OAuth sign-in to the auth feature (via
+/// `FirebaseAuth.signInWithProvider`). Only effective with a Firebase
+/// backend + auth enabled.
+@override@JsonKey() final  bool generateOAuth;
 
 /// Create a copy of ArchitectureState
 /// with the given fields replaced by the non-null parameter values.
@@ -279,16 +295,16 @@ _$ArchitectureStateCopyWith<_ArchitectureState> get copyWith => __$ArchitectureS
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ArchitectureState&&(identical(other.pattern, pattern) || other.pattern == pattern)&&(identical(other.includeMappers, includeMappers) || other.includeMappers == includeMappers)&&(identical(other.useRiverpodAnnotations, useRiverpodAnnotations) || other.useRiverpodAnnotations == useRiverpodAnnotations)&&(identical(other.useCubit, useCubit) || other.useCubit == useCubit)&&(identical(other.mirrorTestStructure, mirrorTestStructure) || other.mirrorTestStructure == mirrorTestStructure)&&(identical(other.firstFeatureName, firstFeatureName) || other.firstFeatureName == firstFeatureName)&&(identical(other.storageStrategy, storageStrategy) || other.storageStrategy == storageStrategy)&&(identical(other.useNavigationShell, useNavigationShell) || other.useNavigationShell == useNavigationShell)&&(identical(other.shellIcon, shellIcon) || other.shellIcon == shellIcon)&&(identical(other.shellLabel, shellLabel) || other.shellLabel == shellLabel)&&(identical(other.generateAuth, generateAuth) || other.generateAuth == generateAuth)&&(identical(other.generateRealtime, generateRealtime) || other.generateRealtime == generateRealtime)&&(identical(other.generateStorage, generateStorage) || other.generateStorage == generateStorage));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ArchitectureState&&(identical(other.pattern, pattern) || other.pattern == pattern)&&(identical(other.includeMappers, includeMappers) || other.includeMappers == includeMappers)&&(identical(other.useRiverpodAnnotations, useRiverpodAnnotations) || other.useRiverpodAnnotations == useRiverpodAnnotations)&&(identical(other.useCubit, useCubit) || other.useCubit == useCubit)&&(identical(other.mirrorTestStructure, mirrorTestStructure) || other.mirrorTestStructure == mirrorTestStructure)&&(identical(other.firstFeatureName, firstFeatureName) || other.firstFeatureName == firstFeatureName)&&(identical(other.storageStrategy, storageStrategy) || other.storageStrategy == storageStrategy)&&(identical(other.useNavigationShell, useNavigationShell) || other.useNavigationShell == useNavigationShell)&&(identical(other.shellIcon, shellIcon) || other.shellIcon == shellIcon)&&(identical(other.shellLabel, shellLabel) || other.shellLabel == shellLabel)&&(identical(other.generateAuth, generateAuth) || other.generateAuth == generateAuth)&&(identical(other.generateRealtime, generateRealtime) || other.generateRealtime == generateRealtime)&&(identical(other.generateStorage, generateStorage) || other.generateStorage == generateStorage)&&(identical(other.firebaseConfigPath, firebaseConfigPath) || other.firebaseConfigPath == firebaseConfigPath)&&(identical(other.generateOAuth, generateOAuth) || other.generateOAuth == generateOAuth));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,pattern,includeMappers,useRiverpodAnnotations,useCubit,mirrorTestStructure,firstFeatureName,storageStrategy,useNavigationShell,shellIcon,shellLabel,generateAuth,generateRealtime,generateStorage);
+int get hashCode => Object.hash(runtimeType,pattern,includeMappers,useRiverpodAnnotations,useCubit,mirrorTestStructure,firstFeatureName,storageStrategy,useNavigationShell,shellIcon,shellLabel,generateAuth,generateRealtime,generateStorage,firebaseConfigPath,generateOAuth);
 
 @override
 String toString() {
-  return 'ArchitectureState(pattern: $pattern, includeMappers: $includeMappers, useRiverpodAnnotations: $useRiverpodAnnotations, useCubit: $useCubit, mirrorTestStructure: $mirrorTestStructure, firstFeatureName: $firstFeatureName, storageStrategy: $storageStrategy, useNavigationShell: $useNavigationShell, shellIcon: $shellIcon, shellLabel: $shellLabel, generateAuth: $generateAuth, generateRealtime: $generateRealtime, generateStorage: $generateStorage)';
+  return 'ArchitectureState(pattern: $pattern, includeMappers: $includeMappers, useRiverpodAnnotations: $useRiverpodAnnotations, useCubit: $useCubit, mirrorTestStructure: $mirrorTestStructure, firstFeatureName: $firstFeatureName, storageStrategy: $storageStrategy, useNavigationShell: $useNavigationShell, shellIcon: $shellIcon, shellLabel: $shellLabel, generateAuth: $generateAuth, generateRealtime: $generateRealtime, generateStorage: $generateStorage, firebaseConfigPath: $firebaseConfigPath, generateOAuth: $generateOAuth)';
 }
 
 
@@ -299,7 +315,7 @@ abstract mixin class _$ArchitectureStateCopyWith<$Res> implements $ArchitectureS
   factory _$ArchitectureStateCopyWith(_ArchitectureState value, $Res Function(_ArchitectureState) _then) = __$ArchitectureStateCopyWithImpl;
 @override @useResult
 $Res call({
- StructuralPattern pattern, bool includeMappers, bool useRiverpodAnnotations, bool useCubit, bool mirrorTestStructure, String firstFeatureName, StorageStrategy storageStrategy, bool useNavigationShell, String shellIcon, String shellLabel, bool generateAuth, bool generateRealtime, bool generateStorage
+ StructuralPattern pattern, bool includeMappers, bool useRiverpodAnnotations, bool useCubit, bool mirrorTestStructure, String firstFeatureName, StorageStrategy storageStrategy, bool useNavigationShell, String shellIcon, String shellLabel, bool generateAuth, bool generateRealtime, bool generateStorage, String firebaseConfigPath, bool generateOAuth
 });
 
 
@@ -316,7 +332,7 @@ class __$ArchitectureStateCopyWithImpl<$Res>
 
 /// Create a copy of ArchitectureState
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? pattern = null,Object? includeMappers = null,Object? useRiverpodAnnotations = null,Object? useCubit = null,Object? mirrorTestStructure = null,Object? firstFeatureName = null,Object? storageStrategy = null,Object? useNavigationShell = null,Object? shellIcon = null,Object? shellLabel = null,Object? generateAuth = null,Object? generateRealtime = null,Object? generateStorage = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? pattern = null,Object? includeMappers = null,Object? useRiverpodAnnotations = null,Object? useCubit = null,Object? mirrorTestStructure = null,Object? firstFeatureName = null,Object? storageStrategy = null,Object? useNavigationShell = null,Object? shellIcon = null,Object? shellLabel = null,Object? generateAuth = null,Object? generateRealtime = null,Object? generateStorage = null,Object? firebaseConfigPath = null,Object? generateOAuth = null,}) {
   return _then(_ArchitectureState(
 pattern: null == pattern ? _self.pattern : pattern // ignore: cast_nullable_to_non_nullable
 as StructuralPattern,includeMappers: null == includeMappers ? _self.includeMappers : includeMappers // ignore: cast_nullable_to_non_nullable
@@ -331,6 +347,8 @@ as String,shellLabel: null == shellLabel ? _self.shellLabel : shellLabel // igno
 as String,generateAuth: null == generateAuth ? _self.generateAuth : generateAuth // ignore: cast_nullable_to_non_nullable
 as bool,generateRealtime: null == generateRealtime ? _self.generateRealtime : generateRealtime // ignore: cast_nullable_to_non_nullable
 as bool,generateStorage: null == generateStorage ? _self.generateStorage : generateStorage // ignore: cast_nullable_to_non_nullable
+as bool,firebaseConfigPath: null == firebaseConfigPath ? _self.firebaseConfigPath : firebaseConfigPath // ignore: cast_nullable_to_non_nullable
+as String,generateOAuth: null == generateOAuth ? _self.generateOAuth : generateOAuth // ignore: cast_nullable_to_non_nullable
 as bool,
   ));
 }

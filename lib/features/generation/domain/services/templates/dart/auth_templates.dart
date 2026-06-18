@@ -6,21 +6,81 @@ class AuthTemplates {
   AuthTemplates._();
 
   // ── domain/repositories/i_auth_repository.dart ────────────────────────────
-  static String iAuthRepository({required String packageName}) =>
-      '''import 'package:$packageName/core/result/result.dart';
+  static String iAuthRepository({required String packageName, bool oauth = false}) {
+    final oauthContract = oauth
+        ? '\n  Future<Result<bool>> signInWithGoogle();'
+            '\n  Future<Result<bool>> signInWithApple();'
+        : '';
+    return '''import 'package:$packageName/core/result/result.dart';
 
 /// Authentication contract. Implementations map provider errors to [Result].
 abstract interface class IAuthRepository {
   Future<Result<bool>> signIn({required String email, required String password});
   Future<Result<bool>> signUp({required String email, required String password});
   Future<Result<bool>> signOut();
-  Future<Result<bool>> sendPasswordReset(String email);
+  Future<Result<bool>> sendPasswordReset(String email);$oauthContract
 }
 ''';
+  }
 
   // ── data/repositories/auth_repository_impl.dart ───────────────────────────
-  static String authRepositoryImpl({required String packageName}) =>
-      '''import 'package:supabase_flutter/supabase_flutter.dart';
+  static String authRepositoryImpl({
+    required String packageName,
+    String backend = 'supabase',
+    bool oauth = false,
+  }) {
+    if (backend == 'firebase') {
+      // OAuth via Firebase's built-in provider flow (no extra SDKs). Works on
+      // web/iOS/macOS/Android; on mobile it opens an OAuth web flow.
+      final oauthMethods = oauth
+          ? '''
+
+  @override
+  Future<Result<bool>> signInWithGoogle() =>
+      _guard(() => _auth.signInWithProvider(GoogleAuthProvider()));
+
+  @override
+  Future<Result<bool>> signInWithApple() =>
+      _guard(() => _auth.signInWithProvider(AppleAuthProvider()));'''
+          : '';
+      return '''import 'package:firebase_auth/firebase_auth.dart';
+import 'package:$packageName/core/result/result.dart';
+import 'package:$packageName/features/auth/domain/repositories/i_auth_repository.dart';
+
+class AuthRepositoryImpl implements IAuthRepository {
+  const AuthRepositoryImpl(this._auth);
+
+  final FirebaseAuth _auth;
+
+  @override
+  Future<Result<bool>> signIn({required String email, required String password}) =>
+      _guard(() => _auth.signInWithEmailAndPassword(email: email, password: password));
+
+  @override
+  Future<Result<bool>> signUp({required String email, required String password}) =>
+      _guard(() => _auth.createUserWithEmailAndPassword(email: email, password: password));
+
+  @override
+  Future<Result<bool>> signOut() => _guard(_auth.signOut);
+
+  @override
+  Future<Result<bool>> sendPasswordReset(String email) =>
+      _guard(() => _auth.sendPasswordResetEmail(email: email));$oauthMethods
+
+  Future<Result<bool>> _guard(Future<void> Function() action) async {
+    try {
+      await action();
+      return Result.success(true);
+    } on FirebaseAuthException catch (e) {
+      return Result.failure(e.message ?? e.code);
+    } catch (e) {
+      return Result.failure(e.toString());
+    }
+  }
+}
+''';
+    }
+    return '''import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:$packageName/core/result/result.dart';
 import 'package:$packageName/features/auth/domain/repositories/i_auth_repository.dart';
 
@@ -56,10 +116,32 @@ class AuthRepositoryImpl implements IAuthRepository {
   }
 }
 ''';
+  }
 
   // ── presentation/providers/auth_provider.dart ─────────────────────────────
-  static String authProvider({required String packageName}) =>
-      '''import 'package:riverpod_annotation/riverpod_annotation.dart';
+  static String authProvider({required String packageName, String backend = 'supabase'}) {
+    if (backend == 'firebase') {
+      return '''import 'package:firebase_auth/firebase_auth.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:$packageName/core/network/firebase_provider.dart';
+
+part 'auth_provider.g.dart';
+
+/// The current authenticated user (null when signed out). Rebuilds on every
+/// Firebase auth change, so the router guard reacts automatically.
+@Riverpod(keepAlive: true)
+class AuthController extends _\$AuthController {
+  @override
+  User? build() {
+    final auth = ref.watch(firebaseAuthProvider);
+    final sub = auth.authStateChanges().listen((user) => state = user);
+    ref.onDispose(sub.cancel);
+    return auth.currentUser;
+  }
+}
+''';
+    }
+    return '''import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:$packageName/core/network/supabase_provider.dart';
 
@@ -80,11 +162,17 @@ class AuthController extends _\$AuthController {
   }
 }
 ''';
+  }
 
   // ── presentation/providers/auth_providers.dart (DI) ───────────────────────
-  static String authDi({required String packageName}) =>
-      '''import 'package:riverpod_annotation/riverpod_annotation.dart';
-import 'package:$packageName/core/network/supabase_provider.dart';
+  static String authDi({required String packageName, String backend = 'supabase'}) {
+    final isFirebase = backend == 'firebase';
+    final providerImport = isFirebase
+        ? "import 'package:$packageName/core/network/firebase_provider.dart';"
+        : "import 'package:$packageName/core/network/supabase_provider.dart';";
+    final clientProvider = isFirebase ? 'firebaseAuthProvider' : 'supabaseClientProvider';
+    return '''import 'package:riverpod_annotation/riverpod_annotation.dart';
+$providerImport
 import 'package:$packageName/features/auth/data/repositories/auth_repository_impl.dart';
 import 'package:$packageName/features/auth/domain/repositories/i_auth_repository.dart';
 
@@ -92,15 +180,20 @@ part 'auth_providers.g.dart';
 
 @Riverpod(keepAlive: true)
 IAuthRepository authRepository(Ref ref) =>
-    AuthRepositoryImpl(ref.watch(supabaseClientProvider));
+    AuthRepositoryImpl(ref.watch($clientProvider));
 ''';
+  }
 
   // ── core/router/router_notifier.dart (go_router guard) ────────────────────
-  static String routerNotifier({required String packageName, required String homeRoute}) =>
+  static String routerNotifier({
+    required String packageName,
+    required String homeRoute,
+    String backend = 'supabase',
+  }) =>
       '''import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:${backend == 'firebase' ? 'firebase_auth/firebase_auth.dart' : 'supabase_flutter/supabase_flutter.dart'}';
 import 'package:$packageName/core/constants/app_route_path.dart';
 import 'package:$packageName/features/auth/presentation/providers/auth_provider.dart';
 
@@ -144,13 +237,14 @@ class RouterNotifier extends _\$RouterNotifier implements Listenable {
 ''';
 
   // ── presentation/screens ──────────────────────────────────────────────────
-  static String loginScreen({required String packageName}) => _authForm(
+  static String loginScreen({required String packageName, bool oauth = false}) => _authForm(
         packageName: packageName,
         className: 'LoginScreen',
         title: 'Sign in',
         action: 'signIn',
         buttonLabel: 'Sign in',
         withPassword: true,
+        oauth: oauth,
         footer: '''
             TextButton(
               onPressed: () => context.go(AppRoutePath.signup),
@@ -199,7 +293,60 @@ class RouterNotifier extends _\$RouterNotifier implements Listenable {
     required String buttonLabel,
     required bool withPassword,
     required String footer,
+    bool oauth = false,
   }) {
+    // OAuth buttons (Google + Apple via Firebase's signInWithProvider). They
+    // reuse the form's loading/error state.
+    final oauthBlock = oauth
+        ? '''
+              const SizedBox(height: 16),
+              const Row(
+                children: [
+                  Expanded(child: Divider()),
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 8),
+                    child: Text('or'),
+                  ),
+                  Expanded(child: Divider()),
+                ],
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: loading.value
+                    ? null
+                    : () async {
+                        loading.value = true;
+                        error.value = null;
+                        final result =
+                            await ref.read(authRepositoryProvider).signInWithGoogle();
+                        loading.value = false;
+                        result.fold(
+                          onSuccess: (_) {},
+                          onFailure: (message) => error.value = message,
+                        );
+                      },
+                icon: const Icon(Icons.login),
+                label: const Text('Continue with Google'),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: loading.value
+                    ? null
+                    : () async {
+                        loading.value = true;
+                        error.value = null;
+                        final result =
+                            await ref.read(authRepositoryProvider).signInWithApple();
+                        loading.value = false;
+                        result.fold(
+                          onSuccess: (_) {},
+                          onFailure: (message) => error.value = message,
+                        );
+                      },
+                icon: const Icon(Icons.apple),
+                label: const Text('Continue with Apple'),
+              ),'''
+        : '';
     final pwdController = withPassword
         ? '    final password = useTextEditingController();\n'
         : '';
@@ -270,7 +417,7 @@ $pwdController    final loading = useState(false);
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : const Text('$buttonLabel'),
-              ),$footer
+              ),$oauthBlock$footer
             ],
           ),
         ),

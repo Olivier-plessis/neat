@@ -93,6 +93,7 @@ class ${p}Notifier extends _\$${p}Notifier {
     imports.writeln(switch (httpClient) {
       'chopper' => "import 'package:$packageName/core/network/chopper_client_provider.dart';",
       'supabase' => "import 'package:$packageName/core/network/supabase_provider.dart';",
+      'firebase' => "import 'package:$packageName/core/network/firebase_provider.dart';",
       _ => "import 'package:$packageName/core/network/dio_provider.dart';",
     });
     if (hasSync) {
@@ -122,6 +123,7 @@ class ${p}Notifier extends _\$${p}Notifier {
     final apiConstruct = switch (httpClient) {
       'chopper' => '${p}ApiSource.create(ref.watch(chopperClientProvider))',
       'supabase' => '${p}ApiSource(ref.watch(supabaseClientProvider))',
+      'firebase' => '${p}ApiSource(ref.watch(firestoreProvider))',
       _ => '${p}ApiSource(ref.watch(dioProvider))',
     };
 

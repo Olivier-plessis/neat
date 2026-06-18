@@ -469,6 +469,53 @@ ${realtime ? '''
 ''';
     }
 
+    if (httpClient == 'firebase') {
+      return '''import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:$packageName/features/$featureName/data/models/${featureName}_model.dart';
+
+/// Firestore-backed remote source. The document id is merged into the model's
+/// JSON, so the repository / usecases / providers stay unchanged.
+class ${p}ApiSource {
+  const ${p}ApiSource(this._db);
+
+  final FirebaseFirestore _db;
+
+  static const String _collection = '${featureName}s';
+
+  CollectionReference<Map<String, dynamic>> get _ref => _db.collection(_collection);
+
+  ${p}Model _fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) =>
+      ${p}Model.fromJson({...?doc.data(), 'id': doc.id});
+
+  Future<List<${p}Model>> getAll() async {
+    final snap = await _ref.get();
+    return snap.docs.map(_fromDoc).toList();
+  }
+${realtime ? '''
+  /// Realtime: a live stream of the collection via Firestore snapshots.
+  Stream<List<${p}Model>> watchAll() =>
+      _ref.snapshots().map((snap) => snap.docs.map(_fromDoc).toList());
+''' : ''}
+  Future<${p}Model> getById(String id) async {
+    final doc = await _ref.doc(id).get();
+    return _fromDoc(doc);
+  }
+
+  Future<${p}Model> add(${p}Model body) async {
+    final ref = await _ref.add(body.toJson()..remove('id'));
+    return _fromDoc(await ref.get());
+  }
+
+  Future<${p}Model> update(String id, ${p}Model body) async {
+    await _ref.doc(id).update(body.toJson()..remove('id'));
+    return _fromDoc(await _ref.doc(id).get());
+  }
+
+  Future<void> delete(String id) => _ref.doc(id).delete();
+}
+''';
+    }
+
     // Dio plain
     return '''import 'package:dio/dio.dart';
 import 'package:$packageName/features/$featureName/data/models/${featureName}_model.dart';

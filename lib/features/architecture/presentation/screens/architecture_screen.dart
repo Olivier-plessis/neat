@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:neat/core/theme/app_theme.dart';
@@ -29,7 +32,13 @@ class ArchitectureScreen extends ConsumerWidget {
     final hasSupabase = ref.watch(
       selectedPackagesProvider.select((list) => list.any((p) => p.name == 'supabase_flutter')),
     );
-    final canAuth = hasSupabase && hasGoRouterBuilder;
+    final hasFirebase = ref.watch(
+      selectedPackagesProvider.select((list) => list.any((p) => p.name == 'cloud_firestore')),
+    );
+    // A single backend drives the opt-ins; Firebase takes precedence if both.
+    final hasBackend = hasSupabase || hasFirebase;
+    final backendLabel = hasFirebase ? 'Firebase' : 'Supabase';
+    final canAuth = hasBackend && hasGoRouterBuilder;
     final tree = const GenerateTreeUsecase().execute(
       state,
       hasRiverpod: hasRiverpod,
@@ -213,30 +222,59 @@ class ArchitectureScreen extends ConsumerWidget {
                         if (canAuth) ...[
                           const SizedBox(height: 12),
                           _ToggleTile(
-                            title: 'Generate Auth (Supabase)',
+                            title: 'Generate Auth ($backendLabel)',
                             description:
                                 'Feature auth complète : écrans login/signup/forgot, AuthController, '
                                 'et un guard go_router (redirect → /login si non connecté).',
                             value: state.generateAuth,
                             onChanged: notifier.toggleGenerateAuth,
                           ),
+                          if (state.generateAuth && hasFirebase) ...[
+                            const SizedBox(height: 12),
+                            _ToggleTile(
+                              title: 'OAuth (Google + Apple)',
+                              description:
+                                  'Boutons Google/Apple sur l\'écran login via '
+                                  '`signInWithProvider` (aucune dépendance en plus). Active les '
+                                  'providers dans la console Firebase.',
+                              value: state.generateOAuth,
+                              onChanged: notifier.toggleGenerateOAuth,
+                            ),
+                          ],
                         ],
                       ],
 
-                      if (hasSupabase && hasRiverpod) ...[
+                      if (hasBackend && hasRiverpod) ...[
                         const SizedBox(height: 28),
                         _SectionHeader(
                           icon: Icons.cloud_outlined,
-                          label: 'Backend (Supabase)',
+                          label: 'Backend ($backendLabel)',
                         ),
                         const SizedBox(height: 12),
+                        if (hasFirebase) ...[
+                          _FirebaseConfigCard(
+                            configPath: state.firebaseConfigPath,
+                            onPick: () async {
+                              final result = await FilePicker.pickFiles(
+                                type: FileType.custom,
+                                allowedExtensions: const ['json'],
+                              );
+                              final path = result?.files.single.path;
+                              if (path != null) notifier.setFirebaseConfigPath(path);
+                            },
+                            onRemove: () => notifier.setFirebaseConfigPath(''),
+                          ),
+                          const SizedBox(height: 12),
+                        ],
                         if (state.useRiverpodAnnotations)
                           _ToggleTile(
                             title: 'Realtime list',
-                            description:
-                                'La liste de la 1ʳᵉ feature devient live : un StreamNotifier '
-                                's\'abonne à Supabase `.stream()` et l\'écran se met à jour à '
-                                'chaque INSERT/UPDATE/DELETE.',
+                            description: hasFirebase
+                                ? 'La liste de la 1ʳᵉ feature devient live : un StreamNotifier '
+                                    's\'abonne aux `.snapshots()` Firestore.'
+                                : 'La liste de la 1ʳᵉ feature devient live : un StreamNotifier '
+                                    's\'abonne à Supabase `.stream()` et l\'écran se met à jour à '
+                                    'chaque INSERT/UPDATE/DELETE.',
                             value: state.generateRealtime,
                             onChanged: notifier.toggleGenerateRealtime,
                           ),
@@ -244,8 +282,8 @@ class ArchitectureScreen extends ConsumerWidget {
                         _ToggleTile(
                           title: 'Storage',
                           description:
-                              'StorageService (upload/download/publicUrl/remove sur un bucket) '
-                              '+ provider + un widget exemple d\'upload d\'avatar (image_picker).',
+                              'StorageService (upload/download/remove) + provider + un widget '
+                              'exemple d\'upload d\'avatar (image_picker).',
                           value: state.generateStorage,
                           onChanged: notifier.toggleGenerateStorage,
                         ),
@@ -631,6 +669,82 @@ class _ToggleTile extends StatelessWidget {
           ),
         ],
       ),
+      ),
+    );
+  }
+}
+
+// ── Firebase config upload ─────────────────────────────────────────────────────
+
+/// Upload the Firebase config JSON → NEAT generates `firebase_options.dart`.
+class _FirebaseConfigCard extends StatelessWidget {
+  const _FirebaseConfigCard({
+    required this.configPath,
+    required this.onPick,
+    required this.onRemove,
+  });
+
+  final String configPath;
+  final VoidCallback onPick;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasFile = configPath.isNotEmpty;
+    final fileName = hasFile ? configPath.split(Platform.pathSeparator).last : null;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF18181C),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            hasFile ? Icons.check_circle_outline : Icons.upload_file_outlined,
+            color: hasFile ? AppTheme.colorPrimaryCyan : Colors.grey[500],
+            size: 20,
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Firebase config (JSON)',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  fileName ??
+                      'Optionnel : la web app config (apiKey, projectId…). Sans fichier, des '
+                          'placeholders compilables sont générés.',
+                  style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          if (hasFile)
+            IconButton(
+              icon: const Icon(Icons.close, size: 18, color: Colors.white54),
+              onPressed: onRemove,
+              tooltip: 'Retirer',
+            ),
+          OutlinedButton(
+            onPressed: onPick,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppTheme.colorPrimaryCyan,
+              side: BorderSide(color: AppTheme.colorPrimaryCyan.withValues(alpha: 0.5)),
+            ),
+            child: Text(hasFile ? 'Changer' : 'Upload'),
+          ),
+        ],
       ),
     );
   }
