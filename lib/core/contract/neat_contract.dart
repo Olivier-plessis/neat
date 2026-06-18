@@ -47,6 +47,7 @@ abstract class NeatContract with _$NeatContract {
     @Default(false) bool generateAuth,
     @Default(false) bool generateRealtime,
     @Default(false) bool generateStorage,
+    @Default(false) bool generateOAuth,
     @Default(<String>[]) List<String> components,
   }) = _NeatContract;
 

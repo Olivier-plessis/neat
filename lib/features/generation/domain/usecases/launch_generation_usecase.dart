@@ -78,11 +78,15 @@ class LaunchGenerationUsecase {
     final hasRetrofit = packages.any((p) => p.name == 'retrofit');
     final hasChopper = packages.any((p) => p.name == 'chopper');
     final hasDio = packages.any((p) => p.name == 'dio');
-    // Supabase is a *backend* (SDK) that plays the same role as a REST client:
-    // it backs the feature's remote source. It takes precedence as the source.
+    // Supabase / Firebase are *backends* (SDKs) that play the same role as a
+    // REST client: they back the feature's remote source. They take precedence.
     final hasSupabase = packages.any((p) => p.name == 'supabase_flutter');
-    final hasHttpClient = hasRetrofit || hasChopper || hasDio || hasSupabase;
-    final httpClient = hasSupabase
+    final hasFirebase = packages.any((p) => p.name == 'cloud_firestore');
+    final hasHttpClient =
+        hasRetrofit || hasChopper || hasDio || hasSupabase || hasFirebase;
+    final httpClient = hasFirebase
+        ? 'firebase'
+        : hasSupabase
         ? 'supabase'
         : hasRetrofit
         ? 'retrofit'
@@ -104,26 +108,35 @@ class LaunchGenerationUsecase {
     // Web among targets → bootstrap uses usePathUrlStrategy().
     final isWeb = identity.targetPlatforms.contains('web');
 
-    // Opt-in Supabase auth (login/signup/forgot + go_router guard). Requires the
-    // typed router (a riverpod-provider GoRouter) to wire the guard.
+    // The backend (Supabase or Firebase) drives the opt-in capabilities below.
+    final hasBackend = httpClient == 'supabase' || httpClient == 'firebase';
+
+    // Opt-in auth (login/signup/forgot + go_router guard). Requires the typed
+    // router (a riverpod-provider GoRouter) to wire the guard.
     final hasAuth = architecture.generateAuth &&
-        httpClient == 'supabase' &&
+        hasBackend &&
         hasGoRouterBuilder &&
         useAnnotations;
 
-    // Opt-in Supabase Realtime: the first feature's list screen becomes live
-    // (StreamNotifier over `.stream()`). Needs the full DI graph (annotations).
-    final hasRealtime =
-        architecture.generateRealtime && httpClient == 'supabase' && useAnnotations;
+    // Opt-in Realtime: the first feature's list screen becomes live (a
+    // StreamNotifier over `.stream()` / Firestore `.snapshots()`). Needs the
+    // full DI graph (annotations).
+    final hasRealtime = architecture.generateRealtime && hasBackend && useAnnotations;
 
-    // Opt-in Supabase Storage: a StorageService (+ provider + sample avatar
-    // upload widget). Needs riverpod for the provider + the supabase client.
-    final hasStorage =
-        architecture.generateStorage && httpClient == 'supabase' && hasRiverpod;
+    // Opt-in Storage: a StorageService (+ provider + sample avatar upload
+    // widget). Needs riverpod for the provider + the backend client.
+    final hasStorage = architecture.generateStorage && hasBackend && hasRiverpod;
+
+    // Opt-in OAuth (Google + Apple) on the auth feature, via Firebase's
+    // signInWithProvider. Requires the auth feature on a Firebase backend.
+    final hasOAuth = architecture.generateOAuth && hasAuth && httpClient == 'firebase';
 
     // Offline-first turns the project into a Dart workspace with a dedicated
-    // local-storage package (Drift). null when remote-only.
-    final offlineFirst = architecture.storageStrategy.isOfflineFirst;
+    // local-storage package (Drift). null when remote-only. Firestore ships its
+    // own offline persistence, so a Firebase backend disables the Drift layer
+    // (enabled in bootstrap via Settings(persistenceEnabled: true)) to avoid two
+    // competing caches.
+    final offlineFirst = architecture.storageStrategy.isOfflineFirst && !hasFirebase;
     final localStoragePackage = offlineFirst ? '${packageName}_local_storage' : null;
     // Sync strategy adds the Outbox table + SyncService + repository write path.
     final hasSync = architecture.storageStrategy.hasSync;
@@ -168,6 +181,7 @@ class LaunchGenerationUsecase {
       hasAuth: hasAuth,
       hasRealtime: hasRealtime,
       hasStorage: hasStorage,
+      hasOAuth: hasOAuth,
     );
     onLog('[✓] Scaffold created.');
 
@@ -203,6 +217,9 @@ class LaunchGenerationUsecase {
       addSkeletonizer: useAnnotations && hasHttpClient,
       addBranding: hasLogo,
       addImagePicker: hasStorage,
+      addFirebaseCore: httpClient == 'firebase',
+      addFirebaseAuth: hasAuth && httpClient == 'firebase',
+      addFirebaseStorage: hasStorage && httpClient == 'firebase',
     );
     onLog('[✓] Dependencies added to pubspec.yaml.');
 
@@ -285,6 +302,7 @@ class LaunchGenerationUsecase {
       generateAuth: hasAuth,
       generateRealtime: hasRealtime,
       generateStorage: hasStorage,
+      generateOAuth: hasOAuth,
       useNavigationShell: architecture.useNavigationShell && hasGoRouter,
       components: theme.components.map((c) => c.name).toList(),
     );
@@ -349,6 +367,7 @@ class LaunchGenerationUsecase {
     bool hasAuth = false,
     bool hasRealtime = false,
     bool hasStorage = false,
+    bool hasOAuth = false,
   }) async {
     final lib = '${projectDir.path}/lib';
 
@@ -366,6 +385,7 @@ class LaunchGenerationUsecase {
         useEnvied: hasEnvied,
         isWeb: isWeb,
         hasSupabase: httpClient == 'supabase',
+        hasFirebase: httpClient == 'firebase',
       ),
     );
 
@@ -376,7 +396,9 @@ class LaunchGenerationUsecase {
         lib,
         packageName,
         hasSupabase: httpClient == 'supabase',
-        hasApiBaseUrl: httpClient != 'supabase',
+        // No REST base URL for the SDK backends (Firebase config lives in
+        // firebase_options.dart; Supabase keys are separate fields).
+        hasApiBaseUrl: httpClient != 'supabase' && httpClient != 'firebase',
       );
     }
 
@@ -466,11 +488,42 @@ class LaunchGenerationUsecase {
       );
     }
 
-    // ── core/storage (Supabase Storage, opt-in) ──────────────────────────────
+    // ── core/network + firebase_options (Firebase backend) ───────────────────
+    if (httpClient == 'firebase' && hasRiverpod) {
+      await _write(
+        '$lib/core/network/firebase_provider.dart',
+        CoreTemplates.firebaseProvider(
+          packageName: packageName,
+          useAnnotations: useAnnotations,
+          hasAuth: hasAuth,
+          hasStorage: hasStorage,
+        ),
+      );
+      // firebase_options.dart from the uploaded config JSON (stub values if
+      // none was provided — the project still compiles).
+      final config = _readFirebaseConfig(architecture.firebaseConfigPath);
+      await _write('$lib/firebase_options.dart', CoreTemplates.firebaseOptions(config));
+      // A short guide to swap in real per-platform values.
+      await _write('${projectDir.path}/docs/FIREBASE.md', CoreTemplates.firebaseDoc(packageName));
+      // Firestore Security Rules scaffold + Firebase CLI wiring.
+      await _write(
+        '${projectDir.path}/firestore.rules',
+        CoreTemplates.firestoreRules(featureName: featureName, hasAuth: hasAuth),
+      );
+      await _write(
+          '${projectDir.path}/firestore.indexes.json', CoreTemplates.firestoreIndexes());
+      await _write('${projectDir.path}/firebase.json', CoreTemplates.firebaseJson());
+    }
+
+    // ── core/storage (Storage, opt-in) ───────────────────────────────────────
     if (hasStorage) {
       await _write(
         '$lib/core/storage/storage_service.dart',
-        CoreTemplates.storageService(packageName: packageName, useAnnotations: useAnnotations),
+        CoreTemplates.storageService(
+          packageName: packageName,
+          useAnnotations: useAnnotations,
+          backend: httpClient,
+        ),
       );
       await _write(
         '$lib/core/storage/avatar_upload_field.dart',
@@ -557,7 +610,13 @@ class LaunchGenerationUsecase {
 
     // ── auth feature (opt-in, Supabase + go_router_builder) ──────────────────
     if (hasAuth) {
-      await _writeAuth(lib: lib, packageName: packageName, featureName: featureName);
+      await _writeAuth(
+        lib: lib,
+        packageName: packageName,
+        featureName: featureName,
+        backend: httpClient,
+        oauth: hasOAuth,
+      );
     }
 
     // ── components ────────────────────────────────────────────────────────
@@ -892,18 +951,20 @@ dev_dependencies:
     required String lib,
     required String packageName,
     required String featureName,
+    String backend = 'supabase',
+    bool oauth = false,
   }) async {
     final a = '$lib/features/auth';
-    await _write(
-        '$a/domain/repositories/i_auth_repository.dart', AuthTemplates.iAuthRepository(packageName: packageName));
+    await _write('$a/domain/repositories/i_auth_repository.dart',
+        AuthTemplates.iAuthRepository(packageName: packageName, oauth: oauth));
     await _write('$a/data/repositories/auth_repository_impl.dart',
-        AuthTemplates.authRepositoryImpl(packageName: packageName));
-    await _write(
-        '$a/presentation/providers/auth_provider.dart', AuthTemplates.authProvider(packageName: packageName));
-    await _write(
-        '$a/presentation/providers/auth_providers.dart', AuthTemplates.authDi(packageName: packageName));
-    await _write(
-        '$a/presentation/screens/login_screen.dart', AuthTemplates.loginScreen(packageName: packageName));
+        AuthTemplates.authRepositoryImpl(packageName: packageName, backend: backend, oauth: oauth));
+    await _write('$a/presentation/providers/auth_provider.dart',
+        AuthTemplates.authProvider(packageName: packageName, backend: backend));
+    await _write('$a/presentation/providers/auth_providers.dart',
+        AuthTemplates.authDi(packageName: packageName, backend: backend));
+    await _write('$a/presentation/screens/login_screen.dart',
+        AuthTemplates.loginScreen(packageName: packageName, oauth: oauth));
     await _write(
         '$a/presentation/screens/signup_screen.dart', AuthTemplates.signupScreen(packageName: packageName));
     await _write('$a/presentation/screens/forgot_password_screen.dart',
@@ -915,7 +976,7 @@ dev_dependencies:
     // feature's route ('/').
     final homeRoute = 'AppRoutePath.${_camelCase(featureName)}';
     await _write('$lib/core/router/router_notifier.dart',
-        AuthTemplates.routerNotifier(packageName: packageName, homeRoute: homeRoute));
+        AuthTemplates.routerNotifier(packageName: packageName, homeRoute: homeRoute, backend: backend));
 
     // Aggregate the auth routes into the shared route table (at the anchors).
     final routes = File('$lib/core/router/routes.dart');
@@ -934,6 +995,46 @@ dev_dependencies:
     if (idx < 0) return content;
     final lineStart = content.lastIndexOf('\n', idx) + 1;
     return '${content.substring(0, lineStart)}$line\n${content.substring(lineStart)}';
+  }
+
+  /// Parses the uploaded Firebase config JSON into a flat map of option keys.
+  /// Accepts either the web app config (`{apiKey, projectId, …}`) or a nested
+  /// shape that wraps it under common keys. Falls back to placeholder values
+  /// (so the project still compiles) when no/invalid file is provided.
+  static Map<String, dynamic> _readFirebaseConfig(String path) {
+    const fallback = <String, dynamic>{
+      'apiKey': 'TODO_API_KEY',
+      'appId': 'TODO_APP_ID',
+      'messagingSenderId': 'TODO_SENDER_ID',
+      'projectId': 'TODO_PROJECT_ID',
+    };
+    if (path.isEmpty) return fallback;
+    final file = File(path);
+    if (!file.existsSync()) return fallback;
+    try {
+      final decoded = jsonDecode(file.readAsStringSync());
+      if (decoded is! Map<String, dynamic>) return fallback;
+      // Unwrap common nesting (e.g. {"firebase": {...}} or {"web": {...}}).
+      Map<String, dynamic> cfg = decoded;
+      for (final key in const ['firebaseConfig', 'firebase', 'web', 'result']) {
+        final inner = cfg[key];
+        if (inner is Map<String, dynamic> && inner.containsKey('apiKey')) {
+          cfg = inner;
+          break;
+        }
+      }
+      // Keep only string-valued config keys; merge over the fallback so any
+      // missing required field still has a compile-safe placeholder.
+      final cleaned = <String, dynamic>{...fallback};
+      for (final entry in cfg.entries) {
+        if (entry.value is String && (entry.value as String).isNotEmpty) {
+          cleaned[entry.key] = entry.value;
+        }
+      }
+      return cleaned;
+    } catch (_) {
+      return fallback;
+    }
   }
 
   static String _camelCase(String s) {
@@ -1152,6 +1253,9 @@ dev_dependencies:
     bool addSkeletonizer = false,
     bool addBranding = false,
     bool addImagePicker = false,
+    bool addFirebaseCore = false,
+    bool addFirebaseAuth = false,
+    bool addFirebaseStorage = false,
   }) async {
     final pubspecFile = File('${projectDir.path}/pubspec.yaml');
     if (!pubspecFile.existsSync()) return;
@@ -1168,6 +1272,9 @@ dev_dependencies:
       addSkeletonizer: addSkeletonizer,
       addBranding: addBranding,
       addImagePicker: addImagePicker,
+      addFirebaseCore: addFirebaseCore,
+      addFirebaseAuth: addFirebaseAuth,
+      addFirebaseStorage: addFirebaseStorage,
     );
 
     await pubspecFile.writeAsString(content);
@@ -1215,6 +1322,9 @@ dev_dependencies:
     bool addSkeletonizer = false,
     bool addBranding = false,
     bool addImagePicker = false,
+    bool addFirebaseCore = false,
+    bool addFirebaseAuth = false,
+    bool addFirebaseStorage = false,
   }) {
     final deps = StringBuffer();
     final devDeps = StringBuffer();
@@ -1281,9 +1391,20 @@ dev_dependencies:
     if (addSkeletonizer && !uniquePackages.any((p) => p.name == 'skeletonizer')) {
       deps.write('  skeletonizer: ^2.1.3\n');
     }
-    // image_picker for the Supabase Storage sample avatar upload widget.
+    // image_picker for the Storage sample avatar upload widget.
     if (addImagePicker && !uniquePackages.any((p) => p.name == 'image_picker')) {
       deps.write('  image_picker: ^1.1.2\n');
+    }
+    // Firebase: cloud_firestore is the user-selected marker; firebase_core is
+    // required by it, and auth/storage are pulled in with their opt-ins.
+    if (addFirebaseCore && !uniquePackages.any((p) => p.name == 'firebase_core')) {
+      deps.write('  firebase_core: ^3.8.1\n');
+    }
+    if (addFirebaseAuth && !uniquePackages.any((p) => p.name == 'firebase_auth')) {
+      deps.write('  firebase_auth: ^5.3.4\n');
+    }
+    if (addFirebaseStorage && !uniquePackages.any((p) => p.name == 'firebase_storage')) {
+      deps.write('  firebase_storage: ^12.4.0\n');
     }
     // Branding tooling: app icons + splash from the uploaded logo.
     if (addBranding) {

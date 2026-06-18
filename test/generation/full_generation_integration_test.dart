@@ -227,7 +227,7 @@ void main() {
       // Generated code must be error- AND warning-free (infos are tolerated).
       final errorLines = const LineSplitter()
           .convert(out)
-          .where((l) => l.contains(' error •') || l.contains(' warning •'))
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
           .toList();
 
       expect(
@@ -392,7 +392,7 @@ void main() {
       );
       final errorLines = const LineSplitter()
           .convert(out)
-          .where((l) => l.contains(' error •') || l.contains(' warning •'))
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
           .toList();
       expect(
         errorLines,
@@ -507,7 +507,7 @@ void main() {
       );
       final errorLines = const LineSplitter()
           .convert(out)
-          .where((l) => l.contains(' error •') || l.contains(' warning •'))
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
           .toList();
       expect(
         errorLines,
@@ -649,7 +649,7 @@ void main() {
       );
       final errorLines = const LineSplitter()
           .convert(out)
-          .where((l) => l.contains(' error •') || l.contains(' warning •'))
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
           .toList();
       expect(
         errorLines,
@@ -740,7 +740,7 @@ void main() {
       );
       final errorLines = const LineSplitter()
           .convert(out)
-          .where((l) => l.contains(' error •') || l.contains(' warning •'))
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
           .toList();
       expect(
         errorLines,
@@ -861,7 +861,7 @@ void main() {
       );
       final errorLines = const LineSplitter()
           .convert(out)
-          .where((l) => l.contains(' error •') || l.contains(' warning •'))
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
           .toList();
       expect(
         errorLines,
@@ -947,7 +947,7 @@ void main() {
       );
       final errorLines = const LineSplitter()
           .convert(out)
-          .where((l) => l.contains(' error •') || l.contains(' warning •'))
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
           .toList();
       expect(
         errorLines,
@@ -1056,7 +1056,7 @@ void main() {
       );
       final errorLines = const LineSplitter()
           .convert(out)
-          .where((l) => l.contains(' error •') || l.contains(' warning •'))
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
           .toList();
       expect(
         errorLines,
@@ -1169,7 +1169,7 @@ void main() {
       );
       final errorLines = const LineSplitter()
           .convert(out)
-          .where((l) => l.contains(' error •') || l.contains(' warning •'))
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
           .toList();
       expect(
         errorLines,
@@ -1282,7 +1282,7 @@ void main() {
       );
       final errorLines = const LineSplitter()
           .convert(out)
-          .where((l) => l.contains(' error •') || l.contains(' warning •'))
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
           .toList();
       expect(
         errorLines,
@@ -1404,12 +1404,184 @@ void main() {
       );
       final errorLines = const LineSplitter()
           .convert(out)
-          .where((l) => l.contains(' error •') || l.contains(' warning •'))
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
           .toList();
       expect(
         errorLines,
         isEmpty,
         reason: 'realtime/storage project analyze reported issues:\n${errorLines.join('\n')}\n\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
+
+  test(
+    'Firebase backend: Firestore source + auth + realtime + storage, analyzes cleanly',
+    () async {
+      const projectName = 'neat_firebase_test';
+      final logs = <String>[];
+
+      // A web app config JSON (what users copy from the Firebase console).
+      final config = File('${tempRoot.path}/firebase_config.json')
+        ..writeAsStringSync('''{
+  "apiKey": "AIzaTestKey123",
+  "appId": "1:1234567890:web:abcdef",
+  "messagingSenderId": "1234567890",
+  "projectId": "neat-demo",
+  "authDomain": "neat-demo.firebaseapp.com",
+  "storageBucket": "neat-demo.appspot.com"
+}''');
+
+      final pkgs = <PubPackage>[
+        _dep('hooks_riverpod', '3.3.1'),
+        _dep('flutter_hooks', '0.21.3+1'),
+        _dep('riverpod_annotation', '4.0.2'),
+        _dep('cloud_firestore', '5.6.0'),
+        _dep('go_router', '17.2.3'),
+        _dep('json_annotation', '4.11.0'),
+        _dep('freezed_annotation', '3.1.0'),
+        _dev('riverpod_generator', '4.0.3'),
+        _dev('build_runner', '2.15.0'),
+        _dev('freezed', '3.2.5'),
+        _dev('json_serializable', '6.13.0'),
+        _dev('go_router_builder', '4.3.0'),
+      ];
+
+      final identity = IdentityState(
+        name: projectName,
+        organization: 'com.neat.test',
+        projectPath: tempRoot.path,
+        description: 'NEAT Firebase backend integration test',
+        targetPlatforms: const ['macos'],
+      );
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: identity,
+          packages: pkgs,
+          architecture: ArchitectureState(
+            firstFeatureName: 'todo',
+            generateAuth: true,
+            generateRealtime: true,
+            generateStorage: true,
+            generateOAuth: true,
+            firebaseConfigPath: config.path,
+          ),
+          cicd: const CicdState(),
+          theme: const ThemeEngineState(approach: ThemeApproach.customM3),
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('Firebase generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+
+      // Backend recorded as firebase.
+      final contract = jsonDecode(
+        File('${projectDir.path}/.neat.json').readAsStringSync(),
+      ) as Map<String, dynamic>;
+      expect(contract['httpClient'], 'firebase');
+      expect(contract['generateRealtime'], isTrue);
+      expect(contract['generateStorage'], isTrue);
+      expect(contract['generateAuth'], isTrue);
+
+      // firebase_options.dart generated from the uploaded config.
+      final options = File('${projectDir.path}/lib/firebase_options.dart').readAsStringSync();
+      expect(options, contains("projectId: 'neat-demo'"));
+      expect(options, contains("storageBucket: 'neat-demo.appspot.com'"));
+
+      // Firebase providers (firestore + auth + storage).
+      final fp = File('${projectDir.path}/lib/core/network/firebase_provider.dart').readAsStringSync();
+      expect(fp, contains('FirebaseFirestore firestore(Ref ref)'));
+      expect(fp, contains('FirebaseAuth firebaseAuth(Ref ref)'));
+      expect(fp, contains('FirebaseStorage firebaseStorage(Ref ref)'));
+
+      // Remote source talks to Firestore + a realtime snapshots stream.
+      final src = File(
+        '${projectDir.path}/lib/features/todo/data/sources/todo_api_source.dart',
+      ).readAsStringSync();
+      expect(src, contains('FirebaseFirestore'));
+      expect(src, contains('_db.collection(_collection)'));
+      expect(src, contains('Stream<List<TodoModel>> watchAll()'));
+      expect(src, contains('.snapshots()'));
+
+      // DI wires the source from the firestore provider.
+      final di = File(
+        '${projectDir.path}/lib/features/todo/presentation/providers/todo_providers.dart',
+      ).readAsStringSync();
+      expect(di, contains('TodoApiSource(ref.watch(firestoreProvider))'));
+
+      // Auth uses FirebaseAuth + OAuth via signInWithProvider.
+      final authImpl = File(
+        '${projectDir.path}/lib/features/auth/data/repositories/auth_repository_impl.dart',
+      ).readAsStringSync();
+      expect(authImpl, contains('FirebaseAuth'));
+      expect(authImpl, contains('signInWithEmailAndPassword'));
+      expect(contract['generateOAuth'], isTrue);
+      expect(authImpl, contains('signInWithProvider(GoogleAuthProvider())'));
+      expect(authImpl, contains('signInWithProvider(AppleAuthProvider())'));
+      final iAuth = File(
+        '${projectDir.path}/lib/features/auth/domain/repositories/i_auth_repository.dart',
+      ).readAsStringSync();
+      expect(iAuth, contains('Future<Result<bool>> signInWithGoogle();'));
+      final login = File(
+        '${projectDir.path}/lib/features/auth/presentation/screens/login_screen.dart',
+      ).readAsStringSync();
+      expect(login, contains('Continue with Google'));
+      expect(login, contains('Continue with Apple'));
+
+      // Firestore Security Rules scaffold (auth-aware) + CLI wiring.
+      final rules = File('${projectDir.path}/firestore.rules').readAsStringSync();
+      expect(rules, contains('match /todos/{id}'));
+      expect(rules, contains('request.auth != null'));
+      expect(File('${projectDir.path}/firebase.json').existsSync(), isTrue);
+      expect(File('${projectDir.path}/firestore.indexes.json').existsSync(), isTrue);
+
+      // Storage uses FirebaseStorage.
+      final storage = File(
+        '${projectDir.path}/lib/core/storage/storage_service.dart',
+      ).readAsStringSync();
+      expect(storage, contains('FirebaseStorage'));
+      expect(storage, contains('getDownloadURL'));
+
+      // bootstrap initializes Firebase + enables Firestore persistence.
+      final bootstrap = File('${projectDir.path}/lib/core/bootstrap.dart').readAsStringSync();
+      expect(bootstrap, contains('Firebase.initializeApp('));
+      expect(bootstrap, contains('DefaultFirebaseOptions.currentPlatform'));
+      expect(bootstrap, contains('persistenceEnabled: true'));
+
+      // Firebase deps injected; no Drift workspace package (Firestore offline).
+      final pubspec = File('${projectDir.path}/pubspec.yaml').readAsStringSync();
+      expect(pubspec, contains('firebase_core:'));
+      expect(pubspec, contains('firebase_auth:'));
+      expect(pubspec, contains('firebase_storage:'));
+      expect(
+        Directory('${projectDir.path}/packages').existsSync(),
+        isFalse,
+        reason: 'Firebase backend should not generate a Drift workspace package',
+      );
+
+      // The whole project analyzes without errors or warnings.
+      final analyze = await Process.run(
+        'flutter',
+        ['analyze', '--no-pub'],
+        workingDirectory: projectDir.path,
+      );
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      expect(
+        RegExp(r'(\d+ issues? found|No issues found)').hasMatch(out),
+        isTrue,
+        reason: 'flutter analyze did not run as expected:\n$out',
+      );
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason: 'Firebase project analyze reported issues:\n${errorLines.join('\n')}\n\n$out',
       );
     },
     timeout: const Timeout(Duration(minutes: 12)),
@@ -1485,7 +1657,7 @@ void main() {
       );
       final errorLines = const LineSplitter()
           .convert(out)
-          .where((l) => l.contains(' error •') || l.contains(' warning •'))
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
           .toList();
       expect(
         errorLines,

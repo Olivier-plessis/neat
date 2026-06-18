@@ -33,6 +33,7 @@ void main() => $call;
     required bool useEnvied,
     required bool isWeb,
     bool hasSupabase = false,
+    bool hasFirebase = false,
   }) {
     final imports = StringBuffer()
       ..writeln("import 'dart:async';")
@@ -44,12 +45,20 @@ void main() => $call;
     if (hasSupabase) {
       imports.writeln("import 'package:supabase_flutter/supabase_flutter.dart';");
     }
+    if (hasFirebase) {
+      imports
+        ..writeln("import 'package:cloud_firestore/cloud_firestore.dart';")
+        ..writeln("import 'package:firebase_core/firebase_core.dart';");
+    }
     if (hasRiverpod) {
       imports.writeln(useAnnotations
           ? "import 'package:hooks_riverpod/hooks_riverpod.dart';"
           : "import 'package:flutter_riverpod/flutter_riverpod.dart';");
     }
     imports.writeln("import 'package:$packageName/app.dart';");
+    if (hasFirebase) {
+      imports.writeln("import 'package:$packageName/firebase_options.dart';");
+    }
     if (useEnvied) {
       imports.writeln("import 'package:$packageName/core/env/app_env.dart';");
     }
@@ -71,6 +80,14 @@ void main() => $call;
                 '      );'
             : "\n      await Supabase.initialize(url: '', publishableKey: ''); // TODO: set URL + publishable key")
         : '';
+    final firebaseInit = hasFirebase
+        ? '\n      await Firebase.initializeApp(\n'
+            '        options: DefaultFirebaseOptions.currentPlatform,\n'
+            '      );\n'
+            '      // Firestore ships its own offline cache (no extra Drift layer needed).\n'
+            '      FirebaseFirestore.instance.settings =\n'
+            '          const Settings(persistenceEnabled: true);'
+        : '';
     final root = hasRiverpod
         ? 'ProviderScope(observers: [RiverpodObserver()], child: const App())'
         : 'const App()';
@@ -86,7 +103,7 @@ $docComment$sig {
 $setEnv  await runZonedGuarded(
     () async {
       WidgetsFlutterBinding.ensureInitialized();
-      registerErrorHandler();$pathUrl$supaInit
+      registerErrorHandler();$pathUrl$firebaseInit$supaInit
       runApp($root);
     },
     (error, stack) => AppLogger.f('Uncaught exception', error: error, stackTrace: stack),
