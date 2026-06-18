@@ -42,6 +42,9 @@ class FeatureScaffolder {
     // (aggregated) route file — the caller wires them instead.
     bool isChildRoute = false,
     bool isShellBranch = false,
+    // Supabase Realtime: the list screen becomes a live StreamNotifier and the
+    // repository exposes `watchAll()`. Only effective with the full DI graph.
+    bool realtime = false,
   }) async {
     // The project ships a Drift package → any local source is Drift-backed.
     final localIsDrift = localStoragePackage != null;
@@ -52,6 +55,8 @@ class FeatureScaffolder {
     // A real list screen (provider fetches via the usecase → Skeletonizer) needs
     // the DI graph, which exists only with annotations + a remote source + usecases.
     final dataList = useAnnotations && hasHttpClient && includeUseCases;
+    // Realtime needs the full DI graph (repository provider + list notifier).
+    final liveList = realtime && dataList;
 
     final String domainBase;
     final String dataBase;
@@ -80,6 +85,7 @@ class FeatureScaffolder {
         featureName: featureName,
         packageName: packageName,
         hasHttpClient: hasHttpClient,
+        realtime: liveList,
       ),
     );
 
@@ -118,6 +124,7 @@ class FeatureScaffolder {
         httpClient: httpClient,
         offlineFirst: offlineFirst,
         hasSync: hasSync,
+        realtime: liveList,
       ),
     );
 
@@ -129,6 +136,7 @@ class FeatureScaffolder {
           featureName: featureName,
           packageName: packageName,
           httpClient: httpClient,
+          realtime: liveList,
         ),
       );
     }
@@ -169,6 +177,7 @@ class FeatureScaffolder {
           useAnnotations: useAnnotations,
           useCubit: false,
           dataList: dataList,
+          realtime: liveList,
         ),
       );
       // The DI graph wires the usecases → only emit it when both exist.

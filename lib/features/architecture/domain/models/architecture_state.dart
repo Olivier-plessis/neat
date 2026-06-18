@@ -69,6 +69,15 @@ abstract class ArchitectureState with _$ArchitectureState {
     /// Opt-in: generate a Supabase **auth** feature (login/signup/forgot) + a
     /// go_router guard. Only effective with a Supabase backend + go_router_builder.
     @Default(false) bool generateAuth,
+
+    /// Opt-in: make the first feature's list screen **live** via Supabase
+    /// Realtime (`.stream()`). Only effective with a Supabase backend + riverpod
+    /// annotations (the list becomes a StreamNotifier).
+    @Default(false) bool generateRealtime,
+
+    /// Opt-in: generate a Supabase **Storage** service (+ provider + a sample
+    /// avatar upload widget). Only effective with a Supabase backend + riverpod.
+    @Default(false) bool generateStorage,
   }) = _ArchitectureState;
 
   /// Validates the first feature name (Dart folder/identifier rules).
