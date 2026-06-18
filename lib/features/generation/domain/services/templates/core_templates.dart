@@ -470,6 +470,152 @@ final supabaseClientProvider =
 ''';
   }
 
+  // ── core/storage/storage_service.dart (Supabase Storage, opt-in) ──────────
+
+  /// A thin wrapper over a single Supabase Storage bucket + a provider.
+  static String storageService({
+    required String packageName,
+    required bool useAnnotations,
+  }) {
+    const body = r'''/// A thin wrapper over a single Supabase Storage bucket.
+class StorageService {
+  const StorageService(this._client, {this.bucket = 'avatars'});
+
+  final SupabaseClient _client;
+  final String bucket;
+
+  StorageFileApi get _bucket => _client.storage.from(bucket);
+
+  /// Uploads raw [bytes] to [path] (upserts) and returns the storage path.
+  Future<String> uploadBinary(
+    String path,
+    Uint8List bytes, {
+    String? contentType,
+  }) =>
+      _bucket.uploadBinary(
+        path,
+        bytes,
+        fileOptions: FileOptions(upsert: true, contentType: contentType),
+      );
+
+  /// The public URL for [path] (the bucket must be public).
+  String publicUrl(String path) => _bucket.getPublicUrl(path);
+
+  /// Downloads [path] as bytes.
+  Future<Uint8List> download(String path) => _bucket.download(path);
+
+  /// Removes [paths] from the bucket.
+  Future<void> remove(List<String> paths) => _bucket.remove(paths);
+}''';
+
+    if (useAnnotations) {
+      return '''import 'dart:typed_data';
+
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:$packageName/core/network/supabase_provider.dart';
+
+part 'storage_service.g.dart';
+
+$body
+
+@Riverpod(keepAlive: true)
+StorageService storageService(Ref ref) =>
+    StorageService(ref.watch(supabaseClientProvider));
+''';
+    }
+    return '''import 'dart:typed_data';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:$packageName/core/network/supabase_provider.dart';
+
+$body
+
+final storageServiceProvider = Provider<StorageService>(
+  (ref) => StorageService(ref.watch(supabaseClientProvider)),
+);
+''';
+  }
+
+  // ── core/storage/avatar_upload_field.dart (sample upload widget) ──────────
+
+  /// A sample widget: pick an image, upload it to Storage, show the result.
+  static String avatarUploadField({required String packageName}) {
+    return r'''import 'package:flutter/material.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:PACKAGE/core/storage/storage_service.dart';
+
+/// Sample: pick an image from the gallery, upload it to Supabase Storage, then
+/// display it from its public URL. Drop it into any screen (e.g. a profile) and
+/// pass a stable [path] (typically '<userId>/avatar.png').
+class AvatarUploadField extends ConsumerStatefulWidget {
+  const AvatarUploadField({super.key, this.path = 'avatar.png'});
+
+  /// Object path inside the bucket.
+  final String path;
+
+  @override
+  ConsumerState<AvatarUploadField> createState() => _AvatarUploadFieldState();
+}
+
+class _AvatarUploadFieldState extends ConsumerState<AvatarUploadField> {
+  String? _url;
+  bool _busy = false;
+
+  Future<void> _pickAndUpload() async {
+    final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
+    if (picked == null) return;
+    setState(() => _busy = true);
+    try {
+      final storage = ref.read(storageServiceProvider);
+      final bytes = await picked.readAsBytes();
+      await storage.uploadBinary(
+        widget.path,
+        bytes,
+        contentType: picked.mimeType,
+      );
+      final url = storage.publicUrl(widget.path);
+      // Cache-bust so the freshly uploaded image shows immediately.
+      if (mounted) {
+        setState(() => _url = '$url?t=${DateTime.now().millisecondsSinceEpoch}');
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        CircleAvatar(
+          radius: 48,
+          backgroundImage: _url == null ? null : NetworkImage(_url!),
+          child: _url == null ? const Icon(Icons.person, size: 48) : null,
+        ),
+        const SizedBox(height: 12),
+        FilledButton.icon(
+          onPressed: _busy ? null : _pickAndUpload,
+          icon: _busy
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.upload),
+          label: const Text('Upload avatar'),
+        ),
+      ],
+    );
+  }
+}
+'''
+        .replaceAll('PACKAGE', packageName);
+  }
+
   // ── core/sync/sync_service.dart (offline-first + sync / Outbox) ───────────
 
   static String syncService({

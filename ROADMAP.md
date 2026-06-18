@@ -53,9 +53,15 @@ theming (customM3 / FlexColorScheme) + extractable UI package + Widgetbook + CI/
   (reuses the REST contract), `supabase_provider`, `Supabase.initialize` in
   bootstrap, envied `SUPABASE_URL`/`SUPABASE_PUBLISHABLE_KEY`. **Opt-in Auth**:
   login/signup/forgot + `AuthController` + a `RouterNotifier` go_router guard
-  (requires go_router_builder). All harness-proven (analyze 0/0).
+  (requires go_router_builder).
+- ✅ **Realtime** (opt-in): the first feature's list becomes live — a
+  `StreamNotifier` over `.stream(primaryKey: ['id'])`; the repository exposes
+  `watchAll()`. Needs riverpod annotations.
+- ✅ **Storage** (opt-in): `StorageService` (upload/download/publicUrl/remove) +
+  provider + a sample avatar-upload widget (`image_picker`).
+- All harness-proven (3 Supabase integration tests, analyze 0/0).
 - ⏭️ Firebase next (Firestore + Auth; gate NEAT's Drift since Firestore has its
-  own offline). Supabase Storage as a follow-up.
+  own offline). Supabase OAuth providers as a follow-up.
 
 ### 5. Internationalisation — **decided: slang**
 - **slang** (type-safe keys, codegen, typed pluralization/interpolation) over

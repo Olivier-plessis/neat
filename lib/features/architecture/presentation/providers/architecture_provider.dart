@@ -19,6 +19,8 @@ class ArchitectureNotifier extends _$ArchitectureNotifier {
       state = state.copyWith(storageStrategy: strategy);
   void toggleNavigationShell(bool val) => state = state.copyWith(useNavigationShell: val);
   void toggleGenerateAuth(bool val) => state = state.copyWith(generateAuth: val);
+  void toggleGenerateRealtime(bool val) => state = state.copyWith(generateRealtime: val);
+  void toggleGenerateStorage(bool val) => state = state.copyWith(generateStorage: val);
   void setShellIcon(String icon) => state = state.copyWith(shellIcon: icon);
   void setShellLabel(String label) => state = state.copyWith(shellLabel: label);
 }

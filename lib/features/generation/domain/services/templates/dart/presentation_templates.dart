@@ -11,14 +11,36 @@ class PresentationTemplates {
     required bool useAnnotations,
     required bool useCubit,
     bool dataList = false,
+    bool realtime = false,
   }) {
     if (useCubit) return _cubitTemplate(featureName);
     if (useAnnotations) {
-      return dataList
-          ? _riverpodListNotifier(featureName, packageName)
-          : _riverpodAnnotationTemplate(featureName);
+      if (dataList) {
+        return realtime
+            ? _riverpodListStreamNotifier(featureName, packageName)
+            : _riverpodListNotifier(featureName, packageName);
+      }
+      return _riverpodAnnotationTemplate(featureName);
     }
     return _riverpodManualTemplate(featureName);
+  }
+
+  /// Realtime list: the notifier subscribes to the repository's live stream
+  /// (Supabase `.stream()`), so the screen updates on every row change.
+  static String _riverpodListStreamNotifier(String featureName, String packageName) {
+    final p = pascal(featureName);
+    return '''import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:$packageName/features/$featureName/domain/entities/${featureName}_entity.dart';
+import '${featureName}_providers.dart';
+
+part '${featureName}_provider.g.dart';
+
+@riverpod
+class ${p}Notifier extends _\$${p}Notifier {
+  @override
+  Stream<List<${p}Entity>> build() => ref.watch(${camel(featureName)}RepositoryProvider).watchAll();
+}
+''';
   }
 
   /// Notifier that loads the feature's items via its usecase. `build()` is async

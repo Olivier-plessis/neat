@@ -27,6 +27,8 @@ _NeatContract _$NeatContractFromJson(Map<String, dynamic> json) =>
       generateWidgetbook: json['generateWidgetbook'] as bool? ?? false,
       useNavigationShell: json['useNavigationShell'] as bool? ?? false,
       generateAuth: json['generateAuth'] as bool? ?? false,
+      generateRealtime: json['generateRealtime'] as bool? ?? false,
+      generateStorage: json['generateStorage'] as bool? ?? false,
       components:
           (json['components'] as List<dynamic>?)
               ?.map((e) => e as String)
@@ -55,5 +57,7 @@ Map<String, dynamic> _$NeatContractToJson(_NeatContract instance) =>
       'generateWidgetbook': instance.generateWidgetbook,
       'useNavigationShell': instance.useNavigationShell,
       'generateAuth': instance.generateAuth,
+      'generateRealtime': instance.generateRealtime,
+      'generateStorage': instance.generateStorage,
       'components': instance.components,
     };

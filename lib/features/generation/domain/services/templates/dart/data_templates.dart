@@ -99,6 +99,7 @@ class ${p}Model {
     String httpClient = '',
     bool offlineFirst = false,
     bool hasSync = false,
+    bool realtime = false,
   }) {
     final p = pascal(featureName);
     final isChopper = httpClient == 'chopper';
@@ -107,6 +108,15 @@ class ${p}Model {
     // Chopper wraps responses in Response<T>; unwrap with .body!.
     String remote(String call) =>
         isChopper ? '(await _remote.$call).body!' : 'await _remote.$call';
+
+    // Realtime: surface the source's live stream, mapped models → entities.
+    final watchMethod = realtime
+        ? '''
+
+  @override
+  Stream<List<${p}Entity>> watchAll() =>
+      _remote.watchAll().map((list) => list.map((m) => m.toEntity()).toList());'''
+        : '';
 
     // ── Offline-first (read-through cache) + optional sync (Outbox) ──────────
     if (offlineFirst && hasHttpClient) {
@@ -237,7 +247,7 @@ class ${p}RepositoryImpl implements I${p}Repository {
       return Result.failure('Not available offline.');
     }
     return Result.success(cached.toEntity());
-  }$writeMethods
+  }$writeMethods$watchMethod
 }
 ''';
     }
@@ -305,7 +315,7 @@ class ${p}RepositoryImpl implements I${p}Repository {
     } catch (e) {
       return Result.failure(e.toString());
     }
-  }
+  }$watchMethod
 }
 ''';
     }
@@ -350,6 +360,7 @@ class ${p}RepositoryImpl implements I${p}Repository {
     required String featureName,
     required String packageName,
     required String httpClient,
+    bool realtime = false,
   }) {
     final p = pascal(featureName);
 
@@ -427,6 +438,13 @@ class ${p}ApiSource {
     final rows = await _client.from(_table).select();
     return rows.map(${p}Model.fromJson).toList();
   }
+${realtime ? '''
+  /// Realtime: a live stream of every row, pushed on any INSERT/UPDATE/DELETE.
+  Stream<List<${p}Model>> watchAll() => _client
+      .from(_table)
+      .stream(primaryKey: ['id'])
+      .map((rows) => rows.map(${p}Model.fromJson).toList());
+''' : ''}
 
   Future<${p}Model> getById(String id) async {
     final row = await _client.from(_table).select().eq('id', id).single();
