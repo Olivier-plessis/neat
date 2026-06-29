@@ -8,7 +8,9 @@ import 'package:neat/features/cicd/domain/models/cicd_state.dart';
 import 'package:neat/features/cicd/presentation/providers/cicd_provider.dart';
 import 'package:neat/features/dependencies/domain/models/pub_package.dart';
 import 'package:neat/features/dependencies/presentation/providers/dependencies_provider.dart';
+import 'package:neat/features/feature_gen/presentation/providers/workshop_controller.dart';
 import 'package:neat/features/generation/domain/usecases/launch_generation_usecase.dart';
+import 'package:neat/features/hub/presentation/providers/recent_projects_provider.dart';
 import 'package:neat/features/identity/domain/models/identity_state.dart';
 import 'package:neat/features/identity/presentation/providers/identity_provider.dart';
 import 'package:neat/features/identity/presentation/providers/stepper_provider.dart';
@@ -62,6 +64,11 @@ class LaunchScreen extends HookConsumerWidget {
           onLog: appendLog,
         );
         hasFinished.value = true;
+        // Surface the freshly generated project in the Hub's recent list.
+        await ref.read(recentProjectsProvider.notifier).register(
+              path: '${identity.projectPath}/${identity.name}',
+              name: identity.name,
+            );
       } catch (e) {
         errorMessage.value = e.toString();
         appendLog('[✗] Generation failed: $e');
@@ -71,6 +78,18 @@ class LaunchScreen extends HookConsumerWidget {
     }
 
     final canGenerate = identity.name.isNotEmpty && identity.projectPath.isNotEmpty;
+
+    // After a successful generation: load the just-created project into the
+    // Workshop (no app restart) so the user can add a feature straight away.
+    Future<void> addFeature() async {
+      final workshop = ref.read(workshopControllerProvider.notifier);
+      await workshop.openProject('${identity.projectPath}/${identity.name}');
+      if (ref.read(workshopControllerProvider).project != null) {
+        ref.read(currentStepProvider.notifier).setStep(NeatStep.featureGen);
+      }
+    }
+
+    void backToHome() => ref.read(currentStepProvider.notifier).setStep(NeatStep.hub);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -111,6 +130,8 @@ class LaunchScreen extends HookConsumerWidget {
                   hasError: errorMessage.value != null,
                   canGenerate: canGenerate,
                   onGenerate: generate,
+                  onAddFeature: addFeature,
+                  onBackToHome: backToHome,
                 ),
               ),
             ],
@@ -467,6 +488,8 @@ class _ActionPanel extends StatelessWidget {
     required this.hasError,
     required this.canGenerate,
     required this.onGenerate,
+    required this.onAddFeature,
+    required this.onBackToHome,
   });
 
   final bool isGenerating;
@@ -474,6 +497,8 @@ class _ActionPanel extends StatelessWidget {
   final bool hasError;
   final bool canGenerate;
   final VoidCallback onGenerate;
+  final VoidCallback onAddFeature;
+  final VoidCallback onBackToHome;
 
   @override
   Widget build(BuildContext context) {
@@ -496,9 +521,38 @@ class _ActionPanel extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'Open your project in VS Code or Android Studio.',
+              'Add a feature now in the Workshop, or open it in your IDE.',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.grey[600], fontSize: 12),
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: onAddFeature,
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Add a feature'),
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size(0, 48),
+                  backgroundColor: AppTheme.colorPrimaryCyan,
+                  foregroundColor: Colors.black,
+                  iconColor: Colors.black,
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: onBackToHome,
+                icon: const Icon(Icons.home_outlined, size: 16),
+                label: const Text('Back to Home'),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(0, 44),
+                  foregroundColor: Colors.white70,
+                  side: const BorderSide(color: Colors.white24),
+                ),
+              ),
             ),
           ] else if (hasError) ...[
             const Icon(Icons.error_outline, color: Colors.redAccent, size: 52),

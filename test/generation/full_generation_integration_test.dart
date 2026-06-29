@@ -1588,6 +1588,314 @@ void main() {
   );
 
   test(
+    'i18n (slang): setup + sample page consumption + switcher, analyzes cleanly',
+    () async {
+      const projectName = 'neat_i18n_test';
+      final logs = <String>[];
+
+      final pkgs = <PubPackage>[
+        _dep('hooks_riverpod', '3.3.1'),
+        _dep('flutter_hooks', '0.21.3+1'),
+        _dep('riverpod_annotation', '4.0.2'),
+        _dep('go_router', '17.2.3'),
+        // freezed + json_serializable bring source_gen builders: this is the
+        // combo that made slang_build_runner throw InvalidOutputException, so
+        // the test guards that the slang-CLI codegen path stays clean.
+        _dep('json_annotation', '4.11.0'),
+        _dep('freezed_annotation', '3.1.0'),
+        _dev('riverpod_generator', '4.0.3'),
+        _dev('build_runner', '2.15.0'),
+        _dev('freezed', '3.2.5'),
+        _dev('json_serializable', '6.13.0'),
+      ];
+
+      final identity = IdentityState(
+        name: projectName,
+        organization: 'com.neat.test',
+        projectPath: tempRoot.path,
+        description: 'NEAT i18n (slang) integration test',
+        targetPlatforms: const ['macos'],
+      );
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: identity,
+          packages: pkgs,
+          // firstFeatureName defaults to 'home'.
+          architecture: const ArchitectureState(generateI18n: true),
+          cicd: const CicdState(),
+          theme: const ThemeEngineState(approach: ThemeApproach.customM3),
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('i18n generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+
+      final contract = jsonDecode(
+        File('${projectDir.path}/.neat.json').readAsStringSync(),
+      ) as Map<String, dynamic>;
+      expect(contract['generateI18n'], isTrue);
+
+      // slang config + translation files.
+      final slang = File('${projectDir.path}/slang.yaml').readAsStringSync();
+      expect(slang, contains('base_locale: en'));
+      expect(File('${projectDir.path}/lib/i18n/en.i18n.json').existsSync(), isTrue);
+      final fr = File('${projectDir.path}/lib/i18n/fr.i18n.json').readAsStringSync();
+      expect(fr, contains('Accueil'));
+
+      // build_runner produced the slang codegen.
+      expect(
+        File('${projectDir.path}/lib/i18n/strings.g.dart').existsSync(),
+        isTrue,
+        reason: 'slang_build_runner did not generate strings.g.dart',
+      );
+
+      // Language switcher widget persists via LocaleStore.
+      final switcher = File(
+        '${projectDir.path}/lib/core/i18n/language_switcher.dart',
+      ).readAsStringSync();
+      expect(switcher, contains('PopupMenuButton<AppLocale>'));
+      expect(switcher, contains('LocaleStore.setLocale'));
+
+      // Locale persistence store (shared_preferences).
+      final store = File(
+        '${projectDir.path}/lib/core/i18n/locale_store.dart',
+      ).readAsStringSync();
+      expect(store, contains('SharedPreferences'));
+      expect(store, contains('setLocaleRaw'));
+
+      // bootstrap restores the persisted locale on start-up.
+      final bootstrap = File('${projectDir.path}/lib/core/bootstrap.dart').readAsStringSync();
+      expect(bootstrap, contains('TranslationProvider('));
+      expect(bootstrap, contains('LocaleStore.init()'));
+
+      // MaterialApp is wired to the slang locale.
+      final app = File('${projectDir.path}/lib/app.dart').readAsStringSync();
+      expect(app, contains('AppLocaleUtils.supportedLocales'));
+      expect(app, contains('GlobalMaterialLocalizations.delegates'));
+
+      // The feature page consumes context.t + shows the switcher.
+      final page = File(
+        '${projectDir.path}/lib/features/home/presentation/pages/home_page.dart',
+      ).readAsStringSync();
+      expect(page, contains('context.t.home.title'));
+      expect(page, contains('LanguageSwitcher()'));
+
+      // Deps injected.
+      final pubspec = File('${projectDir.path}/pubspec.yaml').readAsStringSync();
+      expect(pubspec, contains('slang:'));
+      expect(pubspec, contains('slang_flutter:'));
+      expect(pubspec, contains('flutter_localizations:'));
+      expect(pubspec, contains('shared_preferences:'));
+
+      // Analyze 0/0.
+      final analyze = await Process.run(
+        'flutter',
+        ['analyze', '--no-pub'],
+        workingDirectory: projectDir.path,
+      );
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      expect(
+        RegExp(r'(\d+ issues? found|No issues found)').hasMatch(out),
+        isTrue,
+        reason: 'flutter analyze did not run as expected:\n$out',
+      );
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason: 'i18n project analyze reported issues:\n${errorLines.join('\n')}\n\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
+
+  test(
+    'i18n CSV upload: compact CSV becomes the slang source, analyzes cleanly',
+    () async {
+      const projectName = 'neat_i18n_csv_test';
+      final logs = <String>[];
+
+      // A compact CSV with three locales (es is the base = first column).
+      final csv = File('${tempRoot.path}/translations.csv')
+        ..writeAsStringSync('key,es,en,fr\n'
+            'appName,Mi app,My app,Mon app\n'
+            'greeting,Hola,Hello,Bonjour\n');
+
+      final pkgs = <PubPackage>[
+        _dep('hooks_riverpod', '3.3.1'),
+        _dep('flutter_hooks', '0.21.3+1'),
+        _dep('riverpod_annotation', '4.0.2'),
+        _dep('go_router', '17.2.3'),
+        _dep('json_annotation', '4.11.0'),
+        _dep('freezed_annotation', '3.1.0'),
+        _dev('riverpod_generator', '4.0.3'),
+        _dev('build_runner', '2.15.0'),
+        _dev('freezed', '3.2.5'),
+        _dev('json_serializable', '6.13.0'),
+      ];
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: IdentityState(
+            name: projectName,
+            organization: 'com.neat.test',
+            projectPath: tempRoot.path,
+            description: 'NEAT i18n CSV upload integration test',
+            targetPlatforms: const ['macos'],
+          ),
+          packages: pkgs,
+          architecture: ArchitectureState(generateI18n: true, i18nCsvPath: csv.path),
+          cicd: const CicdState(),
+          theme: const ThemeEngineState(approach: ThemeApproach.customM3),
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('i18n CSV generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+
+      // The CSV is the source; the default JSON scaffold is NOT written.
+      expect(File('${projectDir.path}/lib/i18n/strings.i18n.csv').existsSync(), isTrue);
+      expect(File('${projectDir.path}/lib/i18n/en.i18n.json').existsSync(), isFalse);
+      // slang.yaml points at the CSV with the first column as base locale.
+      final slang = File('${projectDir.path}/slang.yaml').readAsStringSync();
+      expect(slang, contains('input_file_pattern: .i18n.csv'));
+      expect(slang, contains('base_locale: es'));
+      // Codegen ran from the CSV.
+      expect(File('${projectDir.path}/lib/i18n/strings.g.dart').existsSync(), isTrue);
+      // With a custom CSV we don't know the keys → the page is NOT woven.
+      final page = File(
+        '${projectDir.path}/lib/features/home/presentation/pages/home_page.dart',
+      ).readAsStringSync();
+      expect(page, isNot(contains('context.t')));
+
+      final analyze = await Process.run(
+        'flutter',
+        ['analyze', '--no-pub'],
+        workingDirectory: projectDir.path,
+      );
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      expect(
+        RegExp(r'(\d+ issues? found|No issues found)').hasMatch(out),
+        isTrue,
+        reason: 'flutter analyze did not run as expected:\n$out',
+      );
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason: 'i18n CSV project analyze reported issues:\n${errorLines.join('\n')}\n\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
+
+  test(
+    'flavors + fastlane: envied → 3 entry points, productFlavors, fastlane under android/ios',
+    () async {
+      const projectName = 'neat_flavors_test';
+      final logs = <String>[];
+
+      final pkgs = <PubPackage>[
+        _dep('hooks_riverpod', '3.3.1'),
+        _dep('flutter_hooks', '0.21.3+1'),
+        _dep('riverpod_annotation', '4.0.2'),
+        _dep('dio', '5.9.2'),
+        _dep('envied', '1.3.5'),
+        _dev('riverpod_generator', '4.0.3'),
+        _dev('build_runner', '2.15.0'),
+        _dev('envied_generator', '1.3.5'),
+      ];
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: IdentityState(
+            name: 'neat_flavors_test',
+            organization: 'com.neat.test',
+            projectPath: tempRoot.path,
+            description: 'NEAT flavors + fastlane integration test',
+          ),
+          packages: pkgs,
+          architecture: const ArchitectureState(),
+          cicd: const CicdState(selectedTools: {CiTool.fastlane}),
+          theme: const ThemeEngineState(approach: ThemeApproach.customM3),
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('flavors generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+      String read(String p) => File('${projectDir.path}/$p').readAsStringSync();
+      bool exists(String p) => File('${projectDir.path}/$p').existsSync();
+
+      // Three flavor entry points wiring the envied env classes.
+      expect(read('lib/main_dev.dart'), contains('bootstrap(DevEnv())'));
+      expect(read('lib/main_staging.dart'), contains('bootstrap(StagingEnv())'));
+      expect(read('lib/main_prod.dart'), contains('bootstrap(ProdEnv())'));
+
+      // VS Code run configs + the how-to.
+      expect(read('.vscode/launch.json'), contains('lib/main_dev.dart'));
+      expect(read('.vscode/launch.json'), contains('"--flavor", "dev"'));
+      expect(exists('docs/FLAVORS.md'), isTrue);
+
+      // Android productFlavors + a per-flavor launcher name.
+      final gradle = read('android/app/build.gradle.kts');
+      expect(gradle, contains('productFlavors'));
+      expect(gradle, contains('create("dev")'));
+      expect(gradle, contains('applicationIdSuffix = ".dev"'));
+      // AGP 8+ needs resValues enabled for the per-flavor app_name (else the
+      // build fails with "custom resource values, but the feature is disabled").
+      expect(gradle, contains('resValues = true'));
+      final manifest = read('android/app/src/main/AndroidManifest.xml');
+      expect(manifest, contains('android:label="@string/app_name"'));
+
+      // Fastlane is under android/ and ios/ — never the project root.
+      expect(exists('android/fastlane/Fastfile'), isTrue);
+      expect(exists('ios/fastlane/Fastfile'), isTrue);
+      expect(exists('android/key.properties.example'), isTrue);
+      expect(exists('fastlane/Fastfile'), isFalse);
+      // The android lane is flavor-aware (envied is on).
+      expect(read('android/fastlane/Fastfile'), contains('lib/main_#{flavor}.dart'));
+      // Secrets git-ignored.
+      expect(read('.gitignore'), contains('fastlane/.env'));
+
+      // Still analyzes cleanly (the Dart entry points compile).
+      final analyze = await Process.run(
+        'flutter',
+        ['analyze', '--no-pub'],
+        workingDirectory: projectDir.path,
+      );
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      expect(
+        RegExp(r'(\d+ issues? found|No issues found)').hasMatch(out),
+        isTrue,
+        reason: 'flutter analyze did not run as expected:\n$out',
+      );
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason: 'flavors project analyze reported issues:\n${errorLines.join('\n')}\n\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
+
+  test(
     'branding (logo) generates icon + splash config and still analyzes cleanly',
     () async {
       const projectName = 'neat_brand_test';

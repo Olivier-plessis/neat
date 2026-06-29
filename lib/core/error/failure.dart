@@ -16,7 +16,7 @@ class Failure {
   /// Code d'erreur métier renvoyé par l'API (ex: 'USER_NOT_FOUND').
   final String? code;
 
-  /// L'erreur d'origine (souvent une DioException).
+  /// L'erreur d'origine (exception technique sous-jacente).
   final Object? originalError;
 
   @override
