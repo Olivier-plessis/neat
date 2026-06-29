@@ -24,6 +24,8 @@ class ArchitectureNotifier extends _$ArchitectureNotifier {
   void setFirebaseConfigPath(String path) =>
       state = state.copyWith(firebaseConfigPath: path.trim());
   void toggleGenerateOAuth(bool val) => state = state.copyWith(generateOAuth: val);
+  void toggleGenerateI18n(bool val) => state = state.copyWith(generateI18n: val);
+  void setI18nCsvPath(String path) => state = state.copyWith(i18nCsvPath: path.trim());
   void setShellIcon(String icon) => state = state.copyWith(shellIcon: icon);
   void setShellLabel(String label) => state = state.copyWith(shellLabel: label);
 }

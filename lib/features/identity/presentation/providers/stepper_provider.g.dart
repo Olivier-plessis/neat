@@ -41,7 +41,7 @@ final class CurrentStepProvider
   }
 }
 
-String _$currentStepHash() => r'851c9d43bbca937015060307704b3605c9de777f';
+String _$currentStepHash() => r'edd044a284c434b3bc545c3e2a9458896bc231ef';
 
 abstract class _$CurrentStep extends $Notifier<NeatStep> {
   NeatStep build();

@@ -88,6 +88,15 @@ abstract class ArchitectureState with _$ArchitectureState {
     /// `FirebaseAuth.signInWithProvider`). Only effective with a Firebase
     /// backend + auth enabled.
     @Default(false) bool generateOAuth,
+
+    /// Opt-in: type-safe internationalisation with **slang** (en + fr base,
+    /// `TranslationProvider` + `context.t`, a sample language switcher).
+    @Default(false) bool generateI18n,
+
+    /// Path to an uploaded **compact CSV** of translations (`key,en,fr,…`). When
+    /// set (and [generateI18n] is on), the CSV becomes the single source of
+    /// translations instead of the default en/fr JSON scaffold.
+    @Default('') String i18nCsvPath,
   }) = _ArchitectureState;
 
   /// Validates the first feature name (Dart folder/identifier rules).

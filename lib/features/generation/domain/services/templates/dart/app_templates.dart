@@ -9,13 +9,15 @@ class AppTemplates {
     List<PubPackage> packages, {
     String packageName = '',
     bool useEnvied = false,
+    String flavor = 'dev',
   }) {
     final imports = StringBuffer()..writeln("import 'core/bootstrap.dart';");
-    if (useEnvied) imports.writeln("import 'core/env/envs/dev_env.dart';");
+    if (useEnvied) imports.writeln("import 'core/env/envs/${flavor}_env.dart';");
 
-    // Default to the dev flavor. Add main_staging.dart / main_prod.dart that
-    // call bootstrap(StagingEnv()) / bootstrap(ProdEnv()) for more entry points.
-    final call = useEnvied ? 'bootstrap(DevEnv())' : 'bootstrap()';
+    // The envied [flavor]Env carries the flavor's baked config. main_<flavor>.dart
+    // entry points (one per flavor) pair with the native `--flavor` build.
+    final envClass = '${flavor[0].toUpperCase()}${flavor.substring(1)}Env';
+    final call = useEnvied ? 'bootstrap($envClass())' : 'bootstrap()';
 
     return '''${imports.toString()}
 void main() => $call;
@@ -34,6 +36,7 @@ void main() => $call;
     required bool isWeb,
     bool hasSupabase = false,
     bool hasFirebase = false,
+    bool hasI18n = false,
   }) {
     final imports = StringBuffer()
       ..writeln("import 'dart:async';")
@@ -58,6 +61,11 @@ void main() => $call;
     imports.writeln("import 'package:$packageName/app.dart';");
     if (hasFirebase) {
       imports.writeln("import 'package:$packageName/firebase_options.dart';");
+    }
+    if (hasI18n) {
+      imports
+        ..writeln("import 'package:$packageName/core/i18n/locale_store.dart';")
+        ..writeln("import 'package:$packageName/i18n/strings.g.dart';");
     }
     if (useEnvied) {
       imports.writeln("import 'package:$packageName/core/env/app_env.dart';");
@@ -88,9 +96,13 @@ void main() => $call;
             '      FirebaseFirestore.instance.settings =\n'
             '          const Settings(persistenceEnabled: true);'
         : '';
-    final root = hasRiverpod
+    // Apply the persisted locale (falls back to the device locale) before runApp.
+    final i18nInit = hasI18n ? '\n      await LocaleStore.init();' : '';
+    final baseRoot = hasRiverpod
         ? 'ProviderScope(observers: [RiverpodObserver()], child: const App())'
         : 'const App()';
+    // slang's TranslationProvider must sit above MaterialApp so context.t works.
+    final root = hasI18n ? 'TranslationProvider(child: $baseRoot)' : baseRoot;
 
     final docComment = hasRiverpod
         ? '''/// Swap [ProviderScope] for an UncontrolledProviderScope if you need
@@ -103,7 +115,7 @@ $docComment$sig {
 $setEnv  await runZonedGuarded(
     () async {
       WidgetsFlutterBinding.ensureInitialized();
-      registerErrorHandler();$pathUrl$firebaseInit$supaInit
+      registerErrorHandler();$pathUrl$i18nInit$firebaseInit$supaInit
       runApp($root);
     },
     (error, stack) => AppLogger.f('Uncaught exception', error: error, stackTrace: stack),
@@ -124,8 +136,14 @@ $setEnv  await runZonedGuarded(
     bool useScreenUtil = false,
     bool routerIsProvider = false,
     String? themePackage,
+    bool hasI18n = false,
   }) {
     final imports = StringBuffer()..writeln("import 'package:flutter/material.dart';");
+    if (hasI18n) {
+      imports
+        ..writeln("import 'package:flutter_localizations/flutter_localizations.dart';")
+        ..writeln("import 'i18n/strings.g.dart';");
+    }
     if (useScreenUtil) {
       imports.writeln("import 'package:flutter_screenutil/flutter_screenutil.dart';");
     }
@@ -157,6 +175,15 @@ $setEnv  await runZonedGuarded(
                 ? 'themeMode: context.watch<BrightnessBloc>().themeMode,'
                 : '';
 
+    // slang locale wiring: drive MaterialApp from TranslationProvider so a
+    // LocaleSettings.setLocale rebuild flows to the whole app.
+    final localeArgs = hasI18n
+        ? '''
+      locale: TranslationProvider.of(context).flutterLocale,
+      supportedLocales: AppLocaleUtils.supportedLocales,
+      localizationsDelegates: GlobalMaterialLocalizations.delegates,'''
+        : '';
+
     // The MaterialApp(.router) widget.
     final String materialApp;
     if (hasGoRouter) {
@@ -168,7 +195,7 @@ $setEnv  await runZonedGuarded(
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
-      $themeModeArg
+      $themeModeArg$localeArgs
       routerConfig: $router,
     )''';
     } else {
@@ -177,7 +204,7 @@ $setEnv  await runZonedGuarded(
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
-      $themeModeArg
+      $themeModeArg$localeArgs
       home: Scaffold(
         body: Center(
           child: Padding(

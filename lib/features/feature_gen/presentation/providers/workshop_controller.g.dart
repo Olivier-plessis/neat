@@ -51,7 +51,7 @@ final class WorkshopControllerProvider
 }
 
 String _$workshopControllerHash() =>
-    r'88a62e89ba9e7bc458e069668fca3a5e8c4732e5';
+    r'91416c615ee73aeefa4c9cc627980d5cbd6da3b7';
 
 /// Drives Workshop mode: open an existing NEAT project (via its `.neat.json`)
 /// and generate features into it. The folder picker lives in the UI; this

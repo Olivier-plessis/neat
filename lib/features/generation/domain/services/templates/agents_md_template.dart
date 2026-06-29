@@ -179,6 +179,21 @@ class AgentsMdTemplate {
       b.writeln('- `build_runner` runs **per package** — regenerate inside `packages/$pkg` after table changes.\n');
     }
 
+    // ── Internationalisation (slang) ─────────────────────────────────────────
+    if (c.generateI18n) {
+      b.writeln('## Internationalisation (slang)\n');
+      b.writeln('- Type-safe translations: edit the source files in `lib/i18n/` '
+          '(`en.i18n.json`/`fr.i18n.json`, or `strings.i18n.csv` if imported), then run '
+          '`dart run slang` to regenerate `lib/i18n/strings.g.dart` (slang uses its CLI here, '
+          'not build_runner).');
+      b.writeln('- Read strings via `context.t.<key>` in widgets (rebuilds on locale change). '
+          '`TranslationProvider` wraps the app in `bootstrap`.');
+      b.writeln('- Switch locale via `LocaleStore.setLocale(AppLocale.fr)` '
+          '(`lib/core/i18n/locale_store.dart`) — it **persists** the choice in '
+          'shared_preferences. Do not call `LocaleSettings.setLocale` directly or the '
+          'choice won\'t be saved. `LocaleStore.init()` (in bootstrap) restores it on start-up.\n');
+    }
+
     // ── Config / env ────────────────────────────────────────────────────────
     if (c.hasEnvied) {
       b.writeln('## Configuration (envied)\n');

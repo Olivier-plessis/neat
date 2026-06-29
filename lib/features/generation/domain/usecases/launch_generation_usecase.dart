@@ -8,12 +8,14 @@ import 'package:neat/features/cicd/domain/models/cicd_state.dart';
 import 'package:neat/features/cicd/domain/usecases/generate_yaml_usecase.dart';
 import 'package:neat/features/dependencies/domain/models/pub_package.dart';
 import 'package:neat/features/generation/domain/services/feature_scaffolder.dart';
+import 'package:neat/features/generation/domain/services/i18n_importer.dart';
 import 'package:neat/features/generation/domain/services/templates/agents_md_template.dart';
 import 'package:neat/features/generation/domain/services/templates/config_templates.dart';
 import 'package:neat/features/generation/domain/services/templates/core_templates.dart';
 import 'package:neat/features/generation/domain/services/templates/dart/app_templates.dart';
 import 'package:neat/features/generation/domain/services/templates/dart/auth_templates.dart';
 import 'package:neat/features/generation/domain/services/templates/dart/core_dart_templates.dart';
+import 'package:neat/features/generation/domain/services/templates/dart/i18n_templates.dart';
 import 'package:neat/features/generation/domain/services/templates/local_storage_templates.dart';
 import 'package:neat/features/identity/domain/models/identity_state.dart';
 import 'package:neat/features/theme_engine/domain/models/theme_engine_state.dart';
@@ -131,6 +133,10 @@ class LaunchGenerationUsecase {
     // signInWithProvider. Requires the auth feature on a Firebase backend.
     final hasOAuth = architecture.generateOAuth && hasAuth && httpClient == 'firebase';
 
+    // Opt-in i18n with slang (en + fr). Setup is universal; the sample page
+    // consumption (`context.t` + LanguageSwitcher) is woven into riverpod pages.
+    final hasI18n = architecture.generateI18n;
+
     // Offline-first turns the project into a Dart workspace with a dedicated
     // local-storage package (Drift). null when remote-only. Firestore ships its
     // own offline persistence, so a Firebase backend disables the Drift layer
@@ -182,6 +188,7 @@ class LaunchGenerationUsecase {
       hasRealtime: hasRealtime,
       hasStorage: hasStorage,
       hasOAuth: hasOAuth,
+      hasI18n: hasI18n,
     );
     onLog('[✓] Scaffold created.');
 
@@ -195,6 +202,15 @@ class LaunchGenerationUsecase {
         hasSync: hasSync,
       );
       onLog('[✓] packages/$localStoragePackage created.');
+    }
+
+    // 2c. Build flavors (dev/staging/prod) — driven by envied. Wires the native
+    // flavors + VS Code run configs + a doc; the Dart side is the main_<flavor>
+    // entry points + the envied [flavor]Env classes.
+    if (hasEnvied) {
+      onLog('[▶] Wiring build flavors (dev/staging/prod)...');
+      await _writeFlavors(projectDir, _titleCase(packageName));
+      onLog('[✓] Flavors wired (launch.json + Android productFlavors + docs/FLAVORS.md).');
     }
 
     // Branding: a logo was picked → generate app icons + splash.
@@ -220,6 +236,7 @@ class LaunchGenerationUsecase {
       addFirebaseCore: httpClient == 'firebase',
       addFirebaseAuth: hasAuth && httpClient == 'firebase',
       addFirebaseStorage: hasStorage && httpClient == 'firebase',
+      addSlang: hasI18n,
     );
     onLog('[✓] Dependencies added to pubspec.yaml.');
 
@@ -229,10 +246,10 @@ class LaunchGenerationUsecase {
       await _writeBranding(projectDir, theme.logoPath);
     }
 
-    // 4. CI/CD files
+    // 4. CI/CD files (fastlane lanes are flavor-aware when envied is on).
     if (cicd.selectedTools.isNotEmpty) {
       onLog('[▶] Generating CI/CD configuration files...');
-      await _writeCicdFiles(projectDir, cicd);
+      await _writeCicdFiles(projectDir, cicd, hasFlavors: hasEnvied);
       onLog('[✓] CI/CD files written.');
     }
 
@@ -258,6 +275,13 @@ class LaunchGenerationUsecase {
         Directory('${projectDir.path}/packages/$localStoragePackage'),
         onLog,
       );
+    }
+
+    // 6c. slang i18n codegen via the standalone CLI (not slang_build_runner —
+    // that clashes with source_gen builders). Generates lib/i18n/strings.g.dart.
+    if (hasI18n) {
+      onLog("[▶] Running 'dart run slang' (i18n codegen)...");
+      await const I18nImporter().runSlang(projectDir, onLog);
     }
 
     // 6b. Branding tools — generate app icons + native splash from the logo.
@@ -303,6 +327,7 @@ class LaunchGenerationUsecase {
       generateRealtime: hasRealtime,
       generateStorage: hasStorage,
       generateOAuth: hasOAuth,
+      generateI18n: hasI18n,
       useNavigationShell: architecture.useNavigationShell && hasGoRouter,
       components: theme.components.map((c) => c.name).toList(),
     );
@@ -368,14 +393,39 @@ class LaunchGenerationUsecase {
     bool hasRealtime = false,
     bool hasStorage = false,
     bool hasOAuth = false,
+    bool hasI18n = false,
   }) async {
     final lib = '${projectDir.path}/lib';
 
+    // A user-uploaded compact CSV replaces the default JSON scaffold. With a CSV
+    // we don't know the translation keys, so the sample page consumption
+    // (`context.t.<feature>.title` + switcher) is skipped — the rest of the
+    // slang setup is still wired.
+    final i18nFromCsv = hasI18n &&
+        architecture.i18nCsvPath.isNotEmpty &&
+        File(architecture.i18nCsvPath).existsSync();
+    final hasI18nSample = hasI18n && !i18nFromCsv;
+
     // ── main.dart + bootstrap ───────────────────────────────────────────────
+    // main.dart defaults to dev; with envied we also emit one entry point per
+    // flavor (main_dev/staging/prod.dart) to pair with the native `--flavor`.
     await _write(
       '$lib/main.dart',
       AppTemplates.mainDart(packages, packageName: packageName, useEnvied: hasEnvied),
     );
+    if (hasEnvied) {
+      for (final flavor in const ['dev', 'staging', 'prod']) {
+        await _write(
+          '$lib/main_$flavor.dart',
+          AppTemplates.mainDart(
+            packages,
+            packageName: packageName,
+            useEnvied: true,
+            flavor: flavor,
+          ),
+        );
+      }
+    }
     await _write(
       '$lib/core/bootstrap.dart',
       AppTemplates.bootstrap(
@@ -386,6 +436,7 @@ class LaunchGenerationUsecase {
         isWeb: isWeb,
         hasSupabase: httpClient == 'supabase',
         hasFirebase: httpClient == 'firebase',
+        hasI18n: hasI18n,
       ),
     );
 
@@ -417,6 +468,7 @@ class LaunchGenerationUsecase {
         routerIsProvider: hasGoRouterBuilder && useAnnotations,
         // When the theme lives in <app>_ui, app.dart imports it from there.
         themePackage: uiPackage,
+        hasI18n: hasI18n,
       ),
     );
 
@@ -619,6 +671,30 @@ class LaunchGenerationUsecase {
       );
     }
 
+    // ── i18n (slang, opt-in) ─────────────────────────────────────────────────
+    if (hasI18n) {
+      if (i18nFromCsv) {
+        // The user uploaded a compact CSV → it is the single source of truth.
+        final csv = File(architecture.i18nCsvPath).readAsStringSync();
+        final base = I18nImporter.parseLocales(csv).firstOrNull ?? 'en';
+        await _write('${projectDir.path}/slang.yaml', I18nImporter.slangCsvConfig(base));
+        await _write('$lib/i18n/strings.i18n.csv', csv);
+      } else {
+        await _write('${projectDir.path}/slang.yaml', I18nTemplates.slangConfig());
+        // Non-namespace mode → files are named `<locale>.i18n.json`.
+        await _write('$lib/i18n/en.i18n.json', I18nTemplates.baseTranslations(featureName));
+        await _write('$lib/i18n/fr.i18n.json', I18nTemplates.frTranslations(featureName));
+      }
+      await _write(
+        '$lib/core/i18n/locale_store.dart',
+        I18nTemplates.localeStore(packageName: packageName),
+      );
+      await _write(
+        '$lib/core/i18n/language_switcher.dart',
+        I18nTemplates.languageSwitcher(packageName: packageName),
+      );
+    }
+
     // ── components ────────────────────────────────────────────────────────
     await _write('$lib/components/.gitkeep', '');
 
@@ -642,6 +718,7 @@ class LaunchGenerationUsecase {
       hasSync: hasSync,
       isShellBranch: useShell,
       realtime: hasRealtime,
+      i18n: hasI18nSample,
     );
   }
 
@@ -1121,6 +1198,7 @@ dev_dependencies:
     bool hasSync = false,
     bool isShellBranch = false,
     bool realtime = false,
+    bool i18n = false,
   }) async {
     await const FeatureScaffolder().writeFeature(
       lib: lib,
@@ -1142,6 +1220,7 @@ dev_dependencies:
       hasSync: hasSync,
       isShellBranch: isShellBranch,
       realtime: realtime,
+      i18n: i18n,
     );
   }
 
@@ -1256,6 +1335,7 @@ dev_dependencies:
     bool addFirebaseCore = false,
     bool addFirebaseAuth = false,
     bool addFirebaseStorage = false,
+    bool addSlang = false,
   }) async {
     final pubspecFile = File('${projectDir.path}/pubspec.yaml');
     if (!pubspecFile.existsSync()) return;
@@ -1275,6 +1355,7 @@ dev_dependencies:
       addFirebaseCore: addFirebaseCore,
       addFirebaseAuth: addFirebaseAuth,
       addFirebaseStorage: addFirebaseStorage,
+      addSlang: addSlang,
     );
 
     await pubspecFile.writeAsString(content);
@@ -1325,6 +1406,7 @@ dev_dependencies:
     bool addFirebaseCore = false,
     bool addFirebaseAuth = false,
     bool addFirebaseStorage = false,
+    bool addSlang = false,
   }) {
     final deps = StringBuffer();
     final devDeps = StringBuffer();
@@ -1406,6 +1488,24 @@ dev_dependencies:
     if (addFirebaseStorage && !uniquePackages.any((p) => p.name == 'firebase_storage')) {
       deps.write('  firebase_storage: ^12.4.0\n');
     }
+    // slang i18n: runtime (slang + slang_flutter + flutter_localizations) +
+    // shared_preferences for locale persistence. Codegen runs via the slang CLI
+    // (`dart run slang`), not slang_build_runner — see _runSlang.
+    if (addSlang) {
+      if (!uniquePackages.any((p) => p.name == 'slang')) {
+        deps.write('  slang: ^4.16.0\n');
+      }
+      if (!uniquePackages.any((p) => p.name == 'slang_flutter')) {
+        deps.write('  slang_flutter: ^4.16.0\n');
+      }
+      if (!uniquePackages.any((p) => p.name == 'flutter_localizations')) {
+        deps.write('  flutter_localizations:\n    sdk: flutter\n');
+      }
+      // Persist the chosen locale across restarts (LocaleStore).
+      if (!uniquePackages.any((p) => p.name == 'shared_preferences')) {
+        deps.write('  shared_preferences: ^2.3.3\n');
+      }
+    }
     // Branding tooling: app icons + splash from the uploaded logo.
     if (addBranding) {
       if (!uniquePackages.any((p) => p.name == 'flutter_launcher_icons')) {
@@ -1451,13 +1551,160 @@ dev_dependencies:
 
   // ── CI/CD files ───────────────────────────────────────────────────────────
 
-  Future<void> _writeCicdFiles(Directory projectDir, CicdState cicd) async {
-    final generated = const GenerateYamlUsecase().execute(cicd);
+  // ── Build flavors (dev/staging/prod) ────────────────────────────────────────
+
+  static String _titleCase(String snake) =>
+      snake.split('_').where((w) => w.isNotEmpty).map((w) => '${w[0].toUpperCase()}${w.substring(1)}').join(' ');
+
+  Future<void> _writeFlavors(Directory projectDir, String appName) async {
+    // VS Code run/debug configs, one per flavor.
+    await _write('${projectDir.path}/.vscode/launch.json', _launchJson());
+    // How-to (covers the iOS Xcode-scheme step we can't script reliably).
+    await _write('${projectDir.path}/docs/FLAVORS.md', _flavorsDoc(appName));
+    // Android: productFlavors + an @string/app_name label per flavor.
+    await _patchAndroidFlavors(projectDir, appName);
+  }
+
+  /// Inserts Gradle `productFlavors` (dev/staging/prod) before `buildTypes {` and
+  /// points the manifest label at the per-flavor `@string/app_name`. No-op if the
+  /// flutter-created Gradle/Manifest layout isn't recognised.
+  Future<void> _patchAndroidFlavors(Directory projectDir, String appName) async {
+    final gradle = File('${projectDir.path}/android/app/build.gradle.kts');
+    if (gradle.existsSync()) {
+      var src = await gradle.readAsString();
+      if (!src.contains('productFlavors') && src.contains('buildTypes {')) {
+        // AGP 8+ disables resValues by default; the per-flavor app_name needs it.
+        final block = '''    buildFeatures {
+        resValues = true
+    }
+    flavorDimensions += "env"
+    productFlavors {
+        create("dev") {
+            dimension = "env"
+            applicationIdSuffix = ".dev"
+            versionNameSuffix = "-dev"
+            resValue("string", "app_name", "$appName Dev")
+        }
+        create("staging") {
+            dimension = "env"
+            applicationIdSuffix = ".staging"
+            versionNameSuffix = "-staging"
+            resValue("string", "app_name", "$appName Staging")
+        }
+        create("prod") {
+            dimension = "env"
+            resValue("string", "app_name", "$appName")
+        }
+    }
+
+''';
+        src = src.replaceFirst('    buildTypes {', '$block    buildTypes {');
+        await gradle.writeAsString(src);
+      }
+    }
+
+    // Point the launcher label at the flavor-provided string resource.
+    final manifest = File('${projectDir.path}/android/app/src/main/AndroidManifest.xml');
+    if (manifest.existsSync()) {
+      var src = await manifest.readAsString();
+      src = src.replaceAll(RegExp(r'android:label="[^"]*"'), 'android:label="@string/app_name"');
+      await manifest.writeAsString(src);
+    }
+  }
+
+  String _launchJson() => '''{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Dev (debug)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main_dev.dart",
+      "args": ["--flavor", "dev"]
+    },
+    {
+      "name": "Staging (debug)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main_staging.dart",
+      "args": ["--flavor", "staging"]
+    },
+    {
+      "name": "Prod (release)",
+      "request": "launch",
+      "type": "dart",
+      "flutterMode": "release",
+      "program": "lib/main_prod.dart",
+      "args": ["--flavor", "prod"]
+    }
+  ]
+}
+''';
+
+  String _flavorsDoc(String appName) => '''# Build flavors (dev / staging / prod)
+
+This project ships three flavors. Each pairs a **native flavor** (separate app id
++ name, so all three install side-by-side) with a **Dart entry point** that loads
+the matching envied config.
+
+| Flavor | Entry point | App id suffix | App name |
+| --- | --- | --- | --- |
+| dev | `lib/main_dev.dart` | `.dev` | $appName Dev |
+| staging | `lib/main_staging.dart` | `.staging` | $appName Staging |
+| prod | `lib/main_prod.dart` | — | $appName |
+
+## Run / build
+
+```sh
+flutter run   --flavor dev     -t lib/main_dev.dart
+flutter build appbundle --release --flavor prod -t lib/main_prod.dart
+```
+
+VS Code: pick **Dev/Staging/Prod** from the Run and Debug panel (`.vscode/launch.json`).
+
+## Config (envied)
+
+Each flavor's secrets live in `.env.dev` / `.env.staging` / `.env.prod`, baked into
+the generated `DevEnv` / `StagingEnv` / `ProdEnv` classes at `build_runner` time and
+selected by the entry point (`bootstrap(DevEnv())`, …).
+
+## Android — done
+
+`android/app/build.gradle.kts` defines `productFlavors`; the launcher name comes
+from the per-flavor `@string/app_name`. Nothing else to do.
+
+## iOS — one manual step
+
+Flutter's `--flavor` needs a matching **Xcode scheme** + build configurations, which
+can't be generated reliably. In Xcode: duplicate the `Runner` scheme to `dev`,
+`staging`, `prod`, and add `Debug-<flavor>` / `Release-<flavor>` build configs (set
+`PRODUCT_BUNDLE_IDENTIFIER` + `PRODUCT_NAME` per flavor via an `.xcconfig`). See
+https://docs.flutter.dev/deployment/flavors.
+''';
+
+  Future<void> _writeCicdFiles(
+    Directory projectDir,
+    CicdState cicd, {
+    bool hasFlavors = false,
+  }) async {
+    final generated = const GenerateYamlUsecase().execute(cicd, hasFlavors: hasFlavors);
 
     for (final file in generated) {
       final f = File('${projectDir.path}/${file.filename}');
       await f.create(recursive: true);
       await f.writeAsString(file.content);
+    }
+
+    // Keep fastlane secrets + signing material out of git.
+    if (cicd.isSelected(CiTool.fastlane)) {
+      await _appendGitignore(projectDir, '''
+
+# fastlane secrets + Android signing (keep only the .example files)
+**/fastlane/.env
+android/key.properties
+**/*.jks
+**/*.keystore
+''');
     }
   }
 

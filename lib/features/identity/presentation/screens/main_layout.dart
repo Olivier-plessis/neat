@@ -9,6 +9,7 @@ import 'package:neat/features/dependencies/domain/models/pub_package.dart';
 import 'package:neat/features/dependencies/presentation/providers/dependencies_provider.dart';
 import 'package:neat/features/dependencies/presentation/screens/dependencies_screen.dart';
 import 'package:neat/features/feature_gen/presentation/screens/feature_gen_screen.dart';
+import 'package:neat/features/hub/presentation/screens/hub_screen.dart';
 import 'package:neat/features/identity/domain/models/identity_state.dart';
 import 'package:neat/features/identity/presentation/providers/identity_provider.dart';
 import 'package:neat/features/identity/presentation/providers/stepper_provider.dart';
@@ -25,6 +26,11 @@ class MainLayout extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final currentStep = ref.watch(currentStepProvider);
 
+    // The Hub (landing) and the Workshop are full-screen modes — no wizard
+    // sidebar. The sidebar belongs to the creation wizard only.
+    if (currentStep == NeatStep.hub) return const HubScreen();
+    if (currentStep == NeatStep.featureGen) return const _WorkshopMode();
+
     return Scaffold(
       body: Row(
         children: [
@@ -34,8 +40,10 @@ class MainLayout extends ConsumerWidget {
             color: Theme.of(context).colorScheme.surface,
             child: Column(
               children: [
-                // Logo + version
-                Padding(
+                // Logo + version (click → back to the Hub)
+                InkWell(
+                  onTap: () => ref.read(currentStepProvider.notifier).setStep(NeatStep.hub),
+                  child: Padding(
                   padding: const EdgeInsets.fromLTRB(20, 28, 20, 24),
                   child: Row(
                     children: [
@@ -87,22 +95,17 @@ class MainLayout extends ConsumerWidget {
                     ],
                   ),
                 ),
+                ),
 
                 const Divider(color: Colors.white10, height: 1),
                 const SizedBox(height: 16),
 
-                // Wizard steps
+                // Wizard steps (featureGen / Workshop is reached from the Hub).
                 _buildItem(ref, NeatStep.identity, 'IDENTITY', Icons.fingerprint_outlined),
                 _buildItem(ref, NeatStep.themeEngine, 'THEME ENGINE', Icons.palette_outlined),
                 _buildItem(ref, NeatStep.dependencies, 'DEPENDENCIES', Icons.extension_outlined),
                 _buildItem(ref, NeatStep.architecture, 'ARCHITECTURE', Icons.account_tree_outlined),
                 _buildItem(ref, NeatStep.cicd, 'CI/CD', Icons.rocket_outlined),
-
-                const Divider(color: Colors.white10, height: 1, indent: 16, endIndent: 16),
-                const SizedBox(height: 8),
-
-                // Feature Gen (outil séparé)
-                _buildItem(ref, NeatStep.featureGen, 'FEATURE GEN', Icons.construction_outlined),
 
                 const Spacer(),
 
@@ -238,8 +241,44 @@ class MainLayout extends ConsumerWidget {
       NeatStep.architecture => const ArchitectureScreen(),
       NeatStep.cicd => const CicdScreen(),
       NeatStep.launch => const LaunchScreen(),
-      NeatStep.featureGen => const FeatureGenScreen(),
+      // hub + featureGen are full-screen modes handled before _screenFor.
+      NeatStep.hub || NeatStep.featureGen => const SizedBox.shrink(),
     };
+  }
+}
+
+// ── Workshop mode (full screen, with a back-to-Hub bar) ─────────────────────────
+
+class _WorkshopMode extends ConsumerWidget {
+  const _WorkshopMode();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Scaffold(
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+            child: Row(
+              children: [
+                TextButton.icon(
+                  onPressed: () => ref.read(currentStepProvider.notifier).setStep(NeatStep.hub),
+                  icon: const Icon(Icons.arrow_back, size: 16),
+                  label: const Text('Neat-home'),
+                  style: TextButton.styleFrom(foregroundColor: Colors.white54),
+                ),
+              ],
+            ),
+          ),
+          const Expanded(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(40, 16, 40, 0),
+              child: FeatureGenScreen(),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

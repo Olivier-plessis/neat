@@ -250,14 +250,20 @@ class ${p}Error extends ${p}State {
 
   /// A real list screen: renders the feature's items, shows a Skeletonizer
   /// placeholder while loading, pull-to-refresh, and empty/error states.
-  static String _riverpodListPage(String featureName, String packageName) {
+  static String _riverpodListPage(String featureName, String packageName, [bool i18n = false]) {
     final p = pascal(featureName);
     final c = camel(featureName);
+    final i18nImports = i18n
+        ? "import 'package:$packageName/core/i18n/language_switcher.dart';\n"
+            "import 'package:$packageName/i18n/strings.g.dart';\n"
+        : '';
+    final titleWidget = i18n ? 'Text(context.t.$c.title)' : "const Text('$p')";
+    final switcherAction = i18n ? 'const LanguageSwitcher(),\n          ' : '';
     return '''import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:skeletonizer/skeletonizer.dart';
 import 'package:$packageName/core/theme/theme_mode_controller.dart';
-import 'package:$packageName/features/$featureName/domain/entities/${featureName}_entity.dart';
+${i18nImports}import 'package:$packageName/features/$featureName/domain/entities/${featureName}_entity.dart';
 import 'package:$packageName/features/$featureName/presentation/providers/${featureName}_provider.dart';
 
 class ${p}Page extends ConsumerWidget {
@@ -269,9 +275,9 @@ class ${p}Page extends ConsumerWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('$p'),
+        title: $titleWidget,
         actions: [
-          IconButton(
+          ${switcherAction}IconButton(
             icon: Icon(isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined),
             onPressed: () => ref.read(themeModeControllerProvider.notifier).toggle(),
           ),
@@ -340,14 +346,22 @@ class _${p}List extends StatelessWidget {
     required bool hasBloc,
     required bool useCubit,
     bool dataList = false,
+    bool i18n = false,
   }) {
     final p = pascal(featureName);
 
     if (hasRiverpod && useAnnotations && dataList) {
-      return _riverpodListPage(featureName, packageName);
+      return _riverpodListPage(featureName, packageName, i18n);
     }
 
     if (hasRiverpod) {
+      final c = camel(featureName);
+      final i18nImports = i18n
+          ? "import 'package:$packageName/core/i18n/language_switcher.dart';\n"
+              "import 'package:$packageName/i18n/strings.g.dart';\n"
+          : '';
+      final titleWidget = i18n ? 'Text(context.t.$c.title)' : "const Text('$p')";
+      final switcherAction = i18n ? 'const LanguageSwitcher(),\n          ' : '';
       final body = useAnnotations
           ? '''switch (state) {
         AsyncData() => const Center(child: Text('$p')),
@@ -363,20 +377,20 @@ class _${p}List extends StatelessWidget {
       return '''import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:$packageName/core/theme/theme_mode_controller.dart';
-import 'package:$packageName/features/$featureName/presentation/providers/${featureName}_provider.dart';
+${i18nImports}import 'package:$packageName/features/$featureName/presentation/providers/${featureName}_provider.dart';
 
 class ${p}Page extends ConsumerWidget {
   const ${p}Page({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(${camel(featureName)}Provider);
+    final state = ref.watch(${c}Provider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('$p'),
+        title: $titleWidget,
         actions: [
-          IconButton(
+          ${switcherAction}IconButton(
             icon: Icon(isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined),
             onPressed: () => ref.read(themeModeControllerProvider.notifier).toggle(),
           ),

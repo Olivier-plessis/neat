@@ -1,8 +1,12 @@
+import 'dart:io';
+
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:neat/features/feature_gen/domain/models/feature_gen_options.dart';
 import 'package:neat/features/feature_gen/domain/models/loaded_project.dart';
 import 'package:neat/features/feature_gen/domain/services/project_loader.dart';
 import 'package:neat/features/feature_gen/domain/usecases/generate_feature_usecase.dart';
+import 'package:neat/features/generation/domain/services/i18n_importer.dart';
+import 'package:neat/features/hub/presentation/providers/recent_projects_provider.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'workshop_controller.freezed.dart';
@@ -32,13 +36,49 @@ class WorkshopController extends _$WorkshopController {
   /// NEAT project (no readable `.neat.json`).
   Future<void> openProject(String path) async {
     final project = await const ProjectLoader().load(path);
-    state = project == null
-        ? const WorkshopState(error: 'Not a NEAT project — no readable .neat.json found.')
-        : WorkshopState(project: project);
+    if (project == null) {
+      state = const WorkshopState(error: 'Not a NEAT project — no readable .neat.json found.');
+      return;
+    }
+    state = WorkshopState(project: project);
+    // Surface it in the Hub's recent list.
+    await ref
+        .read(recentProjectsProvider.notifier)
+        .register(path: project.path, name: project.contract.projectName);
   }
 
   /// Closes the current project (back to the Hub).
   void close() => state = const WorkshopState();
+
+  /// Imports a compact CSV of translations into the open project: places it as
+  /// the slang source, regenerates `strings.g.dart`, streaming logs. Only
+  /// meaningful when the project was generated with i18n (`generateI18n`).
+  Future<void> importTranslations(String csvPath) async {
+    final project = state.project;
+    if (project == null || state.isGenerating) return;
+    final file = File(csvPath);
+    if (!file.existsSync()) {
+      state = state.copyWith(error: 'CSV introuvable : $csvPath');
+      return;
+    }
+
+    state = state.copyWith(isGenerating: true, logs: const [], error: null);
+    final collected = <String>[];
+    try {
+      final locales = await const I18nImporter().importCsv(
+        projectPath: project.path,
+        csvContent: await file.readAsString(),
+        onLog: (line) {
+          collected.add(line);
+          state = state.copyWith(logs: List.unmodifiable(collected));
+        },
+      );
+      collected.add('[✓] Traductions importées (${locales.join(', ')}).');
+      state = state.copyWith(isGenerating: false, logs: List.unmodifiable(collected));
+    } catch (e) {
+      state = state.copyWith(isGenerating: false, error: e.toString());
+    }
+  }
 
   /// Generates a feature into the open project from the Workshop [options],
   /// streaming logs, then refreshes the feature list from disk.

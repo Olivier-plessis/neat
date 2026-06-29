@@ -6,6 +6,7 @@ import 'package:neat/core/contract/neat_contract.dart';
 import 'package:neat/core/theme/app_theme.dart';
 import 'package:neat/features/feature_gen/domain/models/feature_gen_options.dart';
 import 'package:neat/features/feature_gen/presentation/providers/workshop_controller.dart';
+import 'package:neat/features/identity/presentation/providers/stepper_provider.dart';
 
 /// Workshop mode: open an existing NEAT project (via its `.neat.json`) and
 /// generate a new feature. The project stack is fixed by the contract; the
@@ -37,7 +38,15 @@ class FeatureGenScreen extends HookConsumerWidget {
         Expanded(
           child: project == null
               ? _OpenProjectPanel(error: state.error, onOpen: () => _pickAndOpen(notifier))
-              : _Workshop(state: state, onGenerate: notifier.generateFeature, onClose: notifier.close),
+              : _Workshop(
+                  state: state,
+                  onGenerate: notifier.generateFeature,
+                  onClose: () {
+                    notifier.close();
+                    ref.read(currentStepProvider.notifier).setStep(NeatStep.hub);
+                  },
+                  onImportTranslations: notifier.importTranslations,
+                ),
         ),
       ],
     );
@@ -99,11 +108,17 @@ class _OpenProjectPanel extends StatelessWidget {
 // ── Loaded project: the form + live blueprint ──────────────────────────────────
 
 class _Workshop extends HookWidget {
-  const _Workshop({required this.state, required this.onGenerate, required this.onClose});
+  const _Workshop({
+    required this.state,
+    required this.onGenerate,
+    required this.onClose,
+    required this.onImportTranslations,
+  });
 
   final WorkshopState state;
   final Future<void> Function(FeatureGenOptions) onGenerate;
   final VoidCallback onClose;
+  final Future<void> Function(String csvPath) onImportTranslations;
 
   @override
   Widget build(BuildContext context) {
@@ -155,6 +170,25 @@ class _Workshop extends HookWidget {
             ),
             Text('${project.features.length} features',
                 style: TextStyle(color: Colors.grey[600], fontSize: 11)),
+            // Import translations (CSV) — only for projects generated with i18n.
+            if (c.generateI18n) ...[
+              const SizedBox(width: 12),
+              TextButton.icon(
+                onPressed: state.isGenerating
+                    ? null
+                    : () async {
+                        final result = await FilePicker.pickFiles(
+                          type: FileType.custom,
+                          allowedExtensions: const ['csv'],
+                        );
+                        final path = result?.files.single.path;
+                        if (path != null) await onImportTranslations(path);
+                      },
+                icon: const Icon(Icons.translate, size: 14),
+                label: const Text('Import i18n', style: TextStyle(fontSize: 12)),
+                style: TextButton.styleFrom(foregroundColor: AppTheme.colorPrimaryCyan),
+              ),
+            ],
             const SizedBox(width: 12),
             TextButton.icon(
               onPressed: state.isGenerating ? null : onClose,

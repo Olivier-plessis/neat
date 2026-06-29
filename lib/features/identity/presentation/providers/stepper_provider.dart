@@ -3,7 +3,9 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'stepper_provider.g.dart';
 
-enum NeatStep { identity, themeEngine, dependencies, architecture, cicd, launch, featureGen }
+/// [hub] is the landing screen (Create vs. Open). The middle six are the
+/// creation wizard; [featureGen] is the Workshop (reached from the Hub).
+enum NeatStep { hub, identity, themeEngine, dependencies, architecture, cicd, launch, featureGen }
 
 extension NeatStepX on NeatStep {
   static const _wizardSteps = [
@@ -47,7 +49,7 @@ extension NeatStepX on NeatStep {
 @Riverpod(keepAlive: true)
 class CurrentStep extends _$CurrentStep {
   @override
-  NeatStep build() => NeatStep.identity;
+  NeatStep build() => NeatStep.hub;
 
   void setStep(NeatStep step) => state = step;
 }
