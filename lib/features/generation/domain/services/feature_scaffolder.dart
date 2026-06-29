@@ -45,6 +45,9 @@ class FeatureScaffolder {
     // Supabase Realtime: the list screen becomes a live StreamNotifier and the
     // repository exposes `watchAll()`. Only effective with the full DI graph.
     bool realtime = false,
+    // slang i18n: the riverpod page consumes `context.t.<feature>.title` and
+    // shows a LanguageSwitcher in the AppBar.
+    bool i18n = false,
   }) async {
     // The project ships a Drift package → any local source is Drift-backed.
     final localIsDrift = localStoragePackage != null;
@@ -164,6 +167,7 @@ class FeatureScaffolder {
         hasBloc: hasBloc,
         useCubit: useCubit,
         dataList: dataList,
+        i18n: i18n,
       ),
     );
 

@@ -252,8 +252,13 @@ class ArchitectureScreen extends ConsumerWidget {
                         ),
                         const SizedBox(height: 12),
                         if (hasFirebase) ...[
-                          _FirebaseConfigCard(
-                            configPath: state.firebaseConfigPath,
+                          _UploadFileCard(
+                            title: 'Firebase config (JSON)',
+                            icon: Icons.upload_file_outlined,
+                            filePath: state.firebaseConfigPath,
+                            emptyHint:
+                                'Optionnel : la web app config (apiKey, projectId…). Sans fichier, des '
+                                'placeholders compilables sont générés.',
                             onPick: () async {
                               final result = await FilePicker.pickFiles(
                                 type: FileType.custom,
@@ -286,6 +291,41 @@ class ArchitectureScreen extends ConsumerWidget {
                               'exemple d\'upload d\'avatar (image_picker).',
                           value: state.generateStorage,
                           onChanged: notifier.toggleGenerateStorage,
+                        ),
+                      ],
+
+                      const SizedBox(height: 28),
+                      _SectionHeader(
+                        icon: Icons.translate_outlined,
+                        label: 'Internationalization',
+                      ),
+                      const SizedBox(height: 12),
+                      _ToggleTile(
+                        title: 'i18n (slang)',
+                        description:
+                            'Traductions type-safe avec slang : base en + fr, '
+                            'TranslationProvider + `context.t`, et un sélecteur de langue dans l\'AppBar.',
+                        value: state.generateI18n,
+                        onChanged: notifier.toggleGenerateI18n,
+                      ),
+                      if (state.generateI18n) ...[
+                        const SizedBox(height: 12),
+                        _UploadFileCard(
+                          title: 'Traductions (CSV)',
+                          icon: Icons.table_chart_outlined,
+                          filePath: state.i18nCsvPath,
+                          emptyHint:
+                              'Optionnel : un CSV compact (`key,en,fr,…`) à faire traduire dans un '
+                              'tableur. Remplace le scaffold en/fr par défaut.',
+                          onPick: () async {
+                            final result = await FilePicker.pickFiles(
+                              type: FileType.custom,
+                              allowedExtensions: const ['csv'],
+                            );
+                            final path = result?.files.single.path;
+                            if (path != null) notifier.setI18nCsvPath(path);
+                          },
+                          onRemove: () => notifier.setI18nCsvPath(''),
                         ),
                       ],
 
@@ -674,24 +714,31 @@ class _ToggleTile extends StatelessWidget {
   }
 }
 
-// ── Firebase config upload ─────────────────────────────────────────────────────
+// ── File upload card (Firebase config / i18n CSV / …) ──────────────────────────
 
-/// Upload the Firebase config JSON → NEAT generates `firebase_options.dart`.
-class _FirebaseConfigCard extends StatelessWidget {
-  const _FirebaseConfigCard({
-    required this.configPath,
+/// A reusable "upload a file" row: title + hint (or the picked file name) + an
+/// Upload/Change button and a clear button.
+class _UploadFileCard extends StatelessWidget {
+  const _UploadFileCard({
+    required this.title,
+    required this.icon,
+    required this.filePath,
+    required this.emptyHint,
     required this.onPick,
     required this.onRemove,
   });
 
-  final String configPath;
+  final String title;
+  final IconData icon;
+  final String filePath;
+  final String emptyHint;
   final VoidCallback onPick;
   final VoidCallback onRemove;
 
   @override
   Widget build(BuildContext context) {
-    final hasFile = configPath.isNotEmpty;
-    final fileName = hasFile ? configPath.split(Platform.pathSeparator).last : null;
+    final hasFile = filePath.isNotEmpty;
+    final fileName = hasFile ? filePath.split(Platform.pathSeparator).last : null;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
       decoration: BoxDecoration(
@@ -702,7 +749,7 @@ class _FirebaseConfigCard extends StatelessWidget {
       child: Row(
         children: [
           Icon(
-            hasFile ? Icons.check_circle_outline : Icons.upload_file_outlined,
+            hasFile ? Icons.check_circle_outline : icon,
             color: hasFile ? AppTheme.colorPrimaryCyan : Colors.grey[500],
             size: 20,
           ),
@@ -711,9 +758,9 @@ class _FirebaseConfigCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Firebase config (JSON)',
-                  style: TextStyle(
+                Text(
+                  title,
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
@@ -721,9 +768,7 @@ class _FirebaseConfigCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  fileName ??
-                      'Optionnel : la web app config (apiKey, projectId…). Sans fichier, des '
-                          'placeholders compilables sont générés.',
+                  fileName ?? emptyHint,
                   style: TextStyle(color: Colors.grey[500], fontSize: 12),
                 ),
               ],

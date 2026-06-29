@@ -74,17 +74,85 @@ theming (customM3 / FlexColorScheme) + extractable UI package + Widgetbook + CI/
 - ⏭️ Follow-ups: Supabase OAuth providers, native Google account picker
   (`google_sign_in`), Supabase Storage bucket-policy doc.
 
-### 5. Internationalisation — **decided: slang**
-- **slang** (type-safe keys, codegen, typed pluralization/interpolation) over
-  easy_localization. It matches NEAT's "everything typed" DNA. The "no codegen"
-  argument for easy_localization is moot — it ships its own `locale_keys.g.dart` —
-  so we take the compile-time-safe option. Generate the slang setup + a sample
-  feature consuming `t.<feature>.…`.
+### 5. Internationalisation — ✅ **slang**
+- ✅ Opt-in **slang** i18n: base `en` + `fr` (`lib/i18n/<locale>.i18n.json`),
+  codegen via the **slang CLI** (`dart run slang` → `strings.g.dart`; not
+  slang_build_runner, which throws `InvalidOutputException` next to source_gen
+  builders like freezed/json), `TranslationProvider` in bootstrap, MaterialApp
+  wired to the slang locale (`flutter_localizations`).
+- ✅ Sample consumption: the riverpod feature page reads `context.t.<feature>.title`
+  and shows a `LanguageSwitcher` (`LocaleSettings.setLocale`) in the AppBar.
+- ✅ **Locale persistence**: `LocaleStore` (`core/i18n/locale_store.dart`) saves the
+  chosen language in `shared_preferences`; `LocaleStore.init()` restores it on
+  start-up (falls back to the device locale). The switcher persists via it.
+- Harness-proven (integration test: generate → build_runner → analyze 0/0).
+- Chosen over easy_localization (compile-time safety matches NEAT's typed DNA).
+- ✅ **Translation file import (compact CSV)** — upload a `key,en,fr,…` CSV (made
+  for handing off to non-dev translators in a spreadsheet). It becomes the slang
+  source (base locale = first column), NEAT runs `dart run slang`. Wired in **both**
+  places: a wizard upload field **and** the **Workshop** ("Import i18n" on an
+  existing i18n project). Shared `I18nImporter` service; harness-proven (CSV →
+  `strings.g.dart`, analyze 0/0). With a custom CSV the sample page is left un-woven
+  (keys unknown), but the full slang setup + switcher are still generated.
+- ⏭️ Follow-ups:
+  - `.arb` import (standard Flutter/intl format, for migrating from `intl`).
+  - Weave the `LanguageSwitcher` into bloc/cubit pages (today: riverpod pages only).
+
+### 5b. Production hardening — ✅ flavors + fastlane (from the kido-luci analysis)
+- ✅ **Fastlane in the right place**: was wrongly written to `fastlane/Fastfile` at
+  the project root → now `android/fastlane/*` + `ios/fastlane/*` (Fastfile, Appfile,
+  Matchfile, Gemfile, `.env.example`) + `android/key.properties.example`. Env-driven
+  (no secrets committed), flavor-aware lanes, secrets git-ignored. CI calls
+  `cd android/ios && bundle exec fastlane release`.
+- ✅ **Build flavors (dev/staging/prod)**, driven by envied (kept, not swapped for
+  dart-define): `main_dev/staging/prod.dart` entry points (each `bootstrap(<F>Env())`),
+  `.vscode/launch.json` run configs, Android `productFlavors` (appId suffix +
+  per-flavor `@string/app_name`), and `docs/FLAVORS.md`. iOS Xcode schemes are
+  documented (can't be scripted reliably from a generated project).
+- Harness-proven (integration: 3 entry points + productFlavors + fastlane layout,
+  analyze 0/0).
+- ⏭️ From the same analysis, still on the table: extract core packages
+  (`architecture`/`network`/`theme`) for a lib-agnostic core; golden tests in the UI
+  package; `BootstrapErrorApp`; `app_platform` bricks (permissions/share); CI
+  enrichment (dependabot/codeql). Per-feature packages → the "Modular Monorepo"
+  variant of #6.
 
 ### 6. Multiple architectures — later, with caution
 - The harness makes **every** architecture a ~3× maintenance cost (each must be proven).
   **Clean done deeply > 3 architectures done shallowly.** If adding one, MVVM at most;
   MVC is dated in Flutter. Don't dilute the moat to match a competitor's brochure.
+
+### 7. JSON-driven feature generation — big bet, high value
+> Idea: drive the data layer from real API payloads instead of a fixed `id/name`
+> placeholder. Paste a Response (and Request) JSON → NEAT infers the typed model
+> and wires the endpoint. Strongest inside the **Workshop** ("paste a backend route
+> 6 months later, the data layer is ready"). Fits the moat (Workshop + contract +
+> harness guarantees it compiles).
+
+**The crux is JSON→Dart inference** (a known problem — quicktype/json_to_dart — with
+a long tail of edge cases): `int` vs `double`, `"date"` → `String`/`DateTime`,
+`null`/`[]` → undecidable type, **nullability/optionality** from a single sample
+(the Achilles heel), nested objects → sub-classes, lists of objects → `List<T>` + a
+class, `snake_case`→`camelCase` with `@JsonKey`, reserved words, enums → `String`.
+The harness guarantees the output **compiles**; semantic correctness (nullability,
+int/double) stays **best-effort, dev-editable**.
+
+**Design fork:** NEAT is **entity-centric** today (1 feature = 1 entity + CRUD);
+Gemini's pitch is **endpoint-centric** (1 feature = N arbitrary routes). They don't
+overlap — pick deliberately. → Phase it:
+- **Phase 1 — Entity from a Response JSON** (keep CRUD): paste a response JSON →
+  infer the entity/model fields (replaces `id/name`) + freezed/json + mapper.
+  Best value/effort, bounded risk. *Confidence élevé on value, moyen-élevé on
+  inference robustness.*
+- **Phase 2 — Typed endpoints**: per-route `method + path + request/response JSON`
+  → typed chopper methods + request models. The full vision; reshapes the "feature"
+  model + Workshop UI. *Effort L.*
+- **Phase 3 — polish**: surface the API Base URL at the Identity step (pre-fills the
+  envied `.env`; the value already exists via `API_BASE_URL`).
+
+**Notes vs the source pitch:** use chopper + a typed request model (not dio +
+`Map<String,dynamic>`); `Response<XModel>` needs a chopper converter that can
+deserialize — validate at implementation time.
 
 ## State management policy
 Keep **Riverpod (annotations + manual Notifier/NotifierProvider) + Bloc/Cubit** only.
