@@ -1,5 +1,6 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:neat/features/architecture/domain/models/env_config.dart';
+import 'package:neat/features/generation/domain/models/field_spec.dart';
 
 part 'architecture_state.freezed.dart';
 
@@ -51,6 +52,15 @@ abstract class ArchitectureState with _$ArchitectureState {
 
     /// Name of the first feature scaffolded under lib/features/ (snake_case).
     @Default('home') String firstFeatureName,
+
+    /// The first feature's entity fields, inferred from a pasted Response JSON
+    /// (or the default id/name placeholder). Drives the entity/model/mapper/Drift
+    /// table/list tile of the generated feature.
+    @Default(FieldSpec.idName) List<FieldSpec> firstFeatureFields,
+
+    /// The raw JSON the user pasted to infer [firstFeatureFields] (kept so the
+    /// UI can re-show / re-infer it). Empty → the default id/name placeholder.
+    @Default('') String firstFeatureJson,
 
     /// Data persistence strategy. [StorageStrategy.offlineFirst] switches the
     /// generated project to a workspace with a Drift local-storage package.

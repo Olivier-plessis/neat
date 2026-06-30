@@ -1,4 +1,6 @@
+import 'package:neat/features/generation/domain/models/field_spec.dart';
 import 'package:neat/features/generation/domain/services/templates/dart/_template_utils.dart';
+import 'package:neat/features/generation/domain/services/templates/dart/field_codegen.dart';
 
 class DataTemplates {
   DataTemplates._();
@@ -10,10 +12,14 @@ class DataTemplates {
     required String packageName,
     required bool hasFreezed,
     required bool hasJsonSerializable,
+    List<FieldSpec> fields = FieldSpec.idName,
   }) {
     final p = pascal(featureName);
     final entityImport =
         "import 'package:$packageName/features/$featureName/domain/entities/${featureName}_entity.dart';";
+
+    // toEntity(): every field maps 1:1 (model field name == entity field name).
+    final toEntityArgs = fields.map((f) => '    ${f.dartName}: ${f.dartName},').join('\n');
 
     if (hasFreezed) {
       // freezed handles JSON serialization internally — do NOT add @JsonSerializable()
@@ -23,6 +29,11 @@ class DataTemplates {
       final fromJson = hasJsonSerializable
           ? '\n  factory ${p}Model.fromJson(Map<String, dynamic> json) =>\n      _\$${p}ModelFromJson(json);'
           : '';
+      final factoryParams = fields.map((f) {
+        final ann = hasJsonSerializable ? f.jsonKeyAnnotation : '';
+        final annLine = ann.isEmpty ? '' : '    $ann\n';
+        return '$annLine    ${f.nullable ? '' : 'required '}${f.type} ${f.dartName},';
+      }).join('\n');
       return '''import 'package:freezed_annotation/freezed_annotation.dart';
 $entityImport
 part '${featureName}_model.freezed.dart';$partJson
@@ -32,60 +43,64 @@ abstract class ${p}Model with _\$${p}Model {
   const ${p}Model._(); // required to add methods on freezed class
 
   const factory ${p}Model({
-    required String id,
-    required String name,
+$factoryParams
   }) = _${p}Model;
 $fromJson
 
   ${p}Entity toEntity() => ${p}Entity(
-    id: id,
-    name: name,
+$toEntityArgs
   );
 }
 ''';
     }
 
-    // Plain Dart model — independent from Entity, explicit toEntity() mapper
+    // Plain Dart model — independent from Entity, explicit toEntity() mapper.
+    final ctorParams = fields
+        .map((f) => f.nullable ? '    this.${f.dartName},' : '    required this.${f.dartName},')
+        .join('\n');
+    final decls = fields.map((f) => '  final ${f.type} ${f.dartName};').join('\n');
+    final fromJsonArgs = fields.map((f) => '    ${f.dartName}: ${f.fromJsonExpr()},').join('\n');
+    final toJsonEntries = fields.map((f) => "    '${f.jsonKey}': ${f.toJsonValue()},").join('\n');
     return '''$entityImport
 
 class ${p}Model {
   const ${p}Model({
-    required this.id,
-    required this.name,
+$ctorParams
   });
 
-  final String id;
-  final String name;
+$decls
 
   factory ${p}Model.fromJson(Map<String, dynamic> json) => ${p}Model(
-    id: json['id'] as String,
-    name: json['name'] as String,
+$fromJsonArgs
   );
 
   Map<String, dynamic> toJson() => {
-    'id': id,
-    'name': name,
+$toJsonEntries
   };
 
   ${p}Entity toEntity() => ${p}Entity(
-    id: id,
-    name: name,
+$toEntityArgs
   );
 }
 ''';
   }
 
-  static String featureExampleModel({required String featureName}) {
+  static String featureExampleModel({
+    required String featureName,
+    List<FieldSpec> fields = FieldSpec.idName,
+  }) {
     final p = pascal(featureName);
+    final ctorParams = fields
+        .map((f) => f.nullable ? '    this.${f.dartName},' : '    required this.${f.dartName},')
+        .join('\n');
+    final decls = fields.map((f) => '  final ${f.type} ${f.dartName};').join('\n');
     return '''// Domain model for $featureName
 class ${p}Model {
   const ${p}Model({
-    required this.id,
-    required this.name,
+$ctorParams
   });
 
-  final String id;
-  final String name;
+$decls
 }
 ''';
   }
@@ -100,10 +115,12 @@ class ${p}Model {
     bool offlineFirst = false,
     bool hasSync = false,
     bool realtime = false,
+    List<FieldSpec> fields = FieldSpec.idName,
   }) {
     final p = pascal(featureName);
     final isChopper = httpClient == 'chopper';
-    final modelExpr = '${p}Model(id: entity.id, name: entity.name)';
+    final modelArgs = fields.map((f) => '${f.dartName}: entity.${f.dartName}').join(', ');
+    final modelExpr = '${p}Model($modelArgs)';
 
     // Chopper wraps responses in Response<T>; unwrap with .body!.
     String remote(String call) =>
@@ -569,8 +586,11 @@ class ${p}ApiSource {
     bool offlineFirst = false,
     bool hasSync = false,
     String? localStoragePackage,
+    List<FieldSpec> fields = FieldSpec.idName,
   }) {
     final p = pascal(featureName);
+    final toModelArgs = fields.map((f) => '${f.dartName}: row.${f.dartName}').join(', ');
+    final toRowArgs = fields.map((f) => '${f.dartName}: model.${f.dartName}').join(', ');
 
     // Offline-first: back the local source with the typed Drift table, mapping
     // rows to/from the model for full local CRUD.
@@ -611,9 +631,9 @@ class ${p}LocalSource {
 
   Future<void> deleteById(String id) => _db.delete$p(id);
 
-  ${p}Model _toModel(${p}Row row) => ${p}Model(id: row.id, name: row.name);
+  ${p}Model _toModel(${p}Row row) => ${p}Model($toModelArgs);
 
-  ${p}Row _toRow(${p}Model model) => ${p}Row(id: model.id, name: model.name);$enqueue
+  ${p}Row _toRow(${p}Model model) => ${p}Row($toRowArgs);$enqueue
 }
 ''';
     }

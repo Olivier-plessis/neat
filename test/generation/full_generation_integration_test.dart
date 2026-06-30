@@ -12,6 +12,7 @@ import 'package:neat/features/dependencies/domain/models/pub_package.dart';
 import 'package:neat/features/feature_gen/domain/models/feature_gen_options.dart';
 import 'package:neat/features/feature_gen/domain/services/project_loader.dart';
 import 'package:neat/features/feature_gen/domain/usecases/generate_feature_usecase.dart';
+import 'package:neat/features/generation/domain/services/json_entity_inferencer.dart';
 import 'package:neat/features/generation/domain/usecases/launch_generation_usecase.dart';
 import 'package:neat/features/identity/domain/models/identity_state.dart';
 import 'package:neat/features/theme_engine/domain/models/theme_engine_state.dart';
@@ -2018,6 +2019,100 @@ void main() {
         errorLines,
         isEmpty,
         reason: 'single-env project analyze reported issues:\n${errorLines.join('\n')}\n\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
+
+  test(
+    'JSON-driven entity: inferred fields flow into entity/model/Drift/list, analyzes cleanly',
+    () async {
+      const projectName = 'neat_json_entity_test';
+      final logs = <String>[];
+
+      // A realistic Response JSON (FakeStore-ish product): mixed scalar types,
+      // an int id (→ coerced String), snake_case keys (→ @JsonKey), an ISO date.
+      const json = '''
+        {
+          "id": 7,
+          "title": "Classic Tee",
+          "price": 19.99,
+          "in_stock": true,
+          "created_at": "2024-01-31T10:00:00Z"
+        }
+      ''';
+      final inferred = const JsonEntityInferencer().infer(json);
+      expect(inferred.fields.map((f) => f.dartName),
+          containsAll(['id', 'title', 'price', 'inStock', 'createdAt']));
+
+      final architecture = ArchitectureState(
+        firstFeatureName: 'product',
+        firstFeatureFields: inferred.fields,
+        // Offline-first → exercises the Drift table columns from the fields.
+        storageStrategy: StorageStrategy.offlineFirstRead,
+      );
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: IdentityState(
+            name: projectName,
+            organization: 'com.neat.test',
+            projectPath: tempRoot.path,
+            description: 'NEAT JSON-driven entity test',
+            targetPlatforms: const ['macos'],
+          ),
+          packages: packages,
+          architecture: architecture,
+          cicd: const CicdState(),
+          theme: const ThemeEngineState(approach: ThemeApproach.customM3),
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('JSON-entity generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+      String read(String p) => File('${projectDir.path}/$p').readAsStringSync();
+
+      // Entity carries the inferred fields (id coerced to String).
+      final entity = read('lib/features/product/domain/entities/product_entity.dart');
+      expect(entity, contains('String id'));
+      expect(entity, contains('double price'));
+      expect(entity, contains('bool inStock'));
+      expect(entity, contains('DateTime createdAt'));
+
+      // Model maps snake_case keys with @JsonKey.
+      final model = read('lib/features/product/data/models/product_model.dart');
+      expect(model, contains("@JsonKey(name: 'in_stock')"));
+      expect(model, contains("@JsonKey(name: 'created_at')"));
+
+      // Drift table columns are typed per field; id stays the TextColumn PK.
+      final db = read('packages/${projectName}_local_storage/lib/src/database.dart');
+      expect(db, contains('TextColumn get id => text()();'));
+      expect(db, contains('RealColumn get price => real()();'));
+      expect(db, contains('BoolColumn get inStock => boolean()();'));
+      expect(db, contains('DateTimeColumn get createdAt => dateTime()();'));
+      expect(db, contains('primaryKey => {id}'));
+
+      // The list tile shows the inferred title field.
+      final page = read('lib/features/product/presentation/pages/product_page.dart');
+      expect(page, contains('Text(item.title)'));
+
+      // Whole project analyzes with zero errors/warnings (codegen included).
+      final analyze = await Process.run(
+        'flutter',
+        ['analyze', '--no-pub'],
+        workingDirectory: projectDir.path,
+      );
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason: 'JSON-entity project analyze reported issues:\n${errorLines.join('\n')}\n\n$out',
       );
     },
     timeout: const Timeout(Duration(minutes: 12)),

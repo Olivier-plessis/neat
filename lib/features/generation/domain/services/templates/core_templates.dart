@@ -1,3 +1,6 @@
+import 'package:neat/features/generation/domain/models/field_spec.dart';
+import 'package:neat/features/generation/domain/services/templates/dart/field_codegen.dart';
+
 class CoreTemplates {
   CoreTemplates._();
 
@@ -931,9 +934,12 @@ class SyncService {
     required String featureName,
     required String localStoragePackage,
     required bool hasSync,
+    List<FieldSpec> fields = FieldSpec.idName,
   }) {
     final p = _pascal(featureName);
     final c = _camel(featureName);
+    // A representative constructor call for the doc sample (non-compiled prose).
+    final sampleArgs = fields.map((f) => '${f.dartName}: ${f.placeholderLiteral()}').join(', ');
 
     final syncIntro = hasSync
         ? 'reads are local-first with a cache fallback, and **writes work offline**: they are applied to the local DB immediately and queued in an Outbox that a `SyncService` replays when connectivity returns.'
@@ -949,7 +955,7 @@ immediately, then the operation is appended to the Outbox.
 
 ```dart
 final create = ref.read(create${p}UsecaseProvider);
-await create.execute(const ${p}Entity(id: '1', name: 'Ada'));
+await create.execute(${p}Entity($sampleArgs));
 // → row upserted locally now; POST replayed automatically once online.
 ```
 
