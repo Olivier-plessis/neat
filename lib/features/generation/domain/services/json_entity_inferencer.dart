@@ -7,13 +7,12 @@ import 'package:neat/features/generation/domain/models/field_spec.dart';
 /// is best-effort from a single sample, so the user can review/edit).
 typedef InferenceResult = ({List<FieldSpec> fields, List<String> warnings});
 
-/// Infers a **flat** entity (scalar fields only) from a single JSON response.
+/// Infers an entity from a single JSON response.
 ///
-/// V1 scope (Phase 1): top-level object (or the first element of a top-level
-/// array). Nested objects/arrays are dropped with a warning. A `String` `id`
-/// is always guaranteed (synthesised or coerced) because NEAT's CRUD is
-/// id-centric. Semantic correctness (nullability, int vs double) is best-effort
-/// and editable in the preview.
+/// Phase 1.5 scope: top-level object (or the first element of a top-level array),
+/// **with nested objects and lists** (scalars + objects), inferred recursively.
+/// A `String` `id` is always guaranteed at the top level (CRUD is id-centric).
+/// Semantic correctness (nullability, int vs double) is best-effort and editable.
 class JsonEntityInferencer {
   const JsonEntityInferencer();
 
@@ -34,7 +33,6 @@ class JsonEntityInferencer {
 
     final warnings = <String>[];
 
-    // A top-level array → infer from its first element (a "list of X" response).
     Object? sample = decoded;
     if (sample is List) {
       if (sample.isEmpty) {
@@ -53,59 +51,13 @@ class JsonEntityInferencer {
       );
     }
 
-    final fields = <FieldSpec>[];
-    final usedNames = <String>{};
+    final fields = _childrenOf(sample, warnings, topLevel: true);
 
-    sample.forEach((key, value) {
-      final jsonKey = key.toString();
-      final isId = jsonKey == 'id';
-
-      // Complex (nested object / array) → not representable in a flat V1 entity.
-      if (!isId && (value is Map || value is List)) {
-        warnings.add('"$jsonKey": nested ${value is List ? 'array' : 'object'} '
-            'dropped (flat entities only for now).');
-        return;
-      }
-
-      final dartName = _uniqueDartName(jsonKey, usedNames, warnings);
-
-      if (isId) {
-        if (value != null && value is! String) {
-          warnings.add('"id" was ${_typeName(value as Object)} → coerced to String '
-              '(NEAT keys CRUD on String ids).');
-        }
-        fields.add(FieldSpec(
-          jsonKey: jsonKey,
-          dartName: dartName,
-          dartType: 'String',
-          isId: true,
-        ));
-        return;
-      }
-
-      if (value == null) {
-        warnings.add('"$jsonKey": null in the sample → typed as String? (edit if needed).');
-        fields.add(FieldSpec(
-          jsonKey: jsonKey,
-          dartName: dartName,
-          dartType: 'String',
-          nullable: true,
-        ));
-        return;
-      }
-
-      fields.add(FieldSpec(
-        jsonKey: jsonKey,
-        dartName: dartName,
-        dartType: _scalarType(value as Object),
-      ));
-    });
-
-    // Guarantee a String id (the CRUD contract requires it).
+    // Guarantee a String id at the top level (the CRUD contract requires it).
     if (!fields.any((f) => f.isId)) {
       fields.insert(
         0,
-        const FieldSpec(jsonKey: 'id', dartName: 'id', dartType: 'String', isId: true),
+        const FieldSpec(jsonKey: 'id', dartName: 'id', isId: true),
       );
       warnings.add('No "id" in the JSON → added a String id (required for CRUD).');
     }
@@ -113,9 +65,89 @@ class JsonEntityInferencer {
     return (fields: fields, warnings: warnings);
   }
 
-  /// Maps a non-null scalar JSON value to a Dart type. ISO-8601-looking strings
-  /// become `DateTime` (json_serializable parses them; the plain model uses
-  /// `DateTime.parse`).
+  /// Builds the field specs for a JSON object. Each scope de-duplicates Dart
+  /// names independently. Only the [topLevel] object enforces the id rules.
+  List<FieldSpec> _childrenOf(Map<dynamic, dynamic> map, List<String> warnings, {bool topLevel = false}) {
+    final fields = <FieldSpec>[];
+    final usedNames = <String>{};
+
+    map.forEach((key, value) {
+      final jsonKey = key.toString();
+      final isId = topLevel && jsonKey == 'id';
+      final dartName = _uniqueDartName(jsonKey, usedNames, warnings);
+
+      if (isId) {
+        if (value != null && value is! String) {
+          warnings.add('"id" was ${_typeName(value as Object)} → coerced to String '
+              '(NEAT keys CRUD on String ids).');
+        }
+        fields.add(FieldSpec(jsonKey: jsonKey, dartName: dartName, isId: true));
+        return;
+      }
+
+      if (value == null) {
+        warnings.add('"$jsonKey": null in the sample → typed as String? (edit if needed).');
+        fields.add(FieldSpec(jsonKey: jsonKey, dartName: dartName, nullable: true));
+        return;
+      }
+
+      fields.add(_specFor(jsonKey, dartName, value as Object, warnings));
+    });
+
+    return fields;
+  }
+
+  /// Infers a non-null value into a [FieldSpec] (scalar / object / list).
+  FieldSpec _specFor(String jsonKey, String dartName, Object value, List<String> warnings) {
+    if (value is Map) {
+      return FieldSpec(
+        jsonKey: jsonKey,
+        dartName: dartName,
+        kind: FieldKind.object,
+        objectName: _pascal(dartName),
+        children: _childrenOf(value, warnings),
+      );
+    }
+
+    if (value is List) {
+      if (value.isEmpty) {
+        warnings.add('"$jsonKey": empty array → typed as List<String> (edit if needed).');
+        return FieldSpec(
+          jsonKey: jsonKey,
+          dartName: dartName,
+          kind: FieldKind.list,
+          element: const FieldSpec(jsonKey: '', dartName: ''),
+        );
+      }
+      final first = value.first;
+      if (first is Map) {
+        final elementName = _pascal(_singular(dartName));
+        return FieldSpec(
+          jsonKey: jsonKey,
+          dartName: dartName,
+          kind: FieldKind.list,
+          element: FieldSpec(
+            jsonKey: jsonKey,
+            dartName: _camelLower(elementName),
+            kind: FieldKind.object,
+            objectName: elementName,
+            children: _childrenOf(first, warnings),
+          ),
+        );
+      }
+      // List of scalars.
+      return FieldSpec(
+        jsonKey: jsonKey,
+        dartName: dartName,
+        kind: FieldKind.list,
+        element: FieldSpec(jsonKey: '', dartName: '', dartType: _scalarType(first as Object)),
+      );
+    }
+
+    // Scalar.
+    return FieldSpec(jsonKey: jsonKey, dartName: dartName, dartType: _scalarType(value));
+  }
+
   String _scalarType(Object value) {
     if (value is bool) return 'bool';
     if (value is int) return 'int';
@@ -132,12 +164,9 @@ class JsonEntityInferencer {
         _ => 'String',
       };
 
-  /// Loose ISO-8601 date / datetime check (`2024-01-31` or `2024-01-31T...`).
   bool _looksIso8601(String s) =>
       RegExp(r'^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}.*)?$').hasMatch(s);
 
-  /// Converts a JSON key to a unique, valid lowerCamelCase Dart identifier,
-  /// escaping reserved words and de-duplicating collisions.
   String _uniqueDartName(String jsonKey, Set<String> used, List<String> warnings) {
     var name = _toDartIdentifier(jsonKey);
     if (_dartReserved.contains(name)) {
@@ -155,8 +184,6 @@ class JsonEntityInferencer {
     return name;
   }
 
-  /// `created_at` / `created-at` / `Created At` → `createdAt`; prefixes a leading
-  /// digit; falls back to `field` for empty/garbage keys.
   String _toDartIdentifier(String key) {
     final parts = key.split(RegExp(r'[^a-zA-Z0-9]+')).where((p) => p.isNotEmpty).toList();
     if (parts.isEmpty) return 'field';
@@ -168,6 +195,22 @@ class JsonEntityInferencer {
     var id = buf.toString();
     if (RegExp(r'^[0-9]').hasMatch(id)) id = 'n$id';
     return id;
+  }
+
+  /// `createdAt` → `CreatedAt` (PascalCase for a sub-class base name).
+  String _pascal(String dartName) =>
+      dartName.isEmpty ? dartName : dartName[0].toUpperCase() + dartName.substring(1);
+
+  String _camelLower(String s) =>
+      s.isEmpty ? s : s[0].toLowerCase() + s.substring(1);
+
+  /// Naive singularisation for list-element class names (`items` → `item`,
+  /// `categories` → `category`). Good enough for class naming; user-editable.
+  String _singular(String s) {
+    if (s.endsWith('ies') && s.length > 3) return '${s.substring(0, s.length - 3)}y';
+    if (s.endsWith('ses') && s.length > 3) return s.substring(0, s.length - 2);
+    if (s.endsWith('s') && !s.endsWith('ss') && s.length > 1) return s.substring(0, s.length - 1);
+    return s;
   }
 
   static const _dartReserved = <String>{

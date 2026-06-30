@@ -939,7 +939,7 @@ class SyncService {
     final p = _pascal(featureName);
     final c = _camel(featureName);
     // A representative constructor call for the doc sample (non-compiled prose).
-    final sampleArgs = fields.map((f) => '${f.dartName}: ${f.placeholderLiteral()}').join(', ');
+    final sampleArgs = fields.map((f) => '${f.dartName}: ${f.entityPlaceholder()}').join(', ');
 
     final syncIntro = hasSync
         ? 'reads are local-first with a cache fallback, and **writes work offline**: they are applied to the local DB immediately and queued in an Outbox that a `SyncService` replays when connectivity returns.'

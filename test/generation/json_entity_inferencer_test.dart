@@ -2,6 +2,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:neat/features/generation/domain/models/field_spec.dart';
 import 'package:neat/features/generation/domain/services/json_entity_inferencer.dart';
 
+// ignore_for_file: avoid_dynamic_calls
+
 void main() {
   const sut = JsonEntityInferencer();
 
@@ -54,14 +56,46 @@ void main() {
     });
   });
 
-  group('nested / null handling (flat V1)', () {
-    test('drops nested objects and arrays with warnings', () {
-      final r = sut.infer('''
-        {"id": "1", "name": "x", "rating": {"rate": 4.5}, "tags": ["a", "b"]}
-      ''');
-      expect(r.fields.any((f) => f.dartName == 'rating'), isFalse);
-      expect(r.fields.any((f) => f.dartName == 'tags'), isFalse);
-      expect(r.warnings.where((w) => w.contains('dropped')).length, 2);
+  group('nested objects & lists (Phase 1.5)', () {
+    test('nested object → object field with a sub-class name + children', () {
+      final r = sut.infer('{"id": "1", "rating": {"rate": 4.5, "count": 120}}');
+      final rating = field(r.fields, 'rating');
+      expect(rating.kind, FieldKind.object);
+      expect(rating.objectName, 'Rating');
+      expect(rating.children.map((f) => f.dartName), containsAll(['rate', 'count']));
+      expect(field(rating.children, 'rate').dartType, 'double');
+      expect(field(rating.children, 'count').dartType, 'int');
+    });
+
+    test('list of scalars → list field with scalar element', () {
+      final r = sut.infer('{"id": "1", "tags": ["a", "b"]}');
+      final tags = field(r.fields, 'tags');
+      expect(tags.kind, FieldKind.list);
+      expect(tags.element!.kind, FieldKind.scalar);
+      expect(tags.element!.dartType, 'String');
+    });
+
+    test('list of objects → list field with object element (singularised name)', () {
+      final r = sut.infer('{"id": "1", "items": [{"sku": "A", "qty": 2}]}');
+      final items = field(r.fields, 'items');
+      expect(items.kind, FieldKind.list);
+      expect(items.element!.kind, FieldKind.object);
+      expect(items.element!.objectName, 'Item');
+      expect(items.element!.children.map((f) => f.dartName), containsAll(['sku', 'qty']));
+    });
+
+    test('deeply nested objects recurse', () {
+      final r = sut.infer('{"id": "1", "meta": {"author": {"name": "Ada"}}}');
+      final meta = field(r.fields, 'meta');
+      final author = field(meta.children, 'author');
+      expect(author.kind, FieldKind.object);
+      expect(field(author.children, 'name').dartType, 'String');
+    });
+
+    test('empty array → List<String> with a warning', () {
+      final r = sut.infer('{"id": "1", "tags": []}');
+      expect(field(r.fields, 'tags').element!.dartType, 'String');
+      expect(r.warnings.any((w) => w.contains('empty array')), isTrue);
     });
 
     test('null value → nullable String with a warning', () {

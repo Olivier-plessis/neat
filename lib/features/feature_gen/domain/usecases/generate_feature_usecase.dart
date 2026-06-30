@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:neat/features/feature_gen/domain/models/feature_gen_options.dart';
 import 'package:neat/features/feature_gen/domain/models/loaded_project.dart';
+import 'package:neat/features/generation/domain/models/field_spec.dart';
 import 'package:neat/features/generation/domain/services/feature_scaffolder.dart';
 import 'package:neat/features/generation/domain/services/templates/core_templates.dart';
 import 'package:neat/features/generation/domain/services/templates/local_storage_templates.dart';
@@ -84,6 +85,7 @@ class GenerateFeatureUsecase {
       includeUseCases: options.includeUseCase,
       isChildRoute: asChild,
       isShellBranch: asShell,
+      fields: options.fields,
     );
     onLog('[✓] Feature files written.');
 
@@ -121,7 +123,7 @@ class GenerateFeatureUsecase {
     // package (only when the feature actually keeps a Drift-backed local source).
     if (needsDriftTable) {
       onLog('[▶] Injecting Drift table for "$featureName"...');
-      await _injectDriftTable(project.path, localStoragePackage, featureName);
+      await _injectDriftTable(project.path, localStoragePackage, featureName, options.fields);
       // The feature DI references the shared infrastructure providers; create
       // them if this project predates that file (self-heal).
       if (useAnnotations) {
@@ -150,12 +152,14 @@ class GenerateFeatureUsecase {
     String projectPath,
     String localStoragePackage,
     String featureName,
+    List<FieldSpec> fields,
   ) async {
     final db = File('$projectPath/packages/$localStoragePackage/lib/src/database.dart');
     if (!db.existsSync()) return;
     final p = _pascal(featureName);
     var s = await db.readAsString();
-    s = _insertBefore(s, '// neat:tables', '${LocalStorageTemplates.featureTable(featureName)}\n');
+    s = _insertBefore(
+        s, '// neat:tables', '${LocalStorageTemplates.featureTable(featureName, fields: fields)}\n');
     s = _insertBefore(s, '// neat:table-names', '    ${p}Rows,');
     s = _insertBefore(s, '// neat:daos', '${LocalStorageTemplates.featureDao(featureName)}\n');
     await db.writeAsString(s);
