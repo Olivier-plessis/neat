@@ -1,4 +1,5 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:neat/features/architecture/domain/models/env_config.dart';
 
 part 'architecture_state.freezed.dart';
 
@@ -97,6 +98,21 @@ abstract class ArchitectureState with _$ArchitectureState {
     /// set (and [generateI18n] is on), the CSV becomes the single source of
     /// translations instead of the default en/fr JSON scaffold.
     @Default('') String i18nCsvPath,
+
+    /// Opt-in: generate native **build flavors** (Android productFlavors, per-env
+    /// entry points `main_<flavor>.dart`, `.vscode/launch.json`). Off by default
+    /// so a plain `flutter run` works with zero config. Only effective with envied.
+    @Default(false) bool generateFlavors,
+
+    /// The build environments (default dev/staging/prod), renamable, each with an
+    /// optional API base URL written into its `.env.<flavor>`. The **last** one is
+    /// the production base (no appId suffix). Drives envied + flavors.
+    @Default(<EnvConfig>[
+      EnvConfig(name: 'dev'),
+      EnvConfig(name: 'staging'),
+      EnvConfig(name: 'prod'),
+    ])
+    List<EnvConfig> environments,
   }) = _ArchitectureState;
 
   /// Validates the first feature name (Dart folder/identifier rules).
