@@ -1102,7 +1102,19 @@ void main() {
         await const LaunchGenerationUsecase().execute(
           identity: identity,
           packages: pkgs,
-          architecture: const ArchitectureState(firstFeatureName: 'todo'),
+          architecture: const ArchitectureState(
+            firstFeatureName: 'todo',
+            // Per-env Supabase credentials → pre-filled into .env.<flavor>.
+            environments: [
+              EnvConfig(
+                name: 'dev',
+                supabaseUrl: 'https://dev.supabase.co',
+                supabaseAnonKey: 'dev-anon-key',
+              ),
+              EnvConfig(name: 'staging'),
+              EnvConfig(name: 'prod'),
+            ],
+          ),
           cicd: const CicdState(),
           theme: const ThemeEngineState(approach: ThemeApproach.customM3),
           onLog: logs.add,
@@ -1153,7 +1165,8 @@ void main() {
       expect(appEnv, contains('supabasePublishableKey'));
       expect(appEnv, isNot(contains('apiBaseUrl')), reason: 'REST leftover in a Supabase project');
       final envDev = File('${projectDir.path}/.env.dev').readAsStringSync();
-      expect(envDev, contains('SUPABASE_URL='));
+      expect(envDev, contains('SUPABASE_URL=https://dev.supabase.co'));
+      expect(envDev, contains('SUPABASE_PUBLISHABLE_KEY=dev-anon-key'));
       expect(envDev, isNot(contains('API_BASE_URL')));
 
       // Flavors are opt-in: envied alone must NOT emit flavor entry points
