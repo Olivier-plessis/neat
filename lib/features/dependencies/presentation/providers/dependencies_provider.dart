@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:neat/features/dependencies/domain/constants/backend_presets.dart';
 import 'package:neat/features/dependencies/domain/constants/unsupported_packages.dart';
 import 'package:neat/features/dependencies/domain/models/pub_package.dart';
 import 'package:neat/features/dependencies/domain/usecases/search_packages_usecase.dart';
@@ -80,6 +81,18 @@ class SelectedPackages extends _$SelectedPackages {
     final toAdd = packages
         .where((p) => !existing.contains(p.name) && !isUnsupportedPackage(p.name));
     state = [...state, ...toAdd];
+  }
+
+  /// Switches the backend: strips all backend-specific packages, then adds the
+  /// chosen backend's base preset (keeping any non-backend packages the user
+  /// already picked). The manifest remains the source of truth for generation.
+  void applyBackendPreset(List<PubPackage> preset) {
+    final stripped =
+        state.where((p) => !backendMarkerPackages.contains(p.name)).toList();
+    final existing = {for (final p in stripped) p.name};
+    final toAdd =
+        preset.where((p) => !existing.contains(p.name) && !isUnsupportedPackage(p.name));
+    state = [...stripped, ...toAdd];
   }
 
   void setDev(String name, {required bool isDev}) {

@@ -1027,6 +1027,8 @@ dev_dependencies:
           hasApiBaseUrl: hasApiBaseUrl,
           hasSupabase: hasSupabase,
           apiBaseUrl: env.apiBaseUrl,
+          supabaseUrl: env.supabaseUrl,
+          supabaseKey: env.supabaseAnonKey,
         ),
       );
     }

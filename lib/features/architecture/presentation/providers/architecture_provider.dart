@@ -32,6 +32,10 @@ class ArchitectureNotifier extends _$ArchitectureNotifier {
   void setEnvName(int index, String name) => _updateEnv(index, (e) => e.copyWith(name: name));
   void setEnvApiUrl(int index, String url) =>
       _updateEnv(index, (e) => e.copyWith(apiBaseUrl: url.trim()));
+  void setEnvSupabaseUrl(int index, String url) =>
+      _updateEnv(index, (e) => e.copyWith(supabaseUrl: url.trim()));
+  void setEnvSupabaseKey(int index, String key) =>
+      _updateEnv(index, (e) => e.copyWith(supabaseAnonKey: key.trim()));
 
   void _updateEnv(int index, EnvConfig Function(EnvConfig) update) {
     if (index < 0 || index >= state.environments.length) return;
