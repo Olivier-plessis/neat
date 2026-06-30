@@ -5,20 +5,33 @@ part 'stepper_provider.g.dart';
 
 /// [hub] is the landing screen (Create vs. Open). The middle six are the
 /// creation wizard; [featureGen] is the Workshop (reached from the Hub).
-enum NeatStep { hub, identity, themeEngine, dependencies, architecture, cicd, launch, featureGen }
+enum NeatStep {
+  hub,
+  identity,
+  themeEngine,
+  infrastructure,
+  packages,
+  architecture,
+  cicd,
+  launch,
+  featureGen,
+}
 
 extension NeatStepX on NeatStep {
   static const _wizardSteps = [
     NeatStep.identity,
     NeatStep.themeEngine,
-    NeatStep.dependencies,
+    NeatStep.infrastructure,
+    NeatStep.packages,
     NeatStep.architecture,
     NeatStep.cicd,
     NeatStep.launch,
   ];
 
   int get wizardIndex => _wizardSteps.indexOf(this);
+
   bool get isWizardStep => wizardIndex >= 0;
+
   static int get wizardTotal => _wizardSteps.length;
 
   NeatStep? get previousStep {

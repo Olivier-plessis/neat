@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:neat/core/theme/app_theme.dart';
+import 'package:neat/core/theme/gap.dart';
 import 'package:neat/features/architecture/domain/models/env_config.dart';
 import 'package:neat/features/architecture/presentation/providers/architecture_provider.dart';
 import 'package:neat/features/dependencies/domain/constants/backend_presets.dart';
-import 'package:neat/features/dependencies/domain/constants/dev_preset.dart';
 import 'package:neat/features/dependencies/domain/constants/unsupported_packages.dart';
 import 'package:neat/features/dependencies/domain/models/pub_package.dart';
 import 'package:neat/features/dependencies/presentation/providers/dependencies_provider.dart';
@@ -40,30 +40,13 @@ class DependenciesScreen extends HookConsumerWidget {
               'Project Dependencies',
               style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white),
             ),
-            const Spacer(),
-            _DevPresetButton(
-              onTap: () => ref.read(selectedPackagesProvider.notifier).addAll(devPresetPackages),
-            ),
-            if (selectedCount > 0) ...[
-              const SizedBox(width: 12),
-              _PackagesBadgeButton(
-                count: selectedCount,
-                isSelected: rightTabIndex.value == 1,
-                onTap: () => rightTabIndex.value = 1,
-              ),
-            ],
           ],
         ),
         const SizedBox(height: 8),
         Text(
-          'Pick a backend to seed your stack, then search pub.dev to add more.',
+          'Search for packages on pub.dev to add more.',
           style: TextStyle(color: Colors.grey[400], fontSize: 14),
         ),
-        const SizedBox(height: 24),
-
-        const _BackendSelector(),
-        const SizedBox(height: 20),
-        const _BackendConfig(),
         const SizedBox(height: 24),
 
         TextField(
@@ -225,20 +208,24 @@ class _BackendCard extends StatelessWidget {
               ),
               child: Icon(icon, color: iconColor, size: 26),
             ),
-            const SizedBox(height: 14),
+            gapH16,
             Text(
               title,
-              style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
             ),
-            const SizedBox(height: 4),
+            gapH4,
             Text(subtitle, style: TextStyle(color: Colors.grey[500], fontSize: 12)),
-            const SizedBox(height: 12),
+            gapH12,
             if (active)
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: const [
                   Icon(Icons.check_circle, color: AppTheme.colorPrimaryCyan, size: 14),
-                  SizedBox(width: 6),
+                  gapW6,
                   Text(
                     'SELECTED',
                     style: TextStyle(
@@ -316,7 +303,7 @@ class _BackendConfig extends ConsumerWidget {
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          gapH16,
           if (backend == BackendKind.firebase) ...[
             _FirebaseConfigUpload(
               path: arch.firebaseConfigPath,
@@ -338,11 +325,8 @@ class _BackendConfig extends ConsumerWidget {
                   onSupabaseKey: (v) => notifier.setEnvSupabaseKey(i, v),
                 ),
               ),
-          const SizedBox(height: 4),
-          _FlavorsToggle(
-            value: arch.generateFlavors,
-            onChanged: notifier.toggleGenerateFlavors,
-          ),
+          gapH4,
+          _FlavorsToggle(value: arch.generateFlavors, onChanged: notifier.toggleGenerateFlavors),
         ],
       ),
     );
@@ -370,21 +354,26 @@ class _EnvFieldRow extends StatelessWidget {
   final ValueChanged<String> onSupabaseKey;
 
   static InputDecoration _dec(String hint) => InputDecoration(
-        hintText: hint,
-        hintStyle: TextStyle(color: Colors.grey[700], fontSize: 12),
-        isDense: true,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: Colors.white12),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: AppTheme.colorPrimaryCyan.withValues(alpha: 0.5)),
-        ),
-      );
+    hintText: hint,
+    hintStyle: TextStyle(color: Colors.grey[700], fontSize: 12),
+    isDense: true,
+    contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(8),
+      borderSide: const BorderSide(color: Colors.white12),
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(8),
+      borderSide: BorderSide(color: AppTheme.colorPrimaryCyan.withValues(alpha: 0.5)),
+    ),
+  );
 
-  Widget _field(String initial, String hint, ValueChanged<String> onChanged, {bool obscure = false}) {
+  Widget _field(
+    String initial,
+    String hint,
+    ValueChanged<String> onChanged, {
+    bool obscure = false,
+  }) {
     return TextFormField(
       initialValue: initial,
       onChanged: onChanged,
@@ -425,11 +414,18 @@ class _EnvFieldRow extends StatelessWidget {
                 ),
               ),
             ),
-          const SizedBox(width: 10),
+          gapW10,
           if (backend == BackendKind.supabase) ...[
             Expanded(child: _field(env.supabaseUrl, 'Supabase URL', onSupabaseUrl)),
-            const SizedBox(width: 8),
-            Expanded(child: _field(env.supabaseAnonKey, 'anon / publishable key', onSupabaseKey, obscure: true)),
+            gapW8,
+            Expanded(
+              child: _field(
+                env.supabaseAnonKey,
+                'anon / publishable key',
+                onSupabaseKey,
+                obscure: true,
+              ),
+            ),
           ] else
             Expanded(child: _field(env.apiBaseUrl, 'API base URL (optional)', onApiUrl)),
         ],
@@ -456,7 +452,7 @@ class _FlavorsToggle extends StatelessWidget {
                 'Native build flavors',
                 style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
               ),
-              const SizedBox(height: 2),
+              gapH4,
               Text(
                 'productFlavors + main_<flavor>.dart + launch.json. OFF → a plain `flutter run` works.',
                 style: TextStyle(color: Colors.grey[500], fontSize: 11),
@@ -464,11 +460,7 @@ class _FlavorsToggle extends StatelessWidget {
             ],
           ),
         ),
-        Switch(
-          value: value,
-          onChanged: onChanged,
-          activeTrackColor: AppTheme.colorPrimaryCyan,
-        ),
+        Switch(value: value, onChanged: onChanged, activeTrackColor: AppTheme.colorPrimaryCyan),
       ],
     );
   }
@@ -494,7 +486,7 @@ class _FirebaseConfigUpload extends StatelessWidget {
               color: hasFile ? AppTheme.colorPrimaryCyan : Colors.grey[500],
               size: 20,
             ),
-            const SizedBox(width: 12),
+            gapW12,
             Expanded(
               child: Text(
                 hasFile ? path.split('/').last : 'Firebase config (JSON) — optional',
@@ -517,7 +509,7 @@ class _FirebaseConfigUpload extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 8),
+        gapH8,
         Text(
           'Single config for now → generates lib/firebase_options.dart. For full '
           'per-platform native setup, run `flutterfire configure` after generation.',
@@ -593,7 +585,7 @@ class _TabButton extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(icon, size: 14, color: isSelected ? AppTheme.colorPrimaryCyan : Colors.white24),
-              const SizedBox(width: 8),
+              gapW8,
               Text(
                 label,
                 style: TextStyle(
@@ -801,6 +793,12 @@ class _SheetPackageTileState extends ConsumerState<_SheetPackageTile> {
 
   @override
   Widget build(BuildContext context) {
+    final isPreselected = ref.watch(
+      selectedPackagesProvider.select(
+        (list) => presetFor(backendOf(list)).any((p) => p.name == widget.package.name),
+      ),
+    );
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
@@ -896,12 +894,13 @@ class _SheetPackageTileState extends ConsumerState<_SheetPackageTile> {
               ],
             ),
           ),
-          IconButton(
-            icon: const Icon(Icons.delete_outline, color: Colors.grey, size: 20),
-            onPressed: () => ref.read(selectedPackagesProvider.notifier).toggle(widget.package),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
-          ),
+          if (!isPreselected)
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: Colors.grey, size: 20),
+              onPressed: () => ref.read(selectedPackagesProvider.notifier).toggle(widget.package),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+            ),
         ],
       ),
     );
@@ -990,86 +989,86 @@ class _PackageListTile extends StatelessWidget {
     return Opacity(
       opacity: isBlocked ? 0.5 : 1,
       child: GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: const Color(0xFF141416),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: isSelected ? AppTheme.colorPrimaryCyan : Colors.white10,
-            width: isSelected ? 1.5 : 1,
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: const Color(0xFF141416),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: isSelected ? AppTheme.colorPrimaryCyan : Colors.white10,
+              width: isSelected ? 1.5 : 1,
+            ),
           ),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Text(
-                        package.name,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      _VersionBadge(version: package.version),
-                      if (isBlocked) ...[
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(4),
-                            border: Border.all(color: Colors.white24),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          package.name,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
                           ),
-                          child: const Text(
-                            'BIENTÔT',
-                            style: TextStyle(
-                              color: Colors.white38,
-                              fontSize: 9,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 0.5,
+                        ),
+                        const SizedBox(width: 8),
+                        _VersionBadge(version: package.version),
+                        if (isBlocked) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(color: Colors.white24),
+                            ),
+                            child: const Text(
+                              'BIENTÔT',
+                              style: TextStyle(
+                                color: Colors.white38,
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.5,
+                              ),
                             ),
                           ),
-                        ),
+                        ],
                       ],
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    package.description,
-                    style: TextStyle(color: Colors.grey[400], fontSize: 12),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-            if (isAdded) ...[
-              if (isDev)
-                Container(
-                  margin: const EdgeInsets.only(right: 8),
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF2D2010),
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(color: const Color(0xFFFFA726), width: 0.5),
-                  ),
-                  child: const Text(
-                    'dev',
-                    style: TextStyle(color: Color(0xFFFFA726), fontSize: 10),
-                  ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      package.description,
+                      style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ),
-              const Icon(Icons.check_circle, color: AppTheme.colorPrimaryCyan, size: 20),
+              ),
+              if (isAdded) ...[
+                if (isDev)
+                  Container(
+                    margin: const EdgeInsets.only(right: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2D2010),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: const Color(0xFFFFA726), width: 0.5),
+                    ),
+                    child: const Text(
+                      'dev',
+                      style: TextStyle(color: Color(0xFFFFA726), fontSize: 10),
+                    ),
+                  ),
+                const Icon(Icons.check_circle, color: AppTheme.colorPrimaryCyan, size: 20),
+              ],
             ],
-          ],
+          ),
         ),
-      ),
       ),
     );
   }
@@ -1091,6 +1090,11 @@ class _PackageDetailCard extends ConsumerWidget {
       ),
     );
     final isAdded = selectedPkg != null;
+    final isPreselected = ref.watch(
+      selectedPackagesProvider.select(
+        (list) => presetFor(backendOf(list)).any((p) => p.name == package.name),
+      ),
+    );
     final isDev = selectedPkg?.isDev ?? package.isDev;
 
     return Container(
@@ -1164,25 +1168,46 @@ class _PackageDetailCard extends ConsumerWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              Expanded(
-                child: SizedBox(
-                  height: 46,
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: isAdded
-                          ? const Color(0xFF2A1A1A)
-                          : AppTheme.colorPrimaryCyan,
-                      foregroundColor: isAdded ? Colors.redAccent : AppTheme.colorNeutralBg,
-                      side: isAdded ? const BorderSide(color: Colors.redAccent) : BorderSide.none,
+              if (!isPreselected)
+                Expanded(
+                  child: SizedBox(
+                    height: 46,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: isAdded
+                            ? const Color(0xFF2A1A1A)
+                            : AppTheme.colorPrimaryCyan,
+                        foregroundColor: isAdded ? Colors.redAccent : AppTheme.colorNeutralBg,
+                        side: isAdded ? const BorderSide(color: Colors.redAccent) : BorderSide.none,
+                      ),
+                      icon: Icon(isAdded ? Icons.remove_circle_outline : Icons.add, size: 18),
+                      label: Text(isAdded ? 'Remove' : 'Add'),
+                      onPressed: () => ref
+                          .read(selectedPackagesProvider.notifier)
+                          .toggle(package.copyWith(isDev: isDev)),
                     ),
-                    icon: Icon(isAdded ? Icons.remove_circle_outline : Icons.add, size: 18),
-                    label: Text(isAdded ? 'Remove' : 'Add'),
-                    onPressed: () => ref
-                        .read(selectedPackagesProvider.notifier)
-                        .toggle(package.copyWith(isDev: isDev)),
+                  ),
+                )
+              else
+                Expanded(
+                  child: Container(
+                    height: 46,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      'REQUIRED',
+                      style: TextStyle(
+                        color: Colors.grey[600],
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1,
+                      ),
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
         ],
