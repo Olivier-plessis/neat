@@ -8,6 +8,7 @@ import 'package:neat/features/architecture/domain/models/env_config.dart';
 import 'package:neat/features/cicd/domain/models/cicd_state.dart';
 import 'package:neat/features/cicd/domain/usecases/generate_yaml_usecase.dart';
 import 'package:neat/features/dependencies/domain/models/pub_package.dart';
+import 'package:neat/features/generation/domain/models/field_spec.dart';
 import 'package:neat/features/generation/domain/services/feature_scaffolder.dart';
 import 'package:neat/features/generation/domain/services/i18n_importer.dart';
 import 'package:neat/features/generation/domain/services/templates/agents_md_template.dart';
@@ -221,6 +222,7 @@ class LaunchGenerationUsecase {
         localStoragePackage,
         featureName: featureName,
         hasSync: hasSync,
+        fields: architecture.firstFeatureFields,
       );
       onLog('[✓] packages/$localStoragePackage created.');
     }
@@ -675,6 +677,7 @@ class LaunchGenerationUsecase {
           featureName: featureName,
           localStoragePackage: localStoragePackage,
           hasSync: hasSync,
+          fields: architecture.firstFeatureFields,
         ),
       );
     }
@@ -1314,6 +1317,7 @@ dev_dependencies:
       isShellBranch: isShellBranch,
       realtime: realtime,
       i18n: i18n,
+      fields: architecture.firstFeatureFields,
     );
   }
 
@@ -1463,6 +1467,7 @@ dev_dependencies:
     String localStoragePackage, {
     required String featureName,
     bool hasSync = false,
+    List<FieldSpec> fields = FieldSpec.idName,
   }) async {
     final root = '${projectDir.path}/packages/$localStoragePackage';
     await _write(
@@ -1475,7 +1480,7 @@ dev_dependencies:
     );
     await _write(
       '$root/lib/src/database.dart',
-      LocalStorageTemplates.database(featureName: featureName, withOutbox: hasSync),
+      LocalStorageTemplates.database(featureName: featureName, withOutbox: hasSync, fields: fields),
     );
   }
 

@@ -1,4 +1,6 @@
+import 'package:neat/features/generation/domain/models/field_spec.dart';
 import 'package:neat/features/generation/domain/services/templates/dart/_template_utils.dart';
+import 'package:neat/features/generation/domain/services/templates/dart/field_codegen.dart';
 
 class PresentationTemplates {
   PresentationTemplates._();
@@ -250,7 +252,12 @@ class ${p}Error extends ${p}State {
 
   /// A real list screen: renders the feature's items, shows a Skeletonizer
   /// placeholder while loading, pull-to-refresh, and empty/error states.
-  static String _riverpodListPage(String featureName, String packageName, [bool i18n = false]) {
+  static String _riverpodListPage(
+    String featureName,
+    String packageName, [
+    bool i18n = false,
+    List<FieldSpec> fields = FieldSpec.idName,
+  ]) {
     final p = pascal(featureName);
     final c = camel(featureName);
     final i18nImports = i18n
@@ -259,6 +266,15 @@ class ${p}Error extends ${p}State {
         : '';
     final titleWidget = i18n ? 'Text(context.t.$c.title)' : "const Text('$p')";
     final switcherAction = i18n ? 'const LanguageSwitcher(),\n          ' : '';
+
+    // The tile's title is the inferred "display" field; the subtitle shows the id.
+    final tf = titleField(fields);
+    final titleExpr = tf.nullable ? "item.${tf.dartName} ?? ''" : 'item.${tf.dartName}';
+    final idName = idField(fields).dartName;
+    // Skeleton placeholder: a dummy entity per field. Not `const` — a DateTime
+    // placeholder isn't a const expression.
+    final placeholderArgs =
+        fields.map((f) => '${f.dartName}: ${f.placeholderLiteral()}').join(', ');
     return '''import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:skeletonizer/skeletonizer.dart';
@@ -292,7 +308,7 @@ class ${p}Page extends ConsumerWidget {
               child: _${p}List(
                 items: List.generate(
                   8,
-                  (_) => const ${p}Entity(id: '000000', name: 'Placeholder item name'),
+                  (_) => ${p}Entity($placeholderArgs),
                 ),
               ),
             ),
@@ -328,8 +344,8 @@ class _${p}List extends StatelessWidget {
         final item = items[index];
         return ListTile(
           leading: const CircleAvatar(child: Icon(Icons.label_outline)),
-          title: Text(item.name),
-          subtitle: Text('id: \${item.id}'),
+          title: Text($titleExpr),
+          subtitle: Text('id: \${item.$idName}'),
         );
       },
     );
@@ -347,11 +363,12 @@ class _${p}List extends StatelessWidget {
     required bool useCubit,
     bool dataList = false,
     bool i18n = false,
+    List<FieldSpec> fields = FieldSpec.idName,
   }) {
     final p = pascal(featureName);
 
     if (hasRiverpod && useAnnotations && dataList) {
-      return _riverpodListPage(featureName, packageName, i18n);
+      return _riverpodListPage(featureName, packageName, i18n, fields);
     }
 
     if (hasRiverpod) {
