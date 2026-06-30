@@ -1169,9 +1169,13 @@ void main() {
       expect(envDev, contains('SUPABASE_PUBLISHABLE_KEY=dev-anon-key'));
       expect(envDev, isNot(contains('API_BASE_URL')));
 
-      // Flavors are opt-in: envied alone must NOT emit flavor entry points
-      // (so a plain `flutter run` works with zero config).
-      expect(File('${projectDir.path}/lib/main_staging.dart').existsSync(), isFalse);
+      // ≥2 environments → per-env entry points are emitted on every platform
+      // (here macOS), but WITHOUT native flavors (no --flavor, no productFlavors),
+      // so a plain `flutter run` still works.
+      expect(File('${projectDir.path}/lib/main_staging.dart').existsSync(), isTrue);
+      final launch = File('${projectDir.path}/.vscode/launch.json').readAsStringSync();
+      expect(launch, contains('lib/main_staging.dart'));
+      expect(launch, isNot(contains('--flavor')), reason: 'macOS has no native flavors');
 
       // The whole project analyzes without errors or warnings.
       final analyze = await Process.run(
@@ -1848,6 +1852,8 @@ void main() {
           // pre-filled API URL on dev.
           architecture: const ArchitectureState(
             generateFlavors: true,
+            // production (index 2) is the explicit base — no appId suffix there.
+            baseEnvIndex: 2,
             environments: [
               EnvConfig(name: 'dev', apiBaseUrl: 'https://api.dev.test'),
               EnvConfig(name: 'staging'),
@@ -1925,6 +1931,93 @@ void main() {
         errorLines,
         isEmpty,
         reason: 'flavors project analyze reported issues:\n${errorLines.join('\n')}\n\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
+
+  test(
+    'single environment: collapses to one .env + Env class + main.dart (no flavors)',
+    () async {
+      const projectName = 'neat_single_env_test';
+      final logs = <String>[];
+
+      final pkgs = <PubPackage>[
+        _dep('hooks_riverpod', '3.3.1'),
+        _dep('flutter_hooks', '0.21.3+1'),
+        _dep('riverpod_annotation', '4.0.2'),
+        _dep('chopper', '8.6.0'),
+        _dep('envied', '1.3.5'),
+        _dev('riverpod_generator', '4.0.3'),
+        _dev('build_runner', '2.15.0'),
+        _dev('envied_generator', '1.3.5'),
+        _dev('chopper_generator', '8.6.2'),
+      ];
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: IdentityState(
+            name: projectName,
+            organization: 'com.neat.test',
+            projectPath: tempRoot.path,
+            description: 'NEAT single-env integration test',
+            targetPlatforms: const ['macos'],
+          ),
+          packages: pkgs,
+          // A single environment → no flavors, no entry points, a plain `.env`.
+          // generateFlavors is irrelevant here (one env can't be flavored).
+          architecture: const ArchitectureState(
+            generateFlavors: true,
+            environments: [EnvConfig(name: 'dev', apiBaseUrl: 'https://api.test')],
+          ),
+          cicd: const CicdState(),
+          theme: const ThemeEngineState(approach: ThemeApproach.customM3),
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('single-env generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+      String read(String p) => File('${projectDir.path}/$p').readAsStringSync();
+      bool exists(String p) => File('${projectDir.path}/$p').existsSync();
+
+      // Plain `.env` — never the flavored `.env.dev`.
+      expect(read('.env'), contains('API_BASE_URL=https://api.test'));
+      expect(exists('.env.dev'), isFalse);
+
+      // A single `Env`/`EnvVars` reading `.env` (no <Flavor> prefix).
+      expect(exists('lib/core/env/envs/env.dart'), isTrue);
+      expect(exists('lib/core/env/envs/dev_env.dart'), isFalse);
+      final envFile = read('lib/core/env/envs/env.dart');
+      expect(envFile, contains("@Envied(path: '.env'"));
+      expect(envFile, contains("part 'env.g.dart';"));
+      expect(envFile, contains('abstract class EnvVars'));
+      expect(envFile, contains('class Env implements AppEnv'));
+
+      // One main.dart loading Env(); no per-env entry points / launch.json / doc.
+      final mainDart = read('lib/main.dart');
+      expect(mainDart, contains('bootstrap(Env())'));
+      expect(mainDart, contains("import 'core/env/envs/env.dart';"));
+      expect(exists('lib/main_dev.dart'), isFalse);
+      expect(exists('.vscode/launch.json'), isFalse);
+      expect(exists('docs/FLAVORS.md'), isFalse);
+
+      // The whole project (incl. the envied-generated _EnvVars) analyzes clean.
+      final analyze = await Process.run(
+        'flutter',
+        ['analyze', '--no-pub'],
+        workingDirectory: projectDir.path,
+      );
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason: 'single-env project analyze reported issues:\n${errorLines.join('\n')}\n\n$out',
       );
     },
     timeout: const Timeout(Duration(minutes: 12)),

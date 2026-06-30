@@ -64,9 +64,12 @@ class HubScreen extends ConsumerWidget {
                                   subtitle:
                                       'Generate a production-ready Flutter architecture from scratch.',
                                   button: 'Start Journey',
-                                  onTap: () => ref
-                                      .read(currentStepProvider.notifier)
-                                      .setStep(NeatStep.identity),
+                                  onTap: () {
+                                    ref.read(furthestStepProvider.notifier).reset();
+                                    ref
+                                        .read(currentStepProvider.notifier)
+                                        .setStep(NeatStep.identity);
+                                  },
                                 ),
                               ),
                               const SizedBox(width: 24),

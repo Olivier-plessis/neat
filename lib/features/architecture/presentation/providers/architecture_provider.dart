@@ -43,6 +43,48 @@ class ArchitectureNotifier extends _$ArchitectureNotifier {
     next[index] = update(next[index]);
     state = state.copyWith(environments: next);
   }
+
+  /// Max number of environments offered in the wizard.
+  static const maxEnvironments = 4;
+
+  /// Appends a new environment (capped at [maxEnvironments]). The new one becomes
+  /// the production base (last). A unique default name avoids flavor collisions.
+  void addEnv() {
+    if (state.environments.length >= maxEnvironments) return;
+    final used = state.environments.map((e) => e.name).toSet();
+    var name = 'env${state.environments.length + 1}';
+    for (var i = state.environments.length + 1; used.contains(name); i++) {
+      name = 'env$i';
+    }
+    state = state.copyWith(environments: [...state.environments, EnvConfig(name: name)]);
+  }
+
+  /// Removes the environment at [index]. Keeps at least one (a single env →
+  /// no flavors, a plain `.env` + `main.dart`). The base index follows the
+  /// surviving rows: shifts down if a row before it goes, and falls back to the
+  /// new last row if the base itself is removed.
+  void removeEnv(int index) {
+    if (state.environments.length <= 1) return;
+    if (index < 0 || index >= state.environments.length) return;
+    final next = [...state.environments]..removeAt(index);
+    var base = state.baseEnvIndex;
+    if (index == base) {
+      base = next.length - 1; // base removed → last surviving env becomes base
+    } else if (index < base) {
+      base -= 1; // a row before the base went → keep pointing at the same env
+    }
+    state = state.copyWith(
+      environments: next,
+      baseEnvIndex: base.clamp(0, next.length - 1),
+    );
+  }
+
+  /// Marks [index] as the production base (no appId suffix; logger quietens
+  /// there; release builds target it).
+  void setBaseEnv(int index) {
+    if (index < 0 || index >= state.environments.length) return;
+    state = state.copyWith(baseEnvIndex: index);
+  }
   void setShellIcon(String icon) => state = state.copyWith(shellIcon: icon);
   void setShellLabel(String label) => state = state.copyWith(shellLabel: label);
 }

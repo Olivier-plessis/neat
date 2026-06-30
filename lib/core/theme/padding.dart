@@ -36,9 +36,9 @@ extension PaddingExt on Widget {
     );
   }
 
-  Widget paddedLR(double value, double rightValue) {
+  Widget paddedLR(double left, double right) {
     return Padding(
-      padding: EdgeInsets.only(left: value, right: value),
+      padding: EdgeInsets.only(left: left, right: right),
       child: this,
     );
   }
@@ -57,9 +57,9 @@ extension PaddingExt on Widget {
     );
   }
 
-  Widget paddedTB(double value, double bottomValue) {
+  Widget paddedTB(double top, double bottom) {
     return Padding(
-      padding: EdgeInsets.only(top: value, bottom: value),
+      padding: EdgeInsets.only(top: top, bottom: bottom),
       child: this,
     );
   }
