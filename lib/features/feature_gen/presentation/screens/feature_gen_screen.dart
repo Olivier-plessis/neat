@@ -4,8 +4,11 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:neat/core/contract/neat_contract.dart';
 import 'package:neat/core/theme/app_theme.dart';
+import 'package:neat/features/architecture/presentation/widgets/entity_fields_editor.dart';
 import 'package:neat/features/feature_gen/domain/models/feature_gen_options.dart';
 import 'package:neat/features/feature_gen/presentation/providers/workshop_controller.dart';
+import 'package:neat/features/generation/domain/models/field_spec.dart';
+import 'package:neat/features/generation/domain/services/json_entity_inferencer.dart';
 import 'package:neat/features/identity/presentation/providers/stepper_provider.dart';
 
 /// Workshop mode: open an existing NEAT project (via its `.neat.json`) and
@@ -291,6 +294,48 @@ class _Workshop extends HookWidget {
                         Text('Pick at least one data source.',
                             style: TextStyle(color: Colors.orangeAccent[100], fontSize: 12)),
                       ],
+                      const SizedBox(height: 24),
+                      const _SectionTitle(Icons.data_object, 'Entity Fields'),
+                      const SizedBox(height: 10),
+                      EntityFieldsEditor(
+                        json: opts.json,
+                        fields: opts.fields,
+                        warnings: opts.fieldWarnings,
+                        onInfer: (j) {
+                          if (j.trim().isEmpty) {
+                            set(opts.copyWith(
+                                json: '', fields: FieldSpec.idName, fieldWarnings: const []));
+                            return;
+                          }
+                          final r = const JsonEntityInferencer().infer(j);
+                          set(opts.copyWith(json: j, fields: r.fields, fieldWarnings: r.warnings));
+                        },
+                        onReset: () => set(opts.copyWith(
+                            json: '', fields: FieldSpec.idName, fieldWarnings: const [])),
+                        onAddField: () {
+                          final used = opts.fields.map((f) => f.dartName).toSet();
+                          var n = 'field';
+                          for (var i = 1; used.contains(n); i++) {
+                            n = 'field$i';
+                          }
+                          set(opts.copyWith(fields: [
+                            ...opts.fields,
+                            FieldSpec(jsonKey: n, dartName: n),
+                          ]));
+                        },
+                        onName: (i, v) => set(opts.copyWith(
+                            fields: _editField(opts.fields, i, (f) => f.copyWith(dartName: v.trim())))),
+                        onType: (i, v) => set(opts.copyWith(
+                            fields: _editField(
+                                opts.fields, i, (f) => f.isId ? f : f.copyWith(dartType: v)))),
+                        onNullable: (i, v) => set(opts.copyWith(
+                            fields: _editField(
+                                opts.fields, i, (f) => f.isId ? f : f.copyWith(nullable: v)))),
+                        onRemove: (i) {
+                          if (opts.fields[i].isId) return;
+                          set(opts.copyWith(fields: [...opts.fields]..removeAt(i)));
+                        },
+                      ),
                     ],
                   ),
                 ),
@@ -859,4 +904,16 @@ class _Badge extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Returns a copy of [fields] with the entry at [index] transformed by [update].
+List<FieldSpec> _editField(
+  List<FieldSpec> fields,
+  int index,
+  FieldSpec Function(FieldSpec) update,
+) {
+  if (index < 0 || index >= fields.length) return fields;
+  final next = [...fields];
+  next[index] = update(next[index]);
+  return next;
 }

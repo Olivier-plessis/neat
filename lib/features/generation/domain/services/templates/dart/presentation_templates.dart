@@ -274,7 +274,7 @@ class ${p}Error extends ${p}State {
     // Skeleton placeholder: a dummy entity per field. Not `const` — a DateTime
     // placeholder isn't a const expression.
     final placeholderArgs =
-        fields.map((f) => '${f.dartName}: ${f.placeholderLiteral()}').join(', ');
+        fields.map((f) => '${f.dartName}: ${f.entityPlaceholder()}').join(', ');
     return '''import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:skeletonizer/skeletonizer.dart';
