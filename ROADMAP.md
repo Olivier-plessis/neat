@@ -104,11 +104,14 @@ theming (customM3 / FlexColorScheme) + extractable UI package + Widgetbook + CI/
   Matchfile, Gemfile, `.env.example`) + `android/key.properties.example`. Env-driven
   (no secrets committed), flavor-aware lanes, secrets git-ignored. CI calls
   `cd android/ios && bundle exec fastlane release`.
-- ✅ **Build flavors (dev/staging/prod)**, driven by envied (kept, not swapped for
-  dart-define): `main_dev/staging/prod.dart` entry points (each `bootstrap(<F>Env())`),
-  `.vscode/launch.json` run configs, Android `productFlavors` (appId suffix +
-  per-flavor `@string/app_name`), and `docs/FLAVORS.md`. iOS Xcode schemes are
-  documented (can't be scripted reliably from a generated project).
+- ✅ **Build flavors** — **opt-in** (a toggle, OFF by default so a plain `flutter run`
+  works with zero config; productFlavors otherwise force `--flavor`). Driven by
+  envied (kept, not dart-define). **Renamable environments** (default dev/staging/prod,
+  the **last** = production base, no appId suffix) each with a **per-env API URL**
+  pre-filled into `.env.<flavor>`. When ON: `main_<flavor>.dart` entry points,
+  `.vscode/launch.json`, Android `productFlavors` (+ `buildFeatures { resValues = true }`
+  for AGP 8), `@string/app_name`, `docs/FLAVORS.md`. iOS schemes documented (can't be
+  scripted reliably).
 - Harness-proven (integration: 3 entry points + productFlavors + fastlane layout,
   analyze 0/0).
 - ⏭️ From the same analysis, still on the table: extract core packages
