@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:neat/core/theme/app_theme.dart';
 import 'package:neat/features/architecture/domain/models/architecture_state.dart';
+import 'package:neat/features/architecture/domain/models/env_config.dart';
 import 'package:neat/features/architecture/domain/usecases/generate_tree_usecase.dart';
 import 'package:neat/features/architecture/presentation/providers/architecture_provider.dart';
 import 'package:neat/features/dependencies/presentation/providers/dependencies_provider.dart';
@@ -38,6 +39,14 @@ class ArchitectureScreen extends ConsumerWidget {
     // A single backend drives the opt-ins; Firebase takes precedence if both.
     final hasBackend = hasSupabase || hasFirebase;
     final backendLabel = hasFirebase ? 'Firebase' : 'Supabase';
+    // Environments (envied) + a per-env API URL (REST clients only).
+    final hasEnvied = ref.watch(
+      selectedPackagesProvider.select((list) => list.any((p) => p.name == 'envied')),
+    );
+    final isRestClient = ref.watch(
+      selectedPackagesProvider.select((list) =>
+          list.any((p) => p.name == 'dio' || p.name == 'chopper' || p.name == 'retrofit')),
+    );
     final canAuth = hasBackend && hasGoRouterBuilder;
     final tree = const GenerateTreeUsecase().execute(
       state,
@@ -291,6 +300,38 @@ class ArchitectureScreen extends ConsumerWidget {
                               'exemple d\'upload d\'avatar (image_picker).',
                           value: state.generateStorage,
                           onChanged: notifier.toggleGenerateStorage,
+                        ),
+                      ],
+
+                      if (hasEnvied) ...[
+                        const SizedBox(height: 28),
+                        _SectionHeader(
+                          icon: Icons.layers_outlined,
+                          label: 'Environments',
+                        ),
+                        const SizedBox(height: 12),
+                        for (var i = 0; i < state.environments.length; i++)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: _EnvRow(
+                              key: ValueKey('env_$i'),
+                              index: i,
+                              env: state.environments[i],
+                              showApiUrl: isRestClient,
+                              isBase: i == state.environments.length - 1,
+                              onName: (v) => notifier.setEnvName(i, v),
+                              onUrl: (v) => notifier.setEnvApiUrl(i, v),
+                            ),
+                          ),
+                        const SizedBox(height: 4),
+                        _ToggleTile(
+                          title: 'Native build flavors',
+                          description:
+                              'Génère des productFlavors Android + des entrées main_<flavor>.dart + '
+                              'launch.json. OFF par défaut (un `flutter run` simple marche). ON → '
+                              'tu lances avec `--flavor`.',
+                          value: state.generateFlavors,
+                          onChanged: notifier.toggleGenerateFlavors,
                         ),
                       ],
 
@@ -789,6 +830,99 @@ class _UploadFileCard extends StatelessWidget {
             ),
             child: Text(hasFile ? 'Changer' : 'Upload'),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Environment row (name + optional API URL) ──────────────────────────────────
+
+class _EnvRow extends StatelessWidget {
+  const _EnvRow({
+    required this.index,
+    required this.env,
+    required this.showApiUrl,
+    required this.isBase,
+    required this.onName,
+    required this.onUrl,
+    super.key,
+  });
+
+  final int index;
+  final EnvConfig env;
+  final bool showApiUrl;
+  final bool isBase;
+  final ValueChanged<String> onName;
+  final ValueChanged<String> onUrl;
+
+  InputDecoration _decoration(String hint) => InputDecoration(
+        hintText: hint,
+        hintStyle: TextStyle(color: Colors.grey[700], fontSize: 13),
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Colors.white12),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: AppTheme.colorPrimaryCyan.withValues(alpha: 0.5)),
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF18181C),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 150,
+            child: TextFormField(
+              initialValue: env.name,
+              onChanged: onName,
+              style: const TextStyle(color: Colors.white, fontSize: 13),
+              decoration: _decoration('env name'),
+            ),
+          ),
+          if (isBase)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                decoration: BoxDecoration(
+                  border: Border.all(color: AppTheme.colorPrimaryCyan.withValues(alpha: 0.5)),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Text(
+                  'BASE',
+                  style: TextStyle(
+                    color: AppTheme.colorPrimaryCyan,
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+              ),
+            ),
+          const SizedBox(width: 12),
+          if (showApiUrl)
+            Expanded(
+              child: TextFormField(
+                initialValue: env.apiBaseUrl,
+                onChanged: onUrl,
+                style: const TextStyle(color: Colors.white, fontSize: 13),
+                decoration: _decoration('API base URL (optional)'),
+              ),
+            )
+          else
+            const Spacer(),
         ],
       ),
     );

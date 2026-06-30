@@ -39,7 +39,6 @@ class HubScreen extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Neat-home', style: TextStyle(color: Colors.grey[600], fontSize: 13)),
             Expanded(
               child: Center(
                 child: ConstrainedBox(
@@ -103,24 +102,24 @@ class HubScreen extends ConsumerWidget {
                         switch (recents) {
                           AsyncData(:final value) when value.isEmpty => const _EmptyRecents(),
                           AsyncData(:final value) => Column(
-                              children: [
-                                for (final p in value)
-                                  Padding(
-                                    padding: const EdgeInsets.only(bottom: 10),
-                                    child: _RecentTile(
-                                      project: p,
-                                      onTap: () => _open(context, ref, p.path),
-                                      onRemove: () =>
-                                          ref.read(recentProjectsProvider.notifier).remove(p.path),
-                                    ),
+                            children: [
+                              for (final p in value)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 10),
+                                  child: _RecentTile(
+                                    project: p,
+                                    onTap: () => _open(context, ref, p.path),
+                                    onRemove: () =>
+                                        ref.read(recentProjectsProvider.notifier).remove(p.path),
                                   ),
-                              ],
-                            ),
+                                ),
+                            ],
+                          ),
                           AsyncError() => const _EmptyRecents(),
                           _ => const Padding(
-                              padding: EdgeInsets.all(24),
-                              child: Center(child: CircularProgressIndicator()),
-                            ),
+                            padding: EdgeInsets.all(24),
+                            child: Center(child: CircularProgressIndicator()),
+                          ),
                         },
                         const SizedBox(height: 24),
                       ],
@@ -148,7 +147,10 @@ class _Header extends StatelessWidget {
             style: TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: Colors.white),
             children: [
               TextSpan(text: 'Welcome to '),
-              TextSpan(text: 'NEAT', style: TextStyle(color: AppTheme.colorPrimaryCyan)),
+              TextSpan(
+                text: 'NEAT',
+                style: TextStyle(color: AppTheme.colorPrimaryCyan),
+              ),
             ],
           ),
         ),
@@ -206,12 +208,20 @@ class _ActionCard extends StatelessWidget {
                   color: accent ? AppTheme.colorPrimaryCyan.withValues(alpha: 0.4) : Colors.white12,
                 ),
               ),
-              child: Icon(icon, color: accent ? AppTheme.colorPrimaryCyan : Colors.white70, size: 26),
+              child: Icon(
+                icon,
+                color: accent ? AppTheme.colorPrimaryCyan : Colors.white70,
+                size: 26,
+              ),
             ),
             const SizedBox(height: 20),
             Text(
               title,
-              style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+              ),
             ),
             const SizedBox(height: 10),
             Text(
@@ -225,9 +235,7 @@ class _ActionCard extends StatelessWidget {
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size(160, 44),
                 foregroundColor: accent ? AppTheme.colorPrimaryCyan : Colors.white,
-                side: BorderSide(
-                  color: accent ? AppTheme.colorPrimaryCyan : Colors.white24,
-                ),
+                side: BorderSide(color: accent ? AppTheme.colorPrimaryCyan : Colors.white24),
               ),
               child: Text(button.toUpperCase(), style: const TextStyle(letterSpacing: 0.8)),
             ),
@@ -275,13 +283,21 @@ class _RecentTile extends StatelessWidget {
                 children: [
                   Text(
                     project.name,
-                    style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     project.path,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: Colors.grey[600], fontSize: 12, fontFamily: 'monospace'),
+                    style: TextStyle(
+                      color: Colors.grey[600],
+                      fontSize: 12,
+                      fontFamily: 'monospace',
+                    ),
                   ),
                 ],
               ),

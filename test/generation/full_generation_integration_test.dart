@@ -6,6 +6,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:neat/features/architecture/domain/models/architecture_state.dart';
+import 'package:neat/features/architecture/domain/models/env_config.dart';
 import 'package:neat/features/cicd/domain/models/cicd_state.dart';
 import 'package:neat/features/dependencies/domain/models/pub_package.dart';
 import 'package:neat/features/feature_gen/domain/models/feature_gen_options.dart';
@@ -1155,6 +1156,10 @@ void main() {
       expect(envDev, contains('SUPABASE_URL='));
       expect(envDev, isNot(contains('API_BASE_URL')));
 
+      // Flavors are opt-in: envied alone must NOT emit flavor entry points
+      // (so a plain `flutter run` works with zero config).
+      expect(File('${projectDir.path}/lib/main_staging.dart').existsSync(), isFalse);
+
       // The whole project analyzes without errors or warnings.
       final analyze = await Process.run(
         'flutter',
@@ -1826,7 +1831,16 @@ void main() {
             description: 'NEAT flavors + fastlane integration test',
           ),
           packages: pkgs,
-          architecture: const ArchitectureState(),
+          // Opt-in flavors + a renamed "production" env (the last = base) + a
+          // pre-filled API URL on dev.
+          architecture: const ArchitectureState(
+            generateFlavors: true,
+            environments: [
+              EnvConfig(name: 'dev', apiBaseUrl: 'https://api.dev.test'),
+              EnvConfig(name: 'staging'),
+              EnvConfig(name: 'production'),
+            ],
+          ),
           cicd: const CicdState(selectedTools: {CiTool.fastlane}),
           theme: const ThemeEngineState(approach: ThemeApproach.customM3),
           onLog: logs.add,
@@ -1839,21 +1853,29 @@ void main() {
       String read(String p) => File('${projectDir.path}/$p').readAsStringSync();
       bool exists(String p) => File('${projectDir.path}/$p').existsSync();
 
-      // Three flavor entry points wiring the envied env classes.
+      // Entry points wire the (custom-named) envied env classes.
       expect(read('lib/main_dev.dart'), contains('bootstrap(DevEnv())'));
       expect(read('lib/main_staging.dart'), contains('bootstrap(StagingEnv())'));
-      expect(read('lib/main_prod.dart'), contains('bootstrap(ProdEnv())'));
+      expect(read('lib/main_production.dart'), contains('bootstrap(ProductionEnv())'));
+
+      // Per-env API URL pre-filled in the matching .env.
+      expect(read('.env.dev'), contains('API_BASE_URL=https://api.dev.test'));
+      expect(read('.env.production'), contains('API_BASE_URL=\n'));
+      // The logger keys on the production (last) env.
+      expect(read('lib/core/utils/app_logger.dart'), contains('is ProductionEnv'));
 
       // VS Code run configs + the how-to.
       expect(read('.vscode/launch.json'), contains('lib/main_dev.dart'));
       expect(read('.vscode/launch.json'), contains('"--flavor", "dev"'));
       expect(exists('docs/FLAVORS.md'), isTrue);
 
-      // Android productFlavors + a per-flavor launcher name.
+      // Android productFlavors: dev gets a suffix, the base (production) does not.
       final gradle = read('android/app/build.gradle.kts');
       expect(gradle, contains('productFlavors'));
       expect(gradle, contains('create("dev")'));
       expect(gradle, contains('applicationIdSuffix = ".dev"'));
+      expect(gradle, contains('create("production")'));
+      expect(gradle, isNot(contains('applicationIdSuffix = ".production"')));
       // AGP 8+ needs resValues enabled for the per-flavor app_name (else the
       // build fails with "custom resource values, but the feature is disabled").
       expect(gradle, contains('resValues = true'));

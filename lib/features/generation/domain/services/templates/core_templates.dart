@@ -98,13 +98,15 @@ class ${p}Env implements AppEnv {
 ''';
   }
 
-  /// Contents of a `.env.<flavor>` (or `.env.example`) file.
+  /// Contents of a `.env.<flavor>` (or `.env.example`) file. [apiBaseUrl]
+  /// pre-fills `API_BASE_URL` (blank when not provided).
   static String envFile({
     required String appName,
     bool hasApiBaseUrl = true,
     bool hasSupabase = false,
+    String apiBaseUrl = '',
   }) {
-    final api = hasApiBaseUrl ? 'API_BASE_URL=\n' : '';
+    final api = hasApiBaseUrl ? 'API_BASE_URL=$apiBaseUrl\n' : '';
     final supa = hasSupabase ? 'SUPABASE_URL=\nSUPABASE_PUBLISHABLE_KEY=\n' : '';
     return '''APP_NAME=$appName
 $api$supa''';
@@ -153,19 +155,24 @@ void registerErrorHandler() {
 
   // ── core/utils/app_logger.dart (observability) ───────────────────────────
 
-  static String appLogger({required bool useEnvied, required String packageName}) {
+  static String appLogger({
+    required bool useEnvied,
+    required String packageName,
+    String prodFlavor = 'prod',
+  }) {
     if (useEnvied) {
+      final prodEnv = '${_pascal(prodFlavor)}Env';
       return '''import 'package:logger/logger.dart';
 import 'package:$packageName/core/env/app_env.dart';
-import 'package:$packageName/core/env/envs/prod_env.dart';
+import 'package:$packageName/core/env/envs/${prodFlavor}_env.dart';
 
-/// Centralised logger. Level is quietened to warnings in the prod flavor.
+/// Centralised logger. Level is quietened to warnings in the production flavor.
 abstract final class AppLogger {
   static final Logger _logger = Logger(printer: PrettyPrinter(), level: _level());
 
   static Level _level() {
     try {
-      return AppEnv.current is ProdEnv ? Level.warning : Level.trace;
+      return AppEnv.current is $prodEnv ? Level.warning : Level.trace;
     } catch (_) {
       return Level.trace; // env not set yet — log everything
     }
