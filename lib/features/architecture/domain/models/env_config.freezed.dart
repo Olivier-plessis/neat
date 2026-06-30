@@ -14,7 +14,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$EnvConfig {
 
- String get name; String get apiBaseUrl;
+ String get name; String get apiBaseUrl; String get supabaseUrl; String get supabaseAnonKey;
 /// Create a copy of EnvConfig
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -25,16 +25,16 @@ $EnvConfigCopyWith<EnvConfig> get copyWith => _$EnvConfigCopyWithImpl<EnvConfig>
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is EnvConfig&&(identical(other.name, name) || other.name == name)&&(identical(other.apiBaseUrl, apiBaseUrl) || other.apiBaseUrl == apiBaseUrl));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is EnvConfig&&(identical(other.name, name) || other.name == name)&&(identical(other.apiBaseUrl, apiBaseUrl) || other.apiBaseUrl == apiBaseUrl)&&(identical(other.supabaseUrl, supabaseUrl) || other.supabaseUrl == supabaseUrl)&&(identical(other.supabaseAnonKey, supabaseAnonKey) || other.supabaseAnonKey == supabaseAnonKey));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,name,apiBaseUrl);
+int get hashCode => Object.hash(runtimeType,name,apiBaseUrl,supabaseUrl,supabaseAnonKey);
 
 @override
 String toString() {
-  return 'EnvConfig(name: $name, apiBaseUrl: $apiBaseUrl)';
+  return 'EnvConfig(name: $name, apiBaseUrl: $apiBaseUrl, supabaseUrl: $supabaseUrl, supabaseAnonKey: $supabaseAnonKey)';
 }
 
 
@@ -45,7 +45,7 @@ abstract mixin class $EnvConfigCopyWith<$Res>  {
   factory $EnvConfigCopyWith(EnvConfig value, $Res Function(EnvConfig) _then) = _$EnvConfigCopyWithImpl;
 @useResult
 $Res call({
- String name, String apiBaseUrl
+ String name, String apiBaseUrl, String supabaseUrl, String supabaseAnonKey
 });
 
 
@@ -62,10 +62,12 @@ class _$EnvConfigCopyWithImpl<$Res>
 
 /// Create a copy of EnvConfig
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? name = null,Object? apiBaseUrl = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? name = null,Object? apiBaseUrl = null,Object? supabaseUrl = null,Object? supabaseAnonKey = null,}) {
   return _then(_self.copyWith(
 name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,apiBaseUrl: null == apiBaseUrl ? _self.apiBaseUrl : apiBaseUrl // ignore: cast_nullable_to_non_nullable
+as String,supabaseUrl: null == supabaseUrl ? _self.supabaseUrl : supabaseUrl // ignore: cast_nullable_to_non_nullable
+as String,supabaseAnonKey: null == supabaseAnonKey ? _self.supabaseAnonKey : supabaseAnonKey // ignore: cast_nullable_to_non_nullable
 as String,
   ));
 }
@@ -151,10 +153,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String name,  String apiBaseUrl)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String name,  String apiBaseUrl,  String supabaseUrl,  String supabaseAnonKey)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _EnvConfig() when $default != null:
-return $default(_that.name,_that.apiBaseUrl);case _:
+return $default(_that.name,_that.apiBaseUrl,_that.supabaseUrl,_that.supabaseAnonKey);case _:
   return orElse();
 
 }
@@ -172,10 +174,10 @@ return $default(_that.name,_that.apiBaseUrl);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String name,  String apiBaseUrl)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String name,  String apiBaseUrl,  String supabaseUrl,  String supabaseAnonKey)  $default,) {final _that = this;
 switch (_that) {
 case _EnvConfig():
-return $default(_that.name,_that.apiBaseUrl);case _:
+return $default(_that.name,_that.apiBaseUrl,_that.supabaseUrl,_that.supabaseAnonKey);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -192,10 +194,10 @@ return $default(_that.name,_that.apiBaseUrl);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String name,  String apiBaseUrl)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String name,  String apiBaseUrl,  String supabaseUrl,  String supabaseAnonKey)?  $default,) {final _that = this;
 switch (_that) {
 case _EnvConfig() when $default != null:
-return $default(_that.name,_that.apiBaseUrl);case _:
+return $default(_that.name,_that.apiBaseUrl,_that.supabaseUrl,_that.supabaseAnonKey);case _:
   return null;
 
 }
@@ -207,11 +209,13 @@ return $default(_that.name,_that.apiBaseUrl);case _:
 
 
 class _EnvConfig extends EnvConfig {
-  const _EnvConfig({required this.name, this.apiBaseUrl = ''}): super._();
+  const _EnvConfig({required this.name, this.apiBaseUrl = '', this.supabaseUrl = '', this.supabaseAnonKey = ''}): super._();
   
 
 @override final  String name;
 @override@JsonKey() final  String apiBaseUrl;
+@override@JsonKey() final  String supabaseUrl;
+@override@JsonKey() final  String supabaseAnonKey;
 
 /// Create a copy of EnvConfig
 /// with the given fields replaced by the non-null parameter values.
@@ -223,16 +227,16 @@ _$EnvConfigCopyWith<_EnvConfig> get copyWith => __$EnvConfigCopyWithImpl<_EnvCon
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _EnvConfig&&(identical(other.name, name) || other.name == name)&&(identical(other.apiBaseUrl, apiBaseUrl) || other.apiBaseUrl == apiBaseUrl));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _EnvConfig&&(identical(other.name, name) || other.name == name)&&(identical(other.apiBaseUrl, apiBaseUrl) || other.apiBaseUrl == apiBaseUrl)&&(identical(other.supabaseUrl, supabaseUrl) || other.supabaseUrl == supabaseUrl)&&(identical(other.supabaseAnonKey, supabaseAnonKey) || other.supabaseAnonKey == supabaseAnonKey));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,name,apiBaseUrl);
+int get hashCode => Object.hash(runtimeType,name,apiBaseUrl,supabaseUrl,supabaseAnonKey);
 
 @override
 String toString() {
-  return 'EnvConfig(name: $name, apiBaseUrl: $apiBaseUrl)';
+  return 'EnvConfig(name: $name, apiBaseUrl: $apiBaseUrl, supabaseUrl: $supabaseUrl, supabaseAnonKey: $supabaseAnonKey)';
 }
 
 
@@ -243,7 +247,7 @@ abstract mixin class _$EnvConfigCopyWith<$Res> implements $EnvConfigCopyWith<$Re
   factory _$EnvConfigCopyWith(_EnvConfig value, $Res Function(_EnvConfig) _then) = __$EnvConfigCopyWithImpl;
 @override @useResult
 $Res call({
- String name, String apiBaseUrl
+ String name, String apiBaseUrl, String supabaseUrl, String supabaseAnonKey
 });
 
 
@@ -260,10 +264,12 @@ class __$EnvConfigCopyWithImpl<$Res>
 
 /// Create a copy of EnvConfig
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? name = null,Object? apiBaseUrl = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? name = null,Object? apiBaseUrl = null,Object? supabaseUrl = null,Object? supabaseAnonKey = null,}) {
   return _then(_EnvConfig(
 name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,apiBaseUrl: null == apiBaseUrl ? _self.apiBaseUrl : apiBaseUrl // ignore: cast_nullable_to_non_nullable
+as String,supabaseUrl: null == supabaseUrl ? _self.supabaseUrl : supabaseUrl // ignore: cast_nullable_to_non_nullable
+as String,supabaseAnonKey: null == supabaseAnonKey ? _self.supabaseAnonKey : supabaseAnonKey // ignore: cast_nullable_to_non_nullable
 as String,
   ));
 }

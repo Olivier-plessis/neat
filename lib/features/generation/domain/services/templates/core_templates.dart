@@ -105,9 +105,12 @@ class ${p}Env implements AppEnv {
     bool hasApiBaseUrl = true,
     bool hasSupabase = false,
     String apiBaseUrl = '',
+    String supabaseUrl = '',
+    String supabaseKey = '',
   }) {
     final api = hasApiBaseUrl ? 'API_BASE_URL=$apiBaseUrl\n' : '';
-    final supa = hasSupabase ? 'SUPABASE_URL=\nSUPABASE_PUBLISHABLE_KEY=\n' : '';
+    final supa =
+        hasSupabase ? 'SUPABASE_URL=$supabaseUrl\nSUPABASE_PUBLISHABLE_KEY=$supabaseKey\n' : '';
     return '''APP_NAME=$appName
 $api$supa''';
   }

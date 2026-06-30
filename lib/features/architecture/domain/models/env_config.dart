@@ -9,6 +9,8 @@ abstract class EnvConfig with _$EnvConfig {
   const factory EnvConfig({
     required String name,
     @Default('') String apiBaseUrl,
+    @Default('') String supabaseUrl,
+    @Default('') String supabaseAnonKey,
   }) = _EnvConfig;
 
   const EnvConfig._();

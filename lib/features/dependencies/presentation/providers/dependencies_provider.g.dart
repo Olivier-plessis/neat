@@ -184,7 +184,7 @@ final class SelectedPackagesProvider
   }
 }
 
-String _$selectedPackagesHash() => r'30e175a9998a0155d2568d4a9a5621bd8550e700';
+String _$selectedPackagesHash() => r'3533031cb6250d7a96696bad8ac5a3b2b429e92c';
 
 abstract class _$SelectedPackages extends $Notifier<List<PubPackage>> {
   List<PubPackage> build();
