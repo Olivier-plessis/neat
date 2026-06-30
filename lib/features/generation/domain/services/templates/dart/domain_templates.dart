@@ -1,3 +1,4 @@
+import 'package:neat/features/generation/domain/models/field_spec.dart';
 import 'package:neat/features/generation/domain/services/templates/dart/_template_utils.dart';
 
 class DomainTemplates {
@@ -8,10 +9,16 @@ class DomainTemplates {
   static String featureEntity({
     required String featureName,
     bool hasFreezed = false,
+    List<FieldSpec> fields = FieldSpec.idName,
   }) {
     final p = pascal(featureName);
 
     if (hasFreezed) {
+      final params = fields
+          .map((f) => f.nullable
+              ? '    ${f.dartType}? ${f.dartName},'
+              : '    required ${f.dartType} ${f.dartName},')
+          .join('\n');
       return '''import 'package:freezed_annotation/freezed_annotation.dart';
 
 part '${featureName}_entity.freezed.dart';
@@ -19,21 +26,22 @@ part '${featureName}_entity.freezed.dart';
 @freezed
 abstract class ${p}Entity with _\$${p}Entity {
   const factory ${p}Entity({
-    required String id,
-    required String name,
+$params
   }) = _${p}Entity;
 }
 ''';
     }
 
+    final ctorParams = fields
+        .map((f) => f.nullable ? '    this.${f.dartName},' : '    required this.${f.dartName},')
+        .join('\n');
+    final decls = fields.map((f) => '  final ${f.type} ${f.dartName};').join('\n');
     return '''class ${p}Entity {
   const ${p}Entity({
-    required this.id,
-    required this.name,
+$ctorParams
   });
 
-  final String id;
-  final String name;
+$decls
 }
 ''';
   }

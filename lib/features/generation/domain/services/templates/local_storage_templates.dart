@@ -1,4 +1,6 @@
+import 'package:neat/features/generation/domain/models/field_spec.dart';
 import 'package:neat/features/generation/domain/services/templates/dart/_template_utils.dart';
+import 'package:neat/features/generation/domain/services/templates/dart/field_codegen.dart';
 
 /// Templates for the `<name>_local_storage` workspace package.
 ///
@@ -47,18 +49,20 @@ export 'package:drift/drift.dart';
 export 'src/database.dart';
 ''';
 
-  /// A typed table for [featureName] (id + name). Reused by the initial
-  /// database and by feature-gen injection.
-  static String featureTable(String featureName) {
+  /// A typed table for [featureName] (columns from the inferred [fields], keyed
+  /// on the String id). Reused by the initial database and by feature-gen
+  /// injection. The id stays a non-nullable `TextColumn` primary key.
+  static String featureTable(String featureName, {List<FieldSpec> fields = FieldSpec.idName}) {
     final p = pascal(featureName);
+    final columns = fields.map((f) => '  ${f.driftColumnLine()}').join('\n');
+    final pk = idField(fields).dartName;
     return '''/// Typed local table for the $featureName feature (full CRUD).
 @DataClassName('${p}Row')
 class ${p}Rows extends Table {
-  TextColumn get id => text()();
-  TextColumn get name => text()();
+$columns
 
   @override
-  Set<Column<Object>> get primaryKey => {id};
+  Set<Column<Object>> get primaryKey => {$pk};
 }''';
   }
 
@@ -89,7 +93,11 @@ class ${p}Rows extends Table {
   /// (full local CRUD); when [withOutbox] is true it also carries the Outbox
   /// queue table + helpers for the sync strategy. Anchors (`// neat:…`) let
   /// feature-gen inject new tables / DAOs later.
-  static String database({required String featureName, bool withOutbox = false}) {
+  static String database({
+    required String featureName,
+    bool withOutbox = false,
+    List<FieldSpec> fields = FieldSpec.idName,
+  }) {
     final p = pascal(featureName);
 
     final tableEntries = StringBuffer('    ${p}Rows,\n');
@@ -152,7 +160,7 @@ import 'package:drift_flutter/drift_flutter.dart';
 
 part 'database.g.dart';
 
-${featureTable(featureName)}$outboxTable
+${featureTable(featureName, fields: fields)}$outboxTable
 
 // neat:tables — feature tables are inserted above this line.
 

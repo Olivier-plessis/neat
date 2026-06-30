@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:neat/features/generation/domain/models/field_spec.dart';
 import 'package:neat/features/generation/domain/services/templates/core_templates.dart';
 import 'package:neat/features/generation/domain/services/templates/dart/data_templates.dart';
 import 'package:neat/features/generation/domain/services/templates/dart/domain_templates.dart';
@@ -48,6 +49,8 @@ class FeatureScaffolder {
     // slang i18n: the riverpod page consumes `context.t.<feature>.title` and
     // shows a LanguageSwitcher in the AppBar.
     bool i18n = false,
+    // The entity's fields (inferred from a pasted JSON, or the default id/name).
+    List<FieldSpec> fields = FieldSpec.idName,
   }) async {
     // The project ships a Drift package → any local source is Drift-backed.
     final localIsDrift = localStoragePackage != null;
@@ -78,7 +81,7 @@ class FeatureScaffolder {
     // domain/entities
     await _write(
       '$domainBase/entities/${featureName}_entity.dart',
-      DomainTemplates.featureEntity(featureName: featureName, hasFreezed: hasFreezed),
+      DomainTemplates.featureEntity(featureName: featureName, hasFreezed: hasFreezed, fields: fields),
     );
 
     // domain/repositories
@@ -114,6 +117,7 @@ class FeatureScaffolder {
         packageName: packageName,
         hasFreezed: hasFreezed,
         hasJsonSerializable: hasJsonSerializable,
+        fields: fields,
       ),
     );
 
@@ -128,6 +132,7 @@ class FeatureScaffolder {
         offlineFirst: offlineFirst,
         hasSync: hasSync,
         realtime: liveList,
+        fields: fields,
       ),
     );
 
@@ -152,6 +157,7 @@ class FeatureScaffolder {
           offlineFirst: localIsDrift,
           hasSync: hasSync,
           localStoragePackage: localStoragePackage,
+          fields: fields,
         ),
       );
     }
@@ -168,6 +174,7 @@ class FeatureScaffolder {
         useCubit: useCubit,
         dataList: dataList,
         i18n: i18n,
+        fields: fields,
       ),
     );
 
