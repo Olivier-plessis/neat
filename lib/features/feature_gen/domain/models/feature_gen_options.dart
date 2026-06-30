@@ -1,4 +1,5 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:neat/features/generation/domain/models/field_spec.dart';
 
 part 'feature_gen_options.freezed.dart';
 
@@ -18,6 +19,16 @@ abstract class FeatureGenOptions with _$FeatureGenOptions {
     @Default(true) bool includeLocalDataSource,
     @Default(true) bool includeUseCase,
     @Default(true) bool includeMapper,
+
+    /// Entity fields (inferred from a pasted Response JSON, or the id/name
+    /// default). Drives the entity/model/mapper/Drift table of the new feature.
+    @Default(FieldSpec.idName) List<FieldSpec> fields,
+
+    /// The raw JSON pasted to infer [fields] (kept for the editor round-trip).
+    @Default('') String json,
+
+    /// Notes from the last inference (shown under the editor).
+    @Default(<String>[]) List<String> fieldWarnings,
   }) = _FeatureGenOptions;
 
   const FeatureGenOptions._();

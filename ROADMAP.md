@@ -177,14 +177,35 @@ int/double) stays **best-effort, dev-editable**.
 
 **Design fork:** NEAT is **entity-centric** today (1 feature = 1 entity + CRUD);
 Gemini's pitch is **endpoint-centric** (1 feature = N arbitrary routes). They don't
-overlap — pick deliberately. → Phase it:
-- **Phase 1 — Entity from a Response JSON** (keep CRUD): paste a response JSON →
-  infer the entity/model fields (replaces `id/name`) + freezed/json + mapper.
-  Best value/effort, bounded risk. *Confidence élevé on value, moyen-élevé on
-  inference robustness.*
+overlap — pick deliberately. → Phased:
+- ✅ **Phase 1 — Entity from a Response JSON** (keep CRUD) — **done**. Paste a
+  response JSON → `JsonEntityInferencer` infers a **flat** `List<FieldSpec>`
+  (scalars: String/int/double/bool/DateTime; `snake_case`→`camelCase` + `@JsonKey`;
+  reserved-word escaping; nested objects/arrays dropped with warnings; a **String
+  `id` is always guaranteed** — coerced or synthesised — because CRUD is id-centric).
+  The fields flow through the **single** `FeatureScaffolder` path into the
+  entity/model (freezed + plain)/mapper/repository/**Drift table** (typed columns)/
+  list tile (inferred title field) + skeleton placeholder. Editable preview
+  (`EntityFieldsEditor`) wired in **both** the wizard (Architecture step) and the
+  **Workshop** add-feature. Harness-proven (FakeStore-ish product JSON → build_runner
+  + analyze 0/0). Unit-tested inference + codegen helpers (26 fast tests).
+- **Phase 1.5 — nested objects/lists** ← *in progress*: recursive sub-classes +
+  `List<T>` (scalars + objects). Complex fields are serialised to a JSON
+  `TextColumn` in the Drift cache (re-hydrated on read), keeping the offline
+  round-trip whole.
+- **Example feature (onboarding)** — *planned, after 1.5*: at app creation, offer a
+  choice — **Example feature** (FakeStore Products: full CRUD + simple list/detail
+  UI + routing, `fakestoreapi.com` pre-filled, generated through the **same**
+  `FeatureScaffolder` pipeline with a preset Product `FieldSpec` set so it stays
+  harness-proven), **Your entity** (paste JSON — the Phase 1 flow), or **Minimal**
+  (id/name). Default = Example, so a fresh project runs and shows real data, and the
+  user learns NEAT's patterns from a realistic reference. The example's nested
+  `rating` object is why it waits on Phase 1.5. Its non-CRUD routes
+  (categories/filter/sort) come with Phase 2.
 - **Phase 2 — Typed endpoints**: per-route `method + path + request/response JSON`
-  → typed chopper methods + request models. The full vision; reshapes the "feature"
-  model + Workshop UI. *Effort L.*
+  → typed chopper methods + request models. The full vision (N arbitrary routes per
+  feature); reshapes the "feature" model + Workshop UI. Reuses the Phase 1 inference
+  engine. *Effort L.*
 - **Phase 3 — polish**: surface the API Base URL at the Identity step (pre-fills the
   envied `.env`; the value already exists via `API_BASE_URL`).
 

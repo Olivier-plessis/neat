@@ -62,6 +62,10 @@ abstract class ArchitectureState with _$ArchitectureState {
     /// UI can re-show / re-infer it). Empty → the default id/name placeholder.
     @Default('') String firstFeatureJson,
 
+    /// Human-readable notes from the last inference (coerced id, dropped nested
+    /// fields, null types…). Shown under the editor so the user can review/edit.
+    @Default(<String>[]) List<String> firstFeatureFieldWarnings,
+
     /// Data persistence strategy. [StorageStrategy.offlineFirst] switches the
     /// generated project to a workspace with a Drift local-storage package.
     @Default(StorageStrategy.remoteOnly) StorageStrategy storageStrategy,

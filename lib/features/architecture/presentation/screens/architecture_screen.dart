@@ -7,6 +7,7 @@ import 'package:neat/core/theme/app_theme.dart';
 import 'package:neat/features/architecture/domain/models/architecture_state.dart';
 import 'package:neat/features/architecture/domain/usecases/generate_tree_usecase.dart';
 import 'package:neat/features/architecture/presentation/providers/architecture_provider.dart';
+import 'package:neat/features/architecture/presentation/widgets/entity_fields_editor.dart';
 import 'package:neat/features/dependencies/presentation/providers/dependencies_provider.dart';
 
 class ArchitectureScreen extends ConsumerWidget {
@@ -85,6 +86,22 @@ class ArchitectureScreen extends ConsumerWidget {
                           fontSize: 11,
                           fontFamily: 'monospace',
                         ),
+                      ),
+                      const SizedBox(height: 28),
+
+                      _SectionHeader(icon: Icons.data_object_outlined, label: 'Entity Fields'),
+                      const SizedBox(height: 12),
+                      EntityFieldsEditor(
+                        json: state.firstFeatureJson,
+                        fields: state.firstFeatureFields,
+                        warnings: state.firstFeatureFieldWarnings,
+                        onInfer: notifier.inferFieldsFromJson,
+                        onReset: notifier.resetFields,
+                        onAddField: notifier.addField,
+                        onName: notifier.setFieldName,
+                        onType: notifier.setFieldType,
+                        onNullable: notifier.toggleFieldNullable,
+                        onRemove: notifier.removeField,
                       ),
                       const SizedBox(height: 28),
 

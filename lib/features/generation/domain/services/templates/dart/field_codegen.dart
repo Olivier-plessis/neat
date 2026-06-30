@@ -1,48 +1,144 @@
 import 'package:neat/features/generation/domain/models/field_spec.dart';
 
-/// Codegen helpers that turn a [FieldSpec] into the Dart fragments the entity /
-/// model / Drift / presentation templates need. Centralised so every surface
-/// renders a field identically.
+/// Codegen helpers that turn a [FieldSpec] (scalar / object / list, recursive)
+/// into the Dart fragments the entity / model / Drift / presentation templates
+/// need. Centralised so every surface renders a field identically.
+///
+/// Complex fields (object/list) resolve to layer-specific types ([entityType] /
+/// [modelType]) and are stored as serialised JSON in the Drift cache.
 extension FieldCodegen on FieldSpec {
-  /// Constructor / field declaration type, e.g. `String`, `int?`, `DateTime`.
-  String get declType => type;
+  /// The field's type in the **entity** layer (e.g. `RatingEntity`,
+  /// `List<ItemEntity>`, `String?`).
+  String get entityType => _layerType('Entity');
 
-  /// `@JsonKey(name: 'json_key')` when the Dart name was renamed
-  /// (json_serializable path); empty otherwise. The caller places it (the
-  /// indentation differs between freezed factory params and field decls).
+  /// The field's type in the **model** layer (e.g. `RatingModel`).
+  String get modelType => _layerType('Model');
+
+  String _layerType(String suffix) {
+    final base = switch (kind) {
+      FieldKind.scalar => dartType,
+      FieldKind.object => '$objectName$suffix',
+      FieldKind.list => 'List<${element!._layerType(suffix)}>',
+    };
+    return nullable ? '$base?' : base;
+  }
+
+  /// `@JsonKey(name: 'json_key')` when the Dart name was renamed; empty
+  /// otherwise. The caller places it (indentation differs per context).
   String get jsonKeyAnnotation => needsJsonKey ? "@JsonKey(name: '$jsonKey')" : '';
 
-  /// A hand-written `fromJson` read for the plain (no json_serializable) model,
-  /// e.g. `json['price'] as double` / `DateTime.parse(json['created_at'] as String)`.
+  /// A hand-written `fromJson` read for the plain (no json_serializable) model.
   String fromJsonExpr() {
     final raw = "json['$jsonKey']";
-    if (nullable) {
-      return switch (dartType) {
-        'int' => '($raw as num?)?.toInt()',
-        'double' => '($raw as num?)?.toDouble()',
-        'DateTime' => '$raw == null ? null : DateTime.parse($raw as String)',
-        _ => '$raw as $dartType?',
-      };
+    switch (kind) {
+      case FieldKind.scalar:
+        return _scalarFromJson(raw, dartType, nullable);
+      case FieldKind.object:
+        final ctor = '${objectName}Model.fromJson';
+        return nullable
+            ? '$raw == null ? null : $ctor($raw as Map<String, dynamic>)'
+            : '$ctor($raw as Map<String, dynamic>)';
+      case FieldKind.list:
+        final mapExpr = '($raw as List).map((e) => ${_elementFromJson('e')}).toList()';
+        return nullable ? '$raw == null ? null : $mapExpr' : mapExpr;
     }
-    return switch (dartType) {
-      'int' => '($raw as num).toInt()',
-      'double' => '($raw as num).toDouble()',
-      'DateTime' => 'DateTime.parse($raw as String)',
-      _ => '$raw as $dartType',
+  }
+
+  /// fromJson for a list element ([e] is the loop variable).
+  String _elementFromJson(String e) {
+    final el = element!;
+    return switch (el.kind) {
+      FieldKind.object => '${el.objectName}Model.fromJson($e as Map<String, dynamic>)',
+      FieldKind.scalar => _scalarFromJson(e, el.dartType, false),
+      FieldKind.list => e, // nested lists-of-lists not inferred in V1.5
     };
   }
 
-  /// A `toJson` map entry value, e.g. `createdAt.toIso8601String()`.
-  String toJsonValue() {
-    if (dartType == 'DateTime') {
-      return nullable ? '$dartName?.toIso8601String()' : '$dartName.toIso8601String()';
+  static String _scalarFromJson(String raw, String type, bool nullable) {
+    if (nullable) {
+      return switch (type) {
+        'int' => '($raw as num?)?.toInt()',
+        'double' => '($raw as num?)?.toDouble()',
+        'DateTime' => '$raw == null ? null : DateTime.parse($raw as String)',
+        _ => '$raw as $type?',
+      };
     }
-    return dartName;
+    return switch (type) {
+      'int' => '($raw as num).toInt()',
+      'double' => '($raw as num).toDouble()',
+      'DateTime' => 'DateTime.parse($raw as String)',
+      _ => '$raw as $type',
+    };
   }
 
-  /// A Drift column declaration line for `<feature>_local_storage`, e.g.
-  /// `RealColumn get price => real()();`. Nullable fields get `.nullable()`.
+  /// A `toJson` map entry value (e.g. `rating.toJson()`, `createdAt.toIso8601String()`).
+  String toJsonValue() {
+    switch (kind) {
+      case FieldKind.scalar:
+        if (dartType == 'DateTime') {
+          return nullable ? '$dartName?.toIso8601String()' : '$dartName.toIso8601String()';
+        }
+        return dartName;
+      case FieldKind.object:
+        return nullable ? '$dartName?.toJson()' : '$dartName.toJson()';
+      case FieldKind.list:
+        final el = element!;
+        final inner = switch (el.kind) {
+          FieldKind.object => '(e) => e.toJson()',
+          FieldKind.scalar => el.dartType == 'DateTime' ? '(e) => e.toIso8601String()' : null,
+          FieldKind.list => null,
+        };
+        if (inner == null) return dartName; // list of plain scalars
+        return nullable
+            ? '$dartName?.map($inner).toList()'
+            : '$dartName.map($inner).toList()';
+    }
+  }
+
+  /// The `entity.field → model.field` expression for `Model.fromEntity()`
+  /// ([e] is the entity variable). Deep-converts nested objects/lists.
+  String fromEntityValue(String e) {
+    final ref = '$e.$dartName';
+    switch (kind) {
+      case FieldKind.scalar:
+        return ref;
+      case FieldKind.object:
+        return nullable
+            ? '$ref == null ? null : ${objectName}Model.fromEntity($ref)'
+            : '${objectName}Model.fromEntity($ref)';
+      case FieldKind.list:
+        if (element!.kind == FieldKind.object) {
+          final m = '${element!.objectName}Model.fromEntity';
+          return nullable ? '$ref?.map($m).toList()' : '$ref.map($m).toList()';
+        }
+        return ref;
+    }
+  }
+
+  /// The `model.field → entity.field` expression in `toEntity()`.
+  String toEntityValue() {
+    switch (kind) {
+      case FieldKind.scalar:
+        return dartName;
+      case FieldKind.object:
+        return nullable ? '$dartName?.toEntity()' : '$dartName.toEntity()';
+      case FieldKind.list:
+        if (element!.kind == FieldKind.object) {
+          return nullable
+              ? '$dartName?.map((e) => e.toEntity()).toList()'
+              : '$dartName.map((e) => e.toEntity()).toList()';
+        }
+        return dartName;
+    }
+  }
+
+  /// A Drift column declaration. Scalars map to their native column; complex
+  /// fields (object/list) are stored as serialised JSON in a `TextColumn`.
   String driftColumnLine() {
+    if (isComplex) {
+      final n = nullable ? '.nullable()' : '';
+      return 'TextColumn get $dartName => text()$n();';
+    }
     final builder = switch (dartType) {
       'int' => 'integer',
       'double' => 'real',
@@ -61,29 +157,99 @@ extension FieldCodegen on FieldSpec {
     return '$column get $dartName => $builder()$nullableCall();';
   }
 
-  /// A synthetic value for the skeleton placeholder instance. Nullable fields
-  /// use `null`; otherwise a type-appropriate dummy.
-  String placeholderLiteral() {
-    if (nullable) return 'null';
-    return switch (dartType) {
-      'int' => '0',
-      'double' => '0.0',
-      'bool' => 'false',
-      'DateTime' => 'DateTime(2024)',
-      _ => isId ? "'000000'" : "'Placeholder $dartName'",
+  /// `model.field` → the value stored in a Drift row column. Complex fields are
+  /// JSON-encoded; scalars pass through.
+  String driftEncode(String modelVar) {
+    final ref = '$modelVar.$dartName';
+    if (!isComplex) return ref;
+    final bang = nullable ? '!' : '';
+    final encodeBody = switch (kind) {
+      FieldKind.object => 'jsonEncode($ref$bang.toJson())',
+      FieldKind.list => element!.kind == FieldKind.object
+          ? 'jsonEncode($ref$bang.map((e) => e.toJson()).toList())'
+          : 'jsonEncode($ref$bang)',
+      FieldKind.scalar => ref,
     };
+    return nullable ? '$ref == null ? null : $encodeBody' : encodeBody;
+  }
+
+  /// `row.field` → the model value rebuilt from a Drift column.
+  String driftDecode(String rowVar) {
+    final ref = '$rowVar.$dartName';
+    if (!isComplex) return ref;
+    final decodeBody = switch (kind) {
+      FieldKind.object =>
+        '${objectName}Model.fromJson(jsonDecode($ref${nullable ? '!' : ''}) as Map<String, dynamic>)',
+      FieldKind.list => element!.kind == FieldKind.object
+          ? '(jsonDecode($ref${nullable ? '!' : ''}) as List).map((e) => ${element!.objectName}Model.fromJson(e as Map<String, dynamic>)).toList()'
+          : '(jsonDecode($ref${nullable ? '!' : ''}) as List).cast<${element!.dartType}>()',
+      FieldKind.scalar => ref,
+    };
+    return nullable ? '$ref == null ? null : $decodeBody' : decodeBody;
+  }
+
+  /// A synthetic value for the skeleton placeholder instance (entity layer).
+  String entityPlaceholder() {
+    if (nullable) return 'null';
+    switch (kind) {
+      case FieldKind.scalar:
+        return switch (dartType) {
+          'int' => '0',
+          'double' => '0.0',
+          'bool' => 'false',
+          'DateTime' => 'DateTime(2024)',
+          _ => isId ? "'000000'" : "'Placeholder $dartName'",
+        };
+      case FieldKind.object:
+        final args = children.map((c) => '${c.dartName}: ${c.entityPlaceholder()}').join(', ');
+        return '${objectName}Entity($args)';
+      case FieldKind.list:
+        return 'const []';
+    }
   }
 }
 
-/// Picks the field shown as the list tile's title: the first String-ish field
-/// named name/title/label, else the first non-id String, else the id.
+/// All distinct object specs reachable from [fields] (object fields + list
+/// element objects), recursively — one generated sub-class per entry. Dedupes
+/// by [FieldSpec.objectName] (first wins).
+List<FieldSpec> collectObjectSpecs(List<FieldSpec> fields) {
+  final out = <FieldSpec>[];
+  final seen = <String>{};
+  void visit(List<FieldSpec> fs) {
+    for (final f in fs) {
+      switch (f.kind) {
+        case FieldKind.scalar:
+          break;
+        case FieldKind.object:
+          if (seen.add(f.objectName)) {
+            out.add(f);
+            visit(f.children);
+          }
+        case FieldKind.list:
+          final el = f.element!;
+          if (el.kind == FieldKind.object && seen.add(el.objectName)) {
+            out.add(el);
+            visit(el.children);
+          }
+      }
+    }
+  }
+
+  visit(fields);
+  return out;
+}
+
+/// Picks the field shown as the list tile's title: the first scalar String field
+/// named name/title/label, else the first non-id scalar String, else the id.
 FieldSpec titleField(List<FieldSpec> fields) {
   const preferred = {'name', 'title', 'label'};
   for (final f in fields) {
-    if (f.dartType == 'String' && preferred.contains(f.dartName.toLowerCase())) return f;
+    if (f.isScalar && f.dartType == 'String' && preferred.contains(f.dartName.toLowerCase())) {
+      return f;
+    }
   }
   for (final f in fields) {
-    if (!f.isId && f.dartType == 'String') return f;
+    if (!f.isId && f.isScalar && f.dartType == 'String') return f;
   }
   return fields.firstWhere((f) => f.isId, orElse: () => fields.first);
 }

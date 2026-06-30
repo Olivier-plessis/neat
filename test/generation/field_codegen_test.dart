@@ -6,7 +6,7 @@ void main() {
   group('Drift column mapping', () {
     test('maps each scalar type to its column', () {
       expect(
-        const FieldSpec(jsonKey: 'name', dartName: 'name', dartType: 'String').driftColumnLine(),
+        const FieldSpec(jsonKey: 'name', dartName: 'name').driftColumnLine(),
         'TextColumn get name => text()();',
       );
       expect(
@@ -30,7 +30,7 @@ void main() {
 
     test('nullable adds .nullable()', () {
       expect(
-        const FieldSpec(jsonKey: 'note', dartName: 'note', dartType: 'String', nullable: true)
+        const FieldSpec(jsonKey: 'note', dartName: 'note', nullable: true)
             .driftColumnLine(),
         'TextColumn get note => text().nullable()();',
       );
@@ -73,12 +73,12 @@ void main() {
 
     test('@JsonKey only when renamed', () {
       expect(
-        const FieldSpec(jsonKey: 'created_at', dartName: 'createdAt', dartType: 'String')
+        const FieldSpec(jsonKey: 'created_at', dartName: 'createdAt')
             .jsonKeyAnnotation,
         "@JsonKey(name: 'created_at')",
       );
       expect(
-        const FieldSpec(jsonKey: 'title', dartName: 'title', dartType: 'String').jsonKeyAnnotation,
+        const FieldSpec(jsonKey: 'title', dartName: 'title').jsonKeyAnnotation,
         '',
       );
     });
@@ -87,24 +87,24 @@ void main() {
   group('title field heuristic', () {
     test('prefers name/title/label', () {
       final fields = [
-        const FieldSpec(jsonKey: 'id', dartName: 'id', dartType: 'String', isId: true),
-        const FieldSpec(jsonKey: 'sku', dartName: 'sku', dartType: 'String'),
-        const FieldSpec(jsonKey: 'title', dartName: 'title', dartType: 'String'),
+        const FieldSpec(jsonKey: 'id', dartName: 'id', isId: true),
+        const FieldSpec(jsonKey: 'sku', dartName: 'sku'),
+        const FieldSpec(jsonKey: 'title', dartName: 'title'),
       ];
       expect(titleField(fields).dartName, 'title');
     });
 
     test('falls back to first non-id String', () {
       final fields = [
-        const FieldSpec(jsonKey: 'id', dartName: 'id', dartType: 'String', isId: true),
-        const FieldSpec(jsonKey: 'sku', dartName: 'sku', dartType: 'String'),
+        const FieldSpec(jsonKey: 'id', dartName: 'id', isId: true),
+        const FieldSpec(jsonKey: 'sku', dartName: 'sku'),
       ];
       expect(titleField(fields).dartName, 'sku');
     });
 
     test('falls back to id when no String field', () {
       final fields = [
-        const FieldSpec(jsonKey: 'id', dartName: 'id', dartType: 'String', isId: true),
+        const FieldSpec(jsonKey: 'id', dartName: 'id', isId: true),
         const FieldSpec(jsonKey: 'qty', dartName: 'qty', dartType: 'int'),
       ];
       expect(titleField(fields).dartName, 'id');
@@ -113,11 +113,11 @@ void main() {
 
   group('placeholder literals', () {
     test('type-appropriate dummies, null when nullable', () {
-      expect(const FieldSpec(jsonKey: 'id', dartName: 'id', dartType: 'String', isId: true).placeholderLiteral(), "'000000'");
-      expect(const FieldSpec(jsonKey: 'qty', dartName: 'qty', dartType: 'int').placeholderLiteral(), '0');
-      expect(const FieldSpec(jsonKey: 'p', dartName: 'p', dartType: 'double').placeholderLiteral(), '0.0');
-      expect(const FieldSpec(jsonKey: 'a', dartName: 'a', dartType: 'bool').placeholderLiteral(), 'false');
-      expect(const FieldSpec(jsonKey: 'n', dartName: 'n', dartType: 'String', nullable: true).placeholderLiteral(), 'null');
+      expect(const FieldSpec(jsonKey: 'id', dartName: 'id', isId: true).entityPlaceholder(), "'000000'");
+      expect(const FieldSpec(jsonKey: 'qty', dartName: 'qty', dartType: 'int').entityPlaceholder(), '0');
+      expect(const FieldSpec(jsonKey: 'p', dartName: 'p', dartType: 'double').entityPlaceholder(), '0.0');
+      expect(const FieldSpec(jsonKey: 'a', dartName: 'a', dartType: 'bool').entityPlaceholder(), 'false');
+      expect(const FieldSpec(jsonKey: 'n', dartName: 'n', nullable: true).entityPlaceholder(), 'null');
     });
   });
 }
