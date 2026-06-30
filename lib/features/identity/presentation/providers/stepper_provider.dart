@@ -67,6 +67,23 @@ class CurrentStep extends _$CurrentStep {
   void setStep(NeatStep step) => state = step;
 }
 
+/// The furthest wizard step the user has unlocked (its [NeatStepX.wizardIndex]).
+///
+/// Only advances via the Next button (which gates on the current step's
+/// validity), so the side-nav can never skip ahead — every step is mandatory.
+/// Reset to 0 when a fresh project is started from the Hub.
+@Riverpod(keepAlive: true)
+class FurthestStep extends _$FurthestStep {
+  @override
+  int build() => 0;
+
+  void reach(int wizardIndex) {
+    if (wizardIndex > state) state = wizardIndex;
+  }
+
+  void reset() => state = 0;
+}
+
 /// Shared flag: true while the launch generation process is running.
 /// Read by main_layout to disable the Back button during generation.
 @Riverpod(keepAlive: true)
