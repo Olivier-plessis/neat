@@ -31,11 +31,15 @@ theming (customM3 / FlexColorScheme) + extractable UI package + Widgetbook + CI/
 - *Why first:* distribution is the single highest-leverage move. Depth helps no one if
   no one can use it. (Desktop-only today; **web wizard is the eventual goal**.)
 
-### 2. AGENTS.md / AI-rules — **contract-aware** (the differentiator)
-- Don't ship a generic AGENTS.md. Generate it **from `.neat.json`** so the rules are
-  specific to the exact generated stack (riverpod annotations + chopper + Drift offline
-  + go_router_builder…), including where to add a feature and the anchor system.
-- Nobody does this. Cheap to build (we already have the contract + templates).
+### 2. AGENTS.md / AI-rules — **contract-aware** — ✅ **done**
+- ✅ Generated **from the `NeatContract`** (`.neat.json`), not a generic file:
+  `AgentsMdTemplate.generate(NeatContract c)` branches on the exact stack — architecture
+  (feature/layer-first), `httpClient` (chopper/dio/supabase/firebase), storage strategy
+  (remote / offline read / offline + sync Outbox), theme approach — and documents where
+  to add a feature, the layer boundaries, the `// neat:` anchors, and the codegen commands
+  for *that* project. Written at generation time (see `System Output` → "Writing AGENTS.md").
+- The differentiator holds: the rules are specific to the generated stack, nobody else
+  does this, and it reuses the contract + templates we already own.
 
 ### 3. Polish wins (self-contained, high visual impact) — **done**
 - ✅ **Asset widgets**: `SvgPictureCustom` / `ImagePictureCustom` in the UI package
@@ -47,6 +51,23 @@ theming (customM3 / FlexColorScheme) + extractable UI package + Widgetbook + CI/
 - ✅ **spider (typed assets)** — UI package ships `spider.yaml` + a generated `Assets`
   class (`lib/gen/assets.dart`); the logo becomes `Assets.brandingLogo`. Fed into
   `SvgPictureCustom` / `ImagePictureCustom`. Regenerate with `dart run spider build`.
+
+### 3b. UX & Shell foundation — ✅ (not a feature, but the app's spine)
+The wizard grew a proper shell. None of this was on the original roadmap; it's the
+foundation everything else is configured through.
+- ✅ **Hub landing**: Create / Open entry, **Recent Projects** (`.neat.json`-backed,
+  capped at 10), AppMode (Hub / Wizard / Workshop full-screen modes).
+- ✅ **Add-feature CTA**: after a successful generation, jump straight into the Workshop
+  on the just-created project (no app restart) or back Home.
+- ✅ **Open in IDE**: from the success panel, open the generated project in **VS Code /
+  Android Studio / Antigravity** (`open -a`, graceful snackbar if not installed).
+- ✅ **Infrastructure / Dependencies split**: backend selector (REST / Supabase / Firebase)
+  + per-env config + preset packages live on **Infrastructure**; pub.dev search lives on
+  **Dependencies**. Fixed the overflow + single-job-per-screen clarity.
+- ✅ **Sequential wizard nav**: every step is mandatory — the side-nav can't skip ahead
+  (`FurthestStep` only advances via Next, which gates on the current step's validity).
+- ✅ Internal cleanup: removed the dead dio cluster from NEAT itself (generation
+  templates untouched); `core/theme` gap/padding helpers.
 
 ### 4. Firebase / Supabase backends
 - ✅ **Supabase** (V1): backend = `supabase_flutter` → SDK-backed remote source
@@ -104,16 +125,30 @@ theming (customM3 / FlexColorScheme) + extractable UI package + Widgetbook + CI/
   Matchfile, Gemfile, `.env.example`) + `android/key.properties.example`. Env-driven
   (no secrets committed), flavor-aware lanes, secrets git-ignored. CI calls
   `cd android/ios && bundle exec fastlane release`.
-- ✅ **Build flavors** — **opt-in** (a toggle, OFF by default so a plain `flutter run`
-  works with zero config; productFlavors otherwise force `--flavor`). Driven by
-  envied (kept, not dart-define). **Renamable environments** (default dev/staging/prod,
-  the **last** = production base, no appId suffix) each with a **per-env API URL**
-  pre-filled into `.env.<flavor>`. When ON: `main_<flavor>.dart` entry points,
-  `.vscode/launch.json`, Android `productFlavors` (+ `buildFeatures { resValues = true }`
-  for AGP 8), `@string/app_name`, `docs/FLAVORS.md`. iOS schemes documented (can't be
-  scripted reliably).
-- Harness-proven (integration: 3 entry points + productFlavors + fastlane layout,
-  analyze 0/0).
+- ✅ **Environments & flavors** — two **decoupled** concepts (a key refactor):
+  - **Per-env entry points** (`main_<env>.dart` + `.env.<env>` + `.vscode/launch.json`
+    + `docs/FLAVORS.md`): driven purely by having **≥2 environments** → work on **every
+    platform** (web/desktop included; they're just Dart entry points selected with `-t`).
+  - **Native flavors** (Android `productFlavors` + `--flavor`, `@string/app_name`,
+    `buildFeatures { resValues = true }` for AGP 8, iOS schemes documented): **opt-in
+    toggle AND mobile-only** (web/desktop have no flavor concept; the toggle greys out
+    with an explanatory note off-mobile or with <2 envs).
+  - **Single env by default** (one `prod`): collapses to a plain `.env` + single `Env`
+    class + one `main.dart` (zero flavor machinery, plain `flutter run`). The user
+    **adds** environments on demand (1–4) via +/− controls.
+  - **Explicit production base** (`baseEnvIndex`, a clickable BASE chip) — no longer
+    positional, so adding an env never moves the base. The base drives: no appId suffix,
+    the logger's release-quietening, release build targets.
+  - Renamable environments, each with a **per-env API URL** (REST) / **Supabase URL+key**
+    pre-filled into its `.env`. Backend-keyed field identity fixes a state-reuse leak
+    (REST URL bleeding into the Supabase fields on backend switch).
+- Driven by **envied** (kept, not dart-define).
+- Harness-proven (integration: single-env collapse + multi-env-without-native-flavors
+  on macOS + flavors+productFlavors+fastlane on android/ios with explicit base, analyze 0/0).
+- ⏭️ **iOS native flavors**: even in native mode only **Android** is patched
+  (`_patchAndroidFlavors`); iOS needs Xcode schemes + `.xcconfig` per flavor, currently
+  only **documented** in `FLAVORS.md` (can't be scripted reliably from Dart). Revisit if
+  iOS side-by-side installs are requested.
 - ⏭️ From the same analysis, still on the table: extract core packages
   (`architecture`/`network`/`theme`) for a lib-agnostic core; golden tests in the UI
   package; `BootstrapErrorApp`; `app_platform` bricks (permissions/share); CI
