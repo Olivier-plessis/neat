@@ -47,14 +47,19 @@ abstract interface class AppEnv implements AppEnvFields {
 
   // ── core/env/envs/<flavor>_env.dart (envied generated vars + AppEnv impl) ──
 
-  /// [flavor] is one of: dev, staging, prod.
+  /// [flavor] is one of: dev, staging, prod. When [single] is true (a single
+  /// environment), the class prefix is dropped → `EnvVars`/`Env` reading a plain
+  /// `.env` (part `env.g.dart`), instead of `<Flavor>EnvVars`/`<Flavor>Env`.
   static String flavorEnv({
     required String packageName,
     required String flavor,
+    bool single = false,
     bool hasApiBaseUrl = true,
     bool hasSupabase = false,
   }) {
-    final p = _pascal(flavor); // Dev / Staging / Prod
+    final p = single ? '' : _pascal(flavor); // '' / Dev / Staging / Prod
+    // Source file is env.dart (single) or <flavor>_env.dart → matching part.
+    final partFile = single ? 'env.g.dart' : '${flavor}_env.g.dart';
     final apiField = hasApiBaseUrl
         ? "\n\n  @EnviedField(varName: 'API_BASE_URL')\n"
             '  static final String apiBaseUrl = _${p}EnvVars.apiBaseUrl;'
@@ -80,12 +85,13 @@ abstract interface class AppEnv implements AppEnvFields {
   @override
   final String supabasePublishableKey = ${p}EnvVars.supabasePublishableKey;'''
         : '';
+    final envPath = single ? '.env' : '.env.$flavor';
     return '''import 'package:envied/envied.dart';
 import 'package:$packageName/core/env/app_env.dart';
 
-part '${flavor}_env.g.dart';
+part '$partFile';
 
-@Envied(path: '.env.$flavor', obfuscate: true)
+@Envied(path: '$envPath', obfuscate: true)
 abstract class ${p}EnvVars {
   @EnviedField(varName: 'APP_NAME')
   static final String appName = _${p}EnvVars.appName;$apiField$supaFields

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:neat/core/theme/app_theme.dart';
+import 'package:neat/core/utils/ide_launcher.dart';
 import 'package:neat/features/architecture/domain/models/architecture_state.dart';
 import 'package:neat/features/architecture/presentation/providers/architecture_provider.dart';
 import 'package:neat/features/cicd/domain/models/cicd_state.dart';
@@ -129,6 +130,7 @@ class LaunchScreen extends HookConsumerWidget {
                   hasFinished: hasFinished.value,
                   hasError: errorMessage.value != null,
                   canGenerate: canGenerate,
+                  projectPath: '${identity.projectPath}/${identity.name}',
                   onGenerate: generate,
                   onAddFeature: addFeature,
                   onBackToHome: backToHome,
@@ -487,6 +489,7 @@ class _ActionPanel extends StatelessWidget {
     required this.hasFinished,
     required this.hasError,
     required this.canGenerate,
+    required this.projectPath,
     required this.onGenerate,
     required this.onAddFeature,
     required this.onBackToHome,
@@ -496,9 +499,19 @@ class _ActionPanel extends StatelessWidget {
   final bool hasFinished;
   final bool hasError;
   final bool canGenerate;
+  final String projectPath;
   final VoidCallback onGenerate;
   final VoidCallback onAddFeature;
   final VoidCallback onBackToHome;
+
+  Future<void> _open(BuildContext context, IdeTarget ide) async {
+    final ok = await openInIde(ide, projectPath);
+    if (!ok && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${ide.label} not found — is it installed?')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -554,6 +567,43 @@ class _ActionPanel extends StatelessWidget {
                 ),
               ),
             ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(child: Divider(color: Colors.white.withValues(alpha: 0.08))),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  child: Text(
+                    'OPEN IN',
+                    style: TextStyle(color: Colors.grey[600], fontSize: 9, letterSpacing: 1.2),
+                  ),
+                ),
+                Expanded(child: Divider(color: Colors.white.withValues(alpha: 0.08))),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              alignment: WrapAlignment.center,
+              children: [
+                _IdeButton(
+                  icon: Icons.code,
+                  label: 'VS Code',
+                  onTap: () => _open(context, IdeTarget.vscode),
+                ),
+                _IdeButton(
+                  icon: Icons.android,
+                  label: 'Studio',
+                  onTap: () => _open(context, IdeTarget.androidStudio),
+                ),
+                _IdeButton(
+                  icon: Icons.auto_awesome,
+                  label: 'Antigravity',
+                  onTap: () => _open(context, IdeTarget.antigravity),
+                ),
+              ],
+            ),
           ] else if (hasError) ...[
             const Icon(Icons.error_outline, color: Colors.redAccent, size: 52),
             const SizedBox(height: 16),
@@ -593,6 +643,29 @@ class _ActionPanel extends StatelessWidget {
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+class _IdeButton extends StatelessWidget {
+  const _IdeButton({required this.icon, required this.label, required this.onTap});
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton.icon(
+      onPressed: onTap,
+      icon: Icon(icon, size: 15),
+      label: Text(label, style: const TextStyle(fontSize: 12)),
+      style: OutlinedButton.styleFrom(
+        minimumSize: const Size(0, 38),
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        foregroundColor: Colors.white70,
+        side: const BorderSide(color: Colors.white24),
       ),
     );
   }

@@ -654,7 +654,7 @@ class _ColorsTabState extends ConsumerState<_ColorsTab> {
               const SizedBox(width: 10),
               Expanded(
                 child: _EditableSwatchTile(
-                  label: 'destructive',
+                  label: 'error',
                   color: state.destructiveColor,
                   currentOverride: state.destructiveColor,
                   onColorChanged: (c) =>
@@ -1257,11 +1257,7 @@ class _ButtonsShapesTab extends ConsumerWidget {
 /// Upload a PNG logo → NEAT copies it in and generates app icons + native splash
 /// (flutter_launcher_icons + flutter_native_splash) at generation time.
 class _BrandingCard extends StatelessWidget {
-  const _BrandingCard({
-    required this.logoPath,
-    required this.onPick,
-    required this.onRemove,
-  });
+  const _BrandingCard({required this.logoPath, required this.onPick, required this.onRemove});
 
   final String logoPath;
   final Future<void> Function() onPick;
@@ -1379,7 +1375,7 @@ class _WidgetbookToggleCard extends StatelessWidget {
                   Text(
                     hasComponents
                         ? 'An interactive catalog of your components with knobs & light/dark '
-                            'themes. Run: flutter run -t widgetbook/main.dart'
+                              'themes. Run: flutter run -t widgetbook/main.dart'
                         : 'Select at least one component above to enable the catalog.',
                     style: TextStyle(color: Colors.grey[500], fontSize: 12, height: 1.4),
                   ),
@@ -1394,7 +1390,9 @@ class _WidgetbookToggleCard extends StatelessWidget {
                 width: 48,
                 height: 28,
                 decoration: BoxDecoration(
-                  color: active ? AppTheme.colorPrimaryCyan.withValues(alpha: 0.15) : Colors.white10,
+                  color: active
+                      ? AppTheme.colorPrimaryCyan.withValues(alpha: 0.15)
+                      : Colors.white10,
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
                     color: active ? AppTheme.colorPrimaryCyan : Colors.white12,
@@ -2282,13 +2280,12 @@ class _LivePreview extends ConsumerWidget {
     final scheme = state.activeScheme;
 
     // Resolve a configured text style (falls back to M3 default if removed).
-    TextStyle styleFor(TextStyleKey key, Color color, {double? size}) =>
-        neatTextStyle(
-          family: state.fontFamily,
-          cfg: state.textStyles[key] ?? kM3Defaults[key]!,
-          color: color,
-          sizeOverride: size,
-        );
+    TextStyle styleFor(TextStyleKey key, Color color, {double? size}) => neatTextStyle(
+      family: state.fontFamily,
+      cfg: state.textStyles[key] ?? kM3Defaults[key]!,
+      color: color,
+      sizeOverride: size,
+    );
 
     final surfaceBg = isDark ? const Color(0xFF1C1C1F) : const Color(0xFFF9FAFB);
     final cardBg = isDark ? const Color(0xFF2A2A2E) : Colors.white;
@@ -2334,8 +2331,8 @@ class _LivePreview extends ConsumerWidget {
               onTap: () {
                 final identity = ref.read(identityProvider);
                 final pkg = identity.name.trim();
-                final webOnly = identity.targetPlatforms.length == 1 &&
-                    identity.targetPlatforms.first == 'web';
+                final webOnly =
+                    identity.targetPlatforms.length == 1 && identity.targetPlatforms.first == 'web';
                 final code = ThemeTemplates.appThemeForState(
                   theme: state,
                   packageName: pkg.isEmpty ? 'app' : pkg,
@@ -2466,10 +2463,7 @@ class _LivePreview extends ConsumerWidget {
                       ],
                     ),
                     const SizedBox(height: 10),
-                    Text(
-                      'Card Anatomy',
-                      style: styleFor(TextStyleKey.titleMedium, textPrimary),
-                    ),
+                    Text('Card Anatomy', style: styleFor(TextStyleKey.titleMedium, textPrimary)),
                     const SizedBox(height: 3),
                     Text(
                       'Observing the fluid radius dynamics.',
@@ -2595,7 +2589,9 @@ void neatSnack(BuildContext context, String message, {bool success = true}) {
               size: 18,
             ),
             const SizedBox(width: 10),
-            Flexible(child: Text(message, style: const TextStyle(color: Colors.white))),
+            Flexible(
+              child: Text(message, style: const TextStyle(color: Colors.white)),
+            ),
           ],
         ),
       ),
@@ -2614,11 +2610,7 @@ class _Clickable extends StatelessWidget {
   Widget build(BuildContext context) {
     return MouseRegion(
       cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTap: onTap,
-        behavior: HitTestBehavior.opaque,
-        child: child,
-      ),
+      child: GestureDetector(onTap: onTap, behavior: HitTestBehavior.opaque, child: child),
     );
   }
 }
@@ -2762,12 +2754,38 @@ class _WeightSlider extends StatelessWidget {
 /// Popular Google Fonts shown as suggestions. Any other valid Google Font name
 /// can still be typed — it's validated by attempting to load it.
 const _popularGoogleFonts = <String>[
-  'Inter', 'Poppins', 'Roboto', 'Open Sans', 'Lato', 'Montserrat', 'Nunito',
-  'Raleway', 'Work Sans', 'DM Sans', 'Plus Jakarta Sans', 'Outfit', 'Manrope',
-  'Sora', 'Space Grotesk', 'Rubik', 'Mulish', 'Karla', 'Quicksand',
-  'Josefin Sans', 'Source Sans 3', 'PT Sans', 'Noto Sans', 'Lexend',
-  'Playfair Display', 'Merriweather', 'Lora', 'Bitter', 'Roboto Slab',
-  'Roboto Mono', 'JetBrains Mono', 'Fira Code',
+  'Inter',
+  'Poppins',
+  'Roboto',
+  'Open Sans',
+  'Lato',
+  'Montserrat',
+  'Nunito',
+  'Raleway',
+  'Work Sans',
+  'DM Sans',
+  'Plus Jakarta Sans',
+  'Outfit',
+  'Manrope',
+  'Sora',
+  'Space Grotesk',
+  'Rubik',
+  'Mulish',
+  'Karla',
+  'Quicksand',
+  'Josefin Sans',
+  'Source Sans 3',
+  'PT Sans',
+  'Noto Sans',
+  'Lexend',
+  'Playfair Display',
+  'Merriweather',
+  'Lora',
+  'Bitter',
+  'Roboto Slab',
+  'Roboto Mono',
+  'JetBrains Mono',
+  'Fira Code',
 ];
 
 /// Searchable font picker: filter the popular list, or type any Google Font

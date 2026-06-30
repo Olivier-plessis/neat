@@ -104,15 +104,17 @@ abstract class ArchitectureState with _$ArchitectureState {
     /// so a plain `flutter run` works with zero config. Only effective with envied.
     @Default(false) bool generateFlavors,
 
-    /// The build environments (default dev/staging/prod), renamable, each with an
-    /// optional API base URL written into its `.env.<flavor>`. The **last** one is
-    /// the production base (no appId suffix). Drives envied + flavors.
-    @Default(<EnvConfig>[
-      EnvConfig(name: 'dev'),
-      EnvConfig(name: 'staging'),
-      EnvConfig(name: 'prod'),
-    ])
+    /// The build environments, renamable, each with an optional API base URL
+    /// written into its `.env`. Starts as a **single** `prod` env (→ plain `.env`
+    /// + `main.dart`, no flavors); the user adds more on demand. Drives envied +
+    /// flavors. The production base is [baseEnvIndex] (not positional).
+    @Default(<EnvConfig>[EnvConfig(name: 'prod')])
     List<EnvConfig> environments,
+
+    /// Index into [environments] of the production **base** (no appId suffix; the
+    /// logger quietens there; release builds target it). Chosen explicitly via
+    /// the BASE chip — never positional, so adding an env never moves the base.
+    @Default(0) int baseEnvIndex,
   }) = _ArchitectureState;
 
   /// Validates the first feature name (Dart folder/identifier rules).
@@ -123,6 +125,9 @@ abstract class ArchitectureState with _$ArchitectureState {
     }
     return null;
   }
+
+  /// The production base environment (index clamped to a valid range).
+  EnvConfig get baseEnv => environments[baseEnvIndex.clamp(0, environments.length - 1)];
 
   /// The first tab's label (falls back to the feature name, capitalised).
   String get effectiveShellLabel {

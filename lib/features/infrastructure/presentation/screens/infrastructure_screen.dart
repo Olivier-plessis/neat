@@ -1,6 +1,5 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:neat/core/theme/app_theme.dart';
 import 'package:neat/features/architecture/domain/models/env_config.dart';
@@ -8,33 +7,23 @@ import 'package:neat/features/architecture/presentation/providers/architecture_p
 import 'package:neat/features/dependencies/domain/constants/backend_presets.dart';
 import 'package:neat/features/dependencies/domain/models/pub_package.dart';
 import 'package:neat/features/dependencies/presentation/providers/dependencies_provider.dart';
+import 'package:neat/features/identity/presentation/providers/identity_provider.dart';
 
-class InfrastructureScreen extends HookConsumerWidget {
+class InfrastructureScreen extends ConsumerWidget {
   const InfrastructureScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final rightTabIndex = useState(0); // 0: Details, 1: Selection
-
-    // Bascule auto vers l'onglet Détails quand on sélectionne un package dans la recherche
-    ref.listen(packageForDetailProvider, (prev, next) {
-      if (next != null) rightTabIndex.value = 0;
-    });
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            const Text(
-              'Project Infrastructure',
-              style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white),
-            ),
-          ],
+        const Text(
+          'Project Infrastructure',
+          style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white),
         ),
         const SizedBox(height: 8),
         Text(
-          'Pick a backend to seed your stack, then search pub.dev to add more.',
+          'Pick a backend to seed your stack — its preset packages appear on the right.',
           style: TextStyle(color: Colors.grey[400], fontSize: 14),
         ),
         const SizedBox(height: 24),
@@ -43,24 +32,13 @@ class InfrastructureScreen extends HookConsumerWidget {
 
         const SizedBox(height: 24),
 
-        Expanded(
+        const Expanded(
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(flex: 6, child: const _BackendConfig()),
-              Expanded(
-                flex: 4,
-                child: Column(
-                  children: [
-                    _RightPanelTabs(
-                      activeIndex: rightTabIndex.value,
-                      onChanged: (i) => rightTabIndex.value = i,
-                    ),
-                    const SizedBox(height: 12),
-                    Expanded(child: const _ManagedPackagesPanel()),
-                  ],
-                ),
-              ),
+              Expanded(flex: 6, child: _BackendConfig()),
+              SizedBox(width: 20),
+              Expanded(flex: 4, child: _ManagedPackagesPanel()),
             ],
           ),
         ),
@@ -230,11 +208,21 @@ class _BackendConfig extends ConsumerWidget {
     final backend = ref.watch(selectedPackagesProvider.select(backendOf));
     final arch = ref.watch(architectureProvider);
     final notifier = ref.read(architectureProvider.notifier);
+    final platforms = ref.watch(identityProvider.select((s) => s.targetPlatforms));
     final label = switch (backend) {
       BackendKind.rest => 'REST API',
       BackendKind.supabase => 'Supabase',
       BackendKind.firebase => 'Firebase',
     };
+
+    final envCount = arch.environments.length;
+    final canRemove = envCount > 1;
+    final canAdd = envCount < ArchitectureNotifier.maxEnvironments;
+    // Native flavors are a mobile-only concept (productFlavors / iOS schemes) and
+    // only make sense with ≥2 environments. Web/desktop still get per-env entry
+    // points — just without the native `--flavor` layer.
+    final flavorsSupported = platforms.any((p) => p == 'android' || p == 'ios');
+    final flavorsAvailable = flavorsSupported && envCount >= 2;
 
     return Container(
       width: double.infinity,
@@ -244,47 +232,70 @@ class _BackendConfig extends ConsumerWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.white10),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text('Configuration: ', style: TextStyle(color: Colors.grey[400], fontSize: 15)),
-              Text(
-                label,
-                style: const TextStyle(
-                  color: AppTheme.colorPrimaryCyan,
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text('Configuration: ', style: TextStyle(color: Colors.grey[400], fontSize: 15)),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: AppTheme.colorPrimaryCyan,
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          if (backend == BackendKind.firebase) ...[
-            _FirebaseConfigUpload(
-              path: arch.firebaseConfigPath,
-              onPick: () => _pickFirebaseConfig(ref),
-              onClear: () => notifier.setFirebaseConfigPath(''),
+              ],
             ),
-          ] else
-            for (var i = 0; i < arch.environments.length; i++)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: _EnvFieldRow(
-                  key: ValueKey('cfg_env_$i'),
-                  env: arch.environments[i],
-                  backend: backend,
-                  isBase: i == arch.environments.length - 1,
-                  onName: (v) => notifier.setEnvName(i, v),
-                  onApiUrl: (v) => notifier.setEnvApiUrl(i, v),
-                  onSupabaseUrl: (v) => notifier.setEnvSupabaseUrl(i, v),
-                  onSupabaseKey: (v) => notifier.setEnvSupabaseKey(i, v),
-                ),
+            const SizedBox(height: 16),
+            if (backend == BackendKind.firebase) ...[
+              _FirebaseConfigUpload(
+                path: arch.firebaseConfigPath,
+                onPick: () => _pickFirebaseConfig(ref),
+                onClear: () => notifier.setFirebaseConfigPath(''),
               ),
-          const SizedBox(height: 4),
-          _FlavorsToggle(value: arch.generateFlavors, onChanged: notifier.toggleGenerateFlavors),
-        ],
+            ] else ...[
+              for (var i = 0; i < arch.environments.length; i++)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  // Key by backend so switching REST↔Supabase re-seeds each
+                  // field's initialValue (the row's State is otherwise reused,
+                  // leaking the previous backend's text into the new fields).
+                  child: _EnvFieldRow(
+                    key: ValueKey('cfg_${backend.name}_$i'),
+                    env: arch.environments[i],
+                    backend: backend,
+                    isBase: i == arch.baseEnvIndex,
+                    onMakeBase: () => notifier.setBaseEnv(i),
+                    onName: (v) => notifier.setEnvName(i, v),
+                    onApiUrl: (v) => notifier.setEnvApiUrl(i, v),
+                    onSupabaseUrl: (v) => notifier.setEnvSupabaseUrl(i, v),
+                    onSupabaseKey: (v) => notifier.setEnvSupabaseKey(i, v),
+                    onRemove: canRemove ? () => notifier.removeEnv(i) : null,
+                  ),
+                ),
+              if (canAdd)
+                TextButton.icon(
+                  onPressed: notifier.addEnv,
+                  icon: const Icon(Icons.add, size: 16),
+                  label: const Text('Add environment'),
+                  style: TextButton.styleFrom(foregroundColor: AppTheme.colorPrimaryCyan),
+                ),
+            ],
+            const SizedBox(height: 4),
+            _FlavorsToggle(
+              value: arch.generateFlavors && flavorsAvailable,
+              enabled: flavorsAvailable,
+              note: flavorsSupported
+                  ? (envCount < 2 ? 'Add a 2nd environment to enable native flavors.' : null)
+                  : 'Native flavors need an Android/iOS target. Environments still '
+                        'work as Dart entry points on web/desktop.',
+              onChanged: notifier.toggleGenerateFlavors,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -295,20 +306,28 @@ class _EnvFieldRow extends StatelessWidget {
     required this.env,
     required this.backend,
     required this.isBase,
+    required this.onMakeBase,
     required this.onName,
     required this.onApiUrl,
     required this.onSupabaseUrl,
     required this.onSupabaseKey,
+    this.onRemove,
     super.key,
   });
 
   final EnvConfig env;
   final BackendKind backend;
   final bool isBase;
+
+  /// Promotes this env to the production base (the BASE chip).
+  final VoidCallback onMakeBase;
   final ValueChanged<String> onName;
   final ValueChanged<String> onApiUrl;
   final ValueChanged<String> onSupabaseUrl;
   final ValueChanged<String> onSupabaseKey;
+
+  /// When null, the remove control is hidden (a single env can't be removed).
+  final VoidCallback? onRemove;
 
   static InputDecoration _dec(String hint) => InputDecoration(
     hintText: hint,
@@ -352,25 +371,36 @@ class _EnvFieldRow extends StatelessWidget {
       child: Row(
         children: [
           SizedBox(width: 130, child: _field(env.name, 'env', onName)),
-          if (isBase)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                decoration: BoxDecoration(
-                  border: Border.all(color: AppTheme.colorPrimaryCyan.withValues(alpha: 0.5)),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: const Text(
-                  'BASE',
-                  style: TextStyle(
-                    color: AppTheme.colorPrimaryCyan,
-                    fontSize: 9,
-                    fontWeight: FontWeight.bold,
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Tooltip(
+              message: isBase ? 'Production base' : 'Set as production base',
+              child: InkWell(
+                onTap: isBase ? null : onMakeBase,
+                borderRadius: BorderRadius.circular(4),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: isBase ? AppTheme.colorPrimaryCyan.withValues(alpha: 0.12) : null,
+                    border: Border.all(
+                      color: isBase
+                          ? AppTheme.colorPrimaryCyan.withValues(alpha: 0.5)
+                          : Colors.white12,
+                    ),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    'BASE',
+                    style: TextStyle(
+                      color: isBase ? AppTheme.colorPrimaryCyan : Colors.white24,
+                      fontSize: 9,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),
             ),
+          ),
           const SizedBox(width: 10),
           if (backend == BackendKind.supabase) ...[
             Expanded(child: _field(env.supabaseUrl, 'Supabase URL', onSupabaseUrl)),
@@ -385,6 +415,14 @@ class _EnvFieldRow extends StatelessWidget {
             ),
           ] else
             Expanded(child: _field(env.apiBaseUrl, 'API base URL (optional)', onApiUrl)),
+          if (onRemove != null)
+            IconButton(
+              icon: const Icon(Icons.close, size: 16, color: Colors.white38),
+              onPressed: onRemove,
+              tooltip: 'Remove environment',
+              padding: const EdgeInsets.only(left: 6),
+              constraints: const BoxConstraints(),
+            ),
         ],
       ),
     );
@@ -392,33 +430,52 @@ class _EnvFieldRow extends StatelessWidget {
 }
 
 class _FlavorsToggle extends StatelessWidget {
-  const _FlavorsToggle({required this.value, required this.onChanged});
+  const _FlavorsToggle({
+    required this.value,
+    required this.onChanged,
+    this.enabled = true,
+    this.note,
+  });
 
   final bool value;
   final ValueChanged<bool> onChanged;
+  final bool enabled;
+
+  /// Optional hint shown under the title (e.g. why the toggle is disabled).
+  final String? note;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Native build flavors',
-                style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                'productFlavors + main_<flavor>.dart + launch.json. OFF → a plain `flutter run` works.',
-                style: TextStyle(color: Colors.grey[500], fontSize: 11),
-              ),
-            ],
+    final titleColor = enabled ? Colors.white : Colors.white38;
+    return Opacity(
+      opacity: enabled ? 1 : 0.6,
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Native build flavors (Android/iOS)',
+                  style: TextStyle(color: titleColor, fontSize: 13, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  note ??
+                      'productFlavors + per-flavor app id. OFF → envs run as Dart '
+                          'entry points and a plain `flutter run` works.',
+                  style: TextStyle(color: Colors.grey[500], fontSize: 11),
+                ),
+              ],
+            ),
           ),
-        ),
-        Switch(value: value, onChanged: onChanged, activeTrackColor: AppTheme.colorPrimaryCyan),
-      ],
+          Switch(
+            value: value,
+            onChanged: enabled ? onChanged : null,
+            activeTrackColor: AppTheme.colorPrimaryCyan,
+          ),
+        ],
+      ),
     );
   }
 }
@@ -473,83 +530,6 @@ class _FirebaseConfigUpload extends StatelessWidget {
           style: TextStyle(color: Colors.grey[600], fontSize: 11),
         ),
       ],
-    );
-  }
-}
-
-// ── Tabs Header ───────────────────────────────────────────────────────────────
-
-class _RightPanelTabs extends StatelessWidget {
-  const _RightPanelTabs({required this.activeIndex, required this.onChanged});
-
-  final int activeIndex;
-  final ValueChanged<int> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: const Color(0xFF141416),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        children: [
-          _TabButton(
-            label: 'MY SELECTION',
-            icon: Icons.shopping_basket_outlined,
-            isSelected: activeIndex == 0,
-            onTap: () {},
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TabButton extends StatelessWidget {
-  const _TabButton({
-    required this.label,
-    required this.icon,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  final String label;
-  final IconData icon;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          decoration: BoxDecoration(
-            color: isSelected ? const Color(0xFF1E1E22) : Colors.transparent,
-            borderRadius: BorderRadius.circular(7),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 14, color: isSelected ? AppTheme.colorPrimaryCyan : Colors.white24),
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: TextStyle(
-                  color: isSelected ? Colors.white : Colors.white24,
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 0.5,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }
@@ -611,104 +591,6 @@ class _ManagedPackagesPanel extends ConsumerWidget {
   }
 }
 
-// ── Dev preset button ─────────────────────────────────────────────────────────
-
-// class _DevPresetButton extends StatelessWidget {
-//   const _DevPresetButton({required this.onTap});
-//
-//   final VoidCallback onTap;
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     return GestureDetector(
-//       onTap: onTap,
-//       child: Container(
-//         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-//         decoration: BoxDecoration(
-//           color: const Color(0xFF1A1A1E),
-//           borderRadius: BorderRadius.circular(24),
-//           border: Border.all(color: Colors.white24),
-//         ),
-//         child: const Row(
-//           mainAxisSize: MainAxisSize.min,
-//           children: [
-//             Icon(Icons.bolt, color: Colors.white54, size: 16),
-//             SizedBox(width: 6),
-//             Text(
-//               'Dev Preset',
-//               style: TextStyle(color: Colors.white54, fontSize: 12, fontWeight: FontWeight.w600),
-//             ),
-//           ],
-//         ),
-//       ),
-//     );
-//   }
-// }
-//
-// // ── Badge button ──────────────────────────────────────────────────────────────
-//
-// class _PackagesBadgeButton extends StatelessWidget {
-//   const _PackagesBadgeButton({required this.count, required this.onTap, required this.isSelected});
-//
-//   final int count;
-//   final bool isSelected;
-//   final VoidCallback onTap;
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     return GestureDetector(
-//       onTap: onTap,
-//       child: Stack(
-//         clipBehavior: Clip.none,
-//         children: [
-//           Container(
-//             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-//             decoration: BoxDecoration(
-//               color: isSelected ? const Color(0xFF1E1E22) : const Color(0xFF1A1A1E),
-//               borderRadius: BorderRadius.circular(24),
-//               border: Border.all(
-//                 color: isSelected ? AppTheme.colorPrimaryCyan : Colors.white24,
-//                 width: isSelected ? 1.5 : 1,
-//               ),
-//             ),
-//             child: Row(
-//               mainAxisSize: MainAxisSize.min,
-//               children: [
-//                 Icon(
-//                   Icons.archive_outlined,
-//                   color: isSelected ? AppTheme.colorPrimaryCyan : Colors.white54,
-//                   size: 18,
-//                 ),
-//                 const SizedBox(width: 8),
-//                 Text(
-//                   '$count Package${count > 1 ? 's' : ''}',
-//                   style: TextStyle(
-//                     color: isSelected ? Colors.white : Colors.white54,
-//                     fontSize: 13,
-//                     fontWeight: FontWeight.w600,
-//                   ),
-//                 ),
-//               ],
-//             ),
-//           ),
-//           if (count > 0 && !isSelected)
-//             Positioned(
-//               top: -2,
-//               right: -2,
-//               child: Container(
-//                 width: 10,
-//                 height: 10,
-//                 decoration: const BoxDecoration(
-//                   color: AppTheme.colorPrimaryCyan,
-//                   shape: BoxShape.circle,
-//                 ),
-//               ),
-//             ),
-//         ],
-//       ),
-//     );
-//   }
-// }
 
 // ── Managed Packages Tile ─────────────────────────────────────────────────────
 
@@ -839,16 +721,9 @@ class _SheetPackageTileState extends ConsumerState<_SheetPackageTile> {
               ],
             ),
           ),
-          // IconButton(
-          //   icon: const Icon(Icons.delete_outline, color: Colors.grey, size: 20),
-          //   onPressed: () => ref.read(selectedPackagesProvider.notifier).toggle(widget.package),
-          //   padding: EdgeInsets.zero,
-          //   constraints: const BoxConstraints(),
-          // ),
         ],
       ),
     );
   }
 }
 
-// ── Widgets utilitaires ───────────────────────────────────────────────────────

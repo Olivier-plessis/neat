@@ -10,13 +10,16 @@ class AppTemplates {
     String packageName = '',
     bool useEnvied = false,
     String flavor = 'dev',
+    bool singleEnv = false,
   }) {
     final imports = StringBuffer()..writeln("import 'core/bootstrap.dart';");
-    if (useEnvied) imports.writeln("import 'core/env/envs/${flavor}_env.dart';");
+    // Single env → one `Env` reading `.env`. Otherwise the per-flavor [flavor]Env
+    // carries that env's baked config; main_<flavor>.dart entry points (one per
+    // env) pair with `--flavor` (mobile) or a plain `-t` run (web/desktop).
+    final envFile = singleEnv ? 'env' : '${flavor}_env';
+    if (useEnvied) imports.writeln("import 'core/env/envs/$envFile.dart';");
 
-    // The envied [flavor]Env carries the flavor's baked config. main_<flavor>.dart
-    // entry points (one per flavor) pair with the native `--flavor` build.
-    final envClass = '${flavor[0].toUpperCase()}${flavor.substring(1)}Env';
+    final envClass = singleEnv ? 'Env' : '${flavor[0].toUpperCase()}${flavor.substring(1)}Env';
     final call = useEnvied ? 'bootstrap($envClass())' : 'bootstrap()';
 
     return '''${imports.toString()}

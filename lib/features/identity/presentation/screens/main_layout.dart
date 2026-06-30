@@ -15,7 +15,7 @@ import 'package:neat/features/identity/presentation/providers/identity_provider.
 import 'package:neat/features/identity/presentation/providers/stepper_provider.dart';
 import 'package:neat/features/identity/presentation/screens/identity/identity_screen.dart';
 import 'package:neat/features/identity/presentation/screens/launch_screen.dart';
-import 'package:neat/features/infrastucture/presentation/screens/infrastructure_screen.dart';
+import 'package:neat/features/infrastructure/presentation/screens/infrastructure_screen.dart';
 import 'package:neat/features/theme_engine/domain/models/theme_engine_state.dart';
 import 'package:neat/features/theme_engine/presentation/providers/theme_engine_provider.dart';
 import 'package:neat/features/theme_engine/presentation/screens/theme_engine_screen.dart';
@@ -348,6 +348,7 @@ class _NavBar extends ConsumerWidget {
                           ]);
                         }
                       }
+                      ref.read(furthestStepProvider.notifier).reach(next.wizardIndex);
                       notifier.setStep(next);
                     }
                   : null,
@@ -389,24 +390,11 @@ bool _isStepValid(NeatStep step, WidgetRef ref) {
 }
 
 /// Returns true if the user can navigate to [target] given the [current] step.
-/// Going backwards (or staying) is always allowed.
-/// Going forward requires all preceding steps to be valid.
+/// Going backwards (or staying) is always allowed. Going forward is limited to
+/// steps already unlocked via the Next button — so every step is mandatory and
+/// the side-nav can never skip ahead.
 bool _canNavigateTo(NeatStep target, NeatStep current, WidgetRef ref) {
   if (!target.isWizardStep) return true; // featureGen is always accessible
-  if (target.wizardIndex <= current.wizardIndex) return true;
-
-  // Every step before the target must be valid
-  final steps = [
-    NeatStep.identity,
-    NeatStep.themeEngine,
-    NeatStep.infrastructure,
-    NeatStep.packages,
-    NeatStep.architecture,
-    NeatStep.cicd,
-    NeatStep.launch,
-  ];
-  for (var i = 0; i < target.wizardIndex; i++) {
-    if (!_isStepValid(steps[i], ref)) return false;
-  }
-  return true;
+  if (target.wizardIndex <= current.wizardIndex) return true; // back or self
+  return target.wizardIndex <= ref.watch(furthestStepProvider);
 }

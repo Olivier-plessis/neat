@@ -80,7 +80,19 @@ class LaunchGenerationUsecase {
     // make sense with envied (per-flavor config). The environments (renamable,
     // default dev/staging/prod) drive both the envied classes and the flavors.
     final environments = architecture.environments;
-    final hasFlavors = hasEnvied && architecture.generateFlavors && environments.isNotEmpty;
+    // Two orthogonal concepts:
+    //  • Per-env *entry points* (`main_<env>.dart` + `.env.<env>` + launch.json):
+    //    driven purely by having ≥2 environments — works on every platform
+    //    (web/desktop included) since it's just Dart entry points + dart-define.
+    //  • Native *flavors* (Android productFlavors / iOS schemes + `--flavor`):
+    //    opt-in AND mobile-only (web/desktop have no flavor concept).
+    // A single environment collapses both → one `main.dart` + one `.env`.
+    final multiEnv = environments.length >= 2;
+    final flavorsSupported =
+        identity.targetPlatforms.any((p) => p == 'android' || p == 'ios');
+    final hasEntryPoints = hasEnvied && multiEnv;
+    final hasNativeFlavors =
+        hasEntryPoints && architecture.generateFlavors && flavorsSupported;
     final hasFreezed = packages.any((p) => p.name == 'freezed');
     final hasJsonSerializable = packages.any((p) => p.name == 'json_serializable');
     final hasRetrofit = packages.any((p) => p.name == 'retrofit');
@@ -185,7 +197,8 @@ class LaunchGenerationUsecase {
       hasJsonSerializable: hasJsonSerializable,
       useScreenUtil: useScreenUtil,
       hasEnvied: hasEnvied,
-      hasFlavors: hasFlavors,
+      hasEntryPoints: hasEntryPoints,
+      hasNativeFlavors: hasNativeFlavors,
       environments: environments,
       theme: theme,
       localStoragePackage: localStoragePackage,
@@ -212,14 +225,25 @@ class LaunchGenerationUsecase {
       onLog('[✓] packages/$localStoragePackage created.');
     }
 
-    // 2c. Build flavors (opt-in) — native productFlavors + VS Code run configs +
-    // a doc; the Dart side is the main_<flavor>.dart entry points. The base
-    // (no appId suffix) is the LAST environment.
-    if (hasFlavors) {
-      final names = environments.map((e) => e.flavor).toList();
-      onLog('[▶] Wiring build flavors (${names.join(', ')})...');
-      await _writeFlavors(projectDir, _titleCase(packageName), names);
-      onLog('[✓] Flavors wired (launch.json + Android productFlavors + docs/FLAVORS.md).');
+    // 2c. Per-env wiring — VS Code run configs + a doc (and, on mobile with the
+    // flavors opt-in, native productFlavors). The Dart side is the
+    // main_<env>.dart entry points. The base (no appId suffix) is chosen
+    // explicitly (architecture.baseEnvIndex); we order it LAST so the existing
+    // "base = last" contract inside _writeFlavors/_launchJson/_flavorsDoc holds.
+    if (hasEntryPoints) {
+      final baseFlavor = architecture.baseEnv.flavor;
+      final names = [
+        for (final e in environments)
+          if (e.flavor != baseFlavor) e.flavor,
+        baseFlavor,
+      ];
+      onLog('[▶] Wiring environments (${names.join(', ')})...');
+      await _writeFlavors(projectDir, _titleCase(packageName), names,
+          nativeFlavors: hasNativeFlavors);
+      final what = hasNativeFlavors
+          ? 'launch.json + Android productFlavors + docs/FLAVORS.md'
+          : 'launch.json + docs/FLAVORS.md (entry points; no native flavors)';
+      onLog('[✓] Environments wired ($what).');
     }
 
     // Branding: a logo was picked → generate app icons + splash.
@@ -258,7 +282,7 @@ class LaunchGenerationUsecase {
     // 4. CI/CD files (fastlane lanes are flavor-aware when envied is on).
     if (cicd.selectedTools.isNotEmpty) {
       onLog('[▶] Generating CI/CD configuration files...');
-      await _writeCicdFiles(projectDir, cicd, hasFlavors: hasFlavors);
+      await _writeCicdFiles(projectDir, cicd, hasFlavors: hasNativeFlavors);
       onLog('[✓] CI/CD files written.');
     }
 
@@ -393,7 +417,8 @@ class LaunchGenerationUsecase {
     required bool hasJsonSerializable,
     required bool useScreenUtil,
     required bool hasEnvied,
-    required bool hasFlavors,
+    required bool hasEntryPoints,
+    required bool hasNativeFlavors,
     required List<EnvConfig> environments,
     required ThemeEngineState theme,
     String? localStoragePackage,
@@ -418,8 +443,11 @@ class LaunchGenerationUsecase {
     final hasI18nSample = hasI18n && !i18nFromCsv;
 
     // ── main.dart + bootstrap ───────────────────────────────────────────────
-    // main.dart defaults to the FIRST environment. With flavors on, we also emit
-    // one entry point per environment (main_<flavor>.dart) to pair with `--flavor`.
+    // A single environment → one `main.dart` loading the lone `Env`. With ≥2
+    // environments, main.dart defaults to the FIRST and we also emit one entry
+    // point per env (main_<env>.dart) — paired with `--flavor` only when native
+    // flavors are on (mobile), otherwise just `-t lib/main_<env>.dart`.
+    final singleEnv = hasEnvied && !hasEntryPoints;
     final defaultFlavor = hasEnvied && environments.isNotEmpty ? environments.first.flavor : 'dev';
     await _write(
       '$lib/main.dart',
@@ -428,9 +456,10 @@ class LaunchGenerationUsecase {
         packageName: packageName,
         useEnvied: hasEnvied,
         flavor: defaultFlavor,
+        singleEnv: singleEnv,
       ),
     );
-    if (hasFlavors) {
+    if (hasEntryPoints) {
       for (final env in environments) {
         await _write(
           '$lib/main_${env.flavor}.dart',
@@ -464,6 +493,7 @@ class LaunchGenerationUsecase {
         lib,
         packageName,
         environments: environments,
+        singleEnv: singleEnv,
         hasSupabase: httpClient == 'supabase',
         // No REST base URL for the SDK backends (Firebase config lives in
         // firebase_options.dart; Supabase keys are separate fields).
@@ -510,10 +540,12 @@ class LaunchGenerationUsecase {
     await _write(
       '$lib/core/utils/app_logger.dart',
       CoreTemplates.appLogger(
-        useEnvied: hasEnvied,
+        // Single-env has no production flavor to compare against → fall back to
+        // the kReleaseMode logger (quietens logs in release builds).
+        useEnvied: hasEnvied && !singleEnv,
         packageName: packageName,
-        // Production = the last environment (quietens logs there).
-        prodFlavor: hasEnvied && environments.isNotEmpty ? environments.last.flavor : 'prod',
+        // Production = the explicit base environment (quietens logs there).
+        prodFlavor: hasEnvied && environments.isNotEmpty ? architecture.baseEnv.flavor : 'prod',
       ),
     );
     await _write(
@@ -999,29 +1031,30 @@ dev_dependencies:
     String lib,
     String packageName, {
     required List<EnvConfig> environments,
+    bool singleEnv = false,
     bool hasSupabase = false,
     bool hasApiBaseUrl = true,
   }) async {
-    // Dart: contract + per-flavor envied classes (one per environment).
+    // Dart: contract shared by every env.
     await _write('$lib/core/env/app_env.dart',
         CoreTemplates.appEnv(hasApiBaseUrl: hasApiBaseUrl, hasSupabase: hasSupabase));
-    for (final env in environments) {
+
+    if (singleEnv) {
+      // One env → a single `Env`/`EnvVars` reading a plain `.env` (no flavor
+      // suffix, no per-env classes, no entry points).
+      final env = environments.first;
       await _write(
-        '$lib/core/env/envs/${env.flavor}_env.dart',
+        '$lib/core/env/envs/env.dart',
         CoreTemplates.flavorEnv(
           packageName: packageName,
           flavor: env.flavor,
+          single: true,
           hasApiBaseUrl: hasApiBaseUrl,
           hasSupabase: hasSupabase,
         ),
       );
-    }
-
-    // .env files (must exist before build_runner so envied can read them).
-    // The user-provided API URL (if any) is pre-filled per environment.
-    for (final env in environments) {
       await _write(
-        '${projectDir.path}/.env.${env.flavor}',
+        '${projectDir.path}/.env',
         CoreTemplates.envFile(
           appName: packageName,
           hasApiBaseUrl: hasApiBaseUrl,
@@ -1031,6 +1064,34 @@ dev_dependencies:
           supabaseKey: env.supabaseAnonKey,
         ),
       );
+    } else {
+      // ≥2 envs: per-env envied classes + `.env.<flavor>` files (must exist
+      // before build_runner so envied can read them). The user-provided API URL
+      // (if any) is pre-filled per environment.
+      for (final env in environments) {
+        await _write(
+          '$lib/core/env/envs/${env.flavor}_env.dart',
+          CoreTemplates.flavorEnv(
+            packageName: packageName,
+            flavor: env.flavor,
+            hasApiBaseUrl: hasApiBaseUrl,
+            hasSupabase: hasSupabase,
+          ),
+        );
+      }
+      for (final env in environments) {
+        await _write(
+          '${projectDir.path}/.env.${env.flavor}',
+          CoreTemplates.envFile(
+            appName: packageName,
+            hasApiBaseUrl: hasApiBaseUrl,
+            hasSupabase: hasSupabase,
+            apiBaseUrl: env.apiBaseUrl,
+            supabaseUrl: env.supabaseUrl,
+            supabaseKey: env.supabaseAnonKey,
+          ),
+        );
+      }
     }
     await _write('${projectDir.path}/.env.example',
         CoreTemplates.envFile(appName: packageName, hasApiBaseUrl: hasApiBaseUrl, hasSupabase: hasSupabase));
@@ -1588,13 +1649,22 @@ dev_dependencies:
   static String _titleCase(String snake) =>
       snake.split('_').where((w) => w.isNotEmpty).map((w) => '${w[0].toUpperCase()}${w.substring(1)}').join(' ');
 
-  Future<void> _writeFlavors(Directory projectDir, String appName, List<String> flavors) async {
-    // VS Code run/debug configs, one per flavor.
-    await _write('${projectDir.path}/.vscode/launch.json', _launchJson(flavors));
+  Future<void> _writeFlavors(
+    Directory projectDir,
+    String appName,
+    List<String> flavors, {
+    required bool nativeFlavors,
+  }) async {
+    // VS Code run/debug configs, one per env (--flavor only with native flavors).
+    await _write(
+        '${projectDir.path}/.vscode/launch.json', _launchJson(flavors, nativeFlavors: nativeFlavors));
     // How-to (covers the iOS Xcode-scheme step we can't script reliably).
-    await _write('${projectDir.path}/docs/FLAVORS.md', _flavorsDoc(appName, flavors));
-    // Android: productFlavors + an @string/app_name label per flavor.
-    await _patchAndroidFlavors(projectDir, appName, flavors);
+    await _write(
+        '${projectDir.path}/docs/FLAVORS.md', _flavorsDoc(appName, flavors, nativeFlavors: nativeFlavors));
+    // Android productFlavors only make sense for native (mobile) flavors.
+    if (nativeFlavors) {
+      await _patchAndroidFlavors(projectDir, appName, flavors);
+    }
   }
 
   static String _pascalFlavor(String flavor) => _titleCase(flavor).replaceAll(' ', '');
@@ -1650,24 +1720,23 @@ ${flavorsBlock.toString().trimRight()}
     }
   }
 
-  String _launchJson(List<String> flavors) {
+  String _launchJson(List<String> flavors, {required bool nativeFlavors}) {
+    String args(String f) => nativeFlavors ? ',\n      "args": ["--flavor", "$f"]' : '';
     final configs = <String>[
       for (final f in flavors)
         '''    {
       "name": "${_titleCase(f)} (debug)",
       "request": "launch",
       "type": "dart",
-      "program": "lib/main_$f.dart",
-      "args": ["--flavor", "$f"]
+      "program": "lib/main_$f.dart"${args(f)}
     }''',
-      // Release config for the production (last) flavor.
+      // Release config for the production (last) env.
       '''    {
       "name": "${_titleCase(flavors.last)} (release)",
       "request": "launch",
       "type": "dart",
       "flutterMode": "release",
-      "program": "lib/main_${flavors.last}.dart",
-      "args": ["--flavor", "${flavors.last}"]
+      "program": "lib/main_${flavors.last}.dart"${args(flavors.last)}
     }''',
     ];
     return '''{
@@ -1679,17 +1748,57 @@ ${configs.join(',\n')}
 ''';
   }
 
-  String _flavorsDoc(String appName, List<String> flavors) {
+  String _flavorsDoc(String appName, List<String> flavors, {required bool nativeFlavors}) {
     final base = flavors.last;
+    final envFiles = flavors.map((f) => '`.env.$f`').join(' / ');
+    final envClasses = flavors.map((f) => '${_pascalFlavor(f)}Env').join(' / ');
+    final first = flavors.first;
+
+    // Without native flavors (web/desktop targets, or the opt-in left off), the
+    // environments are pure Dart entry points: same app id, selected via `-t`.
+    if (!nativeFlavors) {
+      final rows = flavors.map((f) {
+        final tag = f == base ? '`$f` *(production base)*' : '`$f`';
+        return '| $tag | `lib/main_$f.dart` | `.env.$f` → ${_pascalFlavor(f)}Env |';
+      }).join('\n');
+      return '''# Environments (${flavors.join(' / ')})
+
+This project wires ${flavors.length} environments as **Dart entry points** (no native
+build flavors — your targets don't support them, or the opt-in is off). They share a
+single app id and are selected by the entry point you run. The **last** env (`$base`)
+is the production base.
+
+| Environment | Entry point | Config |
+| --- | --- | --- |
+$rows
+
+## Run / build
+
+```sh
+flutter run -t lib/main_$first.dart
+flutter build web --release -t lib/main_$base.dart
+```
+
+VS Code: pick an environment from the Run and Debug panel (`.vscode/launch.json`).
+
+## Config (envied)
+
+Each env's secrets live in $envFiles, baked into the generated $envClasses classes
+at `build_runner` time and selected by the entry point
+(`bootstrap(${_pascalFlavor(first)}Env())`, …). The API base URL you entered is
+pre-filled in each `.env.<env>`.
+
+> Enable **native build flavors** (Infrastructure step) on an Android/iOS target to
+> get separate app ids + names that install side-by-side.
+''';
+    }
+
     final rows = flavors.map((f) {
       final isBase = f == base;
       final suffix = isBase ? '—' : '`.$f`';
       final label = isBase ? appName : '$appName ${_titleCase(f)}';
       return '| $f | `lib/main_$f.dart` | $suffix | $label |';
     }).join('\n');
-    final envFiles = flavors.map((f) => '`.env.$f`').join(' / ');
-    final envClasses = flavors.map((f) => '${_pascalFlavor(f)}Env').join(' / ');
-    final first = flavors.first;
     return '''# Build flavors (${flavors.join(' / ')})
 
 This project ships ${flavors.length} flavors. Each pairs a **native flavor** (separate

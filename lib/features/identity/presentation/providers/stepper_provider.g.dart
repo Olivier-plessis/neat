@@ -61,6 +61,79 @@ abstract class _$CurrentStep extends $Notifier<NeatStep> {
   }
 }
 
+/// The furthest wizard step the user has unlocked (its [NeatStepX.wizardIndex]).
+///
+/// Only advances via the Next button (which gates on the current step's
+/// validity), so the side-nav can never skip ahead — every step is mandatory.
+/// Reset to 0 when a fresh project is started from the Hub.
+
+@ProviderFor(FurthestStep)
+final furthestStepProvider = FurthestStepProvider._();
+
+/// The furthest wizard step the user has unlocked (its [NeatStepX.wizardIndex]).
+///
+/// Only advances via the Next button (which gates on the current step's
+/// validity), so the side-nav can never skip ahead — every step is mandatory.
+/// Reset to 0 when a fresh project is started from the Hub.
+final class FurthestStepProvider extends $NotifierProvider<FurthestStep, int> {
+  /// The furthest wizard step the user has unlocked (its [NeatStepX.wizardIndex]).
+  ///
+  /// Only advances via the Next button (which gates on the current step's
+  /// validity), so the side-nav can never skip ahead — every step is mandatory.
+  /// Reset to 0 when a fresh project is started from the Hub.
+  FurthestStepProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'furthestStepProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$furthestStepHash();
+
+  @$internal
+  @override
+  FurthestStep create() => FurthestStep();
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(int value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<int>(value),
+    );
+  }
+}
+
+String _$furthestStepHash() => r'412d6994e1ef0ac5dfa23350dbf8d9cd2ca352da';
+
+/// The furthest wizard step the user has unlocked (its [NeatStepX.wizardIndex]).
+///
+/// Only advances via the Next button (which gates on the current step's
+/// validity), so the side-nav can never skip ahead — every step is mandatory.
+/// Reset to 0 when a fresh project is started from the Hub.
+
+abstract class _$FurthestStep extends $Notifier<int> {
+  int build();
+  @$mustCallSuper
+  @override
+  void runBuild() {
+    final ref = this.ref as $Ref<int, int>;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<int, int>,
+              int,
+              Object?,
+              Object?
+            >;
+    element.handleCreate(ref, build);
+  }
+}
+
 /// Shared flag: true while the launch generation process is running.
 /// Read by main_layout to disable the Back button during generation.
 
