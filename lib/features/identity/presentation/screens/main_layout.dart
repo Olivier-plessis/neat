@@ -15,6 +15,7 @@ import 'package:neat/features/identity/presentation/providers/identity_provider.
 import 'package:neat/features/identity/presentation/providers/stepper_provider.dart';
 import 'package:neat/features/identity/presentation/screens/identity/identity_screen.dart';
 import 'package:neat/features/identity/presentation/screens/launch_screen.dart';
+import 'package:neat/features/infrastucture/presentation/screens/infrastructure_screen.dart';
 import 'package:neat/features/theme_engine/domain/models/theme_engine_state.dart';
 import 'package:neat/features/theme_engine/presentation/providers/theme_engine_provider.dart';
 import 'package:neat/features/theme_engine/presentation/screens/theme_engine_screen.dart';
@@ -44,57 +45,56 @@ class MainLayout extends ConsumerWidget {
                 InkWell(
                   onTap: () => ref.read(currentStepProvider.notifier).setStep(NeatStep.hub),
                   child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 28, 20, 24),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF111416),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: AppTheme.colorPrimaryCyan.withValues(alpha: 0.4),
+                    padding: const EdgeInsets.fromLTRB(20, 28, 20, 24),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF111416),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: AppTheme.colorPrimaryCyan.withValues(alpha: 0.4),
+                            ),
                           ),
+                          child: const Icon(Icons.bolt, color: AppTheme.colorPrimaryCyan, size: 22),
                         ),
-                        child: const Icon(Icons.bolt, color: AppTheme.colorPrimaryCyan, size: 22),
-                      ),
-                      const SizedBox(width: 12),
-                      Column(
-                        crossAxisAlignment: .start,
-                        children: [
-                          const Text(
-                            'NEAT',
-                            style: TextStyle(
-                              color: AppTheme.colorPrimaryCyan,
-                              fontSize: 20,
-                              fontWeight: .bold,
-                              letterSpacing: 2,
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                            decoration: BoxDecoration(
-                              border: Border.all(color: Colors.white12),
-                              borderRadius: BorderRadius.circular(3),
-                            ),
-                            child: Text(
-                              ref.watch(appVersionProvider).maybeWhen(
-                                    data: (v) => v.toUpperCase(),
-                                    orElse: () => '…',
-                                  ),
-                              style: const TextStyle(
-                                color: Colors.white38,
-                                fontSize: 9,
-                                letterSpacing: 0.8,
+                        const SizedBox(width: 12),
+                        Column(
+                          crossAxisAlignment: .start,
+                          children: [
+                            const Text(
+                              'NEAT',
+                              style: TextStyle(
+                                color: AppTheme.colorPrimaryCyan,
+                                fontSize: 20,
+                                fontWeight: .bold,
+                                letterSpacing: 2,
                               ),
                             ),
-                          ),
-                        ],
-                      ),
-                    ],
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Colors.white12),
+                                borderRadius: BorderRadius.circular(3),
+                              ),
+                              child: Text(
+                                ref
+                                    .watch(appVersionProvider)
+                                    .maybeWhen(data: (v) => v.toUpperCase(), orElse: () => '…'),
+                                style: const TextStyle(
+                                  color: Colors.white38,
+                                  fontSize: 9,
+                                  letterSpacing: 0.8,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                ),
                 ),
 
                 const Divider(color: Colors.white10, height: 1),
@@ -103,7 +103,13 @@ class MainLayout extends ConsumerWidget {
                 // Wizard steps (featureGen / Workshop is reached from the Hub).
                 _buildItem(ref, NeatStep.identity, 'IDENTITY', Icons.fingerprint_outlined),
                 _buildItem(ref, NeatStep.themeEngine, 'THEME ENGINE', Icons.palette_outlined),
-                _buildItem(ref, NeatStep.dependencies, 'DEPENDENCIES', Icons.extension_outlined),
+                _buildItem(
+                  ref,
+                  NeatStep.infrastructure,
+                  'INFRASTRUCTURE',
+                  Icons.extension_outlined,
+                ),
+                _buildItem(ref, NeatStep.packages, 'DEPENDENCIES', Icons.extension_outlined),
                 _buildItem(ref, NeatStep.architecture, 'ARCHITECTURE', Icons.account_tree_outlined),
                 _buildItem(ref, NeatStep.cicd, 'CI/CD', Icons.rocket_outlined),
 
@@ -237,7 +243,8 @@ class MainLayout extends ConsumerWidget {
     return switch (step) {
       NeatStep.identity => const IdentityScreen(),
       NeatStep.themeEngine => const ThemeEngineScreen(),
-      NeatStep.dependencies => const DependenciesScreen(),
+      NeatStep.infrastructure => const InfrastructureScreen(),
+      NeatStep.packages => const DependenciesScreen(),
       NeatStep.architecture => const ArchitectureScreen(),
       NeatStep.cicd => const CicdScreen(),
       NeatStep.launch => const LaunchScreen(),
@@ -271,10 +278,7 @@ class _WorkshopMode extends ConsumerWidget {
             ),
           ),
           const Expanded(
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(40, 16, 40, 0),
-              child: FeatureGenScreen(),
-            ),
+            child: Padding(padding: EdgeInsets.fromLTRB(40, 16, 40, 0), child: FeatureGenScreen()),
           ),
         ],
       ),
@@ -373,6 +377,7 @@ bool _isStepValid(NeatStep step, WidgetRef ref) {
     NeatStep.identity => ref.watch(
       identityProvider.select((s) => s.isIdentityValid && s.projectPath.isNotEmpty),
     ),
+
     NeatStep.themeEngine => ref.watch(
       themeEngineProvider.select((s) => s.approach != ThemeApproach.none),
     ),
@@ -394,7 +399,8 @@ bool _canNavigateTo(NeatStep target, NeatStep current, WidgetRef ref) {
   final steps = [
     NeatStep.identity,
     NeatStep.themeEngine,
-    NeatStep.dependencies,
+    NeatStep.infrastructure,
+    NeatStep.packages,
     NeatStep.architecture,
     NeatStep.cicd,
     NeatStep.launch,

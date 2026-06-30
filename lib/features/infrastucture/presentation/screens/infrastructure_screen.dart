@@ -3,28 +3,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:neat/core/theme/app_theme.dart';
-import 'package:neat/core/theme/gap.dart';
 import 'package:neat/features/architecture/domain/models/env_config.dart';
 import 'package:neat/features/architecture/presentation/providers/architecture_provider.dart';
 import 'package:neat/features/dependencies/domain/constants/backend_presets.dart';
-import 'package:neat/features/dependencies/domain/constants/unsupported_packages.dart';
 import 'package:neat/features/dependencies/domain/models/pub_package.dart';
 import 'package:neat/features/dependencies/presentation/providers/dependencies_provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 
-class DependenciesScreen extends HookConsumerWidget {
-  const DependenciesScreen({super.key});
+class InfrastructureScreen extends HookConsumerWidget {
+  const InfrastructureScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final searchController = useTextEditingController();
     final rightTabIndex = useState(0); // 0: Details, 1: Selection
-
-    final query = ref.watch(searchQueryProvider);
-    final searchAsync = ref.watch(packageSearchResultsProvider);
-    final selectedForDetail = ref.watch(packageForDetailProvider);
-
-    final selectedCount = ref.watch(selectedPackagesProvider.select((l) => l.length));
 
     // Bascule auto vers l'onglet Détails quand on sélectionne un package dans la recherche
     ref.listen(packageForDetailProvider, (prev, next) {
@@ -37,54 +27,27 @@ class DependenciesScreen extends HookConsumerWidget {
         Row(
           children: [
             const Text(
-              'Project Dependencies',
+              'Project Infrastructure',
               style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white),
             ),
           ],
         ),
         const SizedBox(height: 8),
         Text(
-          'Search for packages on pub.dev to add more.',
+          'Pick a backend to seed your stack, then search pub.dev to add more.',
           style: TextStyle(color: Colors.grey[400], fontSize: 14),
         ),
         const SizedBox(height: 24),
 
-        TextField(
-          controller: searchController,
-          onChanged: ref.read(searchQueryProvider.notifier).update,
-          style: const TextStyle(color: Colors.white),
-          decoration: InputDecoration(
-            hintText: 'Search packages on pub.dev...',
-            prefixIcon: const Icon(Icons.search, color: AppTheme.colorPrimaryCyan, size: 20),
-            suffixIcon: query.isNotEmpty
-                ? IconButton(
-                    icon: const Icon(Icons.clear, color: Colors.grey, size: 18),
-                    onPressed: () {
-                      searchController.clear();
-                      ref.read(searchQueryProvider.notifier).clear();
-                    },
-                  )
-                : null,
-          ),
-        ),
+        const _BackendSelector(),
+
         const SizedBox(height: 24),
 
         Expanded(
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Colonne gauche : Recherche
-              Expanded(
-                flex: 5,
-                child: _SearchResults(
-                  searchAsync: searchAsync,
-                  query: query,
-                  selectedForDetail: selectedForDetail,
-                ),
-              ),
-              const SizedBox(width: 20),
-
-              // Colonne droite : Tabs (Détails / Sélection)
+              Expanded(flex: 6, child: const _BackendConfig()),
               Expanded(
                 flex: 4,
                 child: Column(
@@ -94,13 +57,7 @@ class DependenciesScreen extends HookConsumerWidget {
                       onChanged: (i) => rightTabIndex.value = i,
                     ),
                     const SizedBox(height: 12),
-                    Expanded(
-                      child: rightTabIndex.value == 0
-                          ? (selectedForDetail != null
-                                ? _PackageDetailCard(package: selectedForDetail)
-                                : _EmptyDetailCard(hasQuery: query.isNotEmpty))
-                          : const _ManagedPackagesPanel(),
-                    ),
+                    Expanded(child: const _ManagedPackagesPanel()),
                   ],
                 ),
               ),
@@ -208,7 +165,7 @@ class _BackendCard extends StatelessWidget {
               ),
               child: Icon(icon, color: iconColor, size: 26),
             ),
-            gapH16,
+            const SizedBox(height: 14),
             Text(
               title,
               style: const TextStyle(
@@ -217,15 +174,15 @@ class _BackendCard extends StatelessWidget {
                 fontWeight: FontWeight.w600,
               ),
             ),
-            gapH4,
+            const SizedBox(height: 4),
             Text(subtitle, style: TextStyle(color: Colors.grey[500], fontSize: 12)),
-            gapH12,
+            const SizedBox(height: 12),
             if (active)
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: const [
                   Icon(Icons.check_circle, color: AppTheme.colorPrimaryCyan, size: 14),
-                  gapW6,
+                  SizedBox(width: 6),
                   Text(
                     'SELECTED',
                     style: TextStyle(
@@ -303,7 +260,7 @@ class _BackendConfig extends ConsumerWidget {
               ),
             ],
           ),
-          gapH16,
+          const SizedBox(height: 16),
           if (backend == BackendKind.firebase) ...[
             _FirebaseConfigUpload(
               path: arch.firebaseConfigPath,
@@ -325,7 +282,7 @@ class _BackendConfig extends ConsumerWidget {
                   onSupabaseKey: (v) => notifier.setEnvSupabaseKey(i, v),
                 ),
               ),
-          gapH4,
+          const SizedBox(height: 4),
           _FlavorsToggle(value: arch.generateFlavors, onChanged: notifier.toggleGenerateFlavors),
         ],
       ),
@@ -414,10 +371,10 @@ class _EnvFieldRow extends StatelessWidget {
                 ),
               ),
             ),
-          gapW10,
+          const SizedBox(width: 10),
           if (backend == BackendKind.supabase) ...[
             Expanded(child: _field(env.supabaseUrl, 'Supabase URL', onSupabaseUrl)),
-            gapW8,
+            const SizedBox(width: 8),
             Expanded(
               child: _field(
                 env.supabaseAnonKey,
@@ -452,7 +409,7 @@ class _FlavorsToggle extends StatelessWidget {
                 'Native build flavors',
                 style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
               ),
-              gapH4,
+              const SizedBox(height: 2),
               Text(
                 'productFlavors + main_<flavor>.dart + launch.json. OFF → a plain `flutter run` works.',
                 style: TextStyle(color: Colors.grey[500], fontSize: 11),
@@ -486,7 +443,7 @@ class _FirebaseConfigUpload extends StatelessWidget {
               color: hasFile ? AppTheme.colorPrimaryCyan : Colors.grey[500],
               size: 20,
             ),
-            gapW12,
+            const SizedBox(width: 12),
             Expanded(
               child: Text(
                 hasFile ? path.split('/').last : 'Firebase config (JSON) — optional',
@@ -509,7 +466,7 @@ class _FirebaseConfigUpload extends StatelessWidget {
             ),
           ],
         ),
-        gapH8,
+        const SizedBox(height: 8),
         Text(
           'Single config for now → generates lib/firebase_options.dart. For full '
           'per-platform native setup, run `flutterfire configure` after generation.',
@@ -539,16 +496,10 @@ class _RightPanelTabs extends StatelessWidget {
       child: Row(
         children: [
           _TabButton(
-            label: 'PACKAGE DETAILS',
-            icon: Icons.info_outline,
-            isSelected: activeIndex == 0,
-            onTap: () => onChanged(0),
-          ),
-          _TabButton(
             label: 'MY SELECTION',
             icon: Icons.shopping_basket_outlined,
-            isSelected: activeIndex == 1,
-            onTap: () => onChanged(1),
+            isSelected: activeIndex == 0,
+            onTap: () {},
           ),
         ],
       ),
@@ -585,7 +536,7 @@ class _TabButton extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(icon, size: 14, color: isSelected ? AppTheme.colorPrimaryCyan : Colors.white24),
-              gapW8,
+              const SizedBox(width: 8),
               Text(
                 label,
                 style: TextStyle(
@@ -662,102 +613,102 @@ class _ManagedPackagesPanel extends ConsumerWidget {
 
 // ── Dev preset button ─────────────────────────────────────────────────────────
 
-class _DevPresetButton extends StatelessWidget {
-  const _DevPresetButton({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: const Color(0xFF1A1A1E),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: Colors.white24),
-        ),
-        child: const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.bolt, color: Colors.white54, size: 16),
-            SizedBox(width: 6),
-            Text(
-              'Dev Preset',
-              style: TextStyle(color: Colors.white54, fontSize: 12, fontWeight: FontWeight.w600),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ── Badge button ──────────────────────────────────────────────────────────────
-
-class _PackagesBadgeButton extends StatelessWidget {
-  const _PackagesBadgeButton({required this.count, required this.onTap, required this.isSelected});
-
-  final int count;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            decoration: BoxDecoration(
-              color: isSelected ? const Color(0xFF1E1E22) : const Color(0xFF1A1A1E),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: isSelected ? AppTheme.colorPrimaryCyan : Colors.white24,
-                width: isSelected ? 1.5 : 1,
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.archive_outlined,
-                  color: isSelected ? AppTheme.colorPrimaryCyan : Colors.white54,
-                  size: 18,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  '$count Package${count > 1 ? 's' : ''}',
-                  style: TextStyle(
-                    color: isSelected ? Colors.white : Colors.white54,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (count > 0 && !isSelected)
-            Positioned(
-              top: -2,
-              right: -2,
-              child: Container(
-                width: 10,
-                height: 10,
-                decoration: const BoxDecoration(
-                  color: AppTheme.colorPrimaryCyan,
-                  shape: BoxShape.circle,
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
+// class _DevPresetButton extends StatelessWidget {
+//   const _DevPresetButton({required this.onTap});
+//
+//   final VoidCallback onTap;
+//
+//   @override
+//   Widget build(BuildContext context) {
+//     return GestureDetector(
+//       onTap: onTap,
+//       child: Container(
+//         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+//         decoration: BoxDecoration(
+//           color: const Color(0xFF1A1A1E),
+//           borderRadius: BorderRadius.circular(24),
+//           border: Border.all(color: Colors.white24),
+//         ),
+//         child: const Row(
+//           mainAxisSize: MainAxisSize.min,
+//           children: [
+//             Icon(Icons.bolt, color: Colors.white54, size: 16),
+//             SizedBox(width: 6),
+//             Text(
+//               'Dev Preset',
+//               style: TextStyle(color: Colors.white54, fontSize: 12, fontWeight: FontWeight.w600),
+//             ),
+//           ],
+//         ),
+//       ),
+//     );
+//   }
+// }
+//
+// // ── Badge button ──────────────────────────────────────────────────────────────
+//
+// class _PackagesBadgeButton extends StatelessWidget {
+//   const _PackagesBadgeButton({required this.count, required this.onTap, required this.isSelected});
+//
+//   final int count;
+//   final bool isSelected;
+//   final VoidCallback onTap;
+//
+//   @override
+//   Widget build(BuildContext context) {
+//     return GestureDetector(
+//       onTap: onTap,
+//       child: Stack(
+//         clipBehavior: Clip.none,
+//         children: [
+//           Container(
+//             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+//             decoration: BoxDecoration(
+//               color: isSelected ? const Color(0xFF1E1E22) : const Color(0xFF1A1A1E),
+//               borderRadius: BorderRadius.circular(24),
+//               border: Border.all(
+//                 color: isSelected ? AppTheme.colorPrimaryCyan : Colors.white24,
+//                 width: isSelected ? 1.5 : 1,
+//               ),
+//             ),
+//             child: Row(
+//               mainAxisSize: MainAxisSize.min,
+//               children: [
+//                 Icon(
+//                   Icons.archive_outlined,
+//                   color: isSelected ? AppTheme.colorPrimaryCyan : Colors.white54,
+//                   size: 18,
+//                 ),
+//                 const SizedBox(width: 8),
+//                 Text(
+//                   '$count Package${count > 1 ? 's' : ''}',
+//                   style: TextStyle(
+//                     color: isSelected ? Colors.white : Colors.white54,
+//                     fontSize: 13,
+//                     fontWeight: FontWeight.w600,
+//                   ),
+//                 ),
+//               ],
+//             ),
+//           ),
+//           if (count > 0 && !isSelected)
+//             Positioned(
+//               top: -2,
+//               right: -2,
+//               child: Container(
+//                 width: 10,
+//                 height: 10,
+//                 decoration: const BoxDecoration(
+//                   color: AppTheme.colorPrimaryCyan,
+//                   shape: BoxShape.circle,
+//                 ),
+//               ),
+//             ),
+//         ],
+//       ),
+//     );
+//   }
+// }
 
 // ── Managed Packages Tile ─────────────────────────────────────────────────────
 
@@ -793,12 +744,6 @@ class _SheetPackageTileState extends ConsumerState<_SheetPackageTile> {
 
   @override
   Widget build(BuildContext context) {
-    final isPreselected = ref.watch(
-      selectedPackagesProvider.select(
-        (list) => presetFor(backendOf(list)).any((p) => p.name == widget.package.name),
-      ),
-    );
-
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
@@ -894,494 +839,16 @@ class _SheetPackageTileState extends ConsumerState<_SheetPackageTile> {
               ],
             ),
           ),
-          if (!isPreselected)
-            IconButton(
-              icon: const Icon(Icons.delete_outline, color: Colors.grey, size: 20),
-              onPressed: () => ref.read(selectedPackagesProvider.notifier).toggle(widget.package),
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-            ),
+          // IconButton(
+          //   icon: const Icon(Icons.delete_outline, color: Colors.grey, size: 20),
+          //   onPressed: () => ref.read(selectedPackagesProvider.notifier).toggle(widget.package),
+          //   padding: EdgeInsets.zero,
+          //   constraints: const BoxConstraints(),
+          // ),
         ],
       ),
     );
-  }
-}
-
-// ── Résultats de recherche ────────────────────────────────────────────────────
-
-class _SearchResults extends ConsumerWidget {
-  const _SearchResults({
-    required this.searchAsync,
-    required this.query,
-    required this.selectedForDetail,
-  });
-
-  final AsyncValue<List<PubPackage>> searchAsync;
-  final String query;
-  final PubPackage? selectedForDetail;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return switch (searchAsync) {
-      AsyncData(:final value) => _buildList(value, ref),
-      AsyncError() => Center(
-        child: Text('Error connecting to pub.dev', style: TextStyle(color: Colors.redAccent[100])),
-      ),
-      _ => const Center(child: CircularProgressIndicator(color: AppTheme.colorPrimaryCyan)),
-    };
-  }
-
-  Widget _buildList(List<PubPackage> packages, WidgetRef ref) {
-    if (query.isEmpty) {
-      return const _Placeholder(icon: Icons.search, message: 'Start typing to search packages.');
-    }
-    if (packages.isEmpty) {
-      return _Placeholder(icon: Icons.inbox_outlined, message: "No packages found for '$query'.");
-    }
-
-    return ListView.separated(
-      itemCount: packages.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 8),
-      itemBuilder: (_, i) {
-        final pkg = packages[i];
-        final isSelected = selectedForDetail?.name == pkg.name;
-        final selectedPkg = ref.watch(
-          selectedPackagesProvider.select(
-            (list) =>
-                list.cast<PubPackage?>().firstWhere((p) => p!.name == pkg.name, orElse: () => null),
-          ),
-        );
-        final blocked = isUnsupportedPackage(pkg.name);
-        return _PackageListTile(
-          package: pkg,
-          isSelected: isSelected,
-          isAdded: selectedPkg != null,
-          isDev: selectedPkg?.isDev ?? false,
-          isBlocked: blocked,
-          onTap: blocked ? () {} : () => ref.read(packageForDetailProvider.notifier).select(pkg),
-        );
-      },
-    );
-  }
-}
-
-class _PackageListTile extends StatelessWidget {
-  const _PackageListTile({
-    required this.package,
-    required this.isSelected,
-    required this.isAdded,
-    required this.isDev,
-    required this.onTap,
-    this.isBlocked = false,
-  });
-
-  final PubPackage package;
-  final bool isSelected;
-  final bool isAdded;
-  final bool isDev;
-  final VoidCallback onTap;
-
-  /// Visible but not selectable (generation path not yet validated).
-  final bool isBlocked;
-
-  @override
-  Widget build(BuildContext context) {
-    return Opacity(
-      opacity: isBlocked ? 0.5 : 1,
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: const Color(0xFF141416),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: isSelected ? AppTheme.colorPrimaryCyan : Colors.white10,
-              width: isSelected ? 1.5 : 1,
-            ),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Text(
-                          package.name,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        _VersionBadge(version: package.version),
-                        if (isBlocked) ...[
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(4),
-                              border: Border.all(color: Colors.white24),
-                            ),
-                            child: const Text(
-                              'BIENTÔT',
-                              style: TextStyle(
-                                color: Colors.white38,
-                                fontSize: 9,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      package.description,
-                      style: TextStyle(color: Colors.grey[400], fontSize: 12),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-              if (isAdded) ...[
-                if (isDev)
-                  Container(
-                    margin: const EdgeInsets.only(right: 8),
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF2D2010),
-                      borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: const Color(0xFFFFA726), width: 0.5),
-                    ),
-                    child: const Text(
-                      'dev',
-                      style: TextStyle(color: Color(0xFFFFA726), fontSize: 10),
-                    ),
-                  ),
-                const Icon(Icons.check_circle, color: AppTheme.colorPrimaryCyan, size: 20),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ── Detail card ───────────────────────────────────────────────────────────────
-
-class _PackageDetailCard extends ConsumerWidget {
-  const _PackageDetailCard({required this.package});
-
-  final PubPackage package;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final selectedPkg = ref.watch(
-      selectedPackagesProvider.select(
-        (list) =>
-            list.cast<PubPackage?>().firstWhere((p) => p!.name == package.name, orElse: () => null),
-      ),
-    );
-    final isAdded = selectedPkg != null;
-    final isPreselected = ref.watch(
-      selectedPackagesProvider.select(
-        (list) => presetFor(backendOf(list)).any((p) => p.name == package.name),
-      ),
-    );
-    final isDev = selectedPkg?.isDev ?? package.isDev;
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: const Color(0xFF18181C),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white10),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Text(
-                  package.name,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              _VersionBadge(version: package.version),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            package.description,
-            style: TextStyle(color: Colors.grey[400], fontSize: 13, height: 1.5),
-          ),
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              _MetricBadge(label: 'LIKES', value: _formatCount(package.likes)),
-              const SizedBox(width: 12),
-              _MetricBadge(label: 'PUB POINTS', value: '${package.pubPoints}'),
-              const SizedBox(width: 12),
-              _MetricBadge(label: 'POPULARITY', value: '${package.popularity}%'),
-            ],
-          ),
-          const SizedBox(height: 20),
-          _DevToggle(
-            packageName: package.name,
-            isDev: isDev,
-            isAdded: isAdded,
-            onChanged: (value) {
-              if (isAdded) {
-                ref.read(selectedPackagesProvider.notifier).setDev(package.name, isDev: value);
-              }
-            },
-          ),
-          const Spacer(),
-          Row(
-            children: [
-              Expanded(
-                child: SizedBox(
-                  height: 46,
-                  child: OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppTheme.colorPrimaryCyan,
-                      side: const BorderSide(color: AppTheme.colorPrimaryCyan),
-                    ),
-                    icon: const Icon(Icons.open_in_new, size: 16),
-                    label: const Text('View on pub.dev'),
-                    onPressed: () => _launchPubDev(package.name),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              if (!isPreselected)
-                Expanded(
-                  child: SizedBox(
-                    height: 46,
-                    child: ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: isAdded
-                            ? const Color(0xFF2A1A1A)
-                            : AppTheme.colorPrimaryCyan,
-                        foregroundColor: isAdded ? Colors.redAccent : AppTheme.colorNeutralBg,
-                        side: isAdded ? const BorderSide(color: Colors.redAccent) : BorderSide.none,
-                      ),
-                      icon: Icon(isAdded ? Icons.remove_circle_outline : Icons.add, size: 18),
-                      label: Text(isAdded ? 'Remove' : 'Add'),
-                      onPressed: () => ref
-                          .read(selectedPackagesProvider.notifier)
-                          .toggle(package.copyWith(isDev: isDev)),
-                    ),
-                  ),
-                )
-              else
-                Expanded(
-                  child: Container(
-                    height: 46,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.05),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      'REQUIRED',
-                      style: TextStyle(
-                        color: Colors.grey[600],
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1,
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _formatCount(int count) =>
-      count >= 1000 ? '${(count / 1000).toStringAsFixed(1)}k' : '$count';
-
-  Future<void> _launchPubDev(String packageName) async {
-    final url = Uri.parse('https://pub.dev/packages/$packageName');
-    if (await canLaunchUrl(url)) {
-      await launchUrl(url, mode: LaunchMode.externalApplication);
-    }
   }
 }
 
 // ── Widgets utilitaires ───────────────────────────────────────────────────────
-
-class _VersionBadge extends StatelessWidget {
-  const _VersionBadge({required this.version});
-
-  final String version;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: AppTheme.colorSecondaryBlue,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        'v$version',
-        style: const TextStyle(color: AppTheme.colorPrimaryCyan, fontSize: 11),
-      ),
-    );
-  }
-}
-
-class _MetricBadge extends StatelessWidget {
-  const _MetricBadge({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: const Color(0xFF141416),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Column(
-          children: [
-            Text(
-              value,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(color: Colors.grey[500], fontSize: 10, letterSpacing: 0.5),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _DevToggle extends StatelessWidget {
-  const _DevToggle({
-    required this.packageName,
-    required this.isDev,
-    required this.isAdded,
-    required this.onChanged,
-  });
-
-  final String packageName;
-  final bool isDev;
-  final bool isAdded;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: const Color(0xFF141416),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  isDev ? 'dev_dependencies' : 'dependencies',
-                  style: TextStyle(
-                    color: isDev ? const Color(0xFFFFA726) : AppTheme.colorPrimaryCyan,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    fontFamily: 'monospace',
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  isDev ? 'Build-time only (generators, linters…)' : 'Shipped with the app',
-                  style: TextStyle(color: Colors.grey[600], fontSize: 11),
-                ),
-              ],
-            ),
-          ),
-          Switch(
-            value: isDev,
-            onChanged: isAdded ? onChanged : null,
-            activeThumbColor: const Color(0xFFFFA726),
-            activeTrackColor: const Color(0xFF3D2A10),
-            inactiveThumbColor: AppTheme.colorPrimaryCyan,
-            inactiveTrackColor: AppTheme.colorSecondaryBlue,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _EmptyDetailCard extends StatelessWidget {
-  const _EmptyDetailCard({required this.hasQuery});
-
-  final bool hasQuery;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: const Color(0xFF18181C),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white10),
-      ),
-      child: _Placeholder(
-        icon: Icons.open_in_new_outlined,
-        message: hasQuery ? 'Click a package to see details.' : 'Search a package first.',
-      ),
-    );
-  }
-}
-
-class _Placeholder extends StatelessWidget {
-  const _Placeholder({required this.icon, required this.message});
-
-  final IconData icon;
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: Colors.white12, size: 40),
-          const SizedBox(height: 12),
-          Text(message, style: TextStyle(color: Colors.grey[600], fontSize: 13)),
-        ],
-      ),
-    );
-  }
-}

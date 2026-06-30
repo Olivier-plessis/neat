@@ -65,7 +65,7 @@ class PackageForDetail extends _$PackageForDetail {
 @Riverpod(keepAlive: true)
 class SelectedPackages extends _$SelectedPackages {
   @override
-  List<PubPackage> build() => [];
+  List<PubPackage> build() => restPreset;
 
   void toggle(PubPackage package) {
     final isSelected = state.any((p) => p.name == package.name);
