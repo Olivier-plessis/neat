@@ -12,6 +12,7 @@ import 'package:neat/features/dependencies/domain/models/pub_package.dart';
 import 'package:neat/features/feature_gen/domain/models/feature_gen_options.dart';
 import 'package:neat/features/feature_gen/domain/services/project_loader.dart';
 import 'package:neat/features/feature_gen/domain/usecases/generate_feature_usecase.dart';
+import 'package:neat/features/generation/domain/models/field_spec.dart';
 import 'package:neat/features/generation/domain/services/json_entity_inferencer.dart';
 import 'package:neat/features/generation/domain/usecases/launch_generation_usecase.dart';
 import 'package:neat/features/identity/domain/models/identity_state.dart';
@@ -2113,6 +2114,96 @@ void main() {
         errorLines,
         isEmpty,
         reason: 'JSON-entity project analyze reported issues:\n${errorLines.join('\n')}\n\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
+
+  test(
+    'nested JSON entity: sub-classes + list + Drift JSON columns, analyzes cleanly',
+    () async {
+      const projectName = 'neat_nested_entity_test';
+      final logs = <String>[];
+
+      // A product with a nested object (rating) and a list of scalars (tags).
+      const json = '''
+        {
+          "id": 7,
+          "title": "Classic Tee",
+          "price": 19.99,
+          "rating": { "rate": 4.5, "count": 120 },
+          "tags": ["summer", "cotton"]
+        }
+      ''';
+      final inferred = const JsonEntityInferencer().infer(json);
+      final rating = inferred.fields.firstWhere((f) => f.dartName == 'rating');
+      expect(rating.kind, FieldKind.object);
+      expect(rating.objectName, 'Rating');
+
+      final architecture = ArchitectureState(
+        firstFeatureName: 'product',
+        firstFeatureFields: inferred.fields,
+        // Offline-first → exercises the Drift JSON columns for nested/list fields.
+        storageStrategy: StorageStrategy.offlineFirstRead,
+      );
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: IdentityState(
+            name: projectName,
+            organization: 'com.neat.test',
+            projectPath: tempRoot.path,
+            description: 'NEAT nested JSON entity test',
+            targetPlatforms: const ['macos'],
+          ),
+          packages: packages,
+          architecture: architecture,
+          cicd: const CicdState(),
+          theme: const ThemeEngineState(approach: ThemeApproach.customM3),
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('nested-entity generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+      String read(String p) => File('${projectDir.path}/$p').readAsStringSync();
+
+      // Entity file carries the parent + a generated RatingEntity sub-class.
+      final entity = read('lib/features/product/domain/entities/product_entity.dart');
+      expect(entity, contains('RatingEntity rating'));
+      expect(entity, contains('List<String> tags'));
+
+      // Model file has a RatingModel with fromEntity/toEntity + the nested field.
+      final model = read('lib/features/product/data/models/product_model.dart');
+      expect(model, contains('RatingModel'));
+      expect(model, contains('RatingModel.fromEntity'));
+
+      // Drift stores complex fields as JSON TextColumns; local source (de)serialises.
+      final db = read('packages/${projectName}_local_storage/lib/src/database.dart');
+      expect(db, contains('TextColumn get rating => text()();'));
+      expect(db, contains('TextColumn get tags => text()();'));
+      final local = read('lib/features/product/data/sources/product_local_source.dart');
+      expect(local, contains("import 'dart:convert';"));
+      expect(local, contains('jsonEncode('));
+      expect(local, contains('jsonDecode('));
+
+      // Whole project (incl. freezed + json_serializable codegen for the nested
+      // model) analyzes with zero errors/warnings.
+      final analyze = await Process.run(
+        'flutter',
+        ['analyze', '--no-pub'],
+        workingDirectory: projectDir.path,
+      );
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason: 'nested-entity project analyze reported issues:\n${errorLines.join('\n')}\n\n$out',
       );
     },
     timeout: const Timeout(Duration(minutes: 12)),
