@@ -17,72 +17,100 @@ class DataTemplates {
     final p = pascal(featureName);
     final entityImport =
         "import 'package:$packageName/features/$featureName/domain/entities/${featureName}_entity.dart';";
-
-    // toEntity(): every field maps 1:1 (model field name == entity field name).
-    final toEntityArgs = fields.map((f) => '    ${f.dartName}: ${f.dartName},').join('\n');
+    // Nested objects (and list-element objects) each become their own sub-model.
+    final objects = collectObjectSpecs(fields);
 
     if (hasFreezed) {
-      // freezed handles JSON serialization internally — do NOT add @JsonSerializable()
-      // on the class, it conflicts with the generated constructor and causes build errors.
-      // Private constructor (_()) is required to add custom methods on a freezed class.
+      // freezed handles JSON serialization internally; json_serializable wires
+      // nested model fromJson/toJson automatically. A private constructor (_())
+      // is required to add custom methods (toEntity / fromEntity).
       final partJson = hasJsonSerializable ? "\npart '${featureName}_model.g.dart';" : '';
-      final fromJson = hasJsonSerializable
-          ? '\n  factory ${p}Model.fromJson(Map<String, dynamic> json) =>\n      _\$${p}ModelFromJson(json);'
-          : '';
-      final factoryParams = fields.map((f) {
-        final ann = hasJsonSerializable ? f.jsonKeyAnnotation : '';
-        final annLine = ann.isEmpty ? '' : '    $ann\n';
-        return '$annLine    ${f.nullable ? '' : 'required '}${f.type} ${f.dartName},';
-      }).join('\n');
+      final classes = [
+        _modelFreezed(p, fields, hasJsonSerializable),
+        for (final o in objects) _modelFreezed(o.objectName, o.children, hasJsonSerializable),
+      ].join('\n\n');
       return '''import 'package:freezed_annotation/freezed_annotation.dart';
 $entityImport
 part '${featureName}_model.freezed.dart';$partJson
 
-@freezed
-abstract class ${p}Model with _\$${p}Model {
-  const ${p}Model._(); // required to add methods on freezed class
-
-  const factory ${p}Model({
-$factoryParams
-  }) = _${p}Model;
-$fromJson
-
-  ${p}Entity toEntity() => ${p}Entity(
-$toEntityArgs
-  );
-}
+$classes
 ''';
     }
 
-    // Plain Dart model — independent from Entity, explicit toEntity() mapper.
+    final classes = [
+      _modelPlain(p, fields),
+      for (final o in objects) _modelPlain(o.objectName, o.children),
+    ].join('\n\n');
+    return '''$entityImport
+
+$classes
+''';
+  }
+
+  /// One freezed model class with fromJson (when [hasJson]) + fromEntity/toEntity
+  /// mappers ([base] → `<base>Model` ↔ `<base>Entity`).
+  static String _modelFreezed(String base, List<FieldSpec> fields, bool hasJson) {
+    final params = fields.map((f) {
+      final ann = hasJson ? f.jsonKeyAnnotation : '';
+      final annLine = ann.isEmpty ? '' : '    $ann\n';
+      return '$annLine    ${f.nullable ? '' : 'required '}${f.modelType} ${f.dartName},';
+    }).join('\n');
+    final fromJson = hasJson
+        ? '\n  factory ${base}Model.fromJson(Map<String, dynamic> json) =>\n      _\$${base}ModelFromJson(json);\n'
+        : '';
+    final fromEntityArgs = fields.map((f) => '    ${f.dartName}: ${f.fromEntityValue('e')},').join('\n');
+    final toEntityArgs = fields.map((f) => '    ${f.dartName}: ${f.toEntityValue()},').join('\n');
+    return '''@freezed
+abstract class ${base}Model with _\$${base}Model {
+  const ${base}Model._();
+
+  const factory ${base}Model({
+$params
+  }) = _${base}Model;
+$fromJson
+  factory ${base}Model.fromEntity(${base}Entity e) => ${base}Model(
+$fromEntityArgs
+  );
+
+  ${base}Entity toEntity() => ${base}Entity(
+$toEntityArgs
+  );
+}''';
+  }
+
+  /// One plain (no codegen) model class with hand-written JSON + mappers.
+  static String _modelPlain(String base, List<FieldSpec> fields) {
     final ctorParams = fields
         .map((f) => f.nullable ? '    this.${f.dartName},' : '    required this.${f.dartName},')
         .join('\n');
-    final decls = fields.map((f) => '  final ${f.type} ${f.dartName};').join('\n');
+    final decls = fields.map((f) => '  final ${f.modelType} ${f.dartName};').join('\n');
     final fromJsonArgs = fields.map((f) => '    ${f.dartName}: ${f.fromJsonExpr()},').join('\n');
     final toJsonEntries = fields.map((f) => "    '${f.jsonKey}': ${f.toJsonValue()},").join('\n');
-    return '''$entityImport
-
-class ${p}Model {
-  const ${p}Model({
+    final fromEntityArgs = fields.map((f) => '    ${f.dartName}: ${f.fromEntityValue('e')},').join('\n');
+    final toEntityArgs = fields.map((f) => '    ${f.dartName}: ${f.toEntityValue()},').join('\n');
+    return '''class ${base}Model {
+  const ${base}Model({
 $ctorParams
   });
 
 $decls
 
-  factory ${p}Model.fromJson(Map<String, dynamic> json) => ${p}Model(
+  factory ${base}Model.fromJson(Map<String, dynamic> json) => ${base}Model(
 $fromJsonArgs
+  );
+
+  factory ${base}Model.fromEntity(${base}Entity e) => ${base}Model(
+$fromEntityArgs
   );
 
   Map<String, dynamic> toJson() => {
 $toJsonEntries
   };
 
-  ${p}Entity toEntity() => ${p}Entity(
+  ${base}Entity toEntity() => ${base}Entity(
 $toEntityArgs
   );
-}
-''';
+}''';
   }
 
   static String featureExampleModel({
@@ -90,18 +118,27 @@ $toEntityArgs
     List<FieldSpec> fields = FieldSpec.idName,
   }) {
     final p = pascal(featureName);
-    final ctorParams = fields
-        .map((f) => f.nullable ? '    this.${f.dartName},' : '    required this.${f.dartName},')
-        .join('\n');
-    final decls = fields.map((f) => '  final ${f.type} ${f.dartName};').join('\n');
-    return '''// Domain model for $featureName
-class ${p}Model {
-  const ${p}Model({
+    final objects = collectObjectSpecs(fields);
+    String cls(String base, List<FieldSpec> fs) {
+      final ctorParams = fs
+          .map((f) => f.nullable ? '    this.${f.dartName},' : '    required this.${f.dartName},')
+          .join('\n');
+      final decls = fs.map((f) => '  final ${f.modelType} ${f.dartName};').join('\n');
+      return '''class ${base}Model {
+  const ${base}Model({
 $ctorParams
   });
 
 $decls
-}
+}''';
+    }
+
+    final classes = [
+      cls(p, fields),
+      for (final o in objects) cls(o.objectName, o.children),
+    ].join('\n\n');
+    return '''// Domain model for $featureName
+$classes
 ''';
   }
 
@@ -119,8 +156,8 @@ $decls
   }) {
     final p = pascal(featureName);
     final isChopper = httpClient == 'chopper';
-    final modelArgs = fields.map((f) => '${f.dartName}: entity.${f.dartName}').join(', ');
-    final modelExpr = '${p}Model($modelArgs)';
+    // Deep entity→model conversion (handles nested objects/lists).
+    final modelExpr = '${p}Model.fromEntity(entity)';
 
     // Chopper wraps responses in Response<T>; unwrap with .body!.
     String remote(String call) =>
@@ -589,8 +626,12 @@ class ${p}ApiSource {
     List<FieldSpec> fields = FieldSpec.idName,
   }) {
     final p = pascal(featureName);
-    final toModelArgs = fields.map((f) => '${f.dartName}: row.${f.dartName}').join(', ');
-    final toRowArgs = fields.map((f) => '${f.dartName}: model.${f.dartName}').join(', ');
+    // Complex fields are stored as serialised JSON in the Drift row → encode on
+    // write, decode on read. Scalars pass through unchanged.
+    final hasComplex = fields.any((f) => f.isComplex);
+    final toModelArgs = fields.map((f) => '${f.dartName}: ${f.driftDecode('row')}').join(', ');
+    final toRowArgs = fields.map((f) => '${f.dartName}: ${f.driftEncode('model')}').join(', ');
+    final convertImport = hasComplex ? "import 'dart:convert';\n\n" : '';
 
     // Offline-first: back the local source with the typed Drift table, mapping
     // rows to/from the model for full local CRUD.
@@ -608,7 +649,7 @@ class ${p}ApiSource {
       _db.enqueueOutbox(operation: operation, endpoint: endpoint, payload: payload);'''
           : '';
 
-      return '''import 'package:$localStoragePackage/$localStoragePackage.dart';
+      return '''${convertImport}import 'package:$localStoragePackage/$localStoragePackage.dart';
 import 'package:$packageName/features/$featureName/data/models/${featureName}_model.dart';
 
 class ${p}LocalSource {

@@ -1,5 +1,6 @@
 import 'package:neat/features/generation/domain/models/field_spec.dart';
 import 'package:neat/features/generation/domain/services/templates/dart/_template_utils.dart';
+import 'package:neat/features/generation/domain/services/templates/dart/field_codegen.dart';
 
 class DomainTemplates {
   DomainTemplates._();
@@ -12,38 +13,58 @@ class DomainTemplates {
     List<FieldSpec> fields = FieldSpec.idName,
   }) {
     final p = pascal(featureName);
+    // Nested objects (and list-element objects) each become their own sub-entity.
+    final objects = collectObjectSpecs(fields);
 
     if (hasFreezed) {
-      final params = fields
-          .map((f) => f.nullable
-              ? '    ${f.dartType}? ${f.dartName},'
-              : '    required ${f.dartType} ${f.dartName},')
-          .join('\n');
+      final classes = [
+        _entityFreezed(p, fields),
+        for (final o in objects) _entityFreezed(o.objectName, o.children),
+      ].join('\n\n');
       return '''import 'package:freezed_annotation/freezed_annotation.dart';
 
 part '${featureName}_entity.freezed.dart';
 
-@freezed
-abstract class ${p}Entity with _\$${p}Entity {
-  const factory ${p}Entity({
-$params
-  }) = _${p}Entity;
-}
+$classes
 ''';
     }
 
+    final classes = [
+      _entityPlain(p, fields),
+      for (final o in objects) _entityPlain(o.objectName, o.children),
+    ].join('\n\n');
+    return '$classes\n';
+  }
+
+  /// One freezed entity class ([base] → `<base>Entity`). [entityType] already
+  /// carries the nullability suffix.
+  static String _entityFreezed(String base, List<FieldSpec> fields) {
+    final params = fields
+        .map((f) => f.nullable
+            ? '    ${f.entityType} ${f.dartName},'
+            : '    required ${f.entityType} ${f.dartName},')
+        .join('\n');
+    return '''@freezed
+abstract class ${base}Entity with _\$${base}Entity {
+  const factory ${base}Entity({
+$params
+  }) = _${base}Entity;
+}''';
+  }
+
+  /// One plain entity class ([base] → `<base>Entity`).
+  static String _entityPlain(String base, List<FieldSpec> fields) {
     final ctorParams = fields
         .map((f) => f.nullable ? '    this.${f.dartName},' : '    required this.${f.dartName},')
         .join('\n');
-    final decls = fields.map((f) => '  final ${f.type} ${f.dartName};').join('\n');
-    return '''class ${p}Entity {
-  const ${p}Entity({
+    final decls = fields.map((f) => '  final ${f.entityType} ${f.dartName};').join('\n');
+    return '''class ${base}Entity {
+  const ${base}Entity({
 $ctorParams
   });
 
 $decls
-}
-''';
+}''';
   }
 
   // ── domain/repositories (interface) ──────────────────────────────────────

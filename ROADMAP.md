@@ -189,10 +189,15 @@ overlap — pick deliberately. → Phased:
   (`EntityFieldsEditor`) wired in **both** the wizard (Architecture step) and the
   **Workshop** add-feature. Harness-proven (FakeStore-ish product JSON → build_runner
   + analyze 0/0). Unit-tested inference + codegen helpers (26 fast tests).
-- **Phase 1.5 — nested objects/lists** ← *in progress*: recursive sub-classes +
-  `List<T>` (scalars + objects). Complex fields are serialised to a JSON
-  `TextColumn` in the Drift cache (re-hydrated on read), keeping the offline
-  round-trip whole.
+- ✅ **Phase 1.5 — nested objects/lists** — **done**. `FieldSpec` is recursive
+  (`kind`: scalar/object/list); the inferencer emits nested objects + lists
+  (scalars & objects) at arbitrary depth. Codegen emits a generated sub-class per
+  nested object in **both** the entity and model files (freezed: json_serializable
+  wires nested fromJson/toJson automatically; plain: hand-written), with deep
+  `toEntity()` / `Model.fromEntity()` mappers. Complex fields serialise to a JSON
+  `TextColumn` in the Drift cache (encode on write / decode on read), keeping the
+  offline round-trip whole. Harness-proven (product JSON with a `rating` object +
+  `tags` list → build_runner + analyze 0/0).
 - **Example feature (onboarding)** — *planned, after 1.5*: at app creation, offer a
   choice — **Example feature** (FakeStore Products: full CRUD + simple list/detail
   UI + routing, `fakestoreapi.com` pre-filled, generated through the **same**
