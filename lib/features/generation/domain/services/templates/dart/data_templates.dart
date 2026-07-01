@@ -29,11 +29,18 @@ class DataTemplates {
         _modelFreezed(p, fields, hasJsonSerializable),
         for (final o in objects) _modelFreezed(o.objectName, o.children, hasJsonSerializable),
       ].join('\n\n');
+      // The id converter (see FieldCodegen.idFromJsonName) is only needed once
+      // per file — only the top-level entity ever carries an id.
+      final idHelper = hasJsonSerializable && fields.any((f) => f.isId)
+          ? '\n\n/// A real API may emit an int/num id; NEAT always types id as\n'
+              '/// String, so this converts leniently instead of an unsafe cast.\n'
+              'String _idFromJson(dynamic value) => value.toString();'
+          : '';
       return '''import 'package:freezed_annotation/freezed_annotation.dart';
 $entityImport
 part '${featureName}_model.freezed.dart';$partJson
 
-$classes
+$classes$idHelper
 ''';
     }
 
@@ -51,7 +58,16 @@ $classes
   /// mappers ([base] → `<base>Model` ↔ `<base>Entity`).
   static String _modelFreezed(String base, List<FieldSpec> fields, bool hasJson) {
     final params = fields.map((f) {
-      final ann = hasJson ? f.jsonKeyAnnotation : '';
+      var ann = '';
+      if (hasJson) {
+        // Combine a rename (if any) with the id's lenient converter (see
+        // FieldCodegen.idFromJsonName) into a single @JsonKey.
+        final parts = <String>[
+          if (f.needsJsonKey) "name: '${f.jsonKey}'",
+          if (f.isId) 'fromJson: ${f.idFromJsonName}',
+        ];
+        if (parts.isNotEmpty) ann = '@JsonKey(${parts.join(', ')})';
+      }
       final annLine = ann.isEmpty ? '' : '    $ann\n';
       return '$annLine    ${f.nullable ? '' : 'required '}${f.modelType} ${f.dartName},';
     }).join('\n');
@@ -159,9 +175,15 @@ $classes
     // Deep entity→model conversion (handles nested objects/lists).
     final modelExpr = '${p}Model.fromEntity(entity)';
 
-    // Chopper wraps responses in Response<T>; unwrap with .body!.
+    // Chopper wraps responses in Response<T> and doesn't throw on non-2xx by
+    // default — unwrapChopperResponse throws ChopperApiException instead of a
+    // blind `.body!` (which just gives "Null check operator used on a null
+    // value" with no status code). Other clients throw natively already.
     String remote(String call) =>
-        isChopper ? '(await _remote.$call).body!' : 'await _remote.$call';
+        isChopper ? 'unwrapChopperResponse(await _remote.$call)' : 'await _remote.$call';
+    final chopperImport = isChopper
+        ? "import 'package:$packageName/core/network/chopper_model_converter.dart';\n"
+        : '';
 
     // Realtime: surface the source's live stream, mapped models → entities.
     final watchMethod = realtime
@@ -174,14 +196,18 @@ $classes
 
     // ── Offline-first (read-through cache) + optional sync (Outbox) ──────────
     if (offlineFirst && hasHttpClient) {
-      // Write methods differ: sync mode queues to the Outbox; read mode needs
-      // the network and writes through to the local cache.
+      // Write methods differ: sync mode queues to the Outbox (optimistic, no
+      // network call to fail synchronously); read mode calls the network and
+      // writes through to the local cache. Neither path catches its own errors
+      // any more — UseCase.call() does that uniformly — except the reads
+      // below, whose network→cache fallback is a deliberate resilience
+      // strategy, not boilerplate error handling, so it stays here.
       final convertImport = hasSync ? "import 'dart:convert';\n" : '';
       final writeMethods = hasSync
           ? '''
 
   @override
-  Future<Result<${p}Entity>> create(${p}Entity entity) async {
+  Future<${p}Entity> create(${p}Entity entity) async {
     final model = $modelExpr;
     await _local.upsert(model); // optimistic
     await _local.enqueueWrite(
@@ -189,11 +215,11 @@ $classes
       endpoint: '/${featureName}s/add',
       payload: jsonEncode(model.toJson()),
     );
-    return Result.success(entity);
+    return entity;
   }
 
   @override
-  Future<Result<${p}Entity>> update(${p}Entity entity) async {
+  Future<${p}Entity> update(${p}Entity entity) async {
     final model = $modelExpr;
     await _local.upsert(model); // optimistic
     await _local.enqueueWrite(
@@ -201,61 +227,57 @@ $classes
       endpoint: '/${featureName}s/\${entity.id}',
       payload: jsonEncode(model.toJson()),
     );
-    return Result.success(entity);
+    return entity;
   }
 
   @override
-  Future<Result<bool>> delete(String id) async {
+  Future<bool> delete(String id) async {
     await _local.deleteById(id); // optimistic
     await _local.enqueueWrite(
       operation: 'delete',
       endpoint: '/${featureName}s/\$id',
       payload: jsonEncode({'id': id}),
     );
-    return Result.success(true);
+    return true;
   }'''
           : '''
 
   @override
-  Future<Result<${p}Entity>> create(${p}Entity entity) async {
-    if (!await _network.isConnected) return Result.failure('No connection.');
-    try {
-      final model = $modelExpr;
-      final created = ${remote('add(model)')};
-      await _local.upsert(created);
-      return Result.success(created.toEntity());
-    } catch (e) {
-      return Result.failure(e.toString());
+  Future<${p}Entity> create(${p}Entity entity) async {
+    if (!await _network.isConnected) {
+      throw const Failure(message: 'No connection.');
     }
+    final model = $modelExpr;
+    final created = ${remote('add(model)')};
+    await _local.upsert(created);
+    return created.toEntity();
   }
 
   @override
-  Future<Result<${p}Entity>> update(${p}Entity entity) async {
-    if (!await _network.isConnected) return Result.failure('No connection.');
-    try {
-      final model = $modelExpr;
-      final updated = ${remote('update(entity.id, model)')};
-      await _local.upsert(updated);
-      return Result.success(updated.toEntity());
-    } catch (e) {
-      return Result.failure(e.toString());
+  Future<${p}Entity> update(${p}Entity entity) async {
+    if (!await _network.isConnected) {
+      throw const Failure(message: 'No connection.');
     }
+    final model = $modelExpr;
+    final updated = ${remote('update(entity.id, model)')};
+    await _local.upsert(updated);
+    return updated.toEntity();
   }
 
   @override
-  Future<Result<bool>> delete(String id) async {
-    if (!await _network.isConnected) return Result.failure('No connection.');
-    try {
-      await _remote.delete(id);
-      await _local.deleteById(id);
-      return Result.success(true);
-    } catch (e) {
-      return Result.failure(e.toString());
+  Future<bool> delete(String id) async {
+    if (!await _network.isConnected) {
+      throw const Failure(message: 'No connection.');
     }
+    await _remote.delete(id);
+    await _local.deleteById(id);
+    return true;
   }''';
 
-      return '''${convertImport}import 'package:$packageName/core/network/network_info.dart';
+      return '''$convertImport${chopperImport}import 'package:$packageName/core/error/failure.dart';
+import 'package:$packageName/core/network/network_info.dart';
 import 'package:$packageName/core/result/result.dart';
+import 'package:$packageName/core/utils/app_logger.dart';
 import 'package:$packageName/features/$featureName/domain/entities/${featureName}_entity.dart';
 import 'package:$packageName/features/$featureName/domain/repositories/i_${featureName}_repository.dart';
 import '../models/${featureName}_model.dart';
@@ -264,6 +286,9 @@ import '../sources/${featureName}_local_source.dart';
 
 /// Offline-first repository: reads the network when online (writing through to
 /// the local cache), and falls back to the cache when offline or on error.
+/// Reads keep their own try/catch (a resilience *strategy*, not boilerplate
+/// error handling): every other method just throws and lets UseCase.call()
+/// convert the exception to a Failure via NetworkErrorHandler.
 class ${p}RepositoryImpl implements I${p}Repository {
   const ${p}RepositoryImpl(this._remote, this._local, this._network);
 
@@ -278,8 +303,11 @@ class ${p}RepositoryImpl implements I${p}Repository {
         final fresh = ${remote('getAll()')};
         await _local.cacheAll(fresh);
         return Result.success(fresh.map((m) => m.toEntity()).toList());
-      } catch (_) {
-        // Network failed — fall through to the cache below.
+      } catch (e, st) {
+        // Logged, not swallowed: a 404/bad config/parse error looks identical
+        // to "offline" otherwise — this keeps the graceful cache fallback but
+        // surfaces real bugs instead of a silently empty list.
+        AppLogger.w('$featureName.getAll() failed — falling back to cache', error: e, stackTrace: st);
       }
     }
     final cached = await _local.getAll();
@@ -292,13 +320,13 @@ class ${p}RepositoryImpl implements I${p}Repository {
       try {
         final fresh = ${remote('getById(id)')};
         return Result.success(fresh.toEntity());
-      } catch (_) {
-        // Network failed — fall through to the cache below.
+      } catch (e, st) {
+        AppLogger.w('$featureName.getById() failed — falling back to cache', error: e, stackTrace: st);
       }
     }
     final cached = await _local.getById(id);
     if (cached == null) {
-      return Result.failure('Not available offline.');
+      return Result.failure(const Failure(message: 'Not available offline.'));
     }
     return Result.success(cached.toEntity());
   }$writeMethods$watchMethod
@@ -308,75 +336,56 @@ class ${p}RepositoryImpl implements I${p}Repository {
 
     // ── Remote-only, full CRUD ────────────────────────────────────────────────
     if (hasHttpClient) {
-      return '''import 'package:$packageName/core/result/result.dart';
-import 'package:$packageName/features/$featureName/domain/entities/${featureName}_entity.dart';
+      return '''${chopperImport}import 'package:$packageName/features/$featureName/domain/entities/${featureName}_entity.dart';
 import 'package:$packageName/features/$featureName/domain/repositories/i_${featureName}_repository.dart';
 import '../models/${featureName}_model.dart';
 import '../sources/${featureName}_api_source.dart';
 
+/// Throws on failure — UseCase.call() converts the exception to a Failure
+/// via NetworkErrorHandler. No try/catch here: there's no fallback strategy
+/// for a remote-only feature, so catching would just be boilerplate.
 class ${p}RepositoryImpl implements I${p}Repository {
   const ${p}RepositoryImpl(this._remote);
 
   final ${p}ApiSource _remote;
 
   @override
-  Future<Result<List<${p}Entity>>> getAll() async {
-    try {
-      final data = ${remote('getAll()')};
-      return Result.success(data.map((m) => m.toEntity()).toList());
-    } catch (e) {
-      return Result.failure(e.toString());
-    }
+  Future<List<${p}Entity>> getAll() async {
+    final data = ${remote('getAll()')};
+    return data.map((m) => m.toEntity()).toList();
   }
 
   @override
-  Future<Result<${p}Entity>> getById(String id) async {
-    try {
-      final data = ${remote('getById(id)')};
-      return Result.success(data.toEntity());
-    } catch (e) {
-      return Result.failure(e.toString());
-    }
+  Future<${p}Entity> getById(String id) async {
+    final data = ${remote('getById(id)')};
+    return data.toEntity();
   }
 
   @override
-  Future<Result<${p}Entity>> create(${p}Entity entity) async {
-    try {
-      final model = $modelExpr;
-      final created = ${remote('add(model)')};
-      return Result.success(created.toEntity());
-    } catch (e) {
-      return Result.failure(e.toString());
-    }
+  Future<${p}Entity> create(${p}Entity entity) async {
+    final model = $modelExpr;
+    final created = ${remote('add(model)')};
+    return created.toEntity();
   }
 
   @override
-  Future<Result<${p}Entity>> update(${p}Entity entity) async {
-    try {
-      final model = $modelExpr;
-      final updated = ${remote('update(entity.id, model)')};
-      return Result.success(updated.toEntity());
-    } catch (e) {
-      return Result.failure(e.toString());
-    }
+  Future<${p}Entity> update(${p}Entity entity) async {
+    final model = $modelExpr;
+    final updated = ${remote('update(entity.id, model)')};
+    return updated.toEntity();
   }
 
   @override
-  Future<Result<bool>> delete(String id) async {
-    try {
-      await _remote.delete(id);
-      return Result.success(true);
-    } catch (e) {
-      return Result.failure(e.toString());
-    }
+  Future<bool> delete(String id) async {
+    await _remote.delete(id);
+    return true;
   }$watchMethod
 }
 ''';
     }
 
     // ── No HTTP client: read-only local stub ──────────────────────────────────
-    return '''import 'package:$packageName/core/result/result.dart';
-import 'package:$packageName/features/$featureName/domain/entities/${featureName}_entity.dart';
+    return '''import 'package:$packageName/features/$featureName/domain/entities/${featureName}_entity.dart';
 import 'package:$packageName/features/$featureName/domain/repositories/i_${featureName}_repository.dart';
 import '../sources/${featureName}_local_source.dart';
 
@@ -386,23 +395,15 @@ class ${p}RepositoryImpl implements I${p}Repository {
   final ${p}LocalSource _source;
 
   @override
-  Future<Result<List<${p}Entity>>> getAll() async {
-    try {
-      final data = await _source.getAll();
-      return Result.success(data.map((m) => m.toEntity()).toList());
-    } catch (e) {
-      return Result.failure(e.toString());
-    }
+  Future<List<${p}Entity>> getAll() async {
+    final data = await _source.getAll();
+    return data.map((m) => m.toEntity()).toList();
   }
 
   @override
-  Future<Result<${p}Entity>> getById(String id) async {
-    try {
-      final data = await _source.getById(id);
-      return Result.success(data.toEntity());
-    } catch (e) {
-      return Result.failure(e.toString());
-    }
+  Future<${p}Entity> getById(String id) async {
+    final data = await _source.getById(id);
+    return data.toEntity();
   }
 }
 ''';
@@ -693,6 +694,121 @@ class ${p}LocalSource {
     throw UnimplementedError('getById not implemented');
   }
 }
+''';
+  }
+
+  // ── data/repositories/<f>_repository_providers.dart (repository-level DI) ──
+
+  /// Wires the repository-level Riverpod graph: the API source, the local
+  /// source (offline-first), the repository provider — typed to the
+  /// **abstract** domain interface — and the offline sync engine.
+  ///
+  /// Lives in `data/`, not `presentation/`: every provider here is built from
+  /// concrete Data types (ApiSource, Model, RepositoryImpl). Presentation-side
+  /// usecase providers consume only the abstract-typed repository provider
+  /// exposed here — they never import a concrete Data class directly.
+  static String featureRepositoryProviders({
+    required String featureName,
+    required String packageName,
+    required String httpClient,
+    required bool offlineFirst,
+    bool hasSync = false,
+    String? localStoragePackage,
+  }) {
+    final p = pascal(featureName);
+    final c = camel(featureName);
+
+    final imports = StringBuffer();
+    if (hasSync) imports.writeln("import 'dart:convert';\n");
+    imports.writeln("import 'package:riverpod_annotation/riverpod_annotation.dart';");
+    if (offlineFirst) {
+      // Shared app-wide singletons (Drift db + connectivity) live in core, not
+      // per feature, so every feature reuses the same instances.
+      imports.writeln(
+          "import 'package:$packageName/core/providers/infrastructure_providers.dart';");
+    }
+    imports.writeln(switch (httpClient) {
+      'chopper' => "import 'package:$packageName/core/network/chopper_client_provider.dart';",
+      'supabase' => "import 'package:$packageName/core/network/supabase_provider.dart';",
+      'firebase' => "import 'package:$packageName/core/network/firebase_provider.dart';",
+      _ => "import 'package:$packageName/core/network/dio_provider.dart';",
+    });
+    if (hasSync) {
+      imports.writeln("import 'package:$packageName/core/sync/sync_service.dart';");
+    }
+    imports
+      ..writeln(
+          "import 'package:$packageName/features/$featureName/domain/repositories/i_${featureName}_repository.dart';")
+      ..writeln("import '${featureName}_repository_impl.dart';")
+      ..writeln("import '../sources/${featureName}_api_source.dart';");
+    if (hasSync) {
+      imports.writeln("import '../models/${featureName}_model.dart';");
+    }
+    if (offlineFirst) {
+      imports.writeln("import '../sources/${featureName}_local_source.dart';");
+    }
+
+    final apiConstruct = switch (httpClient) {
+      'chopper' => '${p}ApiSource.create(ref.watch(chopperClientProvider))',
+      'supabase' => '${p}ApiSource(ref.watch(supabaseClientProvider))',
+      'firebase' => '${p}ApiSource(ref.watch(firestoreProvider))',
+      _ => '${p}ApiSource(ref.watch(dioProvider))',
+    };
+
+    // appDatabaseProvider + networkInfoProvider come from the shared
+    // core/providers/infrastructure_providers.dart (single instance app-wide).
+    final offlineProviders = offlineFirst
+        ? '''
+
+@Riverpod(keepAlive: true)
+${p}LocalSource ${c}LocalSource(Ref ref) => ${p}LocalSource(ref.watch(appDatabaseProvider));'''
+        : '';
+
+    final repoConstruct = offlineFirst
+        ? '${p}RepositoryImpl(\n      ref.watch(${c}ApiSourceProvider),\n      ref.watch(${c}LocalSourceProvider),\n      ref.watch(networkInfoProvider),\n    )'
+        : '${p}RepositoryImpl(ref.watch(${c}ApiSourceProvider))';
+
+    // Chopper API calls return Response<T>; the result is ignored either way.
+    final syncProvider = hasSync
+        ? '''
+
+/// Drains the offline write queue via the API source when back online.
+/// Auto-starts on first read; cancels its subscription on dispose.
+@Riverpod(keepAlive: true)
+SyncService ${c}Sync(Ref ref) {
+  final api = ref.watch(${c}ApiSourceProvider);
+  final service = SyncService(
+    ref.watch(appDatabaseProvider),
+    ref.watch(networkInfoProvider),
+    (entry) async {
+      final data = entry.payload == null
+          ? const <String, dynamic>{}
+          : jsonDecode(entry.payload!) as Map<String, dynamic>;
+      switch (entry.operation) {
+        case 'create':
+          await api.add(${p}Model.fromJson(data));
+        case 'update':
+          final model = ${p}Model.fromJson(data);
+          await api.update(model.id, model);
+        case 'delete':
+          await api.delete(data['id'] as String);
+      }
+      return true;
+    },
+  )..start();
+  ref.onDispose(service.dispose);
+  return service;
+}'''
+        : '';
+
+    return '''${imports.toString()}
+part '${featureName}_repository_providers.g.dart';
+
+@Riverpod(keepAlive: true)
+${p}ApiSource ${c}ApiSource(Ref ref) => $apiConstruct;$offlineProviders
+
+@Riverpod(keepAlive: true)
+I${p}Repository ${c}Repository(Ref ref) => $repoConstruct;$syncProvider
 ''';
   }
 }

@@ -119,6 +119,13 @@ class GenerateFeatureUsecase {
       }
     }
 
+    // Chopper's built-in JsonConverter can't call a custom Model's fromJson —
+    // register this feature's Model in the shared decoder registry (only
+    // relevant when the new feature actually has a chopper remote source).
+    if (httpClient == 'chopper') {
+      await _registerChopperDecoder(project.path, c.projectName, featureName);
+    }
+
     // Offline-first: inject the feature's typed table + DAO into the Drift
     // package (only when the feature actually keeps a Drift-backed local source).
     if (needsDriftTable) {
@@ -144,6 +151,29 @@ class GenerateFeatureUsecase {
     }
     await _dartFormat(dart, project.path, onLog);
     onLog('[✓✓] Feature "$featureName" added.');
+  }
+
+  // ── Chopper decoder registration (inserts at // neat:chopper-decoders) ─────
+
+  /// Registers [featureName]'s Model in the shared chopper decoder registry
+  /// (see `CoreTemplates.chopperModelConverter`), so its `Response<XModel>` /
+  /// `Response<List<XModel>>` calls decode correctly. No-op if the project has
+  /// no chopper converter file (generated before this fix, or a non-chopper
+  /// stack — the caller already guards on `httpClient == 'chopper'`).
+  Future<void> _registerChopperDecoder(
+    String projectPath,
+    String packageName,
+    String featureName,
+  ) async {
+    final file = File('$projectPath/lib/core/network/chopper_model_converter.dart');
+    if (!file.existsSync()) return;
+    final p = _pascal(featureName);
+    var s = await file.readAsString();
+    s = _insertBefore(s, '// neat:chopper-imports',
+        "import 'package:$packageName/features/$featureName/data/models/${featureName}_model.dart';\n");
+    s = _insertBefore(
+        s, '// neat:chopper-decoders', '  ${p}Model: (json) => ${p}Model.fromJson(json),');
+    await file.writeAsString(s);
   }
 
   // ── Drift table injection (inserts at the // neat: anchors) ────────────────

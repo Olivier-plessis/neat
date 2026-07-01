@@ -424,7 +424,8 @@ final dioProvider = Provider<Dio>((ref) {
       return '''import 'package:chopper/chopper.dart';
 import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-${envImport}import 'package:$packageName/core/observers/logger_interceptor.dart';
+${envImport}import 'package:$packageName/core/network/chopper_model_converter.dart';
+import 'package:$packageName/core/observers/logger_interceptor.dart';
 
 part 'chopper_client_provider.g.dart';
 
@@ -434,7 +435,7 @@ part 'chopper_client_provider.g.dart';
 ChopperClient chopperClient(Ref ref) => ChopperClient(
       baseUrl: Uri.parse($baseUrl),
       interceptors: [if (kDebugMode) LoggerInterceptor()],
-      converter: const JsonConverter(),
+      converter: const ModelJsonConverter(),
       services: const [],
     );
 ''';
@@ -442,17 +443,237 @@ ChopperClient chopperClient(Ref ref) => ChopperClient(
     return '''import 'package:chopper/chopper.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-${envImport}import 'package:$packageName/core/observers/logger_interceptor.dart';
+${envImport}import 'package:$packageName/core/network/chopper_model_converter.dart';
+import 'package:$packageName/core/observers/logger_interceptor.dart';
 
 /// Configured ChopperClient. Register your generated services in [services].
 final chopperClientProvider = Provider<ChopperClient>((ref) {
   return ChopperClient(
     baseUrl: Uri.parse($baseUrl),
     interceptors: [if (kDebugMode) LoggerInterceptor()],
-    converter: const JsonConverter(),
+    converter: const ModelJsonConverter(),
     services: const [],
   );
 });
+''';
+  }
+
+  // ── core/network/chopper_model_converter.dart (chopper JSON → Model) ──────
+
+  /// Chopper's built-in `JsonConverter` only decodes to primitives/Map/List —
+  /// it never calls a custom Model's `fromJson`, so `Response<List<XModel>>`
+  /// throws `FormatException: expected ... to be XModel, but got Map` at
+  /// runtime (dart:convert's decoded JSON stays `Map`/`List`, never becomes
+  /// the target class). [ModelJsonConverter] fixes this with a small
+  /// Type→decoder registry (Dart's generics erase the type, so the generic
+  /// [convertResponse] can't call `InnerType.fromJson()` directly — the
+  /// registry is the workaround). NEAT appends one entry per chopper-backed
+  /// feature, at `// neat:chopper-decoders`, both at generation time and via
+  /// the Workshop.
+  static String chopperModelConverter({
+    required String packageName,
+    required String featureName,
+  }) {
+    final p = _pascal(featureName);
+    return '''import 'dart:async';
+
+import 'package:chopper/chopper.dart';
+import 'package:$packageName/features/$featureName/data/models/${featureName}_model.dart';
+// neat:chopper-imports — feature model imports are inserted above this line.
+
+typedef JsonDecoder = Object Function(Map<String, dynamic> json);
+
+/// Maps each chopper-backed feature's Model to its `fromJson` factory.
+final Map<Type, JsonDecoder> chopperModelDecoders = {
+  ${p}Model: (json) => ${p}Model.fromJson(json),
+  // neat:chopper-decoders — feature decoders are inserted above this line.
+};
+
+/// Decodes chopper responses into the registered Model classes (single object
+/// or list), falling back to the default behaviour for anything not
+/// registered (e.g. `Response<dynamic>` from `delete()`).
+class ModelJsonConverter extends JsonConverter {
+  const ModelJsonConverter();
+
+  @override
+  FutureOr<Response<BodyType>> convertResponse<BodyType, InnerType>(
+    Response response,
+  ) async {
+    final decoder = chopperModelDecoders[InnerType];
+    if (decoder == null) {
+      return super.convertResponse<BodyType, InnerType>(response);
+    }
+
+    // dynamic/dynamic sidesteps decodeJson's own Iterable<InnerType>/Map<String,
+    // InnerType> type-check branches — it leaves body as the raw decoded
+    // Map/List, which chopperModelDecoders below then knows how to convert.
+    final raw = await decodeJson<dynamic, dynamic>(response);
+    final body = raw.body;
+    if (body is List) {
+      // Must build a genuinely-typed List<InnerType> — a List<Object> (what
+      // .map(...).toList() gives without the per-item cast) fails the BodyType
+      // cast below at runtime even though every element is an InnerType.
+      final list = body.map((e) => decoder(e as Map<String, dynamic>) as InnerType).toList();
+      return raw.copyWith<BodyType>(body: list as BodyType);
+    }
+    return raw.copyWith<BodyType>(body: decoder(body as Map<String, dynamic>) as BodyType);
+  }
+}
+
+/// Thrown by [unwrapChopperResponse] on a non-2xx response — carries the
+/// status code + error body so `NetworkErrorHandler` can build a proper
+/// [Failure] instead of a bare "Null check operator used on a null value"
+/// (chopper doesn't throw on HTTP errors by default — it just returns a
+/// `Response` with a null body and `isSuccessful == false`).
+class ChopperApiException implements Exception {
+  const ChopperApiException({required this.statusCode, this.body});
+
+  final int statusCode;
+  final Object? body;
+
+  @override
+  String toString() => 'ChopperApiException(statusCode: \$statusCode, body: \$body)';
+}
+
+/// Unwraps a chopper [Response], throwing [ChopperApiException] on failure
+/// instead of the default force-unwrap (`.body!`).
+T unwrapChopperResponse<T>(Response<T> response) {
+  if (!response.isSuccessful) {
+    throw ChopperApiException(statusCode: response.statusCode, body: response.error ?? response.body);
+  }
+  return response.body as T;
+}
+''';
+  }
+
+  // ── core/network/network_error_handler.dart (Failure mapping) ─────────────
+
+  /// Converts a thrown error into a structured [Failure] — the **only** place
+  /// exceptions are caught and mapped (`UseCase.call` invokes it). Branches on
+  /// [httpClient] so only the relevant client's exception type is imported;
+  /// always generated (even with no http client) since `UseCase.call` always
+  /// references it, and it needs a fallback branch regardless.
+  static String networkErrorHandler({
+    required String packageName,
+    required String httpClient,
+    bool hasRiverpod = true,
+  }) {
+    final isDioLike = httpClient == 'dio' || httpClient == 'retrofit';
+    // ChopperApiException lives in chopper_model_converter.dart, itself only
+    // generated alongside the (Riverpod-wired) chopper client — see
+    // launch_generation_usecase.dart's `httpClient == 'chopper' && hasRiverpod`.
+    final isChopper = httpClient == 'chopper' && hasRiverpod;
+    final isSupabase = httpClient == 'supabase';
+    final isFirebase = httpClient == 'firebase';
+
+    final imports = StringBuffer()
+      ..writeln("import 'package:$packageName/core/error/failure.dart';");
+    if (isDioLike) imports.writeln("import 'package:dio/dio.dart';");
+    if (isChopper) {
+      imports.writeln("import 'package:$packageName/core/network/chopper_model_converter.dart';");
+    }
+    if (isSupabase) imports.writeln("import 'package:supabase_flutter/supabase_flutter.dart';");
+    if (isFirebase) imports.writeln("import 'package:firebase_core/firebase_core.dart';");
+
+    final branches = StringBuffer();
+    if (isDioLike) {
+      branches.writeln('    if (error is DioException) return _handleDioError(error);');
+    }
+    if (isChopper) {
+      branches.writeln('    if (error is ChopperApiException) return _handleChopperError(error);');
+    }
+    if (isSupabase) {
+      branches.write('''    if (error is AuthException) {
+      return Failure(message: error.message, code: error.code, originalError: error);
+    }
+    if (error is PostgrestException) {
+      return Failure(message: error.message, code: error.code, originalError: error);
+    }
+''');
+    }
+    if (isFirebase) {
+      branches.writeln('''    if (error is FirebaseException) {
+      return Failure(message: _firebaseMessage(error), code: error.code, originalError: error);
+    }''');
+    }
+
+    final helpers = StringBuffer();
+    if (isDioLike) {
+      helpers.write('''
+
+  static Failure _handleDioError(DioException error) {
+    return switch (error.type) {
+      DioExceptionType.connectionTimeout ||
+      DioExceptionType.sendTimeout ||
+      DioExceptionType.receiveTimeout => const Failure(
+          message: 'The server took too long to respond. Check your connection.',
+        ),
+      DioExceptionType.connectionError => const Failure(
+          message: 'Could not reach the server. Check your internet connection.',
+        ),
+      DioExceptionType.badResponse => _handleBadStatus(error.response?.statusCode, error),
+      DioExceptionType.cancel => const Failure(message: 'The request was cancelled.'),
+      _ => Failure(message: 'A network error occurred (\${error.message}).', originalError: error),
+    };
+  }
+
+  static Failure _handleBadStatus(int? statusCode, Object originalError) {
+    final message = switch (statusCode) {
+      400 => 'Invalid request.',
+      401 => 'Your session has expired. Please sign in again.',
+      403 => 'You are not authorized to do this.',
+      404 => 'The requested resource was not found.',
+      409 => 'This resource already exists.',
+      422 => 'Invalid data.',
+      500 => 'Internal server error. Please try again later.',
+      _ => 'A server error occurred\${statusCode == null ? '' : ' (\$statusCode)'}.',
+    };
+    return Failure(message: message, statusCode: statusCode, originalError: originalError);
+  }''');
+    }
+    if (isChopper) {
+      helpers.write('''
+
+  static Failure _handleChopperError(ChopperApiException error) {
+    final message = switch (error.statusCode) {
+      400 => 'Invalid request.',
+      401 => 'Your session has expired. Please sign in again.',
+      403 => 'You are not authorized to do this.',
+      404 => 'The requested resource was not found.',
+      409 => 'This resource already exists.',
+      422 => 'Invalid data.',
+      500 => 'Internal server error. Please try again later.',
+      _ => 'A server error occurred (\${error.statusCode}).',
+    };
+    return Failure(message: message, statusCode: error.statusCode, originalError: error);
+  }''');
+    }
+    if (isFirebase) {
+      helpers.write('''
+
+  static String _firebaseMessage(FirebaseException error) => switch (error.code) {
+        'permission-denied' => 'You are not authorized to do this.',
+        'not-found' => 'The requested resource was not found.',
+        'already-exists' => 'This resource already exists.',
+        'unavailable' => 'The service is temporarily unavailable. Please try again.',
+        'unauthenticated' => 'Your session has expired. Please sign in again.',
+        _ => error.message ?? 'A server error occurred.',
+      };''');
+    }
+
+    return '''${imports.toString()}
+/// Converts a thrown error into a structured [Failure]. This is the **only**
+/// place exceptions are caught and mapped — [UseCase.call] invokes it.
+class NetworkErrorHandler {
+  static Failure handle(Object error) {
+    // Already structured (e.g. thrown by Result.getOrThrow() in the
+    // offline-first read path) — pass it through unchanged.
+    if (error is Failure) return error;
+$branches
+    return Failure(message: 'An unexpected error occurred.', originalError: error);
+  }
+$helpers
+}
 ''';
   }
 
@@ -955,7 +1176,7 @@ immediately, then the operation is appended to the Outbox.
 
 ```dart
 final create = ref.read(create${p}UsecaseProvider);
-await create.execute(${p}Entity($sampleArgs));
+await create(${p}Entity($sampleArgs)); // usecase(params) — never .execute() directly
 // → row upserted locally now; POST replayed automatically once online.
 ```
 
@@ -996,8 +1217,9 @@ $packageName/
     │   ${hasSync ? '└── sync/sync_service.dart    # Outbox replay engine' : ''}
     └── features/$featureName/
         ├── data/sources/             # ${p}ApiSource (remote) + ${p}LocalSource (Drift)
-        ├── data/repositories/        # offline-first orchestration
-        └── presentation/providers/   # ${featureName}_providers.dart (the DI graph)
+        ├── data/repositories/        # offline-first orchestration +
+        │                             # ${featureName}_repository_providers.dart (repository-level DI)
+        └── presentation/providers/   # ${featureName}_usecase_providers.dart (usecase-level DI)
 ```
 
 ## Data flow
@@ -1013,8 +1235,13 @@ ${hasSync ? '''write → repository.create/update/delete()
 
 ## Wiring (already done)
 
-Everything is wired as `keepAlive` Riverpod providers in
-`lib/features/$featureName/presentation/providers/${featureName}_providers.dart`:
+Everything is wired as `keepAlive` Riverpod providers, split by layer so
+presentation never touches a concrete Data type (only the abstract repository
+provider, exposed from data/) — see `docs/ARCHITECTURE.md` if generated, or
+AGENTS.md, for the full rule:
+
+`lib/features/$featureName/data/repositories/${featureName}_repository_providers.dart`
+(repository-level DI):
 
 | Provider | What it gives |
 |---|---|
@@ -1022,15 +1249,21 @@ Everything is wired as `keepAlive` Riverpod providers in
 | `appDatabaseProvider` | the Drift `AppDatabase` |
 | `${c}LocalSourceProvider` | Drift-backed local source |
 | `networkInfoProvider` | connectivity wrapper |
-| `${c}RepositoryProvider` | offline-first repository |
-| `get/create/update/delete${p}UsecaseProvider` | the usecases |
+| `${c}RepositoryProvider` | offline-first repository (abstract-typed) |
 ${hasSync ? '| `${c}SyncProvider` | the Outbox sync engine (auto-starts) |' : ''}
+
+`lib/features/$featureName/presentation/providers/${featureName}_usecase_providers.dart`
+(usecase-level DI, built from `${c}RepositoryProvider` above):
+
+| Provider | What it gives |
+|---|---|
+| `get/create/update/delete${p}UsecaseProvider` | the usecases |
 
 ## Reading
 
 ```dart
 final usecase = ref.watch(get${p}UsecaseProvider);
-final result = await usecase.execute(); // local-first, refreshed from the API when online
+final result = await usecase(); // local-first, refreshed from the API when online
 ```
 $writeSection
 
@@ -1053,26 +1286,28 @@ into the core dio/chopper client provider. The API source's per-resource path
 
   // ── core/error/failure.dart ───────────────────────────────────────────────
 
-  static String failure() => r'''sealed class Failure {
-  const Failure(this.message);
+  /// A structured application error — the payload carried by `Result.failure`.
+  /// Built by `NetworkErrorHandler.handle` from whatever a [UseCase.call]
+  /// caught (a client-specific exception, or a [Failure] already thrown by a
+  /// repository — see the offline-first read path in the generated repository).
+  static String failure() => r'''class Failure {
+  const Failure({required this.message, this.statusCode, this.code, this.originalError});
+
+  /// User-facing message.
   final String message;
-}
 
-final class NetworkFailure extends Failure {
-  const NetworkFailure([super.message = 'Network error. Please check your connection.']);
-}
+  /// HTTP status code, when the failure came from a network response.
+  final int? statusCode;
 
-final class ServerFailure extends Failure {
-  const ServerFailure([super.message = 'Server error. Please try again later.']);
-  final int? statusCode = null;
-}
+  /// A machine-readable error code from the backend (e.g. Firebase's
+  /// 'permission-denied'), when available.
+  final String? code;
 
-final class CacheFailure extends Failure {
-  const CacheFailure([super.message = 'Cache error. Please try again.']);
-}
+  /// The original thrown error, kept for logging/debugging.
+  final Object? originalError;
 
-final class UnknownFailure extends Failure {
-  const UnknownFailure([super.message = 'An unexpected error occurred.']);
+  @override
+  String toString() => 'Failure(message: $message, code: $code, statusCode: $statusCode)';
 }
 ''';
 

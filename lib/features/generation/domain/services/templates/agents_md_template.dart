@@ -65,8 +65,18 @@ class AgentsMdTemplate {
     b.writeln('**Rules**\n');
     b.writeln('- Each feature is self-contained — never import another feature\'s internals.');
     b.writeln('- **`domain/` never imports `data/` or `presentation/`** (dependency rule).');
-    b.writeln('- Errors flow as `Result<T>` from `lib/core/result/result.dart` — no exceptions across layers.');
-    b.writeln('- Usecases extend `UseCase<Params, T>` / `NoParamsUseCase<T>` (`lib/core/usecases/use_case.dart`).\n');
+    b.writeln('- Repositories **throw** on failure (no try/catch there — no fallback strategy to justify one). '
+        '`UseCase.call` is the *only* place that catches: it converts the exception to a `Failure` via '
+        '`NetworkErrorHandler` and returns a `Result<T>` (`lib/core/result/result.dart`).');
+    b.writeln('- Usecases extend `UseCase<Params, T>` / `NoParamsUseCase<T>` (`lib/core/usecases/use_case.dart`). '
+        '**Always invoke via the callable shorthand — `usecase(params)` — never `usecase.execute(params)` '
+        'directly**, which has no error handling of its own.');
+    if (offline) {
+      b.writeln('- Exception: the offline-first list/detail reads (`getAll`/`getById`) return `Result<T>` '
+          '**directly** from the repository — they encapsulate a network→cache fallback strategy, not '
+          'boilerplate error handling, so they bypass the generic wrapping (see `featureGetUsecase`).');
+    }
+    b.writeln();
 
     // ── State management ────────────────────────────────────────────────────
     if (hasRiverpod) {
@@ -79,8 +89,13 @@ class AgentsMdTemplate {
       }
       b.writeln('- `ref.watch` inside `build()`; `ref.read` only in callbacks — never `ref.read` in `build()`.');
       b.writeln('- One `ProviderScope` at the app root already exists — do not nest another.');
-      b.writeln('- A feature\'s dependency graph (sources → repository → usecases) is wired in '
-          '`presentation/providers/<feature>_providers.dart`.');
+      b.writeln('- The dependency graph is wired in **two** files, split by layer:\n'
+          '  - `data/repositories/<feature>_repository_providers.dart` — ApiSource, LocalSource, '
+          'the repository (abstract-typed)${sync ? ', and the offline sync engine' : ''}.\n'
+          '  - `presentation/providers/<feature>_usecase_providers.dart` — the usecases, built from '
+          'the repository provider above.\n'
+          '  **`presentation/` never references a concrete Data class** (ApiSource, Model, '
+          'RepositoryImpl) — only the abstract-typed repository provider exposed from `data/`.');
       if (offline) {
         b.writeln('- **Shared singletons** `appDatabaseProvider` + `networkInfoProvider` live in '
             '`lib/core/providers/infrastructure_providers.dart` — **reference them, never redeclare** '
@@ -119,14 +134,15 @@ class AgentsMdTemplate {
             '`lib/core/bootstrap.dart` from `lib/firebase_options.dart` (regenerate with '
             '`flutterfire configure` for production — see `docs/FIREBASE.md`).');
         b.writeln('- Data access goes through `data/sources/<feature>_api_source.dart` '
-            '(`collection(...)…`, doc id merged into the model) → repository → `Result<T>`. '
-            '**Never call Firestore from widgets or domain.**');
+            '(`collection(...)…`, doc id merged into the model) → repository (throws on failure) → '
+            '`UseCase.call` → `Result<T>`. **Never call Firestore from widgets or domain.**');
       } else {
         b.writeln('- Backend is **Supabase** (`supabase_flutter` SDK). The client provider is '
             '`supabaseClientProvider` (`lib/core/network/supabase_provider.dart`); the SDK is '
             'initialized in `lib/core/bootstrap.dart` from the typed env.');
         b.writeln('- Data access goes through `data/sources/<feature>_api_source.dart` (`.from(table)…`) → '
-            'repository → `Result<T>`. **Never call the client from widgets or domain.**');
+            'repository (throws on failure) → `UseCase.call` → `Result<T>`. **Never call the client from '
+            'widgets or domain.**');
       }
       if (c.generateRealtime) {
         final how = isFirebase ? 'Firestore `.snapshots()`' : "`.stream(primaryKey: ['id'])`";
@@ -158,7 +174,9 @@ class AgentsMdTemplate {
           '(`lib/core/network/`).');
       b.writeln('- Network access goes through `data/sources/<feature>_api_source.dart` → repository. '
           '**Never call the client from widgets or domain.**');
-      b.writeln('- Logging interceptor is pre-wired; responses are mapped to `Result<T>` in the repository.\n');
+      b.writeln('- Logging interceptor is pre-wired. The repository throws on a non-2xx response '
+          '(${c.httpClient == 'chopper' ? '`unwrapChopperResponse` raises `ChopperApiException`' : 'a `DioException`'}); '
+          '`UseCase.call` maps it to `Result<T>` via `NetworkErrorHandler`.\n');
     } else {
       b.writeln('- No HTTP client is enabled. Add one deliberately (and regenerate) rather than calling '
           '`http`/`dio` ad-hoc from widgets.\n');

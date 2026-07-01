@@ -82,6 +82,17 @@ void main() {
         '',
       );
     });
+
+    test('id always converts leniently — never an unsafe `as String` cast', () {
+      // Real APIs (e.g. FakeStore) emit an int/num id. NEAT always types id as
+      // String, but a plain `json['id'] as String` cast throws at runtime on an
+      // int payload — silently, if the caller swallows the exception (the
+      // offline-first repository does, to fall back to cache on network
+      // errors). Regression for that bug: the id must convert, not cast.
+      final id = const FieldSpec(jsonKey: 'id', dartName: 'id', isId: true).fromJsonExpr();
+      expect(id, "json['id'].toString()");
+      expect(id, isNot(contains('as String')));
+    });
   });
 
   group('title field heuristic', () {

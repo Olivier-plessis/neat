@@ -53,7 +53,12 @@ void main() {
   const repo = 'features/orders/data/repositories/orders_repository_impl.dart';
   const getUc = 'features/orders/domain/usecases/get_orders_usecase.dart';
   const crudUc = 'features/orders/domain/usecases/orders_crud_usecases.dart';
-  const di = 'features/orders/presentation/providers/orders_providers.dart';
+  // Split by layer: repository-level DI (ApiSource/LocalSource/Repository/Sync)
+  // lives in data/; usecase-level DI (built from the repository provider) is
+  // the only DI-graph piece left in presentation/ (see the wesioo-inspired
+  // layering fix — presentation never references a concrete Data class).
+  const repoProviders = 'features/orders/data/repositories/orders_repository_providers.dart';
+  const di = 'features/orders/presentation/providers/orders_usecase_providers.dart';
 
   test('full feature (remote + local + usecases) scaffolds every layer', () async {
     await scaffold(hasHttpClient: true, includeLocalSource: true, includeUseCases: true);
@@ -62,6 +67,7 @@ void main() {
     expect(exists(repo), isTrue);
     expect(exists(getUc), isTrue);
     expect(exists(crudUc), isTrue);
+    expect(exists(repoProviders), isTrue);
     expect(exists(di), isTrue);
   });
 
@@ -85,6 +91,8 @@ void main() {
     await scaffold(hasHttpClient: true, includeLocalSource: true, includeUseCases: false);
     expect(exists(getUc), isFalse);
     expect(exists(crudUc), isFalse);
+    expect(exists(repoProviders), isFalse,
+        reason: 'repository-level DI wires into the usecase graph — skipped when they are off');
     expect(exists(di), isFalse, reason: 'the DI graph wires usecases — skipped when they are off');
   });
 }

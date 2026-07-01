@@ -181,24 +181,98 @@ void main() {
         );
       }
       // main delegates to bootstrap; bootstrap guards the zone + wires the observer.
+      // ArchitectureState() defaults to a single `prod` env → collapses to the
+      // unprefixed Env() (see the mono-env-by-default design).
       final mainDart = File('${projectDir.path}/lib/main.dart').readAsStringSync();
-      expect(mainDart, contains('bootstrap(DevEnv())'));
+      expect(mainDart, contains('bootstrap(Env())'));
       final bootstrap = File('${projectDir.path}/lib/core/bootstrap.dart').readAsStringSync();
       expect(bootstrap, contains('runZonedGuarded'));
       expect(bootstrap, contains('observers: [RiverpodObserver()]'));
 
-      // Ready-to-use DI graph wires the chopper-backed API source + usecases.
-      final di = File(
-        '${projectDir.path}/lib/features/user_profile/presentation/providers/'
-        'user_profile_providers.dart',
+      // Repository-level DI (data/) wires the chopper-backed API source + sync.
+      // Presentation never references a concrete Data class — only the
+      // abstract-typed repository provider exposed here (wesioo-style split).
+      final repoProviders = File(
+        '${projectDir.path}/lib/features/user_profile/data/repositories/'
+        'user_profile_repository_providers.dart',
       ).readAsStringSync();
-      expect(di, contains('UserProfileApiSource.create(ref.watch(chopperClientProvider))'));
+      expect(repoProviders, contains('UserProfileApiSource.create(ref.watch(chopperClientProvider))'));
       // Offline-sync: repository is the 3-arg variant + the sync engine is wired.
-      expect(di, contains('ref.watch(networkInfoProvider)'));
-      expect(di, contains('SyncService userProfileSync(Ref ref)'));
-      expect(di, contains('api.add(UserProfileModel.fromJson(data))'));
-      expect(di, contains('GetUserProfileUsecase'));
-      expect(di, contains('CreateUserProfileUsecase'));
+      expect(repoProviders, contains('ref.watch(networkInfoProvider)'));
+      expect(repoProviders, contains('SyncService userProfileSync(Ref ref)'));
+      expect(repoProviders, contains('api.add(UserProfileModel.fromJson(data))'));
+
+      // Usecase-level DI (presentation/) is built from the repository provider
+      // above — its only import into data/ is the abstract-typed provider.
+      final usecaseProviders = File(
+        '${projectDir.path}/lib/features/user_profile/presentation/providers/'
+        'user_profile_usecase_providers.dart',
+      ).readAsStringSync();
+      expect(usecaseProviders, contains('GetUserProfileUsecase'));
+      expect(usecaseProviders, contains('CreateUserProfileUsecase'));
+      expect(usecaseProviders, isNot(contains('UserProfileApiSource')),
+          reason: 'presentation must never reference a concrete Data class');
+      expect(usecaseProviders, isNot(contains('UserProfileRepositoryImpl')),
+          reason: 'presentation must never reference a concrete Data class');
+
+      // Executable regression probe for Chopper's JsonConverter bug: the
+      // built-in converter only decodes to Map/List — it never calls a custom
+      // Model's fromJson — so `Response<List<XModel>>` throws
+      // `FormatException: expected ... to be XModel, but got Map` at runtime.
+      // `flutter analyze` can't catch this (the generated code compiles fine;
+      // it only fails against a real decoded response). This drives the real
+      // chopper pipeline: an http.Response → ModelJsonConverter.convertResponse.
+      await File('${projectDir.path}/test/_chopper_converter_probe_test.dart').writeAsString('''
+import 'package:chopper/chopper.dart' as chopper;
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:$projectName/core/network/chopper_model_converter.dart';
+import 'package:$projectName/features/user_profile/data/models/user_profile_model.dart';
+
+void main() {
+  test('ModelJsonConverter decodes a list response into typed Models', () async {
+    final httpResponse = http.Response(
+      '[{"id": 1, "name": "Ada"}, {"id": 2, "name": "Grace"}]',
+      200,
+      headers: {'content-type': 'application/json'},
+    );
+    final response = chopper.Response<dynamic>(httpResponse, null);
+
+    final converted = await const ModelJsonConverter()
+        .convertResponse<List<UserProfileModel>, UserProfileModel>(response);
+
+    expect(converted.body, isA<List<UserProfileModel>>());
+    expect(converted.body!.length, 2);
+    expect(converted.body!.first.id, '1');
+    expect(converted.body!.first.name, 'Ada');
+  });
+
+  test('ModelJsonConverter decodes a single-object response', () async {
+    final httpResponse = http.Response(
+      '{"id": 7, "name": "Turing"}',
+      200,
+      headers: {'content-type': 'application/json'},
+    );
+    final response = chopper.Response<dynamic>(httpResponse, null);
+
+    final converted = await const ModelJsonConverter()
+        .convertResponse<UserProfileModel, UserProfileModel>(response);
+
+    expect(converted.body, isA<UserProfileModel>());
+    expect(converted.body!.id, '7');
+  });
+}
+''');
+      final probe = await Process.run(
+        'flutter',
+        ['test', 'test/_chopper_converter_probe_test.dart'],
+        workingDirectory: projectDir.path,
+      );
+      expect(
+        probe.exitCode,
+        0,
+        reason: 'chopper-converter regression probe failed:\n${probe.stdout}\n${probe.stderr}',
+      );
 
       // Workspace Contract (.neat.json) captures the stack for feature gen.
       final contractFile = File('${projectDir.path}/.neat.json');
@@ -325,12 +399,12 @@ void main() {
         reason: 'logger_interceptor.dart missing',
       );
 
-      // Ready-to-use DI graph: dio-backed source + local source + repo. The
-      // shared Drift db + NetworkInfo singletons live in core, not here, so the
-      // feature DI references them instead of redeclaring them.
+      // Repository-level DI (data/): dio-backed source + local source + repo.
+      // The shared Drift db + NetworkInfo singletons live in core, not here, so
+      // the feature DI references them instead of redeclaring them.
       final di = File(
-        '${projectDir.path}/lib/features/user_profile/presentation/providers/'
-        'user_profile_providers.dart',
+        '${projectDir.path}/lib/features/user_profile/data/repositories/'
+        'user_profile_repository_providers.dart',
       ).readAsStringSync();
       expect(di, contains('UserProfileApiSource(ref.watch(dioProvider))'));
       expect(di, contains('ref.watch(appDatabaseProvider)'));
@@ -479,10 +553,11 @@ void main() {
       expect(repoImpl, contains("operation: 'create'"));
       expect(repoImpl, contains("operation: 'delete'"));
 
-      // SyncService is auto-wired in the DI graph (replay via the API source).
+      // SyncService is auto-wired in the repository-level DI graph (data/),
+      // replaying via the API source.
       final di = File(
-        '${projectDir.path}/lib/features/user_profile/presentation/providers/'
-        'user_profile_providers.dart',
+        '${projectDir.path}/lib/features/user_profile/data/repositories/'
+        'user_profile_repository_providers.dart',
       ).readAsStringSync();
       expect(di, contains('SyncService userProfileSync(Ref ref)'));
       expect(di, contains('..start()'));
@@ -876,6 +951,129 @@ void main() {
   );
 
   test(
+    'feature generation (chopper) registers the new feature in the decoder registry',
+    () async {
+      const projectName = 'neat_featgen_chopper';
+      final logs = <String>[];
+
+      final pkgs = <PubPackage>[
+        _dep('hooks_riverpod', '3.3.1'),
+        _dep('flutter_hooks', '0.21.3+1'),
+        _dep('riverpod_annotation', '4.0.2'),
+        _dep('chopper', '8.6.0'),
+        _dep('go_router', '17.2.3'),
+        _dev('riverpod_generator', '4.0.3'),
+        _dev('build_runner', '2.15.0'),
+        _dev('chopper_generator', '8.6.2'),
+      ];
+
+      final identity = IdentityState(
+        name: projectName,
+        organization: 'com.neat.test',
+        projectPath: tempRoot.path,
+        description: 'NEAT chopper feature-gen integration test',
+        targetPlatforms: const ['macos'],
+      );
+      const architecture = ArchitectureState(); // firstFeatureName defaults to 'home'
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: identity,
+          packages: pkgs,
+          architecture: architecture,
+          cicd: const CicdState(),
+          theme: const ThemeEngineState(approach: ThemeApproach.customM3),
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('Base chopper generation threw:\n$e');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+      final project = await const ProjectLoader().load(projectDir.path);
+      expect(project!.contract.httpClient, 'chopper');
+
+      // Witness feature ("home") is already registered at generation time.
+      final converterBefore =
+          File('${projectDir.path}/lib/core/network/chopper_model_converter.dart')
+              .readAsStringSync();
+      expect(converterBefore, contains('HomeModel: (json) => HomeModel.fromJson(json)'));
+
+      // Add a 2nd chopper-backed feature via the Workshop.
+      await const GenerateFeatureUsecase().execute(
+        project: project,
+        options: const FeatureGenOptions(name: 'orders'),
+        onLog: logs.add,
+      );
+
+      final converterAfter =
+          File('${projectDir.path}/lib/core/network/chopper_model_converter.dart')
+              .readAsStringSync();
+      expect(converterAfter, contains('OrdersModel: (json) => OrdersModel.fromJson(json)'));
+      expect(converterAfter,
+          contains("import 'package:$projectName/features/orders/data/models/orders_model.dart';"));
+      // The witness feature's own entry survives the insertion untouched.
+      expect(converterAfter, contains('HomeModel: (json) => HomeModel.fromJson(json)'));
+
+      // Executable probe: the newly Workshop-added feature's Model actually
+      // decodes through the shared converter — not just present as text.
+      await File('${projectDir.path}/test/_chopper_converter_probe_test.dart').writeAsString('''
+import 'package:chopper/chopper.dart' as chopper;
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:$projectName/core/network/chopper_model_converter.dart';
+import 'package:$projectName/features/orders/data/models/orders_model.dart';
+
+void main() {
+  test('Workshop-added feature Model decodes through ModelJsonConverter', () async {
+    final httpResponse = http.Response(
+      '[{"id": 1, "name": "First order"}]',
+      200,
+      headers: {'content-type': 'application/json'},
+    );
+    final response = chopper.Response<dynamic>(httpResponse, null);
+
+    final converted = await const ModelJsonConverter()
+        .convertResponse<List<OrdersModel>, OrdersModel>(response);
+
+    expect(converted.body, isA<List<OrdersModel>>());
+    expect(converted.body!.single.id, '1');
+    expect(converted.body!.single.name, 'First order');
+  });
+}
+''');
+      final probe = await Process.run(
+        'flutter',
+        ['test', 'test/_chopper_converter_probe_test.dart'],
+        workingDirectory: projectDir.path,
+      );
+      expect(
+        probe.exitCode,
+        0,
+        reason: 'Workshop chopper-decoder regression probe failed:\n${probe.stdout}\n${probe.stderr}',
+      );
+
+      // The whole project still analyzes without errors or warnings.
+      final analyze = await Process.run(
+        'flutter',
+        ['analyze', '--no-pub'],
+        workingDirectory: projectDir.path,
+      );
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason: 'chopper feature-gen project analyze reported issues:\n${errorLines.join('\n')}\n\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
+
+  test(
     'feature generation injects a Drift table into an offline-sync project',
     () async {
       const projectName = 'neat_featgen_offline';
@@ -1152,9 +1350,9 @@ void main() {
       expect(src, contains('Future<List<TodoModel>> getAll()'));
       expect(src, contains('Future<void> delete(String id)'));
 
-      // DI wires the source from the supabase client provider.
+      // Repository-level DI (data/) wires the source from the supabase client provider.
       final di = File(
-        '${projectDir.path}/lib/features/todo/presentation/providers/todo_providers.dart',
+        '${projectDir.path}/lib/features/todo/data/repositories/todo_repository_providers.dart',
       ).readAsStringSync();
       expect(di, contains('TodoApiSource(ref.watch(supabaseClientProvider))'));
 
@@ -1261,7 +1459,7 @@ void main() {
         'lib/features/auth/domain/repositories/i_auth_repository.dart',
         'lib/features/auth/data/repositories/auth_repository_impl.dart',
         'lib/features/auth/presentation/providers/auth_provider.dart',
-        'lib/features/auth/presentation/providers/auth_providers.dart',
+        'lib/features/auth/data/repositories/auth_repository_providers.dart',
         'lib/features/auth/presentation/screens/login_screen.dart',
         'lib/features/auth/presentation/screens/signup_screen.dart',
         'lib/features/auth/presentation/screens/forgot_password_screen.dart',
@@ -1530,9 +1728,9 @@ void main() {
       expect(src, contains('Stream<List<TodoModel>> watchAll()'));
       expect(src, contains('.snapshots()'));
 
-      // DI wires the source from the firestore provider.
+      // Repository-level DI (data/) wires the source from the firestore provider.
       final di = File(
-        '${projectDir.path}/lib/features/todo/presentation/providers/todo_providers.dart',
+        '${projectDir.path}/lib/features/todo/data/repositories/todo_repository_providers.dart',
       ).readAsStringSync();
       expect(di, contains('TodoApiSource(ref.watch(firestoreProvider))'));
 
@@ -2098,6 +2296,45 @@ void main() {
       // The list tile shows the inferred title field.
       final page = read('lib/features/product/presentation/pages/product_page.dart');
       expect(page, contains('Text(item.title)'));
+
+      // The id must convert leniently, never `as String` (a real API — this one
+      // included — sends an int id; a bare cast throws at runtime, and the
+      // offline-first repository's broad try/catch swallows it silently,
+      // surfacing as an empty list with no visible error). Static check first:
+      expect(model, contains('fromJson: _idFromJson'));
+      expect(model, isNot(contains("id: json['id'] as String")));
+
+      // Then an *executable* regression probe: actually call Model.fromJson with
+      // an int id and assert it doesn't throw. `flutter analyze` alone can't
+      // catch this class of bug — the unsafe cast is valid Dart, it only fails
+      // at runtime against a real payload.
+      await File('${projectDir.path}/test/_id_coercion_probe_test.dart').writeAsString('''
+import 'package:flutter_test/flutter_test.dart';
+import 'package:$projectName/features/product/data/models/product_model.dart';
+
+void main() {
+  test('ProductModel.fromJson coerces an int id to String', () {
+    final model = ProductModel.fromJson(const {
+      'id': 7,
+      'title': 'Classic Tee',
+      'price': 19.99,
+      'in_stock': true,
+      'created_at': '2024-01-31T10:00:00Z',
+    });
+    expect(model.id, '7');
+  });
+}
+''');
+      final probe = await Process.run(
+        'flutter',
+        ['test', 'test/_id_coercion_probe_test.dart'],
+        workingDirectory: projectDir.path,
+      );
+      expect(
+        probe.exitCode,
+        0,
+        reason: 'id-coercion regression probe failed:\n${probe.stdout}\n${probe.stderr}',
+      );
 
       // Whole project analyzes with zero errors/warnings (codegen included).
       final analyze = await Process.run(
