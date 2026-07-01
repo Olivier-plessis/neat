@@ -523,8 +523,14 @@ class LaunchGenerationUsecase {
     );
 
     // ── core/result ───────────────────────────────────────────────────────
-    await _write('$lib/core/result/result.dart', CoreDartTemplates.coreResultDart());
-    await _write('$lib/core/usecases/use_case.dart', CoreDartTemplates.coreUsecaseDart());
+    await _write(
+      '$lib/core/result/result.dart',
+      CoreDartTemplates.coreResultDart(packageName: packageName),
+    );
+    await _write(
+      '$lib/core/usecases/use_case.dart',
+      CoreDartTemplates.coreUsecaseDart(packageName: packageName),
+    );
 
     // ── core/constants ────────────────────────────────────────────────────
     await _write(
@@ -534,6 +540,18 @@ class LaunchGenerationUsecase {
 
     // ── core/error ────────────────────────────────────────────────────────
     await _write('$lib/core/error/failure.dart', CoreTemplates.failure());
+
+    // ── core/network/network_error_handler.dart ───────────────────────────
+    // The only place exceptions are caught and mapped to a Failure —
+    // UseCase.call() invokes it. Always generated (even with no http client).
+    await _write(
+      '$lib/core/network/network_error_handler.dart',
+      CoreTemplates.networkErrorHandler(
+        packageName: packageName,
+        httpClient: httpClient,
+        hasRiverpod: hasRiverpod,
+      ),
+    );
 
     // ── core/utils ────────────────────────────────────────────────────────
     await _write('$lib/core/utils/extensions.dart', CoreTemplates.extensions());
@@ -581,6 +599,14 @@ class LaunchGenerationUsecase {
       );
     }
     if (httpClient == 'chopper' && hasRiverpod) {
+      // Chopper's built-in JsonConverter can't call a custom Model's
+      // fromJson (it only decodes to Map/List) — this registry-backed
+      // converter fixes that; the witness feature registers itself here,
+      // the Workshop appends more at `// neat:chopper-decoders`.
+      await _write(
+        '$lib/core/network/chopper_model_converter.dart',
+        CoreTemplates.chopperModelConverter(packageName: packageName, featureName: featureName),
+      );
       await _write(
         '$lib/core/network/chopper_client_provider.dart',
         CoreTemplates.chopperClientProvider(
@@ -1134,8 +1160,8 @@ dev_dependencies:
         AuthTemplates.authRepositoryImpl(packageName: packageName, backend: backend, oauth: oauth));
     await _write('$a/presentation/providers/auth_provider.dart',
         AuthTemplates.authProvider(packageName: packageName, backend: backend));
-    await _write('$a/presentation/providers/auth_providers.dart',
-        AuthTemplates.authDi(packageName: packageName, backend: backend));
+    await _write('$a/data/repositories/auth_repository_providers.dart',
+        AuthTemplates.authRepositoryProviders(packageName: packageName, backend: backend));
     await _write('$a/presentation/screens/login_screen.dart',
         AuthTemplates.loginScreen(packageName: packageName, oauth: oauth));
     await _write(

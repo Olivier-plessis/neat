@@ -32,8 +32,8 @@ class PresentationTemplates {
   static String _riverpodListStreamNotifier(String featureName, String packageName) {
     final p = pascal(featureName);
     return '''import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:$packageName/features/$featureName/data/repositories/${featureName}_repository_providers.dart';
 import 'package:$packageName/features/$featureName/domain/entities/${featureName}_entity.dart';
-import '${featureName}_providers.dart';
 
 part '${featureName}_provider.g.dart';
 
@@ -51,7 +51,7 @@ class ${p}Notifier extends _\$${p}Notifier {
     final p = pascal(featureName);
     return '''import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:$packageName/features/$featureName/domain/entities/${featureName}_entity.dart';
-import '${featureName}_providers.dart';
+import '${featureName}_usecase_providers.dart';
 
 part '${featureName}_provider.g.dart';
 
@@ -59,130 +59,36 @@ part '${featureName}_provider.g.dart';
 class ${p}Notifier extends _\$${p}Notifier {
   @override
   Future<List<${p}Entity>> build() async {
-    final result = await ref.watch(get${p}UsecaseProvider).execute();
+    // The callable shorthand invokes UseCase.call(), which wraps execute() in
+    // a Result (converting any thrown error to a Failure) — never call
+    // execute() directly, it has no error handling of its own.
+    final result = await ref.watch(get${p}UsecaseProvider)();
     return result.getOrThrow();
   }
 }
 ''';
   }
 
-  // ── presentation/providers/<f>_providers.dart (ready-to-use DI graph) ─────
+  // ── presentation/providers/<f>_usecase_providers.dart (usecase-level DI) ──
 
-  /// Wires the full feature graph as Riverpod providers: API source (using the
-  /// core dio/chopper provider, so the API_BASE_URL flows in), local source +
-  /// Drift db + NetworkInfo when offline-first, the repository, and the CRUD
-  /// usecases. Generated only with riverpod annotations + a remote source.
-  static String featureDi({
+  /// Wires the Get/Create/Update/Delete usecases as Riverpod providers, each
+  /// built from the **abstract** repository provider exposed by
+  /// `data/repositories/<feature>_repository_providers.dart` — the only file
+  /// under `data/` this ever imports, and only for that abstract-typed
+  /// provider. Presentation never references a concrete Data class (ApiSource,
+  /// Model, RepositoryImpl) directly — matches the wesioo reference pattern.
+  static String featureUsecaseProviders({
     required String featureName,
     required String packageName,
-    required String httpClient,
-    required bool offlineFirst,
-    bool hasSync = false,
-    String? localStoragePackage,
   }) {
     final p = pascal(featureName);
     final c = camel(featureName);
+    return '''import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:$packageName/features/$featureName/data/repositories/${featureName}_repository_providers.dart';
+import 'package:$packageName/features/$featureName/domain/usecases/get_${featureName}_usecase.dart';
+import 'package:$packageName/features/$featureName/domain/usecases/${featureName}_crud_usecases.dart';
 
-    final imports = StringBuffer();
-    if (hasSync) imports.writeln("import 'dart:convert';\n");
-    imports.writeln("import 'package:riverpod_annotation/riverpod_annotation.dart';");
-    if (offlineFirst) {
-      // Shared app-wide singletons (Drift db + connectivity) live in core, not
-      // per feature, so every feature reuses the same instances.
-      imports.writeln(
-          "import 'package:$packageName/core/providers/infrastructure_providers.dart';");
-    }
-    imports.writeln(switch (httpClient) {
-      'chopper' => "import 'package:$packageName/core/network/chopper_client_provider.dart';",
-      'supabase' => "import 'package:$packageName/core/network/supabase_provider.dart';",
-      'firebase' => "import 'package:$packageName/core/network/firebase_provider.dart';",
-      _ => "import 'package:$packageName/core/network/dio_provider.dart';",
-    });
-    if (hasSync) {
-      imports.writeln("import 'package:$packageName/core/sync/sync_service.dart';");
-    }
-    imports
-      ..writeln(
-          "import 'package:$packageName/features/$featureName/data/repositories/${featureName}_repository_impl.dart';")
-      ..writeln(
-          "import 'package:$packageName/features/$featureName/data/sources/${featureName}_api_source.dart';");
-    if (hasSync) {
-      imports.writeln(
-          "import 'package:$packageName/features/$featureName/data/models/${featureName}_model.dart';");
-    }
-    if (offlineFirst) {
-      imports.writeln(
-          "import 'package:$packageName/features/$featureName/data/sources/${featureName}_local_source.dart';");
-    }
-    imports
-      ..writeln(
-          "import 'package:$packageName/features/$featureName/domain/repositories/i_${featureName}_repository.dart';")
-      ..writeln(
-          "import 'package:$packageName/features/$featureName/domain/usecases/get_${featureName}_usecase.dart';")
-      ..writeln(
-          "import 'package:$packageName/features/$featureName/domain/usecases/${featureName}_crud_usecases.dart';");
-
-    final apiConstruct = switch (httpClient) {
-      'chopper' => '${p}ApiSource.create(ref.watch(chopperClientProvider))',
-      'supabase' => '${p}ApiSource(ref.watch(supabaseClientProvider))',
-      'firebase' => '${p}ApiSource(ref.watch(firestoreProvider))',
-      _ => '${p}ApiSource(ref.watch(dioProvider))',
-    };
-
-    // appDatabaseProvider + networkInfoProvider come from the shared
-    // core/providers/infrastructure_providers.dart (single instance app-wide).
-    final offlineProviders = offlineFirst
-        ? '''
-
-@Riverpod(keepAlive: true)
-${p}LocalSource ${c}LocalSource(Ref ref) => ${p}LocalSource(ref.watch(appDatabaseProvider));'''
-        : '';
-
-    final repoConstruct = offlineFirst
-        ? '${p}RepositoryImpl(\n      ref.watch(${c}ApiSourceProvider),\n      ref.watch(${c}LocalSourceProvider),\n      ref.watch(networkInfoProvider),\n    )'
-        : '${p}RepositoryImpl(ref.watch(${c}ApiSourceProvider))';
-
-    // Chopper API calls return Response<T>; the result is ignored either way.
-    final syncProvider = hasSync
-        ? '''
-
-/// Drains the offline write queue via the API source when back online.
-/// Auto-starts on first read; cancels its subscription on dispose.
-@Riverpod(keepAlive: true)
-SyncService ${c}Sync(Ref ref) {
-  final api = ref.watch(${c}ApiSourceProvider);
-  final service = SyncService(
-    ref.watch(appDatabaseProvider),
-    ref.watch(networkInfoProvider),
-    (entry) async {
-      final data = entry.payload == null
-          ? const <String, dynamic>{}
-          : jsonDecode(entry.payload!) as Map<String, dynamic>;
-      switch (entry.operation) {
-        case 'create':
-          await api.add(${p}Model.fromJson(data));
-        case 'update':
-          final model = ${p}Model.fromJson(data);
-          await api.update(model.id, model);
-        case 'delete':
-          await api.delete(data['id'] as String);
-      }
-      return true;
-    },
-  )..start();
-  ref.onDispose(service.dispose);
-  return service;
-}'''
-        : '';
-
-    return '''${imports.toString()}
-part '${featureName}_providers.g.dart';
-
-@Riverpod(keepAlive: true)
-${p}ApiSource ${c}ApiSource(Ref ref) => $apiConstruct;$offlineProviders
-
-@Riverpod(keepAlive: true)
-I${p}Repository ${c}Repository(Ref ref) => $repoConstruct;
+part '${featureName}_usecase_providers.g.dart';
 
 @Riverpod(keepAlive: true)
 Get${p}Usecase get${p}Usecase(Ref ref) => Get${p}Usecase(ref.watch(${c}RepositoryProvider));
@@ -197,7 +103,7 @@ Update${p}Usecase update${p}Usecase(Ref ref) =>
 
 @Riverpod(keepAlive: true)
 Delete${p}Usecase delete${p}Usecase(Ref ref) =>
-    Delete${p}Usecase(ref.watch(${c}RepositoryProvider));$syncProvider
+    Delete${p}Usecase(ref.watch(${c}RepositoryProvider));
 ''';
   }
 
@@ -278,6 +184,7 @@ class ${p}Error extends ${p}State {
     return '''import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:skeletonizer/skeletonizer.dart';
+import 'package:$packageName/core/error/failure.dart';
 import 'package:$packageName/core/theme/theme_mode_controller.dart';
 ${i18nImports}import 'package:$packageName/features/$featureName/domain/entities/${featureName}_entity.dart';
 import 'package:$packageName/features/$featureName/presentation/providers/${featureName}_provider.dart';
@@ -303,7 +210,8 @@ class ${p}Page extends ConsumerWidget {
         onRefresh: () async => ref.invalidate(${c}Provider),
         child: switch (state) {
           AsyncData(:final value) => _${p}List(items: value),
-          AsyncError(:final error) => _${p}List.error(error.toString()),
+          AsyncError(:final error) =>
+            _${p}List.error(error is Failure ? error.message : error.toString()),
           _ => Skeletonizer(
               child: _${p}List(
                 items: List.generate(

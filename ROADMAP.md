@@ -155,6 +155,72 @@ foundation everything else is configured through.
   enrichment (dependabot/codeql). Per-feature packages → the "Modular Monorepo"
   variant of #6.
 
+### 5c. Layered DI graph — ✅ (dependency-rule fix, wesioo-aligned)
+- **The defect**: the generated `<feature>_providers.dart` (repository-level
+  wiring: ApiSource, LocalSource, Repository, Sync) lived under
+  `presentation/providers/`, importing concrete Data classes (ApiSource, Model,
+  RepositoryImpl) directly from a file physically inside the presentation tree.
+  Not a runtime bug (the actual notifier/widget only ever touched the usecase),
+  but a real import-graph smell — and something AGENTS.md was actively
+  documenting as the pattern to reproduce.
+- **The fix**, validated against a real production reference (**wesioo**):
+  split into `data/repositories/<feature>_repository_providers.dart` (ApiSource
+  + LocalSource + Repository + Sync — all Data-layer wiring) and
+  `presentation/providers/<feature>_usecase_providers.dart` (usecase providers
+  only, built from the repository provider — the **one** file presentation ever
+  imports from `data/`, and only for that abstract-typed provider). Same split
+  applied to `auth_repository_providers.dart` (was `auth_providers.dart`).
+  AGENTS.md now documents the two-file split and the rule explicitly.
+- **wesioo is the architecture reference going forward** for NEAT's generated
+  code — when a design question comes up, check what wesioo does before
+  inventing a convention.
+- Harness-proven (chopper+offline-sync, offline+sync, Workshop add-feature,
+  Workshop Drift injection, Supabase auth — all re-verified after the split;
+  analyze 0/0).
+
+### 5d. Centralised error handling — ✅ (wesioo-aligned)
+- **The defect**: every repository method (`getAll`/`getById`/`create`/`update`/
+  `delete`, across dio/chopper/supabase/firebase, offline-first or not) had its
+  own `try/catch { return Result.failure(e.toString()) }` — duplicated N times,
+  never structured (no status code, no error code, just a raw string). NEAT also
+  shipped a full `Failure` sealed-class hierarchy
+  (`NetworkFailure`/`ServerFailure`/`CacheFailure`/`UnknownFailure`) that **nothing
+  ever constructed or referenced** — dead code in every generated project.
+  Chopper additionally force-unwrapped `.body!` on non-2xx responses, producing
+  an opaque "Null check operator used on a null value" instead of a status code.
+- **The fix**, matching wesioo's `UseCase.call()` pattern exactly:
+  - `Failure` is now one concrete class (`message` + `statusCode` + `code` +
+    `originalError`), and `Result<T>.failure` carries it (not a `String`).
+  - Repositories **throw** — no try/catch, no fallback logic to justify one —
+    for remote-only, local-only, and offline-first *write* paths. Chopper
+    responses are unwrapped via `unwrapChopperResponse` (throws
+    `ChopperApiException(statusCode, body)` on non-2xx, instead of a blind
+    `.body!`).
+  - `UseCase.call()` is the **one** place exceptions are caught: it wraps
+    `execute()` and converts whatever was thrown into a `Failure` via a new
+    per-httpClient `NetworkErrorHandler` (dio/retrofit → `DioException`;
+    chopper → `ChopperApiException`; supabase → `AuthException`/
+    `PostgrestException`; firebase → `FirebaseException`; always a generic
+    fallback branch). Presentation invokes usecases via the **callable
+    shorthand** (`usecase(params)`) — never `.execute()` directly, which has no
+    error handling of its own.
+  - **Deliberate exception**: offline-first `getAll`/`getById` keep their own
+    try/catch — a network→cache fallback is a resilience *strategy*, not
+    boilerplate error handling, so it doesn't fit the generic catch-and-wrap
+    model. They return `Result<T>` directly from the repository; their usecase
+    unwraps via `result.getOrThrow()` (which throws the `Failure` object itself,
+    not a re-wrapped one) so `UseCase.call()` still uniformly re-wraps it —
+    every usecase in a generated project is invoked the same way, no exceptions
+    to the calling convention.
+- `NoParamsUseCase<T>` is now `UseCase<Unit, T>` (wesioo's shape) — `execute`
+  takes an (ignored) `Unit` param so the whole hierarchy stays one generic base.
+- Harness-proven across **every** httpClient × storage-strategy combination (the
+  full 20-test integration suite, not a subset — this refactor's blast radius is
+  every single generated feature). Also fixed two bugs found along the way: a
+  latent import bug in the Supabase-realtime `StreamNotifier` (introduced by the
+  §5c split, watching a provider from the wrong file) and Auth's repository/
+  screens not yet updated to the `Failure`-typed `Result`.
+
 ### 6. Multiple architectures — later, with caution
 - The harness makes **every** architecture a ~3× maintenance cost (each must be proven).
   **Clean done deeply > 3 architectures done shallowly.** If adding one, MVVM at most;

@@ -101,6 +101,32 @@ void main() {
     });
   });
 
+  group('CoreTemplates.chopperModelConverter', () {
+    // Regression: Chopper's built-in JsonConverter can't call a custom Model's
+    // fromJson (it only decodes to Map/List), so Response<List<XModel>> throws
+    // FormatException at runtime. This registry-backed converter is the fix —
+    // see the executable probes in full_generation_integration_test.dart for
+    // proof it actually decodes real responses.
+    final out = CoreTemplates.chopperModelConverter(packageName: pkgName, featureName: feature);
+
+    test('registers the witness feature\'s Model', () {
+      expect(out, contains('UserProfileModel: (json) => UserProfileModel.fromJson(json)'));
+      expect(
+        out,
+        contains("import 'package:my_app/features/user_profile/data/models/user_profile_model.dart';"),
+      );
+    });
+
+    test('carries both Workshop insertion anchors', () {
+      expect(out, contains('// neat:chopper-imports'));
+      expect(out, contains('// neat:chopper-decoders'));
+    });
+
+    test('falls back to the default converter for unregistered types', () {
+      expect(out, contains('return super.convertResponse<BodyType, InnerType>(response);'));
+    });
+  });
+
   group('AppTemplates.mainDart', () {
     final riverpod = [
       const PubPackage(name: 'hooks_riverpod', version: '3.3.1', description: ''),

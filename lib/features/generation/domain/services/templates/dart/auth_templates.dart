@@ -44,6 +44,7 @@ abstract interface class IAuthRepository {
       _guard(() => _auth.signInWithProvider(AppleAuthProvider()));'''
           : '';
       return '''import 'package:firebase_auth/firebase_auth.dart';
+import 'package:$packageName/core/error/failure.dart';
 import 'package:$packageName/core/result/result.dart';
 import 'package:$packageName/features/auth/domain/repositories/i_auth_repository.dart';
 
@@ -72,15 +73,16 @@ class AuthRepositoryImpl implements IAuthRepository {
       await action();
       return Result.success(true);
     } on FirebaseAuthException catch (e) {
-      return Result.failure(e.message ?? e.code);
+      return Result.failure(Failure(message: e.message ?? e.code, code: e.code, originalError: e));
     } catch (e) {
-      return Result.failure(e.toString());
+      return Result.failure(Failure(message: e.toString(), originalError: e));
     }
   }
 }
 ''';
     }
     return '''import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:$packageName/core/error/failure.dart';
 import 'package:$packageName/core/result/result.dart';
 import 'package:$packageName/features/auth/domain/repositories/i_auth_repository.dart';
 
@@ -109,9 +111,9 @@ class AuthRepositoryImpl implements IAuthRepository {
       await action();
       return Result.success(true);
     } on AuthException catch (e) {
-      return Result.failure(e.message);
+      return Result.failure(Failure(message: e.message, code: e.code, originalError: e));
     } catch (e) {
-      return Result.failure(e.toString());
+      return Result.failure(Failure(message: e.toString(), originalError: e));
     }
   }
 }
@@ -164,8 +166,12 @@ class AuthController extends _\$AuthController {
 ''';
   }
 
-  // ── presentation/providers/auth_providers.dart (DI) ───────────────────────
-  static String authDi({required String packageName, String backend = 'supabase'}) {
+  // ── data/repositories/auth_repository_providers.dart (repository-level DI) ─
+
+  /// Wires `IAuthRepository` (abstract) to `AuthRepositoryImpl` (concrete).
+  /// Lives in `data/` — not `presentation/` — since it's built from a concrete
+  /// Data class; presentation only ever reads the abstract-typed provider.
+  static String authRepositoryProviders({required String packageName, String backend = 'supabase'}) {
     final isFirebase = backend == 'firebase';
     final providerImport = isFirebase
         ? "import 'package:$packageName/core/network/firebase_provider.dart';"
@@ -176,7 +182,7 @@ $providerImport
 import 'package:$packageName/features/auth/data/repositories/auth_repository_impl.dart';
 import 'package:$packageName/features/auth/domain/repositories/i_auth_repository.dart';
 
-part 'auth_providers.g.dart';
+part 'auth_repository_providers.g.dart';
 
 @Riverpod(keepAlive: true)
 IAuthRepository authRepository(Ref ref) =>
@@ -322,7 +328,7 @@ class RouterNotifier extends _\$RouterNotifier implements Listenable {
                         loading.value = false;
                         result.fold(
                           onSuccess: (_) {},
-                          onFailure: (message) => error.value = message,
+                          onFailure: (failure) => error.value = failure.message,
                         );
                       },
                 icon: const Icon(Icons.login),
@@ -340,7 +346,7 @@ class RouterNotifier extends _\$RouterNotifier implements Listenable {
                         loading.value = false;
                         result.fold(
                           onSuccess: (_) {},
-                          onFailure: (message) => error.value = message,
+                          onFailure: (failure) => error.value = failure.message,
                         );
                       },
                 icon: const Icon(Icons.apple),
@@ -367,7 +373,7 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:$packageName/core/constants/app_route_path.dart';
-import 'package:$packageName/features/auth/presentation/providers/auth_providers.dart';
+import 'package:$packageName/features/auth/data/repositories/auth_repository_providers.dart';
 
 class $className extends HookConsumerWidget {
   const $className({super.key});
@@ -385,7 +391,7 @@ $pwdController    final loading = useState(false);
       loading.value = false;
       result.fold(
         onSuccess: (_) {},
-        onFailure: (message) => error.value = message,
+        onFailure: (failure) => error.value = failure.message,
       );
     }
 
