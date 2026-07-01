@@ -91,6 +91,7 @@ class FeatureScaffolder {
         featureName: featureName,
         packageName: packageName,
         hasHttpClient: hasHttpClient,
+        offlineFirst: offlineFirst,
         realtime: liveList,
       ),
     );
@@ -99,7 +100,11 @@ class FeatureScaffolder {
     if (includeUseCases) {
       await _write(
         '$domainBase/usecases/get_${featureName}_usecase.dart',
-        DomainTemplates.featureGetUsecase(featureName: featureName, packageName: packageName),
+        DomainTemplates.featureGetUsecase(
+          featureName: featureName,
+          packageName: packageName,
+          offlineFirst: offlineFirst,
+        ),
       );
       if (hasHttpClient) {
         await _write(
@@ -135,6 +140,23 @@ class FeatureScaffolder {
         fields: fields,
       ),
     );
+    // The repository-level DI graph (ApiSource/LocalSource/Repository/Sync
+    // providers) lives in data/ — never presentation/ — since it only ever
+    // touches concrete Data types. Only emit it when there's a usecase graph
+    // to wire (mirrors the old DI-graph gate).
+    if (useAnnotations && hasHttpClient && includeUseCases) {
+      await _write(
+        '$dataBase/repositories/${featureName}_repository_providers.dart',
+        DataTemplates.featureRepositoryProviders(
+          featureName: featureName,
+          packageName: packageName,
+          httpClient: httpClient,
+          offlineFirst: offlineFirst,
+          hasSync: hasSync,
+          localStoragePackage: localStoragePackage,
+        ),
+      );
+    }
 
     // data/sources
     if (hasHttpClient) {
@@ -191,17 +213,15 @@ class FeatureScaffolder {
           realtime: liveList,
         ),
       );
-      // The DI graph wires the usecases → only emit it when both exist.
+      // Usecase-level DI wires the usecases to the repository → only emit it
+      // when both exist. The repository-level providers it depends on
+      // (ApiSource/LocalSource/Repository/Sync) live in data/, written above.
       if (useAnnotations && hasHttpClient && includeUseCases) {
         await _write(
-          '$presentationBase/providers/${featureName}_providers.dart',
-          PresentationTemplates.featureDi(
+          '$presentationBase/providers/${featureName}_usecase_providers.dart',
+          PresentationTemplates.featureUsecaseProviders(
             featureName: featureName,
             packageName: packageName,
-            httpClient: httpClient,
-            offlineFirst: offlineFirst,
-            hasSync: hasSync,
-            localStoragePackage: localStoragePackage,
           ),
         );
       }

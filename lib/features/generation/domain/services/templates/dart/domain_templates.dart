@@ -73,24 +73,37 @@ $decls
     required String featureName,
     required String packageName,
     bool hasHttpClient = false,
+    bool offlineFirst = false,
     bool realtime = false,
   }) {
     final p = pascal(featureName);
+    // Offline-first reads return Result<T> directly — they encapsulate a
+    // network→cache fallback strategy, not a boilerplate try/catch, so they
+    // bypass UseCase.call()'s generic Result-wrapping (see featureGetUsecase).
+    // Every other method throws on failure; UseCase.call() wraps it.
+    final resultReads = offlineFirst && hasHttpClient;
+    final readContract = resultReads
+        ? '''
+  Future<Result<List<${p}Entity>>> getAll();
+  Future<Result<${p}Entity>> getById(String id);'''
+        : '''
+  Future<List<${p}Entity>> getAll();
+  Future<${p}Entity> getById(String id);''';
     // A remote source unlocks the full CRUD write contract.
     final writeContract = hasHttpClient
         ? '''
-  Future<Result<${p}Entity>> create(${p}Entity entity);
-  Future<Result<${p}Entity>> update(${p}Entity entity);
-  Future<Result<bool>> delete(String id);'''
+  Future<${p}Entity> create(${p}Entity entity);
+  Future<${p}Entity> update(${p}Entity entity);
+  Future<bool> delete(String id);'''
         : '';
     // Realtime: a live stream of the full list (Supabase `.stream()`).
     final watchContract = realtime ? '\n  Stream<List<${p}Entity>> watchAll();' : '';
-    return '''import 'package:$packageName/core/result/result.dart';
-import '../entities/${featureName}_entity.dart';
+    final resultImport = resultReads ? "import 'package:$packageName/core/result/result.dart';\n" : '';
+    return '''$resultImport'''
+        '''import '../entities/${featureName}_entity.dart';
 
 abstract class I${p}Repository {
-  Future<Result<List<${p}Entity>>> getAll();
-  Future<Result<${p}Entity>> getById(String id);
+$readContract
 $writeContract$watchContract
 }
 ''';
@@ -101,60 +114,73 @@ $writeContract$watchContract
   static String featureGetUsecase({
     required String featureName,
     required String packageName,
+    bool offlineFirst = false,
   }) {
     final p = pascal(featureName);
-    return '''import 'package:$packageName/core/result/result.dart';
-import 'package:$packageName/core/usecases/use_case.dart';
+    // Offline-first: the repository already returns a Result<T> encapsulating
+    // its network→cache fallback (see featureRepositoryImpl / featureIRepository)
+    // — unwrap it via getOrThrow() so UseCase.call() can still uniformly
+    // rewrap it into a Result/Failure. getOrThrow() throws the Failure object
+    // itself on total failure, which NetworkErrorHandler passes through as-is.
+    final body = offlineFirst
+        ? '''async {
+    final result = await _repository.getAll();
+    return result.getOrThrow();
+  }'''
+        : '=> _repository.getAll();';
+    final resultImport =
+        offlineFirst ? "import 'package:$packageName/core/result/result.dart';\n" : '';
+    return '''${resultImport}import 'package:$packageName/core/usecases/use_case.dart';
 import '../entities/${featureName}_entity.dart';
 import '../repositories/i_${featureName}_repository.dart';
 
-class Get${p}Usecase extends NoParamsUseCase<Result<List<${p}Entity>>> {
+class Get${p}Usecase extends NoParamsUseCase<List<${p}Entity>> {
   const Get${p}Usecase(this._repository);
 
   final I${p}Repository _repository;
 
   @override
-  Future<Result<List<${p}Entity>>> execute() => _repository.getAll();
+  Future<List<${p}Entity>> execute(Unit _) $body
 }
 ''';
   }
 
-  /// CRUD write usecases (generated when a remote source is present).
+  /// CRUD write usecases (generated when a remote source is present). The
+  /// repository throws on failure — UseCase.call() converts it to a Failure.
   static String featureCrudUsecases({
     required String featureName,
     required String packageName,
   }) {
     final p = pascal(featureName);
-    return '''import 'package:$packageName/core/result/result.dart';
-import 'package:$packageName/core/usecases/use_case.dart';
+    return '''import 'package:$packageName/core/usecases/use_case.dart';
 import '../entities/${featureName}_entity.dart';
 import '../repositories/i_${featureName}_repository.dart';
 
-class Create${p}Usecase extends UseCase<${p}Entity, Result<${p}Entity>> {
+class Create${p}Usecase extends UseCase<${p}Entity, ${p}Entity> {
   const Create${p}Usecase(this._repository);
 
   final I${p}Repository _repository;
 
   @override
-  Future<Result<${p}Entity>> execute(${p}Entity entity) => _repository.create(entity);
+  Future<${p}Entity> execute(${p}Entity entity) => _repository.create(entity);
 }
 
-class Update${p}Usecase extends UseCase<${p}Entity, Result<${p}Entity>> {
+class Update${p}Usecase extends UseCase<${p}Entity, ${p}Entity> {
   const Update${p}Usecase(this._repository);
 
   final I${p}Repository _repository;
 
   @override
-  Future<Result<${p}Entity>> execute(${p}Entity entity) => _repository.update(entity);
+  Future<${p}Entity> execute(${p}Entity entity) => _repository.update(entity);
 }
 
-class Delete${p}Usecase extends UseCase<String, Result<bool>> {
+class Delete${p}Usecase extends UseCase<String, bool> {
   const Delete${p}Usecase(this._repository);
 
   final I${p}Repository _repository;
 
   @override
-  Future<Result<bool>> execute(String id) => _repository.delete(id);
+  Future<bool> execute(String id) => _repository.delete(id);
 }
 ''';
   }

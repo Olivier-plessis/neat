@@ -27,9 +27,17 @@ extension FieldCodegen on FieldSpec {
   /// otherwise. The caller places it (indentation differs per context).
   String get jsonKeyAnnotation => needsJsonKey ? "@JsonKey(name: '$jsonKey')" : '';
 
+  /// The id is always typed `String` in NEAT's contract (CRUD/Drift/realtime all
+  /// key on it), but a real API may emit an int/num id (e.g. FakeStore). A plain
+  /// `as String` cast then throws at runtime — silently, if the caller wraps it
+  /// in a broad try/catch (the offline-first repository does, to fall back to
+  /// cache on network errors). So the id always converts leniently instead.
+  String get idFromJsonName => '_idFromJson';
+
   /// A hand-written `fromJson` read for the plain (no json_serializable) model.
   String fromJsonExpr() {
     final raw = "json['$jsonKey']";
+    if (isId) return '$raw.toString()';
     switch (kind) {
       case FieldKind.scalar:
         return _scalarFromJson(raw, dartType, nullable);
