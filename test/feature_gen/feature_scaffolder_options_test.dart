@@ -60,8 +60,16 @@ void main() {
   const repoProviders = 'features/orders/data/repositories/orders_repository_providers.dart';
   const di = 'features/orders/presentation/providers/orders_usecase_providers.dart';
 
-  test('full feature (remote + local + usecases) scaffolds every layer', () async {
-    await scaffold(hasHttpClient: true, includeLocalSource: true, includeUseCases: true);
+  test('full feature (offline-first + usecases) scaffolds every layer', () async {
+    // Local source is only ever referenced by the offline-first 3-source
+    // repository — that requires a Drift-backed project (localStoragePackage),
+    // not just includeLocalSource: true on its own (see the test below).
+    await scaffold(
+      hasHttpClient: true,
+      includeLocalSource: true,
+      includeUseCases: true,
+      localStoragePackage: 'demo_local_storage',
+    );
     expect(exists(api), isTrue);
     expect(exists(local), isTrue);
     expect(exists(repo), isTrue);
@@ -77,6 +85,18 @@ void main() {
     expect(exists(local), isFalse);
     expect(exists(repo), isTrue);
   });
+
+  test(
+    'remote-only storage (no Drift package) omits the local source even with '
+    'includeLocalSource: true — the remote-only repository never takes one, '
+    'so writing it would be dead code',
+    () async {
+      await scaffold(hasHttpClient: true, includeLocalSource: true, includeUseCases: true);
+      expect(exists(api), isTrue);
+      expect(exists(local), isFalse);
+      expect(exists(repo), isTrue);
+    },
+  );
 
   test('local-only feature (no remote) omits the API source & CRUD usecases', () async {
     await scaffold(hasHttpClient: false, includeLocalSource: true, includeUseCases: true);

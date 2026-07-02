@@ -332,8 +332,11 @@ void main() {
         targetPlatforms: const ['macos'],
       );
 
-      final architecture =
-          const ArchitectureState().withFirstFeaturePreset(FirstFeaturePreset.example);
+      const architecture = ArchitectureState(
+        firstFeatureName: 'product',
+        firstFeatureFields: FieldSpec.fakeStoreProduct,
+        firstFeatureApiPath: 'https://fakestoreapi.com/products',
+      );
 
       const cicd = CicdState();
       const theme = ThemeEngineState(approach: ThemeApproach.customM3);
@@ -552,6 +555,191 @@ void main() {
           .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
           .toList();
 
+      expect(
+        errorLines,
+        isEmpty,
+        reason: 'flutter analyze reported errors:\n${errorLines.join('\n')}\n\n'
+            '--- full analyze output ---\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
+
+  test(
+    'generateFirstFeature=false (plain go_router): boots to the welcome '
+    'placeholder, zero features, analyzes cleanly',
+    () async {
+      const projectName = 'neat_gen_nofeature_test';
+      final logs = <String>[];
+      // Plain go_router (no go_router_builder) — isolates the manual routing
+      // welcome-fallback path from the typed one (covered separately below).
+      final noBuilderPackages = <PubPackage>[
+        _dep('hooks_riverpod', '3.3.1'),
+        _dep('flutter_hooks', '0.21.3+1'),
+        _dep('riverpod_annotation', '4.0.2'),
+        _dep('json_annotation', '4.11.0'),
+        _dep('freezed_annotation', '3.1.0'),
+        _dep('dio', '5.9.2'),
+        _dep('go_router', '17.2.3'),
+        _dev('riverpod_generator', '4.0.3'),
+        _dev('riverpod_lint', '3.1.3'),
+        _dev('json_serializable', '6.13.0'),
+        _dev('build_runner', '2.15.0'),
+        _dev('freezed', '3.2.5'),
+      ];
+
+      final identity = IdentityState(
+        name: projectName,
+        organization: 'com.neat.test',
+        projectPath: tempRoot.path,
+        description: 'NEAT no-first-feature integration test',
+        targetPlatforms: const ['macos'],
+      );
+
+      const architecture = ArchitectureState(generateFirstFeature: false);
+      const cicd = CicdState();
+      const theme = ThemeEngineState(approach: ThemeApproach.customM3);
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: identity,
+          packages: noBuilderPackages,
+          architecture: architecture,
+          cicd: cicd,
+          theme: theme,
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('Generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+      expect(projectDir.existsSync(), isTrue, reason: 'project dir was not created');
+      expect(
+        Directory('${projectDir.path}/lib/features').existsSync(),
+        isFalse,
+        reason: 'no first feature was requested — lib/features/ should not exist',
+      );
+
+      final routePath = File(
+        '${projectDir.path}/lib/core/constants/app_route_path.dart',
+      ).readAsStringSync();
+      expect(routePath, contains("static const String welcome = '/';"));
+
+      final router = File('${projectDir.path}/lib/core/router/app_router.dart').readAsStringSync();
+      expect(router, contains('initialLocation: AppRoutePath.welcome'));
+
+      final routes = File('${projectDir.path}/lib/core/router/routes.dart').readAsStringSync();
+      expect(routes, contains('AppRoutePath.welcome'));
+      expect(routes, contains('WelcomePage'));
+
+      expect(
+        File('${projectDir.path}/lib/core/pages/welcome_page.dart').existsSync(),
+        isTrue,
+        reason: 'welcome placeholder page missing',
+      );
+
+      final analyze = await Process.run(
+        'flutter',
+        ['analyze', '--no-pub'],
+        workingDirectory: projectDir.path,
+      );
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      expect(
+        RegExp(r'(\d+ issues? found|No issues found)').hasMatch(out),
+        isTrue,
+        reason: 'flutter analyze did not run as expected:\n$out',
+      );
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason: 'flutter analyze reported errors:\n${errorLines.join('\n')}\n\n'
+            '--- full analyze output ---\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
+
+  test(
+    'generateFirstFeature=false (go_router_builder + offline-first): typed '
+    'welcome route + a zero-table Drift database analyze cleanly',
+    () async {
+      const projectName = 'neat_gen_nofeature_builder_test';
+      final logs = <String>[];
+
+      final identity = IdentityState(
+        name: projectName,
+        organization: 'com.neat.test',
+        projectPath: tempRoot.path,
+        description: 'NEAT no-first-feature (builder + offline) integration test',
+        targetPlatforms: const ['macos'],
+      );
+
+      const architecture = ArchitectureState(
+        generateFirstFeature: false,
+        storageStrategy: StorageStrategy.offlineFirstRead,
+      );
+      const cicd = CicdState();
+      const theme = ThemeEngineState(approach: ThemeApproach.customM3);
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: identity,
+          packages: packages,
+          architecture: architecture,
+          cicd: cicd,
+          theme: theme,
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('Generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+      expect(projectDir.existsSync(), isTrue, reason: 'project dir was not created');
+      expect(Directory('${projectDir.path}/lib/features').existsSync(), isFalse);
+
+      final welcomeRoute = File(
+        '${projectDir.path}/lib/core/router/welcome_route.dart',
+      ).readAsStringSync();
+      expect(welcomeRoute, contains('@TypedGoRoute<WelcomeRoute>(path: AppRoutePath.welcome)'));
+
+      final routes = File('${projectDir.path}/lib/core/router/routes.dart').readAsStringSync();
+      expect(routes, contains('welcome.\$appRoutes'));
+
+      // The workspace + Drift database still get scaffolded (offline-first
+      // was chosen), just with zero tables — the Workshop's existing
+      // table-injection anchor adds the first one once a real feature exists.
+      final projectName2Dir = projectDir.path;
+      final localStorageDb = Directory('$projectName2Dir/packages')
+          .listSync()
+          .whereType<Directory>()
+          .expand((d) => Directory('${d.path}/lib/src').listSync())
+          .whereType<File>()
+          .firstWhere((f) => f.path.endsWith('database.dart'));
+      final dbContent = localStorageDb.readAsStringSync();
+      expect(dbContent, contains('tables: ['));
+      expect(dbContent, isNot(contains('Rows,')), reason: 'no feature table should exist');
+
+      final analyze = await Process.run(
+        'flutter',
+        ['analyze', '--no-pub'],
+        workingDirectory: projectDir.path,
+      );
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      expect(
+        RegExp(r'(\d+ issues? found|No issues found)').hasMatch(out),
+        isTrue,
+        reason: 'flutter analyze did not run as expected:\n$out',
+      );
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
+          .toList();
       expect(
         errorLines,
         isEmpty,
