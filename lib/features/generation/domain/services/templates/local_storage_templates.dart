@@ -49,6 +49,18 @@ export 'package:drift/drift.dart';
 export 'src/database.dart';
 ''';
 
+  /// build_runner config for the package. Turns off drift_dev's fluent
+  /// `db.managers.*` API generation — NEAT's own DAOs never use it, and with
+  /// zero tables (no first feature yet) the generated `$AppDatabaseManager`
+  /// class ends up with an unused field, which fails the analyze gate.
+  static String buildYaml() => '''targets:
+  \$default:
+    builders:
+      drift_dev:
+        options:
+          generate_manager: false
+''';
+
   /// A typed table for [featureName] (columns from the inferred [fields], keyed
   /// on the String id). Reused by the initial database and by feature-gen
   /// injection. The id stays a non-nullable `TextColumn` primary key.
@@ -96,11 +108,13 @@ $columns
   static String database({
     required String featureName,
     bool withOutbox = false,
+    bool includeFirstTable = true,
     List<FieldSpec> fields = FieldSpec.idName,
   }) {
     final p = pascal(featureName);
 
-    final tableEntries = StringBuffer('    ${p}Rows,\n');
+    final tableEntries = StringBuffer();
+    if (includeFirstTable) tableEntries.write('    ${p}Rows,\n');
     if (withOutbox) tableEntries.write('    OutboxEntries,\n');
     tableEntries.write('    // neat:table-names');
 
@@ -155,12 +169,14 @@ class OutboxEntries extends Table {
   }'''
         : '';
 
+    final featureTableBlock = includeFirstTable ? featureTable(featureName, fields: fields) : '';
+
     return '''import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 
 part 'database.g.dart';
 
-${featureTable(featureName, fields: fields)}$outboxTable
+$featureTableBlock$outboxTable
 
 // neat:tables — feature tables are inserted above this line.
 
@@ -175,7 +191,7 @@ class AppDatabase extends _\$AppDatabase {
   @override
   int get schemaVersion => 1;
 
-${featureDao(featureName)}$outboxMethods
+${includeFirstTable ? featureDao(featureName) : ''}$outboxMethods
 
   // neat:daos — feature DAOs are inserted above this line.
 

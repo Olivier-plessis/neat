@@ -14,13 +14,18 @@ class GenerateTreeUsecase {
     required bool hasRiverpod,
     required bool hasBloc,
   }) {
-    final f = state.firstFeatureName.isEmpty ? 'feature' : state.firstFeatureName;
     final lines = <String>[];
     lines.add('lib/');
-    lines.add('├── core/');
+    lines.add(state.generateFirstFeature ? '├── core/' : '└── core/');
     lines.add('│   ├── theme/');
     lines.add('│   ├── router/');
     lines.add('│   └── utils/');
+    if (!state.generateFirstFeature) {
+      // No first feature yet — nothing else to preview (add one via the
+      // Workshop after generation).
+      return lines.join('\n');
+    }
+    final f = state.firstFeatureName.isEmpty ? 'feature' : state.firstFeatureName;
     lines.add('└── features/');
     lines.add('    └── $f/');
     lines.add('        ├── data/');
@@ -60,13 +65,16 @@ class GenerateTreeUsecase {
   }
 
   String _layerFirst(ArchitectureState state, {required bool hasRiverpod, required bool hasBloc}) {
-    final f = state.firstFeatureName.isEmpty ? 'feature' : state.firstFeatureName;
     final lines = <String>[];
     lines.add('lib/');
-    lines.add('├── core/');
+    lines.add(state.generateFirstFeature ? '├── core/' : '└── core/');
     lines.add('│   ├── theme/');
     lines.add('│   ├── router/');
     lines.add('│   └── utils/');
+    if (!state.generateFirstFeature) {
+      return lines.join('\n');
+    }
+    final f = state.firstFeatureName.isEmpty ? 'feature' : state.firstFeatureName;
     lines.add('├── data/');
     lines.add('│   └── $f/');
     lines.add('│       ├── models/');
