@@ -1,4 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:neat/features/architecture/presentation/providers/architecture_provider.dart';
+import 'package:neat/features/cicd/presentation/providers/cicd_provider.dart';
+import 'package:neat/features/dependencies/presentation/providers/dependencies_provider.dart';
+import 'package:neat/features/identity/presentation/providers/identity_provider.dart';
+import 'package:neat/features/theme_engine/presentation/providers/theme_engine_provider.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'stepper_provider.g.dart';
@@ -65,6 +70,24 @@ class CurrentStep extends _$CurrentStep {
   NeatStep build() => NeatStep.hub;
 
   void setStep(NeatStep step) => state = step;
+
+  /// Every wizard-input provider is `keepAlive: true` (state must survive
+  /// navigating *between* steps of one flow) — which also means it survives
+  /// leaving the wizard entirely. Without this, a 2nd "Create New Project"
+  /// (after generating, or after a detour through the Workshop) reopens the
+  /// wizard still full of the previous project's name/architecture/packages/
+  /// theme/CI-CD choices. Call from the Hub's "Create New Project" button.
+  void startNewProject() {
+    ref.invalidate(identityProvider);
+    ref.invalidate(architectureProvider);
+    ref.invalidate(themeEngineProvider);
+    ref.invalidate(extractingImageProvider);
+    ref.invalidate(selectedPackagesProvider);
+    ref.invalidate(searchQueryProvider);
+    ref.invalidate(cicdProvider);
+    ref.read(furthestStepProvider.notifier).reset();
+    state = NeatStep.identity;
+  }
 }
 
 /// The furthest wizard step the user has unlocked (its [NeatStepX.wizardIndex]).
