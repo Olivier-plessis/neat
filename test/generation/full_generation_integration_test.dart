@@ -318,6 +318,251 @@ void main() {
   );
 
   test(
+    'Example feature preset (FakeStore Products): absolute apiPath override '
+    'reaches the real API regardless of the project\'s own base URL',
+    () async {
+      const projectName = 'neat_gen_example_test';
+      final logs = <String>[];
+
+      final identity = IdentityState(
+        name: projectName,
+        organization: 'com.neat.test',
+        projectPath: tempRoot.path,
+        description: 'NEAT example-feature integration test',
+        targetPlatforms: const ['macos'],
+      );
+
+      final architecture =
+          const ArchitectureState().withFirstFeaturePreset(FirstFeaturePreset.example);
+
+      const cicd = CicdState();
+      const theme = ThemeEngineState(approach: ThemeApproach.customM3);
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: identity,
+          packages: packages,
+          architecture: architecture,
+          cicd: cicd,
+          theme: theme,
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('Generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+      expect(projectDir.existsSync(), isTrue, reason: 'project dir was not created');
+
+      // The preset targets fakestoreapi.com directly via an absolute apiPath
+      // override — independent of the project's own (placeholder) API Base
+      // URL — and drops the legacy `/add` suffix (confirmed against the real
+      // API: fakestoreapi.com's create route is `POST /products`, no `/add`).
+      final apiSrc = File(
+        '${projectDir.path}/lib/features/product/data/sources/product_api_source.dart',
+      ).readAsStringSync();
+      expect(apiSrc, contains("baseUrl: 'https://fakestoreapi.com/products'"));
+      expect(apiSrc, isNot(contains('/add')));
+
+      // The nested `rating` object (Phase 1.5) survives through entity/model.
+      // Nullable: fakestoreapi.com's create/update responses omit `rating`
+      // entirely (only GET returns it) — a non-nullable field here would
+      // crash the create-response JSON decode with a Null-is-not-Map cast.
+      final entity = File(
+        '${projectDir.path}/lib/features/product/domain/entities/product_entity.dart',
+      ).readAsStringSync();
+      expect(entity, contains('class ProductEntity'));
+      expect(entity, contains('class RatingEntity'));
+      expect(entity, contains('RatingEntity? rating'));
+
+      // The simple CRUD-UI sheets (detail+delete, add) are scoped to this
+      // preset — see FeatureScaffolder.writeFeature's includeCrudUi doc.
+      final page = File(
+        '${projectDir.path}/lib/features/product/presentation/pages/product_page.dart',
+      ).readAsStringSync();
+      expect(page, contains('_ProductDetailSheet'));
+      expect(page, contains('_ProductCreateSheet'));
+      expect(page, contains("import '../providers/product_usecase_providers.dart';"));
+
+      // Create/delete mutate the notifier's cached list directly (optimistic)
+      // instead of `ref.invalidate` — FakeStore's writes are cosmetic (a
+      // POST/DELETE returns 200 but never actually changes what a
+      // subsequent GET returns), so invalidating would just re-fetch the
+      // unchanged 20 products and make the write look like a no-op.
+      final provider = File(
+        '${projectDir.path}/lib/features/product/presentation/providers/product_provider.dart',
+      ).readAsStringSync();
+      expect(provider, contains('void addItem(ProductEntity item)'));
+      expect(provider, contains('void removeItem(String id)'));
+      expect(page, contains('ref.read(productProvider.notifier).addItem(created)'));
+      expect(page, contains('ref.read(productProvider.notifier).removeItem(item.id)'));
+
+      // build_runner must have produced generated parts (riverpod/freezed).
+      final generatedParts = projectDir
+          .listSync(recursive: true)
+          .whereType<File>()
+          .where((f) => f.path.endsWith('.g.dart') || f.path.endsWith('.freezed.dart'))
+          .toList();
+      expect(
+        generatedParts,
+        isNotEmpty,
+        reason: 'build_runner produced no .g.dart/.freezed.dart parts — codegen failed',
+      );
+
+      // Executable probe: the generated ApiSource really reaches
+      // fakestoreapi.com and decodes real Products, even when the
+      // ChopperClient it's handed is configured with a totally different
+      // base URL — proving the absolute-URL override actually bypasses
+      // Dio/Chopper's configured base (per Request.buildUri: "If [url]
+      // starts with 'http://' or 'https://', baseUrl is ignored"), not just
+      // that the generated source string looks right.
+      await File('${projectDir.path}/test/_example_feature_probe_test.dart').writeAsString('''
+import 'package:chopper/chopper.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:$projectName/core/network/chopper_model_converter.dart';
+import 'package:$projectName/features/product/data/models/product_model.dart';
+import 'package:$projectName/features/product/data/sources/product_api_source.dart';
+
+void main() {
+  final client = ChopperClient(
+    baseUrl: Uri.parse('https://example.invalid'),
+    converter: const ModelJsonConverter(),
+  );
+  final source = ProductApiSource.create(client);
+
+  test(
+    'ProductApiSource.getAll() reaches fakestoreapi.com even with an unrelated ChopperClient base URL',
+    () async {
+      final response = await source.getAll();
+      expect(response.isSuccessful, isTrue, reason: response.error?.toString());
+      expect(response.body, isNotNull);
+      expect(response.body, isNotEmpty);
+      expect(response.body!.first.title, isNotEmpty);
+    },
+  );
+
+  test(
+    'ProductApiSource.add() decodes the real create response, which omits `rating` entirely '
+    '(regression: a non-nullable rating crashes fromJson with a Null-is-not-Map cast)',
+    () async {
+      const model = ProductModel(
+        id: '000000',
+        title: 'NEAT regression probe',
+        price: 1,
+        description: 'd',
+        category: 'c',
+        image: 'i',
+        rating: null,
+      );
+      final response = await source.add(model);
+      expect(response.isSuccessful, isTrue, reason: response.error?.toString());
+      expect(response.body, isNotNull);
+      expect(response.body!.title, 'NEAT regression probe');
+      expect(response.body!.rating, isNull);
+    },
+  );
+}
+''');
+      final probe = await Process.run(
+        'flutter',
+        ['test', 'test/_example_feature_probe_test.dart'],
+        workingDirectory: projectDir.path,
+      );
+      expect(
+        probe.exitCode,
+        0,
+        reason: 'example-feature apiPath-override probe failed:\n${probe.stdout}\n${probe.stderr}',
+      );
+
+      // Executable probe for the optimistic-update fix: ProductNotifier's
+      // addItem/removeItem must actually mutate the *cached* list — proving
+      // the create/delete sheets don't rely on FakeStore's (fake) writes
+      // surviving a refetch. `flutter analyze` can't catch this: the old
+      // `ref.invalidate` code also compiled fine, it just silently discarded
+      // the change against a non-persisting backend.
+      await File('${projectDir.path}/test/_optimistic_update_probe_test.dart').writeAsString('''
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:$projectName/core/env/app_env.dart';
+import 'package:$projectName/core/env/envs/env.dart';
+import 'package:$projectName/features/product/domain/entities/product_entity.dart';
+import 'package:$projectName/features/product/presentation/providers/product_provider.dart';
+
+void main() {
+  test(
+    'ProductNotifier.addItem/removeItem mutate the cached list locally, without a server round-trip',
+    () async {
+      // Providers reach AppEnv.current for the chopper base URL — normally
+      // set by bootstrap() in main(), which this probe bypasses.
+      AppEnv.setEnv(Env());
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      // Let the real initial fetch (fakestoreapi.com) complete first.
+      await container.read(productProvider.future);
+
+      const fake = ProductEntity(
+        id: 'optimistic-test-id',
+        title: 'Optimistic test product',
+        price: 1,
+        description: 'd',
+        category: 'c',
+        image: 'i',
+        rating: RatingEntity(rate: 0, count: 0),
+      );
+
+      container.read(productProvider.notifier).addItem(fake);
+      var list = container.read(productProvider).requireValue;
+      expect(list.any((e) => e.id == 'optimistic-test-id'), isTrue);
+
+      container.read(productProvider.notifier).removeItem('optimistic-test-id');
+      list = container.read(productProvider).requireValue;
+      expect(list.any((e) => e.id == 'optimistic-test-id'), isFalse);
+    },
+  );
+}
+''');
+      final optimisticProbe = await Process.run(
+        'flutter',
+        ['test', 'test/_optimistic_update_probe_test.dart'],
+        workingDirectory: projectDir.path,
+      );
+      expect(
+        optimisticProbe.exitCode,
+        0,
+        reason: 'optimistic-update probe failed:\n${optimisticProbe.stdout}\n${optimisticProbe.stderr}',
+      );
+
+      // Run the analyzer on the generated project.
+      final analyze = await Process.run(
+        'flutter',
+        ['analyze', '--no-pub'],
+        workingDirectory: projectDir.path,
+      );
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+
+      expect(
+        RegExp(r'(\d+ issues? found|No issues found)').hasMatch(out),
+        isTrue,
+        reason: 'flutter analyze did not run as expected:\n$out',
+      );
+
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
+          .toList();
+
+      expect(
+        errorLines,
+        isEmpty,
+        reason: 'flutter analyze reported errors:\n${errorLines.join('\n')}\n\n'
+            '--- full analyze output ---\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
+
+  test(
     'offline-first generates a valid Dart workspace that analyzes cleanly',
     () async {
       const projectName = 'neat_ws_test';

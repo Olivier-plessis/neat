@@ -9,7 +9,8 @@ part 'architecture_provider.g.dart';
 @Riverpod(keepAlive: true)
 class ArchitectureNotifier extends _$ArchitectureNotifier {
   @override
-  ArchitectureState build() => const ArchitectureState();
+  ArchitectureState build() =>
+      const ArchitectureState().withFirstFeaturePreset(FirstFeaturePreset.example);
 
   void setPattern(StructuralPattern pattern) => state = state.copyWith(pattern: pattern);
   void toggleMappers(bool val) => state = state.copyWith(includeMappers: val);
@@ -18,11 +19,19 @@ class ArchitectureNotifier extends _$ArchitectureNotifier {
   void toggleMirrorTest(bool val) => state = state.copyWith(mirrorTestStructure: val);
   void setFirstFeatureName(String val) =>
       state = state.copyWith(firstFeatureName: val.trim());
+  void setFirstFeatureApiPath(String val) =>
+      state = state.copyWith(firstFeatureApiPath: val.trim());
+
+  // ── First-feature onboarding preset ─────────────────────────────────────────
+
+  void setFirstFeaturePreset(FirstFeaturePreset preset) =>
+      state = state.withFirstFeaturePreset(preset);
 
   // ── First-feature entity fields (JSON-driven) ───────────────────────────────
 
   /// Infers the entity fields from a pasted Response JSON and records the raw
   /// JSON + any inference warnings. Empty input restores the id/name default.
+  /// Hand-editing fields this way means "Your entity", not a canned preset.
   void inferFieldsFromJson(String json) {
     if (json.trim().isEmpty) {
       resetFields();
@@ -30,6 +39,7 @@ class ArchitectureNotifier extends _$ArchitectureNotifier {
     }
     final result = const JsonEntityInferencer().infer(json);
     state = state.copyWith(
+      firstFeaturePreset: FirstFeaturePreset.custom,
       firstFeatureJson: json,
       firstFeatureFields: result.fields,
       firstFeatureFieldWarnings: result.warnings,
@@ -38,6 +48,7 @@ class ArchitectureNotifier extends _$ArchitectureNotifier {
 
   /// Back to the default `id`/`name` placeholder (clears JSON + warnings).
   void resetFields() => state = state.copyWith(
+        firstFeaturePreset: FirstFeaturePreset.minimal,
         firstFeatureJson: '',
         firstFeatureFields: FieldSpec.idName,
         firstFeatureFieldWarnings: const [],

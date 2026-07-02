@@ -173,7 +173,7 @@ class _TabButton extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(icon, size: 14, color: isSelected ? AppTheme.colorPrimaryCyan : Colors.white24),
-              gapW8,
+              8.gapW,
               Text(
                 label,
                 style: TextStyle(

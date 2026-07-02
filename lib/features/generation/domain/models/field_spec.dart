@@ -101,6 +101,33 @@ class FieldSpec {
   /// The scalar Dart types the inferencer can produce (also the UI dropdown).
   static const supportedTypes = ['String', 'int', 'double', 'bool', 'DateTime'];
 
+  /// The FakeStore Products schema (`GET https://fakestoreapi.com/products`) —
+  /// NEAT's worked-example feature. Exercises a nested object (`rating`), so
+  /// it also doubles as a real-world Phase 1.5 regression fixture.
+  static const List<FieldSpec> fakeStoreProduct = [
+    FieldSpec(jsonKey: 'id', dartName: 'id', isId: true),
+    FieldSpec(jsonKey: 'title', dartName: 'title'),
+    FieldSpec(jsonKey: 'price', dartName: 'price', dartType: 'double'),
+    FieldSpec(jsonKey: 'description', dartName: 'description'),
+    FieldSpec(jsonKey: 'category', dartName: 'category'),
+    FieldSpec(jsonKey: 'image', dartName: 'image'),
+    FieldSpec(
+      // Nullable: confirmed against the real API — GET returns `rating`, but
+      // POST/PUT responses omit it entirely. A non-nullable field here would
+      // crash the create/update JSON decode with a `Null is not a subtype of
+      // Map` cast error the moment a write actually round-trips.
+      jsonKey: 'rating',
+      dartName: 'rating',
+      nullable: true,
+      kind: FieldKind.object,
+      objectName: 'Rating',
+      children: [
+        FieldSpec(jsonKey: 'rate', dartName: 'rate', dartType: 'double'),
+        FieldSpec(jsonKey: 'count', dartName: 'count', dartType: 'int'),
+      ],
+    ),
+  ];
+
   @override
   bool operator ==(Object other) =>
       other is FieldSpec &&
