@@ -35,6 +35,21 @@ enum StorageStrategy {
       };
 }
 
+/// The first feature's onboarding content.
+enum FirstFeaturePreset {
+  /// FakeStore Products: a full-CRUD worked example against a public API.
+  /// Its API path is a hardcoded **absolute** URL, so it keeps working
+  /// whatever the project's own API Base URL ends up being — it's NEAT's own
+  /// reference feature, not something the user's real API config can pollute.
+  example,
+
+  /// Paste your own JSON response — infers the entity fields (Phase 1 flow).
+  custom,
+
+  /// No preset: just an id/name placeholder.
+  minimal;
+}
+
 @freezed
 abstract class ArchitectureState with _$ArchitectureState {
   const ArchitectureState._();
@@ -65,6 +80,20 @@ abstract class ArchitectureState with _$ArchitectureState {
     /// Human-readable notes from the last inference (coerced id, dropped nested
     /// fields, null types…). Shown under the editor so the user can review/edit.
     @Default(<String>[]) List<String> firstFeatureFieldWarnings,
+
+    /// Overrides the first feature's REST resource path (default:
+    /// `/<firstFeatureName>s`). Either a relative path or an absolute URL — an
+    /// absolute URL overrides the project's API Base URL entirely. Empty →
+    /// the default pluralised path. REST clients only (dio/chopper/retrofit).
+    @Default('') String firstFeatureApiPath,
+
+    /// Onboarding choice for the first feature's content. Defaults to
+    /// [FirstFeaturePreset.minimal] because that's what the *other* raw
+    /// defaults above already are (id/name fields, no path override) — the
+    /// live wizard flips its initial state to [FirstFeaturePreset.example]
+    /// explicitly (see `ArchitectureNotifier.build()`), so this stays the
+    /// neutral default for tests constructing `ArchitectureState()` directly.
+    @Default(FirstFeaturePreset.minimal) FirstFeaturePreset firstFeaturePreset,
 
     /// Data persistence strategy. [StorageStrategy.offlineFirst] switches the
     /// generated project to a workspace with a Drift local-storage package.
@@ -142,6 +171,32 @@ abstract class ArchitectureState with _$ArchitectureState {
 
   /// The production base environment (index clamped to a valid range).
   EnvConfig get baseEnv => environments[baseEnvIndex.clamp(0, environments.length - 1)];
+
+  /// Applies [preset]'s concrete name/fields/path — the single source of
+  /// truth for what each onboarding choice actually means, shared by the
+  /// wizard's initial state and its preset-switch callback. `custom` only
+  /// records the marker: switching to "Your entity" shouldn't wipe JSON the
+  /// user already pasted.
+  ArchitectureState withFirstFeaturePreset(FirstFeaturePreset preset) {
+    return switch (preset) {
+      FirstFeaturePreset.example => copyWith(
+          firstFeaturePreset: preset,
+          firstFeatureName: 'product',
+          firstFeatureFields: FieldSpec.fakeStoreProduct,
+          firstFeatureJson: '',
+          firstFeatureFieldWarnings: const [],
+          firstFeatureApiPath: 'https://fakestoreapi.com/products',
+        ),
+      FirstFeaturePreset.minimal => copyWith(
+          firstFeaturePreset: preset,
+          firstFeatureFields: FieldSpec.idName,
+          firstFeatureJson: '',
+          firstFeatureFieldWarnings: const [],
+          firstFeatureApiPath: '',
+        ),
+      FirstFeaturePreset.custom => copyWith(firstFeaturePreset: preset),
+    };
+  }
 
   /// The first tab's label (falls back to the feature name, capitalised).
   String get effectiveShellLabel {

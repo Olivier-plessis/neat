@@ -14,13 +14,15 @@ class PresentationTemplates {
     required bool useCubit,
     bool dataList = false,
     bool realtime = false,
+    bool includeCrudUi = false,
+    List<FieldSpec> fields = FieldSpec.idName,
   }) {
     if (useCubit) return _cubitTemplate(featureName);
     if (useAnnotations) {
       if (dataList) {
         return realtime
             ? _riverpodListStreamNotifier(featureName, packageName)
-            : _riverpodListNotifier(featureName, packageName);
+            : _riverpodListNotifier(featureName, packageName, includeCrudUi, fields);
       }
       return _riverpodAnnotationTemplate(featureName);
     }
@@ -47,8 +49,33 @@ class ${p}Notifier extends _\$${p}Notifier {
 
   /// Notifier that loads the feature's items via its usecase. `build()` is async
   /// so the UI gets `AsyncValue<List<Entity>>` (loading → Skeletonizer).
-  static String _riverpodListNotifier(String featureName, String packageName) {
+  /// [includeCrudUi] adds local (optimistic) list mutators for create/delete —
+  /// see [_crudSheets]'s doc for why they don't just `ref.invalidate` instead.
+  static String _riverpodListNotifier(
+    String featureName,
+    String packageName, [
+    bool includeCrudUi = false,
+    List<FieldSpec> fields = FieldSpec.idName,
+  ]) {
     final p = pascal(featureName);
+    final idName = idField(fields).dartName;
+    final mutators = includeCrudUi
+        ? '''
+
+  /// Optimistic insert — used instead of `ref.invalidate` because a refetch
+  /// would just replay whatever the remote source *actually* has, which for
+  /// a demo/fake backend (e.g. FakeStore) never reflects the write at all.
+  void addItem(${p}Entity item) {
+    final current = state.value ?? const [];
+    state = AsyncData([...current, item]);
+  }
+
+  /// Optimistic removal — see [addItem].
+  void removeItem(String id) {
+    final current = state.value ?? const [];
+    state = AsyncData(current.where((e) => e.$idName != id).toList());
+  }'''
+        : '';
     return '''import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:$packageName/features/$featureName/domain/entities/${featureName}_entity.dart';
 import '${featureName}_usecase_providers.dart';
@@ -64,7 +91,7 @@ class ${p}Notifier extends _\$${p}Notifier {
     // execute() directly, it has no error handling of its own.
     final result = await ref.watch(get${p}UsecaseProvider)();
     return result.getOrThrow();
-  }
+  }$mutators
 }
 ''';
   }
@@ -158,17 +185,21 @@ class ${p}Error extends ${p}State {
 
   /// A real list screen: renders the feature's items, shows a Skeletonizer
   /// placeholder while loading, pull-to-refresh, and empty/error states.
+  /// [includeCrudUi] additionally wires a tap-for-detail sheet (with delete)
+  /// and an "add" sheet (create) — off by default; only NEAT's own FakeStore
+  /// example feature turns it on today (see field_spec.dart's `fakeStoreProduct`).
   static String _riverpodListPage(
     String featureName,
     String packageName, [
     bool i18n = false,
     List<FieldSpec> fields = FieldSpec.idName,
+    bool includeCrudUi = false,
   ]) {
     final p = pascal(featureName);
     final c = camel(featureName);
     final i18nImports = i18n
         ? "import 'package:$packageName/core/i18n/language_switcher.dart';\n"
-            "import 'package:$packageName/i18n/strings.g.dart';\n"
+              "import 'package:$packageName/i18n/strings.g.dart';\n"
         : '';
     final titleWidget = i18n ? 'Text(context.t.$c.title)' : "const Text('$p')";
     final switcherAction = i18n ? 'const LanguageSwitcher(),\n          ' : '';
@@ -179,8 +210,39 @@ class ${p}Error extends ${p}State {
     final idName = idField(fields).dartName;
     // Skeleton placeholder: a dummy entity per field. Not `const` — a DateTime
     // placeholder isn't a const expression.
-    final placeholderArgs =
-        fields.map((f) => '${f.dartName}: ${f.entityPlaceholder()}').join(', ');
+    final placeholderArgs = fields.map((f) => '${f.dartName}: ${f.entityPlaceholder()}').join(', ');
+
+    // This file lives in presentation/pages/ — the usecase providers live in
+    // the sibling presentation/providers/, hence the `../providers/` prefix
+    // (unlike ${featureName}_provider.dart's own bare-relative import, which
+    // is a same-directory sibling of the usecase providers file).
+    final crudImport = includeCrudUi
+        ? "import '../providers/${featureName}_usecase_providers.dart';\n"
+        : '';
+    final addAction = includeCrudUi
+        ? '''IconButton(
+            icon: const Icon(Icons.add),
+            tooltip: 'Add',
+            onPressed: () => showModalBottomSheet<void>(
+              constraints: BoxConstraints(minWidth: double.infinity),
+              context: context,
+              isScrollControlled: true,
+              builder: (_) => const _${p}CreateSheet(),
+            ),
+          ),
+          '''
+        : '';
+    final onTapArg = includeCrudUi
+        ? '''
+            onTap: (item) => showModalBottomSheet<void>(
+              constraints: BoxConstraints(minWidth: double.infinity),
+              context: context,
+              isScrollControlled: true,
+              builder: (_) => _${p}DetailSheet(item: item),
+            ),'''
+        : '';
+    final crudWidgets = includeCrudUi ? _crudSheets(featureName, packageName, fields) : '';
+
     return '''import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:skeletonizer/skeletonizer.dart';
@@ -188,7 +250,7 @@ import 'package:$packageName/core/error/failure.dart';
 import 'package:$packageName/core/theme/theme_mode_controller.dart';
 ${i18nImports}import 'package:$packageName/features/$featureName/domain/entities/${featureName}_entity.dart';
 import 'package:$packageName/features/$featureName/presentation/providers/${featureName}_provider.dart';
-
+$crudImport
 class ${p}Page extends ConsumerWidget {
   const ${p}Page({super.key});
 
@@ -200,7 +262,7 @@ class ${p}Page extends ConsumerWidget {
       appBar: AppBar(
         title: $titleWidget,
         actions: [
-          ${switcherAction}IconButton(
+          $addAction${switcherAction}IconButton(
             icon: Icon(isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined),
             onPressed: () => ref.read(themeModeControllerProvider.notifier).toggle(),
           ),
@@ -209,7 +271,7 @@ class ${p}Page extends ConsumerWidget {
       body: RefreshIndicator(
         onRefresh: () async => ref.invalidate(${c}Provider),
         child: switch (state) {
-          AsyncData(:final value) => _${p}List(items: value),
+          AsyncData(:final value) => _${p}List(items: value,$onTapArg),
           AsyncError(:final error) =>
             _${p}List.error(error is Failure ? error.message : error.toString()),
           _ => Skeletonizer(
@@ -227,11 +289,12 @@ class ${p}Page extends ConsumerWidget {
 }
 
 class _${p}List extends StatelessWidget {
-  const _${p}List({required this.items}) : error = null;
-  const _${p}List.error(this.error) : items = const [];
+  const _${p}List({required this.items, this.onTap}) : error = null;
+  const _${p}List.error(this.error) : items = const [], onTap = null;
 
   final List<${p}Entity> items;
   final String? error;
+  final void Function(${p}Entity item)? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -254,8 +317,189 @@ class _${p}List extends StatelessWidget {
           leading: const CircleAvatar(child: Icon(Icons.label_outline)),
           title: Text($titleExpr),
           subtitle: Text('id: \${item.$idName}'),
+          onTap: onTap == null ? null : () => onTap!(item),
         );
       },
+    );
+  }
+}
+$crudWidgets''';
+  }
+
+  /// The detail (+ delete) and create bottom sheets for [_riverpodListPage]'s
+  /// [includeCrudUi] mode. Kept deliberately simple: the create form only
+  /// covers scalar, non-id fields (String/int/double/bool) — nested
+  /// object/list fields and DateTime fall back to [FieldSpec.entityPlaceholder],
+  /// same as the list's Skeletonizer placeholder.
+  static String _crudSheets(String featureName, String packageName, List<FieldSpec> fields) {
+    final p = pascal(featureName);
+    final c = camel(featureName);
+    final idName = idField(fields).dartName;
+    final detailRows = fields
+        .map((f) => "Text('${f.dartName}: \${item.${f.dartName}}'),")
+        .join('\n            ');
+
+    final formFields = fields.where((f) => !f.isId && f.isScalar && f.dartType != 'DateTime');
+    final ctrlDecls = formFields
+        .where((f) => f.dartType != 'bool')
+        .map((f) => '  final _${f.dartName}Ctrl = TextEditingController();')
+        .join('\n');
+    final boolDecls = formFields
+        .where((f) => f.dartType == 'bool')
+        .map((f) => '  bool _${f.dartName} = false;')
+        .join('\n');
+    final disposeLines = formFields
+        .where((f) => f.dartType != 'bool')
+        .map((f) => '    _${f.dartName}Ctrl.dispose();')
+        .join('\n');
+    final formWidgets = formFields
+        .map(
+          (f) => f.dartType == 'bool'
+              ? '''CheckboxListTile(
+            title: const Text('${f.dartName}'),
+            value: _${f.dartName},
+            onChanged: (v) => setState(() => _${f.dartName} = v ?? false),
+          ),'''
+              : '''TextField(
+            controller: _${f.dartName}Ctrl,
+            decoration: const InputDecoration(labelText: '${f.dartName}'),
+          ),
+          ''',
+        )
+        .join('\n          ');
+    final ctorArgs = fields
+        .map((f) {
+          if (f.isId || !f.isScalar || f.dartType == 'DateTime')
+            return '${f.dartName}: ${f.entityPlaceholder()}';
+          return switch (f.dartType) {
+            'int' => '${f.dartName}: int.tryParse(_${f.dartName}Ctrl.text) ?? 0',
+            'double' => '${f.dartName}: double.tryParse(_${f.dartName}Ctrl.text) ?? 0.0',
+            'bool' => '${f.dartName}: _${f.dartName}',
+            _ => '${f.dartName}: _${f.dartName}Ctrl.text',
+          };
+        })
+        .join(', ');
+
+    return '''
+
+class _${p}DetailSheet extends ConsumerWidget {
+  const _${p}DetailSheet({required this.item});
+
+  final ${p}Entity item;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 16,
+        right: 16,
+        top: 16,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('$p details', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 12),
+          $detailRows
+          const SizedBox(height: 16),
+          FilledButton.icon(
+            icon: const Icon(Icons.delete_outline),
+            label: const Text('Delete'),
+            onPressed: () async {
+              final result = await ref.read(delete${p}UsecaseProvider)(item.$idName);
+              result.fold(
+                onSuccess: (_) {
+                  // A local (optimistic) removal, not `ref.invalidate` — a
+                  // refetch would just replay whatever the remote source
+                  // *actually* has, which for a demo/fake backend (e.g.
+                  // FakeStore) never reflects the delete at all.
+                  ref.read(${c}Provider.notifier).removeItem(item.$idName);
+                  if (context.mounted) Navigator.of(context).pop();
+                },
+                onFailure: (failure) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context)
+                        .showSnackBar(SnackBar(content: Text(failure.message)));
+                  }
+                },
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _${p}CreateSheet extends ConsumerStatefulWidget {
+  const _${p}CreateSheet();
+
+  @override
+  ConsumerState<_${p}CreateSheet> createState() => _${p}CreateSheetState();
+}
+
+class _${p}CreateSheetState extends ConsumerState<_${p}CreateSheet> {
+$ctrlDecls
+$boolDecls
+  bool _saving = false;
+
+  @override
+  void dispose() {
+$disposeLines
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    setState(() => _saving = true);
+    final entity = ${p}Entity($ctorArgs);
+    final result = await ref.read(create${p}UsecaseProvider)(entity);
+    if (!mounted) return;
+    result.fold(
+      onSuccess: (created) {
+        // A local (optimistic) insert, not `ref.invalidate` — a refetch
+        // would just replay whatever the remote source *actually* has,
+        // which for a demo/fake backend (e.g. FakeStore) never reflects
+        // the create at all.
+        ref.read(${c}Provider.notifier).addItem(created);
+        Navigator.of(context).pop();
+      },
+      onFailure: (failure) {
+        setState(() => _saving = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(failure.message)));
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 16,
+        right: 16,
+        top: 16,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+      ),
+      child: Column(
+        spacing: 8,
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Add $p', style: Theme.of(context).textTheme.titleMedium),
+          $formWidgets
+          FilledButton(
+            onPressed: _saving ? null : _submit,
+            child: _saving
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text('Save'),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -272,18 +516,19 @@ class _${p}List extends StatelessWidget {
     bool dataList = false,
     bool i18n = false,
     List<FieldSpec> fields = FieldSpec.idName,
+    bool includeCrudUi = false,
   }) {
     final p = pascal(featureName);
 
     if (hasRiverpod && useAnnotations && dataList) {
-      return _riverpodListPage(featureName, packageName, i18n, fields);
+      return _riverpodListPage(featureName, packageName, i18n, fields, includeCrudUi);
     }
 
     if (hasRiverpod) {
       final c = camel(featureName);
       final i18nImports = i18n
           ? "import 'package:$packageName/core/i18n/language_switcher.dart';\n"
-              "import 'package:$packageName/i18n/strings.g.dart';\n"
+                "import 'package:$packageName/i18n/strings.g.dart';\n"
           : '';
       final titleWidget = i18n ? 'Text(context.t.$c.title)' : "const Text('$p')";
       final switcherAction = i18n ? 'const LanguageSwitcher(),\n          ' : '';

@@ -86,6 +86,7 @@ class GenerateFeatureUsecase {
       isChildRoute: asChild,
       isShellBranch: asShell,
       fields: options.fields,
+      apiPath: options.apiPath.isEmpty ? null : options.apiPath,
     );
     onLog('[✓] Feature files written.');
 
