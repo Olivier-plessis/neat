@@ -169,11 +169,16 @@ $classes
     bool hasSync = false,
     bool realtime = false,
     List<FieldSpec> fields = FieldSpec.idName,
+    String? apiPath,
   }) {
     final p = pascal(featureName);
     final isChopper = httpClient == 'chopper';
     // Deep entity→model conversion (handles nested objects/lists).
     final modelExpr = '${p}Model.fromEntity(entity)';
+    // Outbox replay path (SyncService does `dio.request(e.endpoint, ...)`):
+    // an absolute apiPath overrides Dio's baseUrl for free, same as the
+    // live remote source.
+    final base = apiPath ?? '/${featureName}s';
 
     // Chopper wraps responses in Response<T> and doesn't throw on non-2xx by
     // default — unwrapChopperResponse throws ChopperApiException instead of a
@@ -212,7 +217,7 @@ $classes
     await _local.upsert(model); // optimistic
     await _local.enqueueWrite(
       operation: 'create',
-      endpoint: '/${featureName}s/add',
+      endpoint: '$base',
       payload: jsonEncode(model.toJson()),
     );
     return entity;
@@ -224,7 +229,7 @@ $classes
     await _local.upsert(model); // optimistic
     await _local.enqueueWrite(
       operation: 'update',
-      endpoint: '/${featureName}s/\${entity.id}',
+      endpoint: '$base/\${entity.id}',
       payload: jsonEncode(model.toJson()),
     );
     return entity;
@@ -235,7 +240,7 @@ $classes
     await _local.deleteById(id); // optimistic
     await _local.enqueueWrite(
       operation: 'delete',
-      endpoint: '/${featureName}s/\$id',
+      endpoint: '$base/\$id',
       payload: jsonEncode({'id': id}),
     );
     return true;
@@ -416,8 +421,14 @@ class ${p}RepositoryImpl implements I${p}Repository {
     required String packageName,
     required String httpClient,
     bool realtime = false,
+    String? apiPath,
   }) {
     final p = pascal(featureName);
+    // An absolute apiPath (e.g. https://fakestoreapi.com/products) overrides
+    // the client's configured base URL entirely — both Dio and Chopper ignore
+    // their base URL when the request path is already absolute, so no second
+    // HTTP client is needed to target a different host.
+    final base = apiPath ?? '/${featureName}s';
 
     if (httpClient == 'retrofit') {
       return '''import 'package:dio/dio.dart';
@@ -430,19 +441,19 @@ part '${featureName}_api_source.g.dart';
 abstract class ${p}ApiSource {
   factory ${p}ApiSource(Dio dio, {String baseUrl}) = _${p}ApiSource;
 
-  @GET('/${featureName}s')
+  @GET('$base')
   Future<List<${p}Model>> getAll();
 
-  @GET('/${featureName}s/{id}')
+  @GET('$base/{id}')
   Future<${p}Model> getById(@Path('id') String id);
 
-  @POST('/${featureName}s/add')
+  @POST('$base')
   Future<${p}Model> add(@Body() ${p}Model body);
 
-  @PUT('/${featureName}s/{id}')
+  @PUT('$base/{id}')
   Future<${p}Model> update(@Path('id') String id, @Body() ${p}Model body);
 
-  @DELETE('/${featureName}s/{id}')
+  @DELETE('$base/{id}')
   Future<void> delete(@Path('id') String id);
 }
 ''';
@@ -454,7 +465,7 @@ import 'package:$packageName/features/$featureName/data/models/${featureName}_mo
 
 part '${featureName}_api_source.chopper.dart';
 
-@ChopperApi(baseUrl: '/${featureName}s')
+@ChopperApi(baseUrl: '$base')
 abstract class ${p}ApiSource extends ChopperService {
   static ${p}ApiSource create([ChopperClient? client]) => _\$${p}ApiSource(client);
 
@@ -464,7 +475,7 @@ abstract class ${p}ApiSource extends ChopperService {
   @GET(path: '/{id}')
   Future<Response<${p}Model>> getById(@Path() String id);
 
-  @POST(path: '/add')
+  @POST()
   Future<Response<${p}Model>> add(@Body() ${p}Model body);
 
   @PUT(path: '/{id}')
@@ -581,7 +592,7 @@ class ${p}ApiSource {
   final Dio _dio;
 
   Future<List<${p}Model>> getAll() async {
-    final response = await _dio.get<List<dynamic>>('/${featureName}s');
+    final response = await _dio.get<List<dynamic>>('$base');
     return (response.data ?? [])
         .cast<Map<String, dynamic>>()
         .map(${p}Model.fromJson)
@@ -589,13 +600,13 @@ class ${p}ApiSource {
   }
 
   Future<${p}Model> getById(String id) async {
-    final response = await _dio.get<Map<String, dynamic>>('/${featureName}s/\$id');
+    final response = await _dio.get<Map<String, dynamic>>('$base/\$id');
     return ${p}Model.fromJson(response.data!);
   }
 
   Future<${p}Model> add(${p}Model body) async {
     final response = await _dio.post<Map<String, dynamic>>(
-      '/${featureName}s/add',
+      '$base',
       data: body.toJson(),
     );
     return ${p}Model.fromJson(response.data!);
@@ -603,14 +614,14 @@ class ${p}ApiSource {
 
   Future<${p}Model> update(String id, ${p}Model body) async {
     final response = await _dio.put<Map<String, dynamic>>(
-      '/${featureName}s/\$id',
+      '$base/\$id',
       data: body.toJson(),
     );
     return ${p}Model.fromJson(response.data!);
   }
 
   Future<void> delete(String id) async {
-    await _dio.delete<void>('/${featureName}s/\$id');
+    await _dio.delete<void>('$base/\$id');
   }
 }
 ''';

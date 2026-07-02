@@ -239,19 +239,28 @@ class _FieldRowState extends State<_FieldRow> {
           const SizedBox(width: 10),
           SizedBox(
             width: 110,
-            child: DropdownButton<String>(
-              value: field.dartType,
-              isDense: true,
-              isExpanded: true,
-              underline: const SizedBox.shrink(),
-              dropdownColor: const Color(0xFF1A1A1E),
-              style: const TextStyle(color: Colors.white, fontSize: 12),
-              onChanged: locked ? null : (v) => v == null ? null : widget.onType(v),
-              items: [
-                for (final t in FieldSpec.supportedTypes)
-                  DropdownMenuItem(value: t, child: Text(t)),
-              ],
-            ),
+            child: field.isScalar
+                ? DropdownButton<String>(
+                    value: field.dartType,
+                    isDense: true,
+                    isExpanded: true,
+                    underline: const SizedBox.shrink(),
+                    dropdownColor: const Color(0xFF1A1A1E),
+                    style: const TextStyle(color: Colors.white, fontSize: 12),
+                    onChanged: locked ? null : (v) => v == null ? null : widget.onType(v),
+                    items: [
+                      for (final t in FieldSpec.supportedTypes)
+                        DropdownMenuItem(value: t, child: Text(t)),
+                    ],
+                  )
+                // Nested object/list fields aren't scalar-typed — their shape
+                // comes from `children`/`element`, which this flat row can't
+                // edit, so show what it is instead of a misleading dropdown.
+                : Text(
+                    field.kind == FieldKind.list ? 'List<${field.objectName}>' : field.objectName,
+                    style: TextStyle(color: Colors.grey[500], fontSize: 11),
+                    overflow: TextOverflow.ellipsis,
+                  ),
           ),
           const SizedBox(width: 8),
           Row(

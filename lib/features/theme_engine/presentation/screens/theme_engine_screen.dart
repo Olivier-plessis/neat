@@ -7,6 +7,7 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:neat/core/theme/app_theme.dart';
+import 'package:neat/core/theme/gap.dart';
 import 'package:neat/features/dependencies/presentation/providers/dependencies_provider.dart';
 import 'package:neat/features/identity/presentation/providers/identity_provider.dart';
 import 'package:neat/features/theme_engine/domain/models/theme_engine_state.dart';
@@ -56,7 +57,7 @@ class _EntryPoint extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 680),
+        constraints: const BoxConstraints(maxWidth: 680, maxHeight: 350),
         child: Row(
           children: [
             Expanded(
@@ -397,14 +398,13 @@ class _ColorsTab extends ConsumerStatefulWidget {
 }
 
 class _ColorsTabState extends ConsumerState<_ColorsTab> {
-  bool _extracting = false;
-
   Future<void> _pickImage() async {
+    final extractingImage = ref.read(extractingImageProvider.notifier);
     final result = await FilePicker.pickFiles(type: FileType.image);
     if (result == null || result.files.single.path == null) return;
     final path = result.files.single.path!;
     ref.read(themeEngineProvider.notifier).setImagePath(path);
-    setState(() => _extracting = true);
+    extractingImage.set(true);
     final color = await const ColorExtractorService().extractSeedColor(path);
     if (!mounted) return;
     if (color != null) {
@@ -414,7 +414,7 @@ class _ColorsTabState extends ConsumerState<_ColorsTab> {
     } else {
       neatSnack(context, "Couldn't extract a color from this image", success: false);
     }
-    setState(() => _extracting = false);
+    extractingImage.set(false);
   }
 
   @override
@@ -422,7 +422,7 @@ class _ColorsTabState extends ConsumerState<_ColorsTab> {
     final state = ref.watch(themeEngineProvider);
     final scheme = state.lightScheme;
     final imagePath = state.imagePath;
-
+    final extractingImage = ref.watch(extractingImageProvider);
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -445,7 +445,7 @@ class _ColorsTabState extends ConsumerState<_ColorsTab> {
                     color: const Color(0xFF1A1A1E),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: _extracting ? AppTheme.colorPrimaryCyan : Colors.white12,
+                      color: extractingImage ? AppTheme.colorPrimaryCyan : Colors.white12,
                       style: imagePath == null ? BorderStyle.solid : BorderStyle.solid,
                     ),
                   ),
@@ -456,7 +456,7 @@ class _ColorsTabState extends ConsumerState<_ColorsTab> {
                             fit: StackFit.expand,
                             children: [
                               Image.file(File(imagePath), fit: BoxFit.cover),
-                              if (_extracting)
+                              if (extractingImage)
                                 ColoredBox(
                                   color: Colors.black54,
                                   child: const Center(
@@ -540,7 +540,7 @@ class _ColorsTabState extends ConsumerState<_ColorsTab> {
                         const Icon(Icons.edit_outlined, color: Colors.white24, size: 14),
                       ],
                     ),
-                    const SizedBox(height: 8),
+                    6.gapH,
                     _ColorHexField(
                       color: state.seedColor,
                       onColorChanged: (c) {
@@ -548,7 +548,7 @@ class _ColorsTabState extends ConsumerState<_ColorsTab> {
                         ref.read(themeEngineProvider.notifier).clearColorOverrides();
                       },
                     ),
-                    const SizedBox(height: 16),
+                    16.gapH,
                     // Overrides hint
                     if (state.primaryOverride != null ||
                         state.secondaryOverride != null ||
@@ -571,14 +571,15 @@ class _ColorsTabState extends ConsumerState<_ColorsTab> {
             ],
           ),
 
-          const SizedBox(height: 24),
+          24.gapH,
 
           // ── Generated color swatches ─────────────────────────────────────
           _SectionHeader(icon: Icons.grid_view_outlined, label: 'Generated Palette'),
-          const SizedBox(height: 16),
+          16.gapH,
 
           // Row 1: primary, primaryContainer, secondary, surfaceHigh
           Row(
+            spacing: 10,
             children: [
               Expanded(
                 child: _EditableSwatchTile(
@@ -590,11 +591,9 @@ class _ColorsTabState extends ConsumerState<_ColorsTab> {
                   onReset: () => ref.read(themeEngineProvider.notifier).setPrimaryOverride(null),
                 ),
               ),
-              const SizedBox(width: 10),
               Expanded(
                 child: _SwatchTile(label: 'primaryContainer', color: scheme.primaryContainer),
               ),
-              const SizedBox(width: 10),
               Expanded(
                 child: _EditableSwatchTile(
                   label: 'secondary',
@@ -605,40 +604,38 @@ class _ColorsTabState extends ConsumerState<_ColorsTab> {
                   onReset: () => ref.read(themeEngineProvider.notifier).setSecondaryOverride(null),
                 ),
               ),
-              const SizedBox(width: 10),
               Expanded(
                 child: _SwatchTile(label: 'surfaceHigh', color: scheme.surfaceContainerHighest),
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          10.gapH,
           // Row 2: onPrimary, onPrimaryContainer, onSecondary, outline
           Row(
+            spacing: 10,
             children: [
               Expanded(
                 child: _SwatchTile(label: 'onPrimary', color: scheme.onPrimary),
               ),
-              const SizedBox(width: 10),
               Expanded(
                 child: _SwatchTile(label: 'onPrimaryContainer', color: scheme.onPrimaryContainer),
               ),
-              const SizedBox(width: 10),
               Expanded(
                 child: _SwatchTile(label: 'onSecondary', color: scheme.onSecondary),
               ),
-              const SizedBox(width: 10),
               Expanded(
                 child: _SwatchTile(label: 'outline', color: scheme.outline),
               ),
             ],
           ),
 
-          const SizedBox(height: 24),
+          24.gapH,
 
           // ── Semantic colors (palette tokens used by AppButton & theme) ───
           _SectionHeader(icon: Icons.bookmark_outline, label: 'Semantic Colors'),
-          const SizedBox(height: 12),
+          12.gapH,
           Row(
+            spacing: 10,
             children: [
               Expanded(
                 child: _EditableSwatchTile(
@@ -651,7 +648,6 @@ class _ColorsTabState extends ConsumerState<_ColorsTab> {
                       .setAccentColor(const Color(0xFF1E293B)),
                 ),
               ),
-              const SizedBox(width: 10),
               Expanded(
                 child: _EditableSwatchTile(
                   label: 'error',
@@ -664,15 +660,13 @@ class _ColorsTabState extends ConsumerState<_ColorsTab> {
                       .setDestructiveColor(const Color(0xFFEF4444)),
                 ),
               ),
-              const SizedBox(width: 10),
               // Spacers to keep the row aligned with the 4-column grid above.
               const Expanded(child: SizedBox()),
-              const SizedBox(width: 10),
               const Expanded(child: SizedBox()),
             ],
           ),
 
-          const SizedBox(height: 24),
+          24.gapH,
         ],
       ),
     );
@@ -805,6 +799,7 @@ class _TypographyTab extends ConsumerWidget {
       children: [
         // Font family + base size row
         Row(
+          spacing: 16,
           children: [
             // Font Family
             Expanded(
@@ -821,7 +816,7 @@ class _TypographyTab extends ConsumerWidget {
                 ],
               ),
             ),
-            const SizedBox(width: 16),
+
             // Base Size
             Expanded(
               child: Column(
@@ -836,7 +831,6 @@ class _TypographyTab extends ConsumerWidget {
                 ],
               ),
             ),
-            const SizedBox(width: 16),
             // Reset defaults button
             Align(
               alignment: Alignment.bottomRight,
@@ -852,7 +846,7 @@ class _TypographyTab extends ConsumerWidget {
             ),
           ],
         ),
-        const SizedBox(height: 20),
+        20.gapH,
 
         // Style list
         Expanded(
@@ -911,6 +905,7 @@ class _TextStyleCard extends StatelessWidget {
         children: [
           // Header: style name + summary + remove btn
           Row(
+            spacing: 10,
             children: [
               Text(
                 styleKey.label.toUpperCase(),
@@ -921,7 +916,7 @@ class _TextStyleCard extends StatelessWidget {
                   letterSpacing: 1.2,
                 ),
               ),
-              const SizedBox(width: 10),
+
               Text(
                 '$fontFamily  ${config.fontSize.round().toDouble()} · w${config.fontWeight}',
                 style: const TextStyle(
@@ -937,7 +932,7 @@ class _TextStyleCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          12.gapH,
 
           // Text preview
           Container(
@@ -959,10 +954,11 @@ class _TextStyleCard extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
           ),
-          const SizedBox(height: 14),
+          16.gapH,
 
           // Sliders row
           Row(
+            spacing: 16,
             children: [
               Expanded(
                 child: _NeatSlider(
@@ -975,14 +971,12 @@ class _TextStyleCard extends StatelessWidget {
                   onChanged: (v) => onChanged(config.copyWith(fontSize: v)),
                 ),
               ),
-              const SizedBox(width: 16),
               Expanded(
                 child: _WeightSlider(
                   value: config.fontWeight,
                   onChanged: (v) => onChanged(config.copyWith(fontWeight: v)),
                 ),
               ),
-              const SizedBox(width: 16),
               Expanded(
                 child: _NeatSlider(
                   label: 'LETTER SPACING',

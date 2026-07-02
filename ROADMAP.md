@@ -264,15 +264,37 @@ overlap — pick deliberately. → Phased:
   `TextColumn` in the Drift cache (encode on write / decode on read), keeping the
   offline round-trip whole. Harness-proven (product JSON with a `rating` object +
   `tags` list → build_runner + analyze 0/0).
-- **Example feature (onboarding)** — *planned, after 1.5*: at app creation, offer a
-  choice — **Example feature** (FakeStore Products: full CRUD + simple list/detail
-  UI + routing, `fakestoreapi.com` pre-filled, generated through the **same**
-  `FeatureScaffolder` pipeline with a preset Product `FieldSpec` set so it stays
-  harness-proven), **Your entity** (paste JSON — the Phase 1 flow), or **Minimal**
-  (id/name). Default = Example, so a fresh project runs and shows real data, and the
-  user learns NEAT's patterns from a realistic reference. The example's nested
-  `rating` object is why it waits on Phase 1.5. Its non-CRUD routes
-  (categories/filter/sort) come with Phase 2.
+- ✅ **Per-feature API path override** — **done**. The REST path was hardcoded as
+  `/${featureName}s` (naive plural) in every dio/chopper/retrofit template — broke on
+  irregular plurals and coupled the Dart feature name to the resource name/host. Now
+  an optional free-text **API path** field (Architecture step + Workshop, same
+  symmetry as the JSON-paste field) drives list/create (`$path`) and
+  get/update/delete (`$path/$id`); empty → unchanged default. Accepts a relative path
+  (prepended to the project's API Base URL) or an **absolute URL**, which overrides
+  the host entirely for free — confirmed from the actual chopper/Dio source
+  (`Request.buildUri`: "if url starts with http(s), baseUrl is ignored"; chopper's
+  `_mergeUri` does plain string concatenation, not RFC-3986 path replacement) — no
+  second HTTP client needed. Also fixed a latent bug found while verifying against
+  fakestoreapi.com: the create route had a hardcoded `/add` suffix
+  (`/${featureName}s/add`) that no real REST API (including FakeStore's actual
+  `POST /products`) expects — dropped project-wide.
+- ✅ **Example feature (onboarding)** — **done**. The Architecture step offers a
+  choice — **Example Feature** (FakeStore Products, default), **Your Entity** (paste
+  JSON — the Phase 1 flow), or **Minimal** (id/name) — via
+  `ArchitectureState.withFirstFeaturePreset`. Example: preset `FieldSpec` set
+  (`FieldSpec.fakeStoreProduct`, exercising the Phase-1.5 nested `rating` object) +
+  the API path hardcoded to the **absolute** `https://fakestoreapi.com/products`, so
+  it keeps working no matter what the user sets as their own API Base URL — it never
+  gets polluted by the real API config. Generated through the same `FeatureScaffolder`
+  pipeline as every other feature. A simple CRUD UI (tap-for-detail + delete, an "add"
+  sheet) was added but **deliberately scoped to this preset only**
+  (`includeCrudUi`) — full/general create-edit-delete UI generation for arbitrary
+  features is a separate, larger, not-yet-scoped effort. Non-CRUD routes
+  (categories/filter/sort) come with Phase 2. Harness-proven: a dedicated integration
+  test generates the preset, runs build_runner + analyze (0/0), then spins up a
+  `ChopperClient` pointed at an unrelated base URL and calls the generated
+  `ProductApiSource` for real — proving the absolute-URL override actually reaches
+  fakestoreapi.com at runtime, not just that the generated source looks right.
 - **Phase 2 — Typed endpoints**: per-route `method + path + request/response JSON`
   → typed chopper methods + request models. The full vision (N arbitrary routes per
   feature); reshapes the "feature" model + Workshop UI. Reuses the Phase 1 inference

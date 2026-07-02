@@ -73,6 +73,51 @@ class ArchitectureScreen extends ConsumerWidget {
                     children: [
                       _SectionHeader(icon: Icons.bookmark_added_outlined, label: 'First Feature'),
                       const SizedBox(height: 12),
+                      IntrinsicHeight(
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: _PatternCard(
+                                icon: Icons.shopping_bag_outlined,
+                                title: 'Example Feature',
+                                description:
+                                    'FakeStore Products: a full-CRUD worked example against a '
+                                    'public API, so a fresh project runs and shows real data.',
+                                isSelected: state.firstFeaturePreset == FirstFeaturePreset.example,
+                                isRecommended: true,
+                                onTap: () =>
+                                    notifier.setFirstFeaturePreset(FirstFeaturePreset.example),
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: _PatternCard(
+                                icon: Icons.data_object_outlined,
+                                title: 'Your Entity',
+                                description:
+                                    'Paste a Response JSON below to infer your own entity fields.',
+                                isSelected: state.firstFeaturePreset == FirstFeaturePreset.custom,
+                                isRecommended: false,
+                                onTap: () =>
+                                    notifier.setFirstFeaturePreset(FirstFeaturePreset.custom),
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: _PatternCard(
+                                icon: Icons.crop_square_outlined,
+                                title: 'Minimal',
+                                description: 'Just an id/name placeholder — start from scratch.',
+                                isSelected: state.firstFeaturePreset == FirstFeaturePreset.minimal,
+                                isRecommended: false,
+                                onTap: () =>
+                                    notifier.setFirstFeaturePreset(FirstFeaturePreset.minimal),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
                       _FeatureNameField(
                         initialValue: state.firstFeatureName,
                         errorText: state.validateFirstFeatureName(),
@@ -86,6 +131,19 @@ class ArchitectureScreen extends ConsumerWidget {
                           fontSize: 11,
                           fontFamily: 'monospace',
                         ),
+                      ),
+                      const SizedBox(height: 14),
+                      _ApiPathField(
+                        initialValue: state.firstFeatureApiPath,
+                        onChanged: notifier.setFirstFeatureApiPath,
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        state.firstFeatureApiPath.isEmpty
+                            ? 'Default REST path: /${state.firstFeatureName.isEmpty ? '...' : state.firstFeatureName}s'
+                            : 'A relative path is prepended to the API Base URL; an absolute '
+                                'URL (like above) overrides it entirely.',
+                        style: TextStyle(color: Colors.grey[600], fontSize: 11),
                       ),
                       const SizedBox(height: 28),
 
@@ -469,6 +527,14 @@ class _FeatureNameFieldState extends State<_FeatureNameField> {
   late final TextEditingController _ctrl = TextEditingController(text: widget.initialValue);
 
   @override
+  void didUpdateWidget(_FeatureNameField old) {
+    super.didUpdateWidget(old);
+    // Re-seed only on external changes (a preset switch), never while the
+    // user types (then the value already matches).
+    if (widget.initialValue != _ctrl.text) _ctrl.text = widget.initialValue;
+  }
+
+  @override
   void dispose() {
     _ctrl.dispose();
     super.dispose();
@@ -483,6 +549,45 @@ class _FeatureNameFieldState extends State<_FeatureNameField> {
       decoration: InputDecoration(
         hintText: 'e.g. home, dashboard, auth',
         errorText: widget.errorText,
+      ),
+    );
+  }
+}
+
+class _ApiPathField extends StatefulWidget {
+  const _ApiPathField({required this.initialValue, required this.onChanged});
+
+  final String initialValue;
+  final ValueChanged<String> onChanged;
+
+  @override
+  State<_ApiPathField> createState() => _ApiPathFieldState();
+}
+
+class _ApiPathFieldState extends State<_ApiPathField> {
+  late final TextEditingController _ctrl = TextEditingController(text: widget.initialValue);
+
+  @override
+  void didUpdateWidget(_ApiPathField old) {
+    super.didUpdateWidget(old);
+    if (widget.initialValue != _ctrl.text) _ctrl.text = widget.initialValue;
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: _ctrl,
+      onChanged: widget.onChanged,
+      style: const TextStyle(color: Colors.white, fontSize: 14, fontFamily: 'monospace'),
+      decoration: const InputDecoration(
+        labelText: 'API Path (optional)',
+        hintText: 'https://fakestoreapi.com/products or /products',
       ),
     );
   }
@@ -518,6 +623,7 @@ class _PatternCard extends StatelessWidget {
     required this.isSelected,
     required this.isRecommended,
     required this.onTap,
+    this.icon = Icons.layers,
     this.disabled = false,
   });
 
@@ -526,6 +632,7 @@ class _PatternCard extends StatelessWidget {
   final bool isSelected;
   final bool isRecommended;
   final VoidCallback onTap;
+  final IconData icon;
 
   /// Visible but not selectable (feature not yet validated).
   final bool disabled;
@@ -551,7 +658,7 @@ class _PatternCard extends StatelessWidget {
             Row(
               children: [
                 Icon(
-                  Icons.layers,
+                  icon,
                   color: isSelected ? AppTheme.colorPrimaryCyan : Colors.grey[600],
                   size: 22,
                 ),

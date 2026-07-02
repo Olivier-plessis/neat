@@ -29,6 +29,12 @@ abstract class FeatureGenOptions with _$FeatureGenOptions {
 
     /// Notes from the last inference (shown under the editor).
     @Default(<String>[]) List<String> fieldWarnings,
+
+    /// Overrides the REST resource path (default: `/<name>s`). Either a
+    /// relative path or an absolute URL — an absolute URL overrides the
+    /// project's API Base URL entirely. Empty → the default pluralised path.
+    /// REST clients only (dio/chopper/retrofit).
+    @Default('') String apiPath,
   }) = _FeatureGenOptions;
 
   const FeatureGenOptions._();

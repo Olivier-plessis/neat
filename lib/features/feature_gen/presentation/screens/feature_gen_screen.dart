@@ -129,13 +129,18 @@ class _Workshop extends HookWidget {
     final c = project.contract;
     final nameCtrl = useTextEditingController();
     final labelCtrl = useTextEditingController();
+    final apiPathCtrl = useTextEditingController();
     final options = useState(_defaultsFor(c));
 
     // Re-read on every keystroke so validation + blueprint stay live.
     useListenable(nameCtrl);
     useListenable(labelCtrl);
-    final opts = options.value
-        .copyWith(name: nameCtrl.text.trim(), shellLabel: labelCtrl.text.trim());
+    useListenable(apiPathCtrl);
+    final opts = options.value.copyWith(
+      name: nameCtrl.text.trim(),
+      shellLabel: labelCtrl.text.trim(),
+      apiPath: apiPathCtrl.text.trim(),
+    );
 
     final projectHasHttp = c.httpClient != 'none';
     final hasNav = c.navigation != 'none';
@@ -223,6 +228,26 @@ class _Workshop extends HookWidget {
                         style: const TextStyle(color: Colors.white),
                         decoration: _fieldDecoration('e.g. user_profile, auth_login', nameError),
                       ),
+                      if (projectHasHttp) ...[
+                        const SizedBox(height: 10),
+                        TextField(
+                          controller: apiPathCtrl,
+                          enabled: !state.isGenerating,
+                          style: const TextStyle(color: Colors.white, fontFamily: 'monospace'),
+                          decoration: _fieldDecoration(
+                            'API Path (optional) — e.g. /products or https://api.example.com/products',
+                            null,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          opts.apiPath.isEmpty
+                              ? 'Default REST path: /${opts.name.isEmpty ? '...' : opts.name}s'
+                              : 'A relative path is prepended to the API Base URL; an absolute '
+                                  'URL overrides it entirely.',
+                          style: TextStyle(color: Colors.grey[600], fontSize: 11),
+                        ),
+                      ],
                       const SizedBox(height: 24),
                       if (hasNav) ...[
                         const _SectionTitle(Icons.alt_route, 'Navigation & Routing'),

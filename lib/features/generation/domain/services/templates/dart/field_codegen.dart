@@ -111,8 +111,10 @@ extension FieldCodegen on FieldSpec {
       case FieldKind.scalar:
         return ref;
       case FieldKind.object:
+        // `$ref` is a property access (e.g. `e.rating`), not a local — Dart
+        // doesn't promote it from the `== null` check, hence the explicit `!`.
         return nullable
-            ? '$ref == null ? null : ${objectName}Model.fromEntity($ref)'
+            ? '$ref == null ? null : ${objectName}Model.fromEntity($ref!)'
             : '${objectName}Model.fromEntity($ref)';
       case FieldKind.list:
         if (element!.kind == FieldKind.object) {

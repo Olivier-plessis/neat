@@ -51,6 +51,18 @@ class FeatureScaffolder {
     bool i18n = false,
     // The entity's fields (inferred from a pasted JSON, or the default id/name).
     List<FieldSpec> fields = FieldSpec.idName,
+    // Overrides the REST resource path (default: `/<featureName>s`). Either a
+    // relative path or an absolute URL — an absolute URL overrides the
+    // client's configured base URL entirely (e.g. the FakeStore example
+    // feature always targets fakestoreapi.com regardless of the project's
+    // own API Base URL). REST clients only (dio/chopper/retrofit); ignored
+    // for supabase/firebase, which address a table/collection, not a path.
+    String? apiPath,
+    // Adds a tap-for-detail (+ delete) sheet and an "add" (create) sheet to
+    // the riverpod list page. Off by default — deliberately not exposed as a
+    // general Workshop/wizard toggle yet; only NEAT's own FakeStore example
+    // feature turns it on.
+    bool includeCrudUi = false,
   }) async {
     // The project ships a Drift package → any local source is Drift-backed.
     final localIsDrift = localStoragePackage != null;
@@ -138,6 +150,7 @@ class FeatureScaffolder {
         hasSync: hasSync,
         realtime: liveList,
         fields: fields,
+        apiPath: apiPath,
       ),
     );
     // The repository-level DI graph (ApiSource/LocalSource/Repository/Sync
@@ -167,6 +180,7 @@ class FeatureScaffolder {
           packageName: packageName,
           httpClient: httpClient,
           realtime: liveList,
+          apiPath: apiPath,
         ),
       );
     }
@@ -197,6 +211,7 @@ class FeatureScaffolder {
         dataList: dataList,
         i18n: i18n,
         fields: fields,
+        includeCrudUi: includeCrudUi,
       ),
     );
 
@@ -211,6 +226,8 @@ class FeatureScaffolder {
           useCubit: false,
           dataList: dataList,
           realtime: liveList,
+          includeCrudUi: includeCrudUi,
+          fields: fields,
         ),
       );
       // Usecase-level DI wires the usecases to the repository → only emit it

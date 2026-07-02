@@ -1344,6 +1344,12 @@ dev_dependencies:
       realtime: realtime,
       i18n: i18n,
       fields: architecture.firstFeatureFields,
+      apiPath:
+          architecture.firstFeatureApiPath.isEmpty ? null : architecture.firstFeatureApiPath,
+      // The simple detail/create sheets are scoped to NEAT's own worked
+      // example for now (see FeatureScaffolder.writeFeature's includeCrudUi
+      // doc) — not a general Workshop/wizard capability yet.
+      includeCrudUi: architecture.firstFeaturePreset == FirstFeaturePreset.example,
     );
   }
 
