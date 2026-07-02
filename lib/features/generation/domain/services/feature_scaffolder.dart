@@ -66,10 +66,13 @@ class FeatureScaffolder {
   }) async {
     // The project ships a Drift package → any local source is Drift-backed.
     final localIsDrift = localStoragePackage != null;
-    // A local-only feature (no remote) always needs its local source.
-    final writeLocal = includeLocalSource || !hasHttpClient;
     // The offline 3-source repository requires BOTH a remote and a local source.
     final offlineFirst = localIsDrift && hasHttpClient && includeLocalSource;
+    // Only write the local source when the repository will actually reference
+    // it: the offline-first 3-source repo, or the fully local (no remote)
+    // stub. A remote-only repository (hasHttpClient && !offlineFirst) never
+    // takes a local source param — writing the file there is dead code.
+    final writeLocal = offlineFirst || !hasHttpClient;
     // A real list screen (provider fetches via the usecase → Skeletonizer) needs
     // the DI graph, which exists only with annotations + a remote source + usecases.
     final dataList = useAnnotations && hasHttpClient && includeUseCases;

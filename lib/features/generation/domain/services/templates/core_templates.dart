@@ -6,22 +6,66 @@ class CoreTemplates {
 
   // ── core/constants/app_route_path.dart ────────────────────────────────────
 
-  static String appRoutePath({required String featureName, bool hasAuth = false}) {
-    final c = _camel(featureName);
+  static String appRoutePath({
+    required String featureName,
+    bool hasFirstFeature = true,
+    bool hasAuth = false,
+  }) {
     final auth = hasAuth
         ? "\n  static const String login = '/login';\n"
             "  static const String signup = '/signup';\n"
             "  static const String forgotPassword = '/forgot-password';\n"
         : '';
+    final entry = hasFirstFeature
+        ? '  /// First feature — app entry point.\n'
+            "  static const String ${_camel(featureName)} = '/';\n"
+        : '  /// No first feature — the welcome placeholder owns the app\'s root\n'
+            '  /// route until you add one via the Workshop.\n'
+            "  static const String welcome = '/';\n";
     return '''class AppRoutePath {
   AppRoutePath._();
 
-  /// First feature — app entry point.
-  static const String $c = '/';
-$auth  // neat:routes — feature route constants are inserted above this line.
+$entry$auth  // neat:routes — feature route constants are inserted above this line.
 }
 ''';
   }
+
+  // ── core/pages/welcome_page.dart (zero-feature fallback) ─────────────────
+
+  /// Shown at `/` when [ArchitectureState.generateFirstFeature] is off — the
+  /// app ships with no features yet, so something has to own the root route.
+  static String welcomePage({required String packageName, required String appName}) =>
+      '''import 'package:flutter/material.dart';
+
+class WelcomePage extends StatelessWidget {
+  const WelcomePage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.rocket_launch_outlined, size: 48),
+              const SizedBox(height: 16),
+              Text('Welcome to $appName', style: Theme.of(context).textTheme.headlineSmall),
+              const SizedBox(height: 8),
+              Text(
+                'No feature yet — open this project in the NEAT Workshop to add your first one.',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+''';
 
   // ── core/env/app_env.dart (envied — flavor contract + singleton) ─────────
 
@@ -470,23 +514,29 @@ final chopperClientProvider = Provider<ChopperClient>((ref) {
   /// registry is the workaround). NEAT appends one entry per chopper-backed
   /// feature, at `// neat:chopper-decoders`, both at generation time and via
   /// the Workshop.
+  /// [featureName] seeds the registry with a "witness" decoder entry so it's
+  /// never pointlessly empty — null when there's no first feature yet (the
+  /// registry starts genuinely empty; the Workshop's anchors still work when
+  /// a real feature is added later).
   static String chopperModelConverter({
     required String packageName,
-    required String featureName,
+    String? featureName,
   }) {
-    final p = _pascal(featureName);
+    final witnessImport = featureName != null
+        ? "import 'package:$packageName/features/$featureName/data/models/${featureName}_model.dart';\n"
+        : '';
+    final witnessDecoder =
+        featureName != null ? '  ${_pascal(featureName)}Model: (json) => ${_pascal(featureName)}Model.fromJson(json),\n' : '';
     return '''import 'dart:async';
 
 import 'package:chopper/chopper.dart';
-import 'package:$packageName/features/$featureName/data/models/${featureName}_model.dart';
-// neat:chopper-imports — feature model imports are inserted above this line.
+$witnessImport// neat:chopper-imports — feature model imports are inserted above this line.
 
 typedef JsonDecoder = Object Function(Map<String, dynamic> json);
 
 /// Maps each chopper-backed feature's Model to its `fromJson` factory.
 final Map<Type, JsonDecoder> chopperModelDecoders = {
-  ${p}Model: (json) => ${p}Model.fromJson(json),
-  // neat:chopper-decoders — feature decoders are inserted above this line.
+$witnessDecoder  // neat:chopper-decoders — feature decoders are inserted above this line.
 };
 
 /// Decodes chopper responses into the registered Model classes (single object
@@ -1336,17 +1386,23 @@ extension IterableX<T> on Iterable<T> {
 
   // ── core/router/app_router.dart (basic GoRouter, no builder) ─────────────
 
-  static String appRouter({required String packageName, required String featureName}) =>
-      '''import 'package:go_router/go_router.dart';
+  static String appRouter({
+    required String packageName,
+    required String featureName,
+    bool hasFirstFeature = true,
+  }) {
+    final routeConst = hasFirstFeature ? _camel(featureName) : 'welcome';
+    return '''import 'package:go_router/go_router.dart';
 import 'package:$packageName/core/constants/app_route_path.dart';
 import 'routes.dart';
 
 final appRouter = GoRouter(
-  initialLocation: AppRoutePath.${_camel(featureName)},
+  initialLocation: AppRoutePath.$routeConst,
   debugLogDiagnostics: true,
   routes: appRoutes,
 );
 ''';
+  }
 
   // ── core/router/app_router.dart (go_router_builder + riverpod) ───────────
 
@@ -1355,8 +1411,9 @@ final appRouter = GoRouter(
     required String featureName,
     required bool useAnnotations,
     bool hasAuth = false,
+    bool hasFirstFeature = true,
   }) {
-    final c = _camel(featureName);
+    final c = hasFirstFeature ? _camel(featureName) : 'welcome';
     if (useAnnotations) {
       // Auth wires a RouterNotifier guard (refreshListenable + redirect).
       final authImport = hasAuth
@@ -1454,6 +1511,63 @@ final List<RouteBase> appRoutes = [
     path: AppRoutePath.${_camel(featureName)},
     builder: (context, state) => const ${_pascal(featureName)}Page(),
   ),
+  // neat:route-entries
+];
+''';
+
+  /// `routes.dart` (manual go_router) when there's no first feature — the
+  /// welcome placeholder owns `/` instead. Same anchors as [routesManual], so
+  /// the Workshop's insertion logic is unaffected when a real feature is
+  /// added later.
+  static String routesManualWelcome({required String packageName}) =>
+      '''import 'package:go_router/go_router.dart';
+import 'package:$packageName/core/constants/app_route_path.dart';
+import 'package:$packageName/core/pages/welcome_page.dart';
+// neat:route-imports
+
+/// App routes. NEAT inserts new features at the anchors below.
+final List<RouteBase> appRoutes = [
+  GoRoute(
+    path: AppRoutePath.welcome,
+    builder: (context, state) => const WelcomePage(),
+  ),
+  // neat:route-entries
+];
+''';
+
+  // ── core/router/welcome_route.dart (typed route, no first feature) ───────
+
+  /// Typed-route counterpart to [featureRoutes] for the welcome placeholder —
+  /// same `@TypedGoRoute` shape, so [routesAggregatorWelcome] can spread its
+  /// generated `\$appRoutes` exactly like a real feature's.
+  static String welcomeRoute({required String packageName}) =>
+      '''import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:$packageName/core/constants/app_route_path.dart';
+import 'package:$packageName/core/pages/welcome_page.dart';
+
+part 'welcome_route.g.dart';
+
+@TypedGoRoute<WelcomeRoute>(path: AppRoutePath.welcome)
+class WelcomeRoute extends GoRouteData with \$WelcomeRoute {
+  const WelcomeRoute();
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) => const WelcomePage();
+}
+''';
+
+  /// `routes.dart` (go_router_builder) when there's no first feature —
+  /// aggregates [welcomeRoute] instead of a feature's routes file. Same
+  /// anchors as [routesAggregator].
+  static String routesAggregatorWelcome({required String packageName}) =>
+      '''import 'package:go_router/go_router.dart';
+import 'package:$packageName/core/router/welcome_route.dart' as welcome;
+// neat:route-imports
+
+/// Aggregated app routes. NEAT inserts new features at the anchors below.
+final List<RouteBase> appRoutes = [
+  ...welcome.\$appRoutes,
   // neat:route-entries
 ];
 ''';

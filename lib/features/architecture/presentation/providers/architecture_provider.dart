@@ -1,7 +1,6 @@
 import 'package:neat/features/architecture/domain/models/architecture_state.dart';
 import 'package:neat/features/architecture/domain/models/env_config.dart';
 import 'package:neat/features/generation/domain/models/field_spec.dart';
-import 'package:neat/features/generation/domain/services/json_entity_inferencer.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'architecture_provider.g.dart';
@@ -9,88 +8,28 @@ part 'architecture_provider.g.dart';
 @Riverpod(keepAlive: true)
 class ArchitectureNotifier extends _$ArchitectureNotifier {
   @override
-  ArchitectureState build() =>
-      const ArchitectureState().withFirstFeaturePreset(FirstFeaturePreset.example);
+  ArchitectureState build() => const ArchitectureState(
+        firstFeatureName: 'product',
+        firstFeatureFields: FieldSpec.fakeStoreProduct,
+        firstFeatureApiPath: 'https://fakestoreapi.com/products',
+      );
 
   void setPattern(StructuralPattern pattern) => state = state.copyWith(pattern: pattern);
   void toggleMappers(bool val) => state = state.copyWith(includeMappers: val);
   void toggleRiverpodAnnotations(bool val) => state = state.copyWith(useRiverpodAnnotations: val);
   void toggleCubit(bool val) => state = state.copyWith(useCubit: val);
   void toggleMirrorTest(bool val) => state = state.copyWith(mirrorTestStructure: val);
+
+  /// Off → the app ships with zero features (a placeholder welcome screen
+  /// owns the root route instead). A shell needs a first branch, so turning
+  /// this off also drops the navigation-shell opt-in.
+  void setGenerateFirstFeature(bool val) => state = state.copyWith(
+        generateFirstFeature: val,
+        useNavigationShell: val ? state.useNavigationShell : false,
+      );
   void setFirstFeatureName(String val) =>
       state = state.copyWith(firstFeatureName: val.trim());
-  void setFirstFeatureApiPath(String val) =>
-      state = state.copyWith(firstFeatureApiPath: val.trim());
 
-  // ── First-feature onboarding preset ─────────────────────────────────────────
-
-  void setFirstFeaturePreset(FirstFeaturePreset preset) =>
-      state = state.withFirstFeaturePreset(preset);
-
-  // ── First-feature entity fields (JSON-driven) ───────────────────────────────
-
-  /// Infers the entity fields from a pasted Response JSON and records the raw
-  /// JSON + any inference warnings. Empty input restores the id/name default.
-  /// Hand-editing fields this way means "Your entity", not a canned preset.
-  void inferFieldsFromJson(String json) {
-    if (json.trim().isEmpty) {
-      resetFields();
-      return;
-    }
-    final result = const JsonEntityInferencer().infer(json);
-    state = state.copyWith(
-      firstFeaturePreset: FirstFeaturePreset.custom,
-      firstFeatureJson: json,
-      firstFeatureFields: result.fields,
-      firstFeatureFieldWarnings: result.warnings,
-    );
-  }
-
-  /// Back to the default `id`/`name` placeholder (clears JSON + warnings).
-  void resetFields() => state = state.copyWith(
-        firstFeaturePreset: FirstFeaturePreset.minimal,
-        firstFeatureJson: '',
-        firstFeatureFields: FieldSpec.idName,
-        firstFeatureFieldWarnings: const [],
-      );
-
-  /// Appends a blank editable String field (manual add).
-  void addField() {
-    final used = state.firstFeatureFields.map((f) => f.dartName).toSet();
-    var name = 'field';
-    for (var i = 1; used.contains(name); i++) {
-      name = 'field$i';
-    }
-    state = state.copyWith(firstFeatureFields: [
-      ...state.firstFeatureFields,
-      FieldSpec(jsonKey: name, dartName: name),
-    ]);
-  }
-
-  void setFieldName(int index, String name) =>
-      _updateField(index, (f) => f.copyWith(dartName: name.trim()));
-
-  /// Changes a field's Dart type (no-op on the id, which stays String).
-  void setFieldType(int index, String type) =>
-      _updateField(index, (f) => f.isId ? f : f.copyWith(dartType: type));
-
-  void toggleFieldNullable(int index, bool nullable) =>
-      _updateField(index, (f) => f.isId ? f : f.copyWith(nullable: nullable));
-
-  /// Removes a field (keeps the id — it's required by the CRUD contract).
-  void removeField(int index) {
-    if (index < 0 || index >= state.firstFeatureFields.length) return;
-    if (state.firstFeatureFields[index].isId) return;
-    final next = [...state.firstFeatureFields]..removeAt(index);
-    state = state.copyWith(firstFeatureFields: next);
-  }
-
-  void _updateField(int index, FieldSpec Function(FieldSpec) update) {
-    if (index < 0 || index >= state.firstFeatureFields.length) return;
-    final next = [...state.firstFeatureFields];
-    next[index] = update(next[index]);
-    state = state.copyWith(firstFeatureFields: next);
-  }
   void setStorageStrategy(StorageStrategy strategy) =>
       state = state.copyWith(storageStrategy: strategy);
   void toggleNavigationShell(bool val) => state = state.copyWith(useNavigationShell: val);

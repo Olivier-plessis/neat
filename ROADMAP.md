@@ -278,23 +278,40 @@ overlap — pick deliberately. → Phased:
   fakestoreapi.com: the create route had a hardcoded `/add` suffix
   (`/${featureName}s/add`) that no real REST API (including FakeStore's actual
   `POST /products`) expects — dropped project-wide.
-- ✅ **Example feature (onboarding)** — **done**. The Architecture step offers a
-  choice — **Example Feature** (FakeStore Products, default), **Your Entity** (paste
-  JSON — the Phase 1 flow), or **Minimal** (id/name) — via
-  `ArchitectureState.withFirstFeaturePreset`. Example: preset `FieldSpec` set
-  (`FieldSpec.fakeStoreProduct`, exercising the Phase-1.5 nested `rating` object) +
-  the API path hardcoded to the **absolute** `https://fakestoreapi.com/products`, so
-  it keeps working no matter what the user sets as their own API Base URL — it never
-  gets polluted by the real API config. Generated through the same `FeatureScaffolder`
-  pipeline as every other feature. A simple CRUD UI (tap-for-detail + delete, an "add"
-  sheet) was added but **deliberately scoped to this preset only**
-  (`includeCrudUi`) — full/general create-edit-delete UI generation for arbitrary
-  features is a separate, larger, not-yet-scoped effort. Non-CRUD routes
-  (categories/filter/sort) come with Phase 2. Harness-proven: a dedicated integration
-  test generates the preset, runs build_runner + analyze (0/0), then spins up a
-  `ChopperClient` pointed at an unrelated base URL and calls the generated
-  `ProductApiSource` for real — proving the absolute-URL override actually reaches
-  fakestoreapi.com at runtime, not just that the generated source looks right.
+- ✅ **Example feature (onboarding)** — **done**, later simplified to an
+  **opt-in toggle**. The Architecture step no longer offers a 3-way preset
+  picker or any entity/JSON-paste editing (that duplicated the Workshop's own,
+  more appropriate UI, and cluttered project-creation-time decisions) — just
+  one toggle, **"Generate example feature"** (`ArchitectureState.
+  generateFirstFeature`, default on, mirrors `flutter create`'s counter app):
+  on → FakeStore Products (`FieldSpec.fakeStoreProduct`, exercising the
+  Phase-1.5 nested `rating` object) at the **absolute**
+  `https://fakestoreapi.com/products` path, so it keeps working no matter
+  what the user sets as their own API Base URL; off → the app ships with
+  **zero features**, just a placeholder `WelcomePage` owning `/`. Entity/JSON
+  editing lives only in the Workshop now. A simple CRUD UI (tap-for-detail +
+  delete, an "add" sheet) stays **deliberately scoped to the example feature
+  only** (`includeCrudUi`) — general create-edit-delete UI generation for
+  arbitrary features is a separate, not-yet-scoped effort.
+  - **The "off" fallback**: go_router needs a valid route to boot, so a
+    generated `WelcomePage` + `AppRoutePath.welcome` route stand in for the
+    first feature — wired through the exact same anchor system
+    (`// neat:route-imports` / `// neat:route-entries` / `// neat:routes`)
+    the Workshop already uses to add a real first feature later, so nothing
+    about that flow changes. A bottom-nav shell needs a first branch, so it's
+    disabled (greyed out, with a note) whenever the toggle is off. An
+    offline-first project with the toggle off still gets its Drift package/
+    database scaffolded, just with zero tables (`@DriftDatabase(tables: [])`)
+    — the Workshop's existing table-injection anchor adds the first one once
+    a real feature exists. (Along the way: turned off drift_dev's
+    `generate_manager` option globally — NEAT never used the fluent
+    `db.managers.*` API, and with zero tables its generated `$XxxManager`
+    class left an analyzer-breaking unused field.)
+  - Harness-proven: dedicated integration tests cover the example-feature
+    path (a `ChopperClient` pointed at an unrelated base URL still reaches
+    fakestoreapi.com for real, proving the absolute-URL override) and the
+    zero-feature path for both plain go_router and go_router_builder routing
+    shapes, plus the zero-table Drift case — all build_runner + analyze 0/0.
 - **Phase 2 — Typed endpoints**: per-route `method + path + request/response JSON`
   → typed chopper methods + request models. The full vision (N arbitrary routes per
   feature); reshapes the "feature" model + Workshop UI. Reuses the Phase 1 inference

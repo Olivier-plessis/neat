@@ -35,21 +35,6 @@ enum StorageStrategy {
       };
 }
 
-/// The first feature's onboarding content.
-enum FirstFeaturePreset {
-  /// FakeStore Products: a full-CRUD worked example against a public API.
-  /// Its API path is a hardcoded **absolute** URL, so it keeps working
-  /// whatever the project's own API Base URL ends up being — it's NEAT's own
-  /// reference feature, not something the user's real API config can pollute.
-  example,
-
-  /// Paste your own JSON response — infers the entity fields (Phase 1 flow).
-  custom,
-
-  /// No preset: just an id/name placeholder.
-  minimal;
-}
-
 @freezed
 abstract class ArchitectureState with _$ArchitectureState {
   const ArchitectureState._();
@@ -65,7 +50,15 @@ abstract class ArchitectureState with _$ArchitectureState {
     @Default(false) bool useCubit,
     @Default(true) bool mirrorTestStructure,
 
+    /// Opt-in: scaffold a first feature at all (mirrors `flutter create`'s
+    /// counter app — a real worked example so a fresh project runs and shows
+    /// data). Off → the app ships with zero features, just a placeholder
+    /// welcome screen; add your first real feature via the Workshop, which
+    /// owns all entity/JSON-paste editing (the wizard no longer does).
+    @Default(true) bool generateFirstFeature,
+
     /// Name of the first feature scaffolded under lib/features/ (snake_case).
+    /// Only meaningful when [generateFirstFeature] is on.
     @Default('home') String firstFeatureName,
 
     /// The first feature's entity fields, inferred from a pasted Response JSON
@@ -86,14 +79,6 @@ abstract class ArchitectureState with _$ArchitectureState {
     /// absolute URL overrides the project's API Base URL entirely. Empty →
     /// the default pluralised path. REST clients only (dio/chopper/retrofit).
     @Default('') String firstFeatureApiPath,
-
-    /// Onboarding choice for the first feature's content. Defaults to
-    /// [FirstFeaturePreset.minimal] because that's what the *other* raw
-    /// defaults above already are (id/name fields, no path override) — the
-    /// live wizard flips its initial state to [FirstFeaturePreset.example]
-    /// explicitly (see `ArchitectureNotifier.build()`), so this stays the
-    /// neutral default for tests constructing `ArchitectureState()` directly.
-    @Default(FirstFeaturePreset.minimal) FirstFeaturePreset firstFeaturePreset,
 
     /// Data persistence strategy. [StorageStrategy.offlineFirst] switches the
     /// generated project to a workspace with a Drift local-storage package.
@@ -160,8 +145,10 @@ abstract class ArchitectureState with _$ArchitectureState {
     @Default(0) int baseEnvIndex,
   }) = _ArchitectureState;
 
-  /// Validates the first feature name (Dart folder/identifier rules).
+  /// Validates the first feature name (Dart folder/identifier rules). Always
+  /// valid when [generateFirstFeature] is off — there's no name to validate.
   String? validateFirstFeatureName() {
+    if (!generateFirstFeature) return null;
     if (firstFeatureName.isEmpty) return 'Feature name is required';
     if (!RegExp(r'^[a-z][a-z0-9_]*$').hasMatch(firstFeatureName)) {
       return 'lowercase letters, digits & underscores; start with a letter';
@@ -171,32 +158,6 @@ abstract class ArchitectureState with _$ArchitectureState {
 
   /// The production base environment (index clamped to a valid range).
   EnvConfig get baseEnv => environments[baseEnvIndex.clamp(0, environments.length - 1)];
-
-  /// Applies [preset]'s concrete name/fields/path — the single source of
-  /// truth for what each onboarding choice actually means, shared by the
-  /// wizard's initial state and its preset-switch callback. `custom` only
-  /// records the marker: switching to "Your entity" shouldn't wipe JSON the
-  /// user already pasted.
-  ArchitectureState withFirstFeaturePreset(FirstFeaturePreset preset) {
-    return switch (preset) {
-      FirstFeaturePreset.example => copyWith(
-          firstFeaturePreset: preset,
-          firstFeatureName: 'product',
-          firstFeatureFields: FieldSpec.fakeStoreProduct,
-          firstFeatureJson: '',
-          firstFeatureFieldWarnings: const [],
-          firstFeatureApiPath: 'https://fakestoreapi.com/products',
-        ),
-      FirstFeaturePreset.minimal => copyWith(
-          firstFeaturePreset: preset,
-          firstFeatureFields: FieldSpec.idName,
-          firstFeatureJson: '',
-          firstFeatureFieldWarnings: const [],
-          firstFeatureApiPath: '',
-        ),
-      FirstFeaturePreset.custom => copyWith(firstFeaturePreset: preset),
-    };
-  }
 
   /// The first tab's label (falls back to the feature name, capitalised).
   String get effectiveShellLabel {

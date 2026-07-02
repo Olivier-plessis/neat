@@ -369,8 +369,9 @@ $crudWidgets''';
         .join('\n          ');
     final ctorArgs = fields
         .map((f) {
-          if (f.isId || !f.isScalar || f.dartType == 'DateTime')
+          if (f.isId || !f.isScalar || f.dartType == 'DateTime') {
             return '${f.dartName}: ${f.entityPlaceholder()}';
+          }
           return switch (f.dartType) {
             'int' => '${f.dartName}: int.tryParse(_${f.dartName}Ctrl.text) ?? 0',
             'double' => '${f.dartName}: double.tryParse(_${f.dartName}Ctrl.text) ?? 0.0',

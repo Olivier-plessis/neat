@@ -15,22 +15,22 @@ enum AppComponent {
   textField;
 
   String get label => switch (this) {
-        button => 'AppButton',
-        card => 'AppCard',
-        textField => 'AppTextField',
-      };
+    button => 'AppButton',
+    card => 'AppCard',
+    textField => 'AppTextField',
+  };
 
   String get fileName => switch (this) {
-        button => 'app_button.dart',
-        card => 'app_card.dart',
-        textField => 'app_text_field.dart',
-      };
+    button => 'app_button.dart',
+    card => 'app_card.dart',
+    textField => 'app_text_field.dart',
+  };
 
   String get description => switch (this) {
-        button => 'Variants, sizes, icon, loading & dashed border',
-        card => 'Surface card with padding, radius, optional tap & shadow',
-        textField => 'Labeled input with error, password toggle & prefix/suffix',
-      };
+    button => 'Variants, sizes, icon, loading & dashed border',
+    card => 'Surface card with padding, radius, optional tap & shadow',
+    textField => 'Labeled input with error, password toggle & prefix/suffix',
+  };
 }
 
 // ── Available font families ───────────────────────────────────────────────────
@@ -68,33 +68,33 @@ enum TextStyleKey {
   labelSmall;
 
   String get label => switch (this) {
-        displayLarge => 'Display Large',
-        displayMedium => 'Display Medium',
-        displaySmall => 'Display Small',
-        headlineLarge => 'Headline Large',
-        headlineMedium => 'Headline Medium',
-        headlineSmall => 'Headline Small',
-        titleLarge => 'Title Large',
-        titleMedium => 'Title Medium',
-        titleSmall => 'Title Small',
-        bodyLarge => 'Body Large',
-        bodyMedium => 'Body Medium',
-        bodySmall => 'Body Small',
-        labelLarge => 'Label Large',
-        labelMedium => 'Label Medium',
-        labelSmall => 'Label Small',
-      };
+    displayLarge => 'Display Large',
+    displayMedium => 'Display Medium',
+    displaySmall => 'Display Small',
+    headlineLarge => 'Headline Large',
+    headlineMedium => 'Headline Medium',
+    headlineSmall => 'Headline Small',
+    titleLarge => 'Title Large',
+    titleMedium => 'Title Medium',
+    titleSmall => 'Title Small',
+    bodyLarge => 'Body Large',
+    bodyMedium => 'Body Medium',
+    bodySmall => 'Body Small',
+    labelLarge => 'Label Large',
+    labelMedium => 'Label Medium',
+    labelSmall => 'Label Small',
+  };
 
   String get previewText => switch (this) {
-        displayLarge || displayMedium || displaySmall => 'The quick brown fox',
-        headlineLarge || headlineMedium || headlineSmall =>
-          'The quick brown fox jumps',
-        titleLarge || titleMedium || titleSmall => 'Section Title',
-        bodyLarge || bodyMedium => 'The quick brown fox jumps over the lazy dog. '
-            'A technical achievement in typography.',
-        bodySmall => 'The quick brown fox jumps over the lazy dog.',
-        labelLarge || labelMedium || labelSmall => 'STATUS: ONLINE',
-      };
+    displayLarge || displayMedium || displaySmall => 'The quick brown fox',
+    headlineLarge || headlineMedium || headlineSmall => 'The quick brown fox jumps',
+    titleLarge || titleMedium || titleSmall => 'Section Title',
+    bodyLarge || bodyMedium =>
+      'The quick brown fox jumps over the lazy dog. '
+          'A technical achievement in typography.',
+    bodySmall => 'The quick brown fox jumps over the lazy dog.',
+    labelLarge || labelMedium || labelSmall => 'STATUS: ONLINE',
+  };
 }
 
 // ── M3 spec default text style configs ───────────────────────────────────────
@@ -111,36 +111,86 @@ abstract class TextStyleConfig with _$TextStyleConfig {
 
 /// Official Material 3 typography scale defaults.
 const Map<TextStyleKey, TextStyleConfig> kM3Defaults = {
-  TextStyleKey.displayLarge:
-      TextStyleConfig(fontSize: 57, fontWeight: 400, letterSpacing: -0.25, height: 1.12),
-  TextStyleKey.displayMedium:
-      TextStyleConfig(fontSize: 45, fontWeight: 400, letterSpacing: 0, height: 1.16),
-  TextStyleKey.displaySmall:
-      TextStyleConfig(fontSize: 36, fontWeight: 400, letterSpacing: 0, height: 1.22),
-  TextStyleKey.headlineLarge:
-      TextStyleConfig(fontSize: 32, fontWeight: 400, letterSpacing: 0, height: 1.25),
-  TextStyleKey.headlineMedium:
-      TextStyleConfig(fontSize: 28, fontWeight: 400, letterSpacing: 0, height: 1.29),
-  TextStyleKey.headlineSmall:
-      TextStyleConfig(fontSize: 24, fontWeight: 400, letterSpacing: 0, height: 1.33),
-  TextStyleKey.titleLarge:
-      TextStyleConfig(fontSize: 22, fontWeight: 400, letterSpacing: 0, height: 1.27),
-  TextStyleKey.titleMedium:
-      TextStyleConfig(fontSize: 16, fontWeight: 500, letterSpacing: 0.15),
-  TextStyleKey.titleSmall:
-      TextStyleConfig(fontSize: 14, fontWeight: 500, letterSpacing: 0.1, height: 1.43),
-  TextStyleKey.bodyLarge:
-      TextStyleConfig(fontSize: 16, fontWeight: 400, letterSpacing: 0.5),
-  TextStyleKey.bodyMedium:
-      TextStyleConfig(fontSize: 14, fontWeight: 400, letterSpacing: 0.25, height: 1.43),
-  TextStyleKey.bodySmall:
-      TextStyleConfig(fontSize: 12, fontWeight: 400, letterSpacing: 0.4, height: 1.33),
-  TextStyleKey.labelLarge:
-      TextStyleConfig(fontSize: 14, fontWeight: 500, letterSpacing: 0.1, height: 1.43),
-  TextStyleKey.labelMedium:
-      TextStyleConfig(fontSize: 12, fontWeight: 500, letterSpacing: 0.5, height: 1.33),
-  TextStyleKey.labelSmall:
-      TextStyleConfig(fontSize: 11, fontWeight: 500, letterSpacing: 0.5, height: 1.45),
+  TextStyleKey.displayLarge: TextStyleConfig(
+    fontSize: 57,
+    fontWeight: 400,
+    letterSpacing: -0.25,
+    height: 1.12,
+  ),
+  TextStyleKey.displayMedium: TextStyleConfig(
+    fontSize: 45,
+    fontWeight: 400,
+    letterSpacing: 0,
+    height: 1.16,
+  ),
+  TextStyleKey.displaySmall: TextStyleConfig(
+    fontSize: 36,
+    fontWeight: 400,
+    letterSpacing: 0,
+    height: 1.22,
+  ),
+  TextStyleKey.headlineLarge: TextStyleConfig(
+    fontSize: 32,
+    fontWeight: 400,
+    letterSpacing: 0,
+    height: 1.25,
+  ),
+  TextStyleKey.headlineMedium: TextStyleConfig(
+    fontSize: 28,
+    fontWeight: 400,
+    letterSpacing: 0,
+    height: 1.29,
+  ),
+  TextStyleKey.headlineSmall: TextStyleConfig(
+    fontSize: 24,
+    fontWeight: 400,
+    letterSpacing: 0,
+    height: 1.33,
+  ),
+  TextStyleKey.titleLarge: TextStyleConfig(
+    fontSize: 22,
+    fontWeight: 400,
+    letterSpacing: 0,
+    height: 1.27,
+  ),
+  TextStyleKey.titleMedium: TextStyleConfig(fontSize: 16, fontWeight: 500, letterSpacing: 0.15),
+  TextStyleKey.titleSmall: TextStyleConfig(
+    fontSize: 14,
+    fontWeight: 500,
+    letterSpacing: 0.1,
+    height: 1.43,
+  ),
+  TextStyleKey.bodyLarge: TextStyleConfig(fontSize: 16, fontWeight: 400, letterSpacing: 0.5),
+  TextStyleKey.bodyMedium: TextStyleConfig(
+    fontSize: 14,
+    fontWeight: 400,
+    letterSpacing: 0.25,
+    height: 1.43,
+  ),
+  TextStyleKey.bodySmall: TextStyleConfig(
+    fontSize: 12,
+    fontWeight: 400,
+    letterSpacing: 0.4,
+    height: 1.33,
+  ),
+  TextStyleKey.labelLarge: TextStyleConfig(
+    fontSize: 14,
+    fontWeight: 500,
+    letterSpacing: 0.1,
+    height: 1.43,
+  ),
+  TextStyleKey.labelMedium: TextStyleConfig(
+    fontSize: 12,
+    fontWeight: 500,
+    letterSpacing: 0.5,
+    height: 1.33,
+  ),
+  TextStyleKey.labelSmall: TextStyleConfig(
+    fontSize: 11,
+    fontWeight: 500,
+    letterSpacing: 0.5,
+    height: 1.45,
+  ),
 };
 
 // ── Button config ─────────────────────────────────────────────────────────────
@@ -208,7 +258,7 @@ abstract class ThemeEngineState with _$ThemeEngineState {
 
     /// When true, extract theme + tokens + components into a workspace package
     /// `<app>_ui` (the app and Widgetbook depend on it).
-    @Default(false) bool extractUiPackage,
+    @Default(true) bool extractUiPackage,
 
     // Semantic palette colors (used by AppButton variants & the theme)
     @Default(Color(0xFF1E293B)) Color accentColor,
@@ -230,14 +280,12 @@ abstract class ThemeEngineState with _$ThemeEngineState {
 
   // ── Derived color schemes ─────────────────────────────────────────────────
 
-  ColorScheme get lightScheme => _applyOverrides(
-      ColorScheme.fromSeed(seedColor: seedColor));
+  ColorScheme get lightScheme => _applyOverrides(ColorScheme.fromSeed(seedColor: seedColor));
 
-  ColorScheme get darkScheme => _applyOverrides(
-      ColorScheme.fromSeed(seedColor: seedColor, brightness: Brightness.dark));
+  ColorScheme get darkScheme =>
+      _applyOverrides(ColorScheme.fromSeed(seedColor: seedColor, brightness: Brightness.dark));
 
-  ColorScheme get activeScheme =>
-      defaultBrightness == Brightness.dark ? darkScheme : lightScheme;
+  ColorScheme get activeScheme => defaultBrightness == Brightness.dark ? darkScheme : lightScheme;
 
   ColorScheme _applyOverrides(ColorScheme base) {
     if (primaryOverride == null && secondaryOverride == null && tertiaryOverride == null) {
@@ -255,11 +303,14 @@ abstract class ThemeEngineState with _$ThemeEngineState {
 
   /// Override hexes for code generation (null when not overridden).
   String? get primaryOverrideHex => _hex(primaryOverride);
+
   String? get secondaryOverrideHex => _hex(secondaryOverride);
+
   String? get tertiaryOverrideHex => _hex(tertiaryOverride);
 
   /// Semantic color hexes for code generation.
   String get accentColorHex => _hex(accentColor)!;
+
   String get destructiveColorHex => _hex(destructiveColor)!;
 
   String? _hex(Color? c) {

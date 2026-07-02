@@ -223,6 +223,7 @@ class LaunchGenerationUsecase {
         featureName: featureName,
         hasSync: hasSync,
         fields: architecture.firstFeatureFields,
+        includeFirstTable: architecture.generateFirstFeature,
       );
       onLog('[✓] packages/$localStoragePackage created.');
     }
@@ -535,8 +536,21 @@ class LaunchGenerationUsecase {
     // ── core/constants ────────────────────────────────────────────────────
     await _write(
       '$lib/core/constants/app_route_path.dart',
-      CoreTemplates.appRoutePath(featureName: featureName, hasAuth: hasAuth),
+      CoreTemplates.appRoutePath(
+        featureName: featureName,
+        hasAuth: hasAuth,
+        hasFirstFeature: architecture.generateFirstFeature,
+      ),
     );
+
+    // No first feature → a placeholder welcome screen owns the root route
+    // until one is added via the Workshop.
+    if (!architecture.generateFirstFeature) {
+      await _write(
+        '$lib/core/pages/welcome_page.dart',
+        CoreTemplates.welcomePage(packageName: packageName, appName: packageName),
+      );
+    }
 
     // ── core/error ────────────────────────────────────────────────────────
     await _write('$lib/core/error/failure.dart', CoreTemplates.failure());
@@ -601,11 +615,14 @@ class LaunchGenerationUsecase {
     if (httpClient == 'chopper' && hasRiverpod) {
       // Chopper's built-in JsonConverter can't call a custom Model's
       // fromJson (it only decodes to Map/List) — this registry-backed
-      // converter fixes that; the witness feature registers itself here,
-      // the Workshop appends more at `// neat:chopper-decoders`.
+      // converter fixes that; the witness feature registers itself here (if
+      // there is one), the Workshop appends more at `// neat:chopper-decoders`.
       await _write(
         '$lib/core/network/chopper_model_converter.dart',
-        CoreTemplates.chopperModelConverter(packageName: packageName, featureName: featureName),
+        CoreTemplates.chopperModelConverter(
+          packageName: packageName,
+          featureName: architecture.generateFirstFeature ? featureName : null,
+        ),
       );
       await _write(
         '$lib/core/network/chopper_client_provider.dart',
@@ -695,7 +712,10 @@ class LaunchGenerationUsecase {
     }
 
     // ── docs/OFFLINE.md (usage guide) ────────────────────────────────────────
-    if (localStoragePackage != null) {
+    // Uses the first feature as a worked example — skipped when there isn't
+    // one yet (the guide is still useful once a real feature is added via
+    // the Workshop, at which point OFFLINE.md can be revisited manually).
+    if (localStoragePackage != null && architecture.generateFirstFeature) {
       await _write(
         '${projectDir.path}/docs/OFFLINE.md',
         CoreTemplates.offlineDoc(
@@ -726,8 +746,10 @@ class LaunchGenerationUsecase {
     );
 
     // Bottom-nav shell from launch: the first feature becomes the shell's
-    // first branch (so it isn't also a plain top-level route).
-    final useShell = architecture.useNavigationShell && hasGoRouter;
+    // first branch (so it isn't also a plain top-level route). A shell needs
+    // a first branch, so it's unavailable with no first feature.
+    final useShell =
+        architecture.useNavigationShell && hasGoRouter && architecture.generateFirstFeature;
 
     // ── core/router ───────────────────────────────────────────────────────
     if (hasGoRouter) {
@@ -741,6 +763,7 @@ class LaunchGenerationUsecase {
         shellIcon: architecture.shellIcon,
         shellLabel: architecture.effectiveShellLabel,
         hasAuth: hasAuth,
+        hasFirstFeature: architecture.generateFirstFeature,
       );
     }
 
@@ -783,27 +806,32 @@ class LaunchGenerationUsecase {
     await _write('$lib/components/.gitkeep', '');
 
     // ── feature ───────────────────────────────────────────────────────────
-    await _writeFeature(
-      lib: lib,
-      featureName: featureName,
-      packageName: packageName,
-      architecture: architecture,
-      hasRiverpod: hasRiverpod,
-      hasBloc: hasBloc,
-      useCubit: useCubit,
-      useAnnotations: useAnnotations,
-      hasGoRouter: hasGoRouter,
-      hasGoRouterBuilder: hasGoRouterBuilder,
-      hasHttpClient: hasHttpClient,
-      httpClient: httpClient,
-      hasFreezed: hasFreezed,
-      hasJsonSerializable: hasJsonSerializable,
-      localStoragePackage: localStoragePackage,
-      hasSync: hasSync,
-      isShellBranch: useShell,
-      realtime: hasRealtime,
-      i18n: hasI18nSample,
-    );
+    // Off → the app ships with zero features; a placeholder welcome route
+    // (written above) owns '/' instead. Add a real first feature later via
+    // the Workshop, which owns all entity/JSON-paste editing.
+    if (architecture.generateFirstFeature) {
+      await _writeFeature(
+        lib: lib,
+        featureName: featureName,
+        packageName: packageName,
+        architecture: architecture,
+        hasRiverpod: hasRiverpod,
+        hasBloc: hasBloc,
+        useCubit: useCubit,
+        useAnnotations: useAnnotations,
+        hasGoRouter: hasGoRouter,
+        hasGoRouterBuilder: hasGoRouterBuilder,
+        hasHttpClient: hasHttpClient,
+        httpClient: httpClient,
+        hasFreezed: hasFreezed,
+        hasJsonSerializable: hasJsonSerializable,
+        localStoragePackage: localStoragePackage,
+        hasSync: hasSync,
+        isShellBranch: useShell,
+        realtime: hasRealtime,
+        i18n: hasI18nSample,
+      );
+    }
   }
 
   // ── Theme files ───────────────────────────────────────────────────────────
@@ -1252,10 +1280,12 @@ dev_dependencies:
     String shellIcon = 'home',
     String shellLabel = '',
     bool hasAuth = false,
+    bool hasFirstFeature = true,
   }) async {
     final r = '$lib/core/router';
 
-    // app_router.dart: initialLocation = AppRoutePath.<first> = '/'. With auth a
+    // app_router.dart: initialLocation = AppRoutePath.<first> = '/' (or
+    // AppRoutePath.welcome with no first feature). With auth a
     // RouterNotifier guard is wired (refreshListenable + redirect).
     await _write(
       '$r/app_router.dart',
@@ -1265,9 +1295,29 @@ dev_dependencies:
               featureName: featureName,
               useAnnotations: useAnnotations,
               hasAuth: hasAuth,
+              hasFirstFeature: hasFirstFeature,
             )
-          : CoreTemplates.appRouter(packageName: packageName, featureName: featureName),
+          : CoreTemplates.appRouter(
+              packageName: packageName,
+              featureName: featureName,
+              hasFirstFeature: hasFirstFeature,
+            ),
     );
+
+    // No first feature (never combined with a shell — see useShell's guard
+    // in execute()): the welcome placeholder owns routes.dart instead.
+    if (!hasFirstFeature) {
+      if (hasGoRouterBuilder) {
+        await _write('$r/welcome_route.dart', CoreTemplates.welcomeRoute(packageName: packageName));
+        await _write(
+          '$r/routes.dart',
+          CoreTemplates.routesAggregatorWelcome(packageName: packageName),
+        );
+      } else {
+        await _write('$r/routes.dart', CoreTemplates.routesManualWelcome(packageName: packageName));
+      }
+      return;
+    }
 
     if (useShell) {
       // The bottom-nav scaffold + the shell route, with the first feature as
@@ -1348,8 +1398,12 @@ dev_dependencies:
           architecture.firstFeatureApiPath.isEmpty ? null : architecture.firstFeatureApiPath,
       // The simple detail/create sheets are scoped to NEAT's own worked
       // example for now (see FeatureScaffolder.writeFeature's includeCrudUi
-      // doc) — not a general Workshop/wizard capability yet.
-      includeCrudUi: architecture.firstFeaturePreset == FirstFeaturePreset.example,
+      // doc) — not a general Workshop/wizard capability yet. `generateFirstFeature`
+      // alone isn't enough to identify it: plenty of tests/flows still set an
+      // arbitrary first feature (e.g. Firebase/Supabase realtime's "todo")
+      // with the plain `_riverpodListNotifier`, which has no addItem/removeItem
+      // — only the wizard's Example toggle ever produces this exact apiPath.
+      includeCrudUi: architecture.firstFeatureApiPath == 'https://fakestoreapi.com/products',
     );
   }
 
@@ -1500,19 +1554,26 @@ dev_dependencies:
     required String featureName,
     bool hasSync = false,
     List<FieldSpec> fields = FieldSpec.idName,
+    bool includeFirstTable = true,
   }) async {
     final root = '${projectDir.path}/packages/$localStoragePackage';
     await _write(
       '$root/pubspec.yaml',
       LocalStorageTemplates.packagePubspec(packageName: localStoragePackage),
     );
+    await _write('$root/build.yaml', LocalStorageTemplates.buildYaml());
     await _write(
       '$root/lib/$localStoragePackage.dart',
       LocalStorageTemplates.publicApi(packageName: localStoragePackage),
     );
     await _write(
       '$root/lib/src/database.dart',
-      LocalStorageTemplates.database(featureName: featureName, withOutbox: hasSync, fields: fields),
+      LocalStorageTemplates.database(
+        featureName: featureName,
+        withOutbox: hasSync,
+        fields: fields,
+        includeFirstTable: includeFirstTable,
+      ),
     );
   }
 
