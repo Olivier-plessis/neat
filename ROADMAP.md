@@ -153,7 +153,7 @@ foundation everything else is configured through.
   (`architecture`/`network`/`theme`) for a lib-agnostic core; golden tests in the UI
   package; `BootstrapErrorApp`; `app_platform` bricks (permissions/share); CI
   enrichment (dependabot/codeql). Per-feature packages → the "Modular Monorepo"
-  variant of #6.
+  variant of #6, scoped in §6a below.
 
 ### 5c. Layered DI graph — ✅ (dependency-rule fix, wesioo-aligned)
 - **The defect**: the generated `<feature>_providers.dart` (repository-level
@@ -225,6 +225,72 @@ foundation everything else is configured through.
 - The harness makes **every** architecture a ~3× maintenance cost (each must be proven).
   **Clean done deeply > 3 architectures done shallowly.** If adding one, MVVM at most;
   MVC is dated in Flutter. Don't dilute the moat to match a competitor's brochure.
+
+### 6a. Modular Monorepo — per-feature packages (opt-in) — scoped, not started
+> Idea (from a `kido-luci/flutter-starter-template` comparison): let each feature be
+> its own Dart workspace package (`packages/<feature>/`, own `pubspec.yaml`,
+> `resolution: workspace`) instead of a folder under `lib/features/`. Motivation: a
+> team where each dev owns a feature gets real package boundaries (can't
+> accidentally import another feature's internals) and an explicit dependency graph
+> (pubspec `path:`/workspace deps instead of arbitrary Dart imports) — better
+> coordination than a single shared `lib/`. An opt-in wizard toggle, not a
+> replacement for the flat layout.
+>
+> Confirmed by reading kido-luci's actual repo (not guessed): it's a **workspace +
+> anchor-insertion** pattern — `# fst:feature:<name>:start/end` +
+> `# fst:add-feature inserts above this line`, exactly NEAT's own `// neat:...`
+> anchor mechanism, just aggregating **packages** instead of files. NEAT already
+> proves this exact plumbing for `<app>_ui`/`<app>_local_storage`. DI stays
+> **Riverpod** — no need to adopt kido-luci's `get_it`/`injectable` service locator;
+> Riverpod providers are plain top-level objects, importable across packages with no
+> extra indirection needed until two features need to reference each other's types
+> (their `shared_contracts` package solves that — out of scope until Phase 3, see
+> below).
+>
+> **Real cost, not hand-waved**: every template under `feature_scaffolder.dart`
+> assumes `package:$app/features/$name/...` import strings — a package-relative
+> variant is mechanical but touches every layer. Sequenced like Supabase/Firebase/
+> i18n before it: prove the smallest combo first, then expand coverage.
+>
+> - **Phase 1 — minimal proof, one feature**: feature-first + Riverpod annotations
+>   only (no bloc/cubit — already an unproven path, don't stack two at once) + dio
+>   (not chopper — its `chopperModelDecoders` witness-import would need to be
+>   package-aware too, a separate problem) + remote-only (no Drift package yet —
+>   more moving parts) + plain go_router (not go_router_builder — avoids the
+>   per-package build_runner → cross-package typed-route codegen chain) + exactly
+>   **one** feature (no cross-feature reference to solve yet). Concretely:
+>   - `feature_scaffolder.dart` gets a `packageSplit`-style flag: writes under
+>     `packages/<feature>/lib/...` instead of `lib/features/<feature>/...`, and its
+>     internal `package:$app/features/$name/...` imports become
+>     `package:<featurePackage>/...`.
+>   - A new feature-package `pubspec.yaml` template — same idea as the existing
+>     `LocalStorageTemplates.packagePubspec`, already a working precedent for an
+>     auto-generated per-feature package manifest.
+>   - The routes aggregator's per-feature import line changes from
+>     `package:$app/features/$name/.../routes.dart` to
+>     `package:<featurePackage>/routes.dart` — same `// neat:route-imports` /
+>     `// neat:route-entries` anchors, just a different import string.
+>   - Root `pubspec.yaml`'s `workspace:` list grows by one entry, exactly like
+>     `<app>_local_storage` is wired in today.
+>   - Workshop (`generate_feature_usecase.dart`, same shared scaffolder) gets the
+>     same flag, so it can add a **second** feature package to an already-split
+>     project (new package + workspace-list edit + anchor insertion).
+>   - **Harness-done when**: a new integration test generates this exact combo and
+>     asserts the feature's files live under `packages/`, the root workspace lists
+>     it, and `flutter analyze` passes 0/0 for the **whole workspace** — plus a 2nd
+>     test proving the Workshop can add a second feature package to it, still 0/0.
+> - **Phase 2 — fuller structure**: go_router_builder (typed, cross-package
+>   codegen) instead of manual; offline-first + Drift (the `_local_storage`
+>   package becomes a 3rd package in the graph; the offline-first 3-source
+>   repository must work across packages); chopper (make
+>   `chopperModelDecoders`/the witness-import package-aware).
+> - **Phase 3 — cross-feature contracts**: two features that need to reference
+>   each other (the actual reason for a `shared_contracts`-equivalent package) —
+>   deferred until Phase 1/2 are solid, since it's a genuinely separate design
+>   question (what belongs in the shared package, and when).
+> - Everything else (Supabase/Firebase, auth, i18n, realtime, flavors, CRUD-UI,
+>   layer-first) stays **out of scope** until its own phase — don't combine an
+>   unproven structural change with unrelated unproven combos.
 
 ### 7. JSON-driven feature generation — big bet, high value
 > Idea: drive the data layer from real API payloads instead of a fixed `id/name`
