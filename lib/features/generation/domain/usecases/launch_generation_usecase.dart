@@ -13,6 +13,7 @@ import 'package:neat/features/generation/domain/services/feature_scaffolder.dart
 import 'package:neat/features/generation/domain/services/i18n_importer.dart';
 import 'package:neat/features/generation/domain/services/templates/agents_md_template.dart';
 import 'package:neat/features/generation/domain/services/templates/config_templates.dart';
+import 'package:neat/features/generation/domain/services/templates/core_package_templates.dart';
 import 'package:neat/features/generation/domain/services/templates/core_templates.dart';
 import 'package:neat/features/generation/domain/services/templates/dart/app_templates.dart';
 import 'package:neat/features/generation/domain/services/templates/dart/auth_templates.dart';
@@ -170,10 +171,35 @@ class LaunchGenerationUsecase {
     final uiPackage = theme.extractUiPackage ? '${packageName}_ui' : null;
     // Widgetbook becomes a workspace member when the UI package is on.
     final widgetbookIsMember = uiPackage != null && theme.generateWidgetbook;
+    // Opt-in: Result/Failure/UseCase/dio-networking as a shared <app>_core
+    // workspace package — a prerequisite for packageSplit. A pub workspace
+    // forbids cycles, and the app already depends on its feature packages,
+    // so feature packages can't depend back on the app for these — they need
+    // a package that sits below both. Re-derived from the raw flag the same
+    // way hasAuth/hasRealtime/hasStorage are below, rather than trusted
+    // as-is — the wizard disables its toggle outside this exact combo, but
+    // the underlying flag can still drift (e.g. flipping storage strategy
+    // after turning packageSplit on), so the generator re-validates the
+    // combo before acting on it. dio + chopper only for now (see
+    // ROADMAP.md §6a) — supabase/firebase/retrofit clients + offline-first +
+    // go_router_builder remain Phase 2/3.
+    final packageSplitSupported = architecture.packageSplit &&
+        (httpClient == 'dio' || httpClient == 'chopper') &&
+        !offlineFirst &&
+        useAnnotations &&
+        hasGoRouter &&
+        !hasGoRouterBuilder;
+    final corePackageName = packageSplitSupported ? '${packageName}_core' : null;
+    // The split first feature — only meaningful when there is one.
+    final featurePackageName = packageSplitSupported && architecture.generateFirstFeature
+        ? '${packageName}_$featureName'
+        : null;
     // App path-deps + workspace members.
     final pathPackages = <String>[
       ?localStoragePackage,
       ?uiPackage,
+      ?corePackageName,
+      ?featurePackageName,
     ];
     final extraWorkspaceMembers = <String>[if (widgetbookIsMember) 'widgetbook'];
 
@@ -211,8 +237,22 @@ class LaunchGenerationUsecase {
       hasStorage: hasStorage,
       hasOAuth: hasOAuth,
       hasI18n: hasI18n,
+      corePackageName: corePackageName,
+      featurePackageName: featurePackageName,
     );
     onLog('[✓] Scaffold created.');
+
+    // 2a. Shared core workspace package (Result/Failure/UseCase/dio networking)
+    if (corePackageName != null) {
+      onLog('[▶] Creating shared core workspace package...');
+      await _writeCorePackage(
+        projectDir,
+        corePackageName,
+        featureName: featureName,
+        httpClient: httpClient,
+      );
+      onLog('[✓] packages/$corePackageName created.');
+    }
 
     // 2b. Offline-first workspace package
     if (localStoragePackage != null) {
@@ -309,6 +349,26 @@ class LaunchGenerationUsecase {
       onLog('[▶] Running build_runner in packages/$localStoragePackage (Drift)...');
       await _runBuildRunner(
         Directory('${projectDir.path}/packages/$localStoragePackage'),
+        onLog,
+      );
+    }
+
+    // Same for the shared core package — dioProvider's own @Riverpod codegen
+    // (dio_provider.g.dart) isn't produced by the root build either.
+    if (corePackageName != null) {
+      onLog('[▶] Running build_runner in packages/$corePackageName...');
+      await _runBuildRunner(
+        Directory('${projectDir.path}/packages/$corePackageName'),
+        onLog,
+      );
+    }
+
+    // Same for the split feature package — its own entity/model/provider
+    // codegen (freezed/.g.dart) isn't produced by the root build either.
+    if (featurePackageName != null) {
+      onLog('[▶] Running build_runner in packages/$featurePackageName...');
+      await _runBuildRunner(
+        Directory('${projectDir.path}/packages/$featurePackageName'),
         onLog,
       );
     }
@@ -433,6 +493,8 @@ class LaunchGenerationUsecase {
     bool hasStorage = false,
     bool hasOAuth = false,
     bool hasI18n = false,
+    String? corePackageName,
+    String? featurePackageName,
   }) async {
     final lib = '${projectDir.path}/lib';
 
@@ -486,6 +548,9 @@ class LaunchGenerationUsecase {
         hasSupabase: httpClient == 'supabase',
         hasFirebase: httpClient == 'firebase',
         hasI18n: hasI18n,
+        chopperRegisterFeaturePackage:
+            httpClient == 'chopper' ? featurePackageName : null,
+        chopperRegisterFeatureName: httpClient == 'chopper' ? featureName : null,
       ),
     );
 
@@ -520,6 +585,7 @@ class LaunchGenerationUsecase {
         // When the theme lives in <app>_ui, app.dart imports it from there.
         themePackage: uiPackage,
         hasI18n: hasI18n,
+        corePackageName: corePackageName,
       ),
     );
 
@@ -617,11 +683,21 @@ class LaunchGenerationUsecase {
       // fromJson (it only decodes to Map/List) — this registry-backed
       // converter fixes that; the witness feature registers itself here (if
       // there is one), the Workshop appends more at `// neat:chopper-decoders`.
+      //
+      // packageSplit: the app's own copy becomes dead code (the split
+      // feature's registry entry lives in core, self-registered at runtime —
+      // see DataTemplates.featureRepositoryProviders/AppTemplates.bootstrap),
+      // so it must NOT seed the witness here: the witness feature's Model no
+      // longer lives at the app-relative path this template assumes, which
+      // would otherwise be a broken import in an unused-but-still-analyzed file.
       await _write(
         '$lib/core/network/chopper_model_converter.dart',
         CoreTemplates.chopperModelConverter(
           packageName: packageName,
-          featureName: architecture.generateFirstFeature ? featureName : null,
+          featureName:
+              (architecture.generateFirstFeature && featurePackageName == null)
+                  ? featureName
+                  : null,
         ),
       );
       await _write(
@@ -743,6 +819,7 @@ class LaunchGenerationUsecase {
       theme: theme,
       uiPackage: uiPackage,
       flexVersion: flexMatches.isEmpty ? null : flexMatches.first.version,
+      corePackageName: corePackageName,
     );
 
     // Bottom-nav shell from launch: the first feature becomes the shell's
@@ -764,6 +841,7 @@ class LaunchGenerationUsecase {
         shellLabel: architecture.effectiveShellLabel,
         hasAuth: hasAuth,
         hasFirstFeature: architecture.generateFirstFeature,
+        featurePackageName: featurePackageName,
       );
     }
 
@@ -810,8 +888,22 @@ class LaunchGenerationUsecase {
     // (written above) owns '/' instead. Add a real first feature later via
     // the Workshop, which owns all entity/JSON-paste editing.
     if (architecture.generateFirstFeature) {
+      // packages/<packageName>_<featureName>/pubspec.yaml — depends on the
+      // shared core package via a sibling path: dep (see ROADMAP.md §6a).
+      if (featurePackageName != null && corePackageName != null) {
+        await _write(
+          '${projectDir.path}/packages/$featurePackageName/pubspec.yaml',
+          CorePackageTemplates.featurePackagePubspec(
+            featurePackageName: featurePackageName,
+            corePackageName: corePackageName,
+            httpClient: httpClient,
+          ),
+        );
+      }
       await _writeFeature(
-        lib: lib,
+        lib: featurePackageName != null
+            ? '${projectDir.path}/packages/$featurePackageName/lib'
+            : lib,
         featureName: featureName,
         packageName: packageName,
         architecture: architecture,
@@ -829,6 +921,8 @@ class LaunchGenerationUsecase {
         hasSync: hasSync,
         isShellBranch: useShell,
         realtime: hasRealtime,
+        packageSplit: featurePackageName != null,
+        corePackageName: corePackageName,
         i18n: hasI18nSample,
       );
     }
@@ -849,6 +943,11 @@ class LaunchGenerationUsecase {
     required ThemeEngineState theme,
     String? uiPackage,
     String? flexVersion,
+    // Set when packageSplit is on: theme_mode_controller.dart is written into
+    // the shared core package instead (see _writeCorePackage) — the app must
+    // not keep its own separate copy, or the app shell and a split feature
+    // page's toggle would watch two different provider instances.
+    String? corePackageName,
   }) async {
     // When extracted, theme + tokens + components live in packages/<ui>/lib;
     // their imports target <ui> instead of the app. State (theme mode / bloc)
@@ -946,8 +1045,9 @@ class LaunchGenerationUsecase {
     // State (theme mode / brightness) ALWAYS stays in the app, never in <ui>.
     final appT = '$lib/core/theme';
 
-    // theme mode controller
-    if (hasRiverpod) {
+    // theme mode controller — single-sourced from the core package when
+    // packageSplit is on (see this function's corePackageName doc).
+    if (hasRiverpod && corePackageName == null) {
       await _write(
         '$appT/theme_mode_controller.dart',
         useAnnotations
@@ -1281,6 +1381,9 @@ dev_dependencies:
     String shellLabel = '',
     bool hasAuth = false,
     bool hasFirstFeature = true,
+    // Set when packageSplit is on: routesManual's feature-page import must
+    // cross into the split feature package instead of lib/features/<name>/.
+    String? featurePackageName,
   }) async {
     final r = '$lib/core/router';
 
@@ -1345,7 +1448,11 @@ dev_dependencies:
       '$r/routes.dart',
       hasGoRouterBuilder
           ? CoreTemplates.routesAggregator(packageName: packageName, featureName: featureName)
-          : CoreTemplates.routesManual(packageName: packageName, featureName: featureName),
+          : CoreTemplates.routesManual(
+              packageName: packageName,
+              featureName: featureName,
+              featurePackageName: featurePackageName,
+            ),
     );
   }
 
@@ -1371,6 +1478,8 @@ dev_dependencies:
     bool isShellBranch = false,
     bool realtime = false,
     bool i18n = false,
+    bool packageSplit = false,
+    String? corePackageName,
   }) async {
     await const FeatureScaffolder().writeFeature(
       lib: lib,
@@ -1404,6 +1513,8 @@ dev_dependencies:
       // with the plain `_riverpodListNotifier`, which has no addItem/removeItem
       // — only the wizard's Example toggle ever produces this exact apiPath.
       includeCrudUi: architecture.firstFeatureApiPath == 'https://fakestoreapi.com/products',
+      packageSplit: packageSplit,
+      corePackageName: corePackageName,
     );
   }
 
@@ -1542,6 +1653,92 @@ dev_dependencies:
     );
 
     await pubspecFile.writeAsString(content);
+  }
+
+  // ── Shared core workspace package ───────────────────────────────────────────
+
+  /// Writes the `packages/<name>_core` workspace member: every file is
+  /// generated by **reusing the existing app-level templates**
+  /// (`CoreTemplates`/`CoreDartTemplates`), just pointed at [corePackageName]
+  /// instead of the app's own package name — same content, different home.
+  /// [httpClient] drives NetworkErrorHandler + which client provider ships
+  /// (dio for dio/retrofit, chopper's client + its witness-free decoder
+  /// registry for chopper). No envied (`AppEnv` needs an interface/
+  /// implementation split to be shareable, deferred to a later phase).
+  Future<void> _writeCorePackage(
+    Directory projectDir,
+    String corePackageName, {
+    required String featureName,
+    required String httpClient,
+  }) async {
+    final root = '${projectDir.path}/packages/$corePackageName';
+    await _write(
+      '$root/pubspec.yaml',
+      CorePackageTemplates.pubspec(corePackageName: corePackageName, httpClient: httpClient),
+    );
+    await _write('$root/lib/core/error/failure.dart', CoreTemplates.failure());
+    await _write(
+      '$root/lib/core/result/result.dart',
+      CoreDartTemplates.coreResultDart(packageName: corePackageName),
+    );
+    await _write(
+      '$root/lib/core/usecases/use_case.dart',
+      CoreDartTemplates.coreUsecaseDart(packageName: corePackageName),
+    );
+    await _write(
+      '$root/lib/core/network/network_error_handler.dart',
+      CoreTemplates.networkErrorHandler(packageName: corePackageName, httpClient: httpClient),
+    );
+    final isDioBased = httpClient == 'dio' || httpClient == 'retrofit';
+    if (isDioBased) {
+      await _write(
+        '$root/lib/core/network/dio_provider.dart',
+        CoreTemplates.dioProvider(
+            packageName: corePackageName, useAnnotations: true, useEnvied: false),
+      );
+    }
+    if (httpClient == 'chopper') {
+      // No witness: unlike the non-split registry (anchor-inserted at
+      // generation/Workshop time), split feature packages register their own
+      // decoder at runtime instead (see DataTemplates.featureRepositoryProviders'
+      // registersChopperDecoder) — core can't import their Models without
+      // recreating the very cycle packageSplit exists to avoid.
+      await _write(
+        '$root/lib/core/network/chopper_model_converter.dart',
+        CoreTemplates.chopperModelConverter(packageName: corePackageName),
+      );
+      await _write(
+        '$root/lib/core/network/chopper_client_provider.dart',
+        CoreTemplates.chopperClientProvider(
+            packageName: corePackageName, useAnnotations: true, useEnvied: false),
+      );
+    }
+    await _write(
+      '$root/lib/core/observers/logger_interceptor.dart',
+      CoreTemplates.loggerInterceptor(packageName: corePackageName, httpClient: httpClient),
+    );
+    await _write(
+      '$root/lib/core/utils/app_logger.dart',
+      CoreTemplates.appLogger(useEnvied: false, packageName: corePackageName),
+    );
+    await _write(
+      '$root/lib/core/utils/future_extensions.dart',
+      CorePackageTemplates.futureExtensions(),
+    );
+    await _write(
+      '$root/lib/core/constants/app_route_path.dart',
+      CoreTemplates.appRoutePath(featureName: featureName),
+    );
+    // theme_mode_controller is a single app-wide *stateful* provider (unlike
+    // the other core files above, which are stateless types/singletons) —
+    // both the app shell's MaterialApp and a split feature page's dark-mode
+    // toggle read/write it, so it must be single-sourced here rather than
+    // duplicated, or the two would watch different provider instances and
+    // drift out of sync. Phase 1 always has Riverpod annotations.
+    await _write(
+      '$root/lib/core/theme/theme_mode_controller.dart',
+      ThemeTemplates.themeModeControllerRiverpod(packageName: corePackageName),
+    );
   }
 
   // ── Offline-first workspace package ─────────────────────────────────────────

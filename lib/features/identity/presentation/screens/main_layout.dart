@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:neat/core/app_info/app_version_provider.dart';
 import 'package:neat/core/theme/app_theme.dart';
+import 'package:neat/core/theme/gap.dart';
 import 'package:neat/features/architecture/presentation/providers/architecture_provider.dart';
 import 'package:neat/features/architecture/presentation/screens/architecture_screen.dart';
 import 'package:neat/features/cicd/presentation/screens/cicd_screen.dart';
@@ -215,7 +216,7 @@ class MainLayout extends ConsumerWidget {
                   : Colors.grey[800],
               size: 16,
             ),
-            const SizedBox(width: 10),
+            10.gapW,
             Text(
               label,
               style: TextStyle(
@@ -229,6 +230,7 @@ class MainLayout extends ConsumerWidget {
                 letterSpacing: 0.8,
               ),
             ),
+
             if (!reachable) ...[
               const Spacer(),
               const Icon(Icons.lock_outline, size: 11, color: Colors.white12),

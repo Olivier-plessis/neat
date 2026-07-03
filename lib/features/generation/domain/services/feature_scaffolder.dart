@@ -63,6 +63,14 @@ class FeatureScaffolder {
     // general Workshop/wizard toggle yet; only NEAT's own FakeStore example
     // feature turns it on.
     bool includeCrudUi = false,
+    // Opt-in: the feature lives at the root of its own workspace package
+    // (`packages/<packageName>_<featureName>/lib/...`) instead of a folder
+    // under the app (see ROADMAP.md §6a). [corePackageName] is required in
+    // that mode — a pub workspace forbids the feature package depending back
+    // on the app, so Result/Failure/UseCase/dio networking live in a shared
+    // package below both instead.
+    bool packageSplit = false,
+    String? corePackageName,
   }) async {
     // The project ships a Drift package → any local source is Drift-backed.
     final localIsDrift = localStoragePackage != null;
@@ -83,7 +91,15 @@ class FeatureScaffolder {
     final String dataBase;
     final String presentationBase;
 
-    if (isFeatureFirst) {
+    if (packageSplit) {
+      // The package root IS the feature — no features/<name>/ nesting, and
+      // no layer-first variant (splitting by feature only makes sense
+      // feature-first: layer-first shares lib/domain/ across every feature,
+      // which contradicts giving each feature its own package).
+      domainBase = '$lib/domain';
+      dataBase = '$lib/data';
+      presentationBase = '$lib/presentation';
+    } else if (isFeatureFirst) {
       domainBase = '$lib/features/$featureName/domain';
       dataBase = '$lib/features/$featureName/data';
       presentationBase = '$lib/features/$featureName/presentation';
@@ -108,6 +124,7 @@ class FeatureScaffolder {
         hasHttpClient: hasHttpClient,
         offlineFirst: offlineFirst,
         realtime: liveList,
+        corePackageName: corePackageName,
       ),
     );
 
@@ -119,12 +136,17 @@ class FeatureScaffolder {
           featureName: featureName,
           packageName: packageName,
           offlineFirst: offlineFirst,
+          corePackageName: corePackageName,
         ),
       );
       if (hasHttpClient) {
         await _write(
           '$domainBase/usecases/${featureName}_crud_usecases.dart',
-          DomainTemplates.featureCrudUsecases(featureName: featureName, packageName: packageName),
+          DomainTemplates.featureCrudUsecases(
+            featureName: featureName,
+            packageName: packageName,
+            corePackageName: corePackageName,
+          ),
         );
       }
     }
@@ -134,7 +156,6 @@ class FeatureScaffolder {
       '$dataBase/models/${featureName}_model.dart',
       DataTemplates.featureModel(
         featureName: featureName,
-        packageName: packageName,
         hasFreezed: hasFreezed,
         hasJsonSerializable: hasJsonSerializable,
         fields: fields,
@@ -170,6 +191,7 @@ class FeatureScaffolder {
           offlineFirst: offlineFirst,
           hasSync: hasSync,
           localStoragePackage: localStoragePackage,
+          corePackageName: corePackageName,
         ),
       );
     }
@@ -180,7 +202,6 @@ class FeatureScaffolder {
         '$dataBase/sources/${featureName}_api_source.dart',
         DataTemplates.featureApiSource(
           featureName: featureName,
-          packageName: packageName,
           httpClient: httpClient,
           realtime: liveList,
           apiPath: apiPath,
@@ -192,7 +213,6 @@ class FeatureScaffolder {
         '$dataBase/sources/${featureName}_local_source.dart',
         DataTemplates.featureLocalSource(
           featureName: featureName,
-          packageName: packageName,
           offlineFirst: localIsDrift,
           hasSync: hasSync,
           localStoragePackage: localStoragePackage,
@@ -215,6 +235,7 @@ class FeatureScaffolder {
         i18n: i18n,
         fields: fields,
         includeCrudUi: includeCrudUi,
+        corePackageName: corePackageName,
       ),
     );
 
@@ -241,7 +262,6 @@ class FeatureScaffolder {
           '$presentationBase/providers/${featureName}_usecase_providers.dart',
           PresentationTemplates.featureUsecaseProviders(
             featureName: featureName,
-            packageName: packageName,
           ),
         );
       }
@@ -283,7 +303,6 @@ class FeatureScaffolder {
         '$presentationBase/routes/${featureName}_route.dart',
         PresentationTemplates.featureRoute(
           featureName: featureName,
-          packageName: packageName,
           useBuilder: false,
         ),
       );

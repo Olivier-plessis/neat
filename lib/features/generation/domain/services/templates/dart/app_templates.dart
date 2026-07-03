@@ -1,4 +1,5 @@
 import 'package:neat/features/dependencies/domain/models/pub_package.dart';
+import 'package:neat/features/generation/domain/services/templates/dart/_template_utils.dart';
 
 class AppTemplates {
   AppTemplates._();
@@ -40,7 +41,17 @@ void main() => $call;
     bool hasSupabase = false,
     bool hasFirebase = false,
     bool hasI18n = false,
+    // packageSplit + chopper: the split feature can't seed core's decoder
+    // registry via anchor-insertion the way the non-split app-local registry
+    // does (core can't import a feature package's Model back — the same
+    // cycle packageSplit exists to avoid), so it registers itself instead,
+    // called here before anything can hit the shared ChopperClient. The
+    // `// neat:chopper-register-*` anchors let a later split feature append
+    // its own registration the same way the router aggregator's anchors do.
+    String? chopperRegisterFeaturePackage,
+    String? chopperRegisterFeatureName,
   }) {
+    final registersChopper = chopperRegisterFeaturePackage != null;
     final imports = StringBuffer()
       ..writeln("import 'dart:async';")
       ..writeln()
@@ -78,6 +89,12 @@ void main() => $call;
     if (hasRiverpod) {
       imports.writeln("import 'package:$packageName/core/observers/provider_observer.dart';");
     }
+    if (registersChopper) {
+      imports
+        ..writeln(
+            "import 'package:$chopperRegisterFeaturePackage/data/repositories/${chopperRegisterFeatureName}_repository_providers.dart';")
+        ..writeln('// neat:chopper-register-imports');
+    }
 
     final sig =
         useEnvied ? 'Future<void> bootstrap(AppEnv env) async' : 'Future<void> bootstrap() async';
@@ -113,11 +130,18 @@ void main() => $call;
 '''
         : '';
 
+    // Registers split feature packages' chopper decoders before anything can
+    // hit the shared ChopperClient — must run before runApp.
+    final chopperRegisterCalls = registersChopper
+        ? '\n      register${pascal(chopperRegisterFeatureName!)}ChopperDecoders();'
+            '\n      // neat:chopper-register-calls'
+        : '';
+
     return '''${imports.toString()}
 $docComment$sig {
 $setEnv  await runZonedGuarded(
     () async {
-      WidgetsFlutterBinding.ensureInitialized();
+      WidgetsFlutterBinding.ensureInitialized();$chopperRegisterCalls
       registerErrorHandler();$pathUrl$i18nInit$firebaseInit$supaInit
       runApp($root);
     },
@@ -140,6 +164,12 @@ $setEnv  await runZonedGuarded(
     bool routerIsProvider = false,
     String? themePackage,
     bool hasI18n = false,
+    // Set when packageSplit is on (see ROADMAP.md §6a): theme_mode_controller
+    // is a single app-wide stateful provider also read by split feature
+    // pages' dark-mode toggle, so it has to live in the shared core package
+    // instead of the app's own copy — otherwise the app and the feature page
+    // would each watch a different provider instance and drift out of sync.
+    String? corePackageName,
   }) {
     final imports = StringBuffer()..writeln("import 'package:flutter/material.dart';");
     if (hasI18n) {
@@ -160,7 +190,9 @@ $setEnv  await runZonedGuarded(
         ..writeln(useAnnotations
             ? "import 'package:hooks_riverpod/hooks_riverpod.dart';"
             : "import 'package:flutter_riverpod/flutter_riverpod.dart';")
-        ..writeln("import 'core/theme/theme_mode_controller.dart';");
+        ..writeln(corePackageName != null
+            ? "import 'package:$corePackageName/core/theme/theme_mode_controller.dart';"
+            : "import 'core/theme/theme_mode_controller.dart';");
     }
     if (hasBloc || useCubit) {
       imports.writeln("import 'package:flutter_bloc/flutter_bloc.dart';");

@@ -65,13 +65,17 @@ const _corePackages = <PubPackage>[
     description: 'Code generator for immutable classes and sealed unions.',
     isDev: true,
   ),
-  PubPackage(
-    name: 'go_router_builder',
-    version: '4.3.0',
-    description: 'Type-safe route generation for go_router.',
-    isDev: true,
-  ),
 ];
+
+/// Opt-in typed routing (see [RoutingStyle]) — not bundled in [_corePackages]
+/// so "manual go_router" is a real, reachable default instead of something
+/// only achieved by manually deleting a package from Managed Packages.
+const goRouterBuilderPackage = PubPackage(
+  name: 'go_router_builder',
+  version: '4.3.0',
+  description: 'Type-safe route generation for go_router.',
+  isDev: true,
+);
 
 /// REST: core + a Chopper HTTP client.
 const restPreset = <PubPackage>[
@@ -102,6 +106,31 @@ const firebasePreset = <PubPackage>[
   PubPackage(name: 'cloud_firestore', version: '5.6.0', description: 'Cloud Firestore database.'),
 ];
 
+/// Dio: core + the Dio HTTP client, no code-generated client wrapper.
+const dioPreset = <PubPackage>[
+  ..._corePackages,
+  PubPackage(name: 'dio', version: '5.9.2', description: 'Powerful HTTP client for Dart.'),
+];
+
+/// Retrofit: core + Dio (its underlying transport) + the Retrofit generator.
+/// Not yet selectable (see [isUnsupportedPackage]) — its API-source path has
+/// no generation-harness coverage — but kept ready for when it does.
+const retrofitPreset = <PubPackage>[
+  ..._corePackages,
+  PubPackage(name: 'dio', version: '5.9.2', description: 'Powerful HTTP client for Dart.'),
+  PubPackage(
+    name: 'retrofit',
+    version: '4.7.0',
+    description: 'Type-safe HTTP client generator built on Dio.',
+  ),
+  PubPackage(
+    name: 'retrofit_generator',
+    version: '9.7.0',
+    description: 'Code generator for Retrofit.',
+    isDev: true,
+  ),
+];
+
 /// Backend-specific package names — stripped before applying a new preset so
 /// switching backends is clean (non-backend packages are kept).
 const backendMarkerPackages = <String>{
@@ -130,3 +159,35 @@ BackendKind backendOf(List<PubPackage> packages) {
   if (names.contains('supabase_flutter')) return BackendKind.supabase;
   return BackendKind.rest;
 }
+
+/// The REST HTTP client — only meaningful when [backendOf] is
+/// [BackendKind.rest]; picking one swaps the client package the same way
+/// [applyBackendPreset]-family calls swap the backend (strip the marker
+/// packages, add the new preset — see dependencies_provider.dart).
+enum HttpClientKind { chopper, dio, retrofit }
+
+List<PubPackage> presetForHttpClient(HttpClientKind kind) => switch (kind) {
+      HttpClientKind.chopper => restPreset,
+      HttpClientKind.dio => dioPreset,
+      HttpClientKind.retrofit => retrofitPreset,
+    };
+
+/// Infers the active REST client from the manifest. Defaults to chopper
+/// (restPreset's own default) when neither dio nor retrofit is present.
+HttpClientKind httpClientOf(List<PubPackage> packages) {
+  final names = packages.map((p) => p.name).toSet();
+  if (names.contains('retrofit')) return HttpClientKind.retrofit;
+  if (names.contains('dio')) return HttpClientKind.dio;
+  return HttpClientKind.chopper;
+}
+
+/// go_router (always present, see [_corePackages]) can run in two modes:
+/// hand-written routes, or `go_router_builder`'s typed, code-generated ones.
+/// This is a plain add/remove of a single package (unlike [HttpClientKind]'s
+/// mutually-exclusive presets), since [goRouterBuilderPackage] just layers on
+/// top of go_router rather than replacing anything.
+enum RoutingStyle { manual, typed }
+
+/// Infers the active routing style from the manifest.
+RoutingStyle routingStyleOf(List<PubPackage> packages) =>
+    packages.any((p) => p.name == 'go_router_builder') ? RoutingStyle.typed : RoutingStyle.manual;

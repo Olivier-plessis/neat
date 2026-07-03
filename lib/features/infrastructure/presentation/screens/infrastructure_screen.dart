@@ -2,6 +2,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:neat/core/theme/app_theme.dart';
+import 'package:neat/core/theme/gap.dart';
+import 'package:neat/core/theme/padding.dart';
 import 'package:neat/features/architecture/domain/models/env_config.dart';
 import 'package:neat/features/architecture/presentation/providers/architecture_provider.dart';
 import 'package:neat/features/dependencies/domain/constants/backend_presets.dart';
@@ -67,7 +69,7 @@ class _BackendSelector extends ConsumerWidget {
             icon: Icons.api_outlined,
             iconColor: AppTheme.colorPrimaryCyan,
             title: 'REST API',
-            subtitle: 'Generic HTTP client (Chopper)',
+            subtitle: 'HTTP client',
             active: active == BackendKind.rest,
             onTap: () => pick(BackendKind.rest),
           ),
@@ -107,6 +109,8 @@ class _BackendCard extends StatelessWidget {
     required this.subtitle,
     required this.active,
     required this.onTap,
+    this.fontSize = 16,
+    this.disabled = false,
   });
 
   final IconData icon;
@@ -115,11 +119,16 @@ class _BackendCard extends StatelessWidget {
   final String subtitle;
   final bool active;
   final VoidCallback onTap;
+  final double fontSize;
+
+  /// Visible but not selectable (e.g. a client the generation harness hasn't
+  /// validated yet) — mirrors architecture_screen.dart's _PatternCard.
+  final bool disabled;
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
+    final card = InkWell(
+      onTap: disabled ? null : onTap,
       borderRadius: BorderRadius.circular(14),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
@@ -136,23 +145,23 @@ class _BackendCard extends StatelessWidget {
           children: [
             Container(
               width: 52,
-              height: 52,
+              height: 24,
               decoration: BoxDecoration(
                 color: Colors.white.withValues(alpha: 0.04),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(icon, color: iconColor, size: 26),
             ),
-            const SizedBox(height: 14),
+            14.gapH,
             Text(
               title,
-              style: const TextStyle(
+              style: TextStyle(
                 color: Colors.white,
-                fontSize: 16,
+                fontSize: fontSize,
                 fontWeight: FontWeight.w600,
               ),
             ),
-            const SizedBox(height: 4),
+            4.gapH,
             Text(subtitle, style: TextStyle(color: Colors.grey[500], fontSize: 12)),
             const SizedBox(height: 12),
             if (active)
@@ -174,7 +183,7 @@ class _BackendCard extends StatelessWidget {
               )
             else
               Text(
-                'SELECT',
+                disabled ? 'COMING SOON' : 'SELECT',
                 style: TextStyle(
                   color: Colors.grey[700],
                   fontSize: 10,
@@ -186,6 +195,8 @@ class _BackendCard extends StatelessWidget {
         ),
       ),
     );
+
+    return disabled ? Opacity(opacity: 0.5, child: card) : card;
   }
 }
 
@@ -206,6 +217,9 @@ class _BackendConfig extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final backend = ref.watch(selectedPackagesProvider.select(backendOf));
+    final httpClient = ref.watch(selectedPackagesProvider.select(httpClientOf));
+    final routingStyle = ref.watch(selectedPackagesProvider.select(routingStyleOf));
+    final packagesNotifier = ref.read(selectedPackagesProvider.notifier);
     final arch = ref.watch(architectureProvider);
     final notifier = ref.read(architectureProvider.notifier);
     final platforms = ref.watch(identityProvider.select((s) => s.targetPlatforms));
@@ -236,6 +250,92 @@ class _BackendConfig extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (backend == BackendKind.rest) ...[
+              Text(
+                'Select your favorite Http client: ',
+                style: TextStyle(color: Colors.grey[400], fontSize: 15),
+              ).paddedV(16),
+              Row(
+                spacing: 16,
+                children: [
+                  Flexible(
+                    flex: 6,
+                    child: _BackendCard(
+                      icon: Icons.local_fire_department,
+                      iconColor: const Color(0xFFFFA000),
+                      title: 'Chopper',
+                      subtitle: '',
+                      active: httpClient == HttpClientKind.chopper,
+                      onTap: () => packagesNotifier.applyHttpClientPreset(
+                        presetForHttpClient(HttpClientKind.chopper),
+                      ),
+                    ),
+                  ),
+                  Flexible(
+                    flex: 6,
+                    child: _BackendCard(
+                      icon: Icons.api_outlined,
+                      iconColor: AppTheme.colorPrimaryCyan,
+                      title: 'Dio',
+                      subtitle: '',
+                      active: httpClient == HttpClientKind.dio,
+                      onTap: () => packagesNotifier.applyHttpClientPreset(
+                        presetForHttpClient(HttpClientKind.dio),
+                      ),
+                    ),
+                  ),
+                  Flexible(
+                    flex: 6,
+                    child: Tooltip(
+                      message:
+                          'Not selectable yet — its API-source path has no generation-harness coverage.',
+                      child: _BackendCard(
+                        icon: Icons.bolt,
+                        iconColor: const Color(0xFF3ECF8E),
+                        title: 'Retrofit',
+                        subtitle: '',
+                        active: false,
+                        disabled: true,
+                        onTap: () {},
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              24.gapH,
+            ],
+            Text(
+              'Routing style: ',
+              style: TextStyle(color: Colors.grey[400], fontSize: 15),
+            ).paddedV(16),
+            Row(
+              spacing: 16,
+              children: [
+                Flexible(
+                  flex: 6,
+                  child: _BackendCard(
+                    icon: Icons.edit_road_outlined,
+                    iconColor: AppTheme.colorPrimaryCyan,
+                    title: 'Manual',
+                    subtitle: 'Hand-written GoRoute list',
+                    active: routingStyle == RoutingStyle.manual,
+                    onTap: () => packagesNotifier.setRoutingStyle(RoutingStyle.manual),
+                  ),
+                ),
+                Flexible(
+                  flex: 6,
+                  child: _BackendCard(
+                    icon: Icons.route_outlined,
+                    iconColor: const Color(0xFF3ECF8E),
+                    title: 'Typed',
+                    subtitle: 'go_router_builder codegen',
+                    active: routingStyle == RoutingStyle.typed,
+                    onTap: () => packagesNotifier.setRoutingStyle(RoutingStyle.typed),
+                  ),
+                ),
+              ],
+            ),
+            24.gapH,
             Row(
               children: [
                 Text('Configuration: ', style: TextStyle(color: Colors.grey[400], fontSize: 15)),
@@ -591,7 +691,6 @@ class _ManagedPackagesPanel extends ConsumerWidget {
   }
 }
 
-
 // ── Managed Packages Tile ─────────────────────────────────────────────────────
 
 class _SheetPackageTile extends ConsumerStatefulWidget {
@@ -726,4 +825,3 @@ class _SheetPackageTileState extends ConsumerState<_SheetPackageTile> {
     );
   }
 }
-

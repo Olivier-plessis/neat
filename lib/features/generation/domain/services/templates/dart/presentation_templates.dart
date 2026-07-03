@@ -22,7 +22,7 @@ class PresentationTemplates {
       if (dataList) {
         return realtime
             ? _riverpodListStreamNotifier(featureName, packageName)
-            : _riverpodListNotifier(featureName, packageName, includeCrudUi, fields);
+            : _riverpodListNotifier(featureName, includeCrudUi, fields);
       }
       return _riverpodAnnotationTemplate(featureName);
     }
@@ -52,8 +52,7 @@ class ${p}Notifier extends _\$${p}Notifier {
   /// [includeCrudUi] adds local (optimistic) list mutators for create/delete —
   /// see [_crudSheets]'s doc for why they don't just `ref.invalidate` instead.
   static String _riverpodListNotifier(
-    String featureName,
-    String packageName, [
+    String featureName, [
     bool includeCrudUi = false,
     List<FieldSpec> fields = FieldSpec.idName,
   ]) {
@@ -77,7 +76,7 @@ class ${p}Notifier extends _\$${p}Notifier {
   }'''
         : '';
     return '''import 'package:riverpod_annotation/riverpod_annotation.dart';
-import 'package:$packageName/features/$featureName/domain/entities/${featureName}_entity.dart';
+import '../../domain/entities/${featureName}_entity.dart';
 import '${featureName}_usecase_providers.dart';
 
 part '${featureName}_provider.g.dart';
@@ -106,14 +105,13 @@ class ${p}Notifier extends _\$${p}Notifier {
   /// Model, RepositoryImpl) directly — matches the wesioo reference pattern.
   static String featureUsecaseProviders({
     required String featureName,
-    required String packageName,
   }) {
     final p = pascal(featureName);
     final c = camel(featureName);
     return '''import 'package:riverpod_annotation/riverpod_annotation.dart';
-import 'package:$packageName/features/$featureName/data/repositories/${featureName}_repository_providers.dart';
-import 'package:$packageName/features/$featureName/domain/usecases/get_${featureName}_usecase.dart';
-import 'package:$packageName/features/$featureName/domain/usecases/${featureName}_crud_usecases.dart';
+import '../../data/repositories/${featureName}_repository_providers.dart';
+import '../../domain/usecases/get_${featureName}_usecase.dart';
+import '../../domain/usecases/${featureName}_crud_usecases.dart';
 
 part '${featureName}_usecase_providers.g.dart';
 
@@ -194,6 +192,13 @@ class ${p}Error extends ${p}State {
     bool i18n = false,
     List<FieldSpec> fields = FieldSpec.idName,
     bool includeCrudUi = false,
+    // See DomainTemplates.featureIRepository's doc — same packageSplit
+    // rationale. Also covers theme_mode_controller.dart: it's a single
+    // app-wide stateful provider (the app shell's MaterialApp watches it too
+    // — see app_templates.dart's appDart), so when the feature is split it
+    // has to be single-sourced from core, not duplicated, or the toggle here
+    // and the app's rendered theme would drift out of sync.
+    String? corePackageName,
   ]) {
     final p = pascal(featureName);
     final c = camel(featureName);
@@ -242,14 +247,23 @@ class ${p}Error extends ${p}State {
             ),'''
         : '';
     final crudWidgets = includeCrudUi ? _crudSheets(featureName, packageName, fields) : '';
+    // Only declared when actually wired (onTapArg above) — an always-null,
+    // never-passed constructor param is dead weight the analyzer flags.
+    final onTapCtorParam = includeCrudUi ? ', this.onTap' : '';
+    final onTapErrorAssign = includeCrudUi ? ', onTap = null' : '';
+    final onTapField =
+        includeCrudUi ? '  final void Function(${p}Entity item)? onTap;\n' : '';
+    final onTapTileProp =
+        includeCrudUi ? '\n          onTap: onTap == null ? null : () => onTap!(item),' : '';
 
+    final corePkg = corePackageName ?? packageName;
     return '''import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:skeletonizer/skeletonizer.dart';
-import 'package:$packageName/core/error/failure.dart';
-import 'package:$packageName/core/theme/theme_mode_controller.dart';
-${i18nImports}import 'package:$packageName/features/$featureName/domain/entities/${featureName}_entity.dart';
-import 'package:$packageName/features/$featureName/presentation/providers/${featureName}_provider.dart';
+import 'package:$corePkg/core/error/failure.dart';
+import 'package:$corePkg/core/theme/theme_mode_controller.dart';
+${i18nImports}import '../../domain/entities/${featureName}_entity.dart';
+import '../providers/${featureName}_provider.dart';
 $crudImport
 class ${p}Page extends ConsumerWidget {
   const ${p}Page({super.key});
@@ -289,12 +303,12 @@ class ${p}Page extends ConsumerWidget {
 }
 
 class _${p}List extends StatelessWidget {
-  const _${p}List({required this.items, this.onTap}) : error = null;
-  const _${p}List.error(this.error) : items = const [], onTap = null;
+  const _${p}List({required this.items$onTapCtorParam}) : error = null;
+  const _${p}List.error(this.error) : items = const []$onTapErrorAssign;
 
   final List<${p}Entity> items;
   final String? error;
-  final void Function(${p}Entity item)? onTap;
+$onTapField
 
   @override
   Widget build(BuildContext context) {
@@ -316,8 +330,7 @@ class _${p}List extends StatelessWidget {
         return ListTile(
           leading: const CircleAvatar(child: Icon(Icons.label_outline)),
           title: Text($titleExpr),
-          subtitle: Text('id: \${item.$idName}'),
-          onTap: onTap == null ? null : () => onTap!(item),
+          subtitle: Text('id: \${item.$idName}'),$onTapTileProp
         );
       },
     );
@@ -518,11 +531,14 @@ $disposeLines
     bool i18n = false,
     List<FieldSpec> fields = FieldSpec.idName,
     bool includeCrudUi = false,
+    // See _riverpodListPage's doc — same packageSplit rationale.
+    String? corePackageName,
   }) {
     final p = pascal(featureName);
 
     if (hasRiverpod && useAnnotations && dataList) {
-      return _riverpodListPage(featureName, packageName, i18n, fields, includeCrudUi);
+      return _riverpodListPage(
+          featureName, packageName, i18n, fields, includeCrudUi, corePackageName);
     }
 
     if (hasRiverpod) {
@@ -545,10 +561,11 @@ $disposeLines
         error: (e, _) => Center(child: Text(e.toString())),
       )''';
 
+      final corePkg = corePackageName ?? packageName;
       return '''import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
-import 'package:$packageName/core/theme/theme_mode_controller.dart';
-${i18nImports}import 'package:$packageName/features/$featureName/presentation/providers/${featureName}_provider.dart';
+import 'package:$corePkg/core/theme/theme_mode_controller.dart';
+${i18nImports}import '../providers/${featureName}_provider.dart';
 
 class ${p}Page extends ConsumerWidget {
   const ${p}Page({super.key});
@@ -662,7 +679,6 @@ class ${p}Page extends StatelessWidget {
 
   static String featureRoute({
     required String featureName,
-    required String packageName,
     required bool useBuilder,
   }) {
     final p = pascal(featureName);
@@ -670,7 +686,7 @@ class ${p}Page extends StatelessWidget {
     if (useBuilder) {
       return '''import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
-import 'package:$packageName/features/$featureName/presentation/pages/${featureName}_page.dart';
+import '../pages/${featureName}_page.dart';
 
 class ${p}Route extends GoRouteData {
   const ${p}Route();
@@ -683,7 +699,7 @@ class ${p}Route extends GoRouteData {
     }
 
     return '''import 'package:go_router/go_router.dart';
-import 'package:$packageName/features/$featureName/presentation/pages/${featureName}_page.dart';
+import '../pages/${featureName}_page.dart';
 
 final ${camel(featureName)}Route = GoRoute(
   path: '/',

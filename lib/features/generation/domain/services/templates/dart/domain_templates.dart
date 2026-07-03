@@ -75,6 +75,11 @@ $decls
     bool hasHttpClient = false,
     bool offlineFirst = false,
     bool realtime = false,
+    // Set when the feature lives in its own workspace package (`packageSplit`
+    // — see ROADMAP.md §6a): Result/Failure/UseCase live in this shared
+    // package instead of the app, since a pub workspace forbids the feature
+    // package depending back on the app.
+    String? corePackageName,
   }) {
     final p = pascal(featureName);
     // Offline-first reads return Result<T> directly — they encapsulate a
@@ -98,7 +103,9 @@ $decls
         : '';
     // Realtime: a live stream of the full list (Supabase `.stream()`).
     final watchContract = realtime ? '\n  Stream<List<${p}Entity>> watchAll();' : '';
-    final resultImport = resultReads ? "import 'package:$packageName/core/result/result.dart';\n" : '';
+    final resultImport = resultReads
+        ? "import 'package:${corePackageName ?? packageName}/core/result/result.dart';\n"
+        : '';
     return '''$resultImport'''
         '''import '../entities/${featureName}_entity.dart';
 
@@ -115,8 +122,11 @@ $writeContract$watchContract
     required String featureName,
     required String packageName,
     bool offlineFirst = false,
+    // See featureIRepository's doc — same packageSplit rationale.
+    String? corePackageName,
   }) {
     final p = pascal(featureName);
+    final corePkg = corePackageName ?? packageName;
     // Offline-first: the repository already returns a Result<T> encapsulating
     // its network→cache fallback (see featureRepositoryImpl / featureIRepository)
     // — unwrap it via getOrThrow() so UseCase.call() can still uniformly
@@ -129,8 +139,8 @@ $writeContract$watchContract
   }'''
         : '=> _repository.getAll();';
     final resultImport =
-        offlineFirst ? "import 'package:$packageName/core/result/result.dart';\n" : '';
-    return '''${resultImport}import 'package:$packageName/core/usecases/use_case.dart';
+        offlineFirst ? "import 'package:$corePkg/core/result/result.dart';\n" : '';
+    return '''${resultImport}import 'package:$corePkg/core/usecases/use_case.dart';
 import '../entities/${featureName}_entity.dart';
 import '../repositories/i_${featureName}_repository.dart';
 
@@ -150,9 +160,11 @@ class Get${p}Usecase extends NoParamsUseCase<List<${p}Entity>> {
   static String featureCrudUsecases({
     required String featureName,
     required String packageName,
+    // See featureIRepository's doc — same packageSplit rationale.
+    String? corePackageName,
   }) {
     final p = pascal(featureName);
-    return '''import 'package:$packageName/core/usecases/use_case.dart';
+    return '''import 'package:${corePackageName ?? packageName}/core/usecases/use_case.dart';
 import '../entities/${featureName}_entity.dart';
 import '../repositories/i_${featureName}_repository.dart';
 
