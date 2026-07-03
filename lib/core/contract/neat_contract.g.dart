@@ -36,6 +36,7 @@ _NeatContract _$NeatContractFromJson(Map<String, dynamic> json) =>
               ?.map((e) => e as String)
               .toList() ??
           const <String>[],
+      packageSplit: json['packageSplit'] as bool? ?? false,
     );
 
 Map<String, dynamic> _$NeatContractToJson(_NeatContract instance) =>
@@ -64,4 +65,5 @@ Map<String, dynamic> _$NeatContractToJson(_NeatContract instance) =>
       'generateOAuth': instance.generateOAuth,
       'generateI18n': instance.generateI18n,
       'components': instance.components,
+      'packageSplit': instance.packageSplit,
     };

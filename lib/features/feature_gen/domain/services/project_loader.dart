@@ -28,14 +28,31 @@ class ProjectLoader {
     return LoadedProject(
       path: projectPath,
       contract: contract,
-      features: scanFeatures(projectPath),
+      features: scanFeatures(projectPath, contract),
     );
   }
 
-  /// Existing features = the directories under `lib/features/`. The filesystem
-  /// is the single source of truth (never a list stored in the contract), so it
+  /// Existing features = the directories under `lib/features/` (or, when
+  /// `packageSplit` is on, the `<projectName>_<feature>` workspace packages
+  /// under `packages/` — see ROADMAP.md §6a Step 2b). The filesystem is the
+  /// single source of truth (never a list stored in the contract), so it
   /// stays correct even when teammates add features by hand.
-  List<String> scanFeatures(String projectPath) {
+  List<String> scanFeatures(String projectPath, NeatContract contract) {
+    if (contract.packageSplit) {
+      final packagesDir = Directory('$projectPath/packages');
+      if (!packagesDir.existsSync()) return const [];
+      final prefix = '${contract.projectName}_';
+      const nonFeatureSuffixes = ['core', 'local_storage', 'ui'];
+      return packagesDir
+          .listSync()
+          .whereType<Directory>()
+          .map((d) => d.uri.pathSegments.where((s) => s.isNotEmpty).last)
+          .where((name) => name.startsWith(prefix))
+          .map((name) => name.substring(prefix.length))
+          .where((name) => !nonFeatureSuffixes.contains(name))
+          .toList()
+        ..sort();
+    }
     final dir = Directory('$projectPath/lib/features');
     if (!dir.existsSync()) return const [];
     return dir

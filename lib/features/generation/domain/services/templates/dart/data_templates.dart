@@ -172,6 +172,10 @@ $classes
     bool realtime = false,
     List<FieldSpec> fields = FieldSpec.idName,
     String? apiPath,
+    // See DomainTemplates.featureIRepository's doc — same packageSplit
+    // rationale. Only the offlineFirst branch's core/ imports use this; the
+    // remote-only branch below has none (nothing to redirect).
+    String? corePackageName,
   }) {
     final p = pascal(featureName);
     final isChopper = httpClient == 'chopper';
@@ -189,7 +193,7 @@ $classes
     String remote(String call) =>
         isChopper ? 'unwrapChopperResponse(await _remote.$call)' : 'await _remote.$call';
     final chopperImport = isChopper
-        ? "import 'package:$packageName/core/network/chopper_model_converter.dart';\n"
+        ? "import 'package:${corePackageName ?? packageName}/core/network/chopper_model_converter.dart';\n"
         : '';
 
     // Realtime: surface the source's live stream, mapped models → entities.
@@ -281,10 +285,11 @@ $classes
     return true;
   }''';
 
-      return '''$convertImport${chopperImport}import 'package:$packageName/core/error/failure.dart';
-import 'package:$packageName/core/network/network_info.dart';
-import 'package:$packageName/core/result/result.dart';
-import 'package:$packageName/core/utils/app_logger.dart';
+      final corePkg = corePackageName ?? packageName;
+      return '''$convertImport${chopperImport}import 'package:$corePkg/core/error/failure.dart';
+import 'package:$corePkg/core/network/network_info.dart';
+import 'package:$corePkg/core/result/result.dart';
+import 'package:$corePkg/core/utils/app_logger.dart';
 import '../../domain/entities/${featureName}_entity.dart';
 import '../../domain/repositories/i_${featureName}_repository.dart';
 import '../models/${featureName}_model.dart';
@@ -745,7 +750,7 @@ class ${p}LocalSource {
       // Shared app-wide singletons (Drift db + connectivity) live in core, not
       // per feature, so every feature reuses the same instances.
       imports.writeln(
-          "import 'package:$packageName/core/providers/infrastructure_providers.dart';");
+          "import 'package:${corePackageName ?? packageName}/core/providers/infrastructure_providers.dart';");
     }
     imports.writeln(switch (httpClient) {
       'chopper' =>

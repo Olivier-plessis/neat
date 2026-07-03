@@ -71,6 +71,18 @@ void main() {
   test('scanFeatures ignores hidden dirs', () async {
     Directory('${tempRoot.path}/lib/features/home').createSync(recursive: true);
     Directory('${tempRoot.path}/lib/features/.DS_cache').createSync(recursive: true);
-    expect(loader.scanFeatures(tempRoot.path), ['home']);
+    expect(loader.scanFeatures(tempRoot.path, contract), ['home']);
+  });
+
+  test('packageSplit: scans packages/ for <projectName>_<feature>, excluding core/ui/local_storage',
+      () async {
+    final split = contract.copyWith(packageSplit: true);
+    writeContract(split);
+    for (final pkg in ['demo_core', 'demo_local_storage', 'demo_ui', 'demo_home', 'demo_orders']) {
+      Directory('${tempRoot.path}/packages/$pkg').createSync(recursive: true);
+    }
+    final project = await loader.load(tempRoot.path);
+    expect(project, isNotNull);
+    expect(project!.features, ['home', 'orders']);
   });
 }

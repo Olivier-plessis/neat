@@ -16,6 +16,7 @@ import 'package:neat/features/identity/presentation/providers/identity_provider.
 import 'package:neat/features/identity/presentation/providers/stepper_provider.dart';
 import 'package:neat/features/identity/presentation/screens/identity/identity_screen.dart';
 import 'package:neat/features/identity/presentation/screens/launch_screen.dart';
+import 'package:neat/features/infrastructure/presentation/providers/infrastructure_tab_provider.dart';
 import 'package:neat/features/infrastructure/presentation/screens/infrastructure_screen.dart';
 import 'package:neat/features/theme_engine/domain/models/theme_engine_state.dart';
 import 'package:neat/features/theme_engine/presentation/providers/theme_engine_provider.dart';
@@ -61,7 +62,7 @@ class MainLayout extends ConsumerWidget {
                           ),
                           child: const Icon(Icons.bolt, color: AppTheme.colorPrimaryCyan, size: 22),
                         ),
-                        const SizedBox(width: 12),
+                        12.gapW,
                         Column(
                           crossAxisAlignment: .start,
                           children: [
@@ -110,6 +111,11 @@ class MainLayout extends ConsumerWidget {
                   'INFRASTRUCTURE',
                   Icons.extension_outlined,
                 ),
+                if (currentStep == NeatStep.infrastructure) ...[
+                  _buildSubItem(ref, InfrastructureTab.backend, 'BACKEND'),
+                  _buildSubItem(ref, InfrastructureTab.navigation, 'NAVIGATION'),
+                  _buildSubItem(ref, InfrastructureTab.localization, 'LOCALIZATION'),
+                ],
                 _buildItem(ref, NeatStep.packages, 'DEPENDENCIES', Icons.extension_outlined),
                 _buildItem(ref, NeatStep.architecture, 'ARCHITECTURE', Icons.account_tree_outlined),
                 _buildItem(ref, NeatStep.cicd, 'CI/CD', Icons.rocket_outlined),
@@ -241,6 +247,39 @@ class MainLayout extends ConsumerWidget {
     );
   }
 
+  /// A sub-item nested under a [NeatStep] (currently only Infrastructure's
+  /// Backend/Navigation/Localization). Unlike [_buildItem], it never locks —
+  /// these are groupings within one already-unlocked wizard step, not
+  /// sequential milestones, so every sub-tab is freely clickable.
+  Widget _buildSubItem(WidgetRef ref, InfrastructureTab tab, String label) {
+    final current = ref.watch(currentInfrastructureTabProvider);
+    final isSelected = current == tab;
+
+    return InkWell(
+      onTap: () => ref.read(currentInfrastructureTabProvider.notifier).setTab(tab),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        margin: const EdgeInsets.fromLTRB(28, 1, 12, 1),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? AppTheme.colorPrimaryCyan.withValues(alpha: 0.06)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? AppTheme.colorPrimaryCyan : Colors.grey[600],
+            fontSize: 11,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            letterSpacing: 0.6,
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _screenFor(NeatStep step) {
     return switch (step) {
       NeatStep.identity => const IdentityScreen(),
@@ -266,19 +305,19 @@ class _WorkshopMode extends ConsumerWidget {
     return Scaffold(
       body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-            child: Row(
-              children: [
-                TextButton.icon(
-                  onPressed: () => ref.read(currentStepProvider.notifier).setStep(NeatStep.hub),
-                  icon: const Icon(Icons.arrow_back, size: 16),
-                  label: const Text('Neat-home'),
-                  style: TextButton.styleFrom(foregroundColor: Colors.white54),
-                ),
-              ],
-            ),
-          ),
+          // Padding(
+          //   padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+          //   child: Row(
+          //     children: [
+          //       TextButton.icon(
+          //         onPressed: () => ref.read(currentStepProvider.notifier).setStep(NeatStep.hub),
+          //         icon: const Icon(Icons.arrow_back, size: 16),
+          //         label: const Text('Neat-home'),
+          //         style: TextButton.styleFrom(foregroundColor: Colors.white54),
+          //       ),
+          //     ],
+          //   ),
+          // ),
           const Expanded(
             child: Padding(padding: EdgeInsets.fromLTRB(40, 16, 40, 0), child: FeatureGenScreen()),
           ),
@@ -295,11 +334,27 @@ class _NavBar extends ConsumerWidget {
 
   final NeatStep step;
 
+  static const _infraTabs = [
+    InfrastructureTab.backend,
+    InfrastructureTab.navigation,
+    InfrastructureTab.localization,
+  ];
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final notifier = ref.read(currentStepProvider.notifier);
     final prev = step.previousStep;
     final next = step.nextStep;
+
+    // Infrastructure has 3 sub-tabs (see infrastructure_tab_provider.dart) —
+    // Back/Next walk those first, and only cross into the previous/next
+    // NeatStep once at the first/last sub-tab. The step-level PROGRESS bar
+    // is unaffected: infrastructure stays a single wizardIndex throughout.
+    final infraTab = step == NeatStep.infrastructure
+        ? ref.watch(currentInfrastructureTabProvider)
+        : null;
+    final infraTabIndex = infraTab == null ? -1 : _infraTabs.indexOf(infraTab);
+    final infraTabNotifier = ref.read(currentInfrastructureTabProvider.notifier);
 
     final bool canGoNext = _isStepValid(step, ref);
 
@@ -308,6 +363,43 @@ class _NavBar extends ConsumerWidget {
       NeatStep.launch => !ref.watch(isGeneratingProvider),
       _ => true,
     };
+
+    void goNext() {
+      if (infraTab != null && infraTabIndex < _infraTabs.length - 1) {
+        infraTabNotifier.setTab(_infraTabs[infraTabIndex + 1]);
+        return;
+      }
+      // Lazy: add flex dep here if user chose FlexColorScheme
+      if (step == NeatStep.themeEngine) {
+        final approach = ref.read(themeEngineProvider.select((s) => s.approach));
+        if (approach == ThemeApproach.flexColorScheme) {
+          ref.read(selectedPackagesProvider.notifier).addAll([
+            const PubPackage(
+              name: 'flex_color_scheme',
+              version: '8.0.2',
+              description: 'Advanced Flutter theming with Material 3 surface blending.',
+              pubPoints: 160,
+              popularity: 95,
+            ),
+          ]);
+        }
+      }
+      if (next != null) {
+        ref.read(furthestStepProvider.notifier).reach(next.wizardIndex);
+        notifier.setStep(next);
+      }
+    }
+
+    void goBack() {
+      if (infraTab != null && infraTabIndex > 0) {
+        infraTabNotifier.setTab(_infraTabs[infraTabIndex - 1]);
+        return;
+      }
+      if (prev != null) notifier.setStep(prev);
+    }
+
+    final showBack = prev != null || infraTabIndex > 0;
+    final showNext = next != null || (infraTab != null && infraTabIndex < _infraTabs.length - 1);
 
     return Container(
       padding: const EdgeInsets.fromLTRB(40, 16, 40, 24),
@@ -318,10 +410,10 @@ class _NavBar extends ConsumerWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // Back button (hidden on first step)
-          if (prev != null)
+          // Back button (hidden on the very first step/sub-tab)
+          if (showBack)
             OutlinedButton.icon(
-              onPressed: canGoBack ? () => notifier.setStep(prev) : null,
+              onPressed: canGoBack ? goBack : null,
               icon: const Icon(Icons.arrow_back, size: 16),
               label: const Text('Back'),
               style: OutlinedButton.styleFrom(minimumSize: const Size(120, 48)),
@@ -329,31 +421,10 @@ class _NavBar extends ConsumerWidget {
           else
             const SizedBox(width: 120),
 
-          // Next / Launch button (hidden on last step)
-          if (next != null)
+          // Next / Launch button (hidden on the very last step)
+          if (showNext)
             OutlinedButton.icon(
-              onPressed: canGoNext
-                  ? () {
-                      // Lazy: add flex dep here if user chose FlexColorScheme
-                      if (step == NeatStep.themeEngine) {
-                        final approach = ref.read(themeEngineProvider.select((s) => s.approach));
-                        if (approach == ThemeApproach.flexColorScheme) {
-                          ref.read(selectedPackagesProvider.notifier).addAll([
-                            const PubPackage(
-                              name: 'flex_color_scheme',
-                              version: '8.0.2',
-                              description:
-                                  'Advanced Flutter theming with Material 3 surface blending.',
-                              pubPoints: 160,
-                              popularity: 95,
-                            ),
-                          ]);
-                        }
-                      }
-                      ref.read(furthestStepProvider.notifier).reach(next.wizardIndex);
-                      notifier.setStep(next);
-                    }
-                  : null,
+              onPressed: canGoNext ? goNext : null,
               icon: Icon(step.nextIcon, size: 16),
               label: Text(step.nextLabel),
               style: FilledButton.styleFrom(

@@ -755,9 +755,8 @@ void main() {
     () async {
       const projectName = 'neat_gen_core_pkg_test';
       final logs = <String>[];
-      // Phase 1 combo only: dio (no chopper — its decoder registry isn't
-      // package-aware yet), plain go_router (no builder — no per-package
-      // codegen chain yet), remote-only (no Drift — a 3rd package, later).
+      // Phase 1 combo: dio, plain go_router, remote-only (no Drift — a 3rd
+      // package, later — see the "offline-first" combo elsewhere in Phase 2).
       final noBuilderPackages = <PubPackage>[
         _dep('hooks_riverpod', '3.3.1'),
         _dep('flutter_hooks', '0.21.3+1'),
@@ -1041,9 +1040,15 @@ void main() {
       );
       expect(bootstrap, contains('registerHomeChopperDecoders();'));
       expect(bootstrap, contains('// neat:chopper-register-calls'));
-      final appConverter =
-          read('${projectDir.path}/lib/core/network/chopper_model_converter.dart');
-      expect(appConverter, isNot(contains('HomeModel')));
+      // The app no longer writes its own chopper_model_converter.dart/
+      // chopper_client_provider.dart/dio_provider.dart at all when split —
+      // nothing in the app reads them (features import core's copies
+      // instead), so they'd just be dead code (see ROADMAP.md §6a's "clean
+      // up the duplicated core/" note).
+      expect(
+        File('${projectDir.path}/lib/core/network/chopper_model_converter.dart').existsSync(),
+        isFalse,
+      );
 
       // Root pubspec wires both packages into the workspace.
       final chopperRootPubspec = read('${projectDir.path}/pubspec.yaml');
@@ -1071,6 +1076,653 @@ void main() {
         isEmpty,
         reason: 'flutter analyze reported errors:\n${chopperErrorLines.join('\n')}\n\n'
             '--- full analyze output ---\n$chopperOut',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
+
+  test(
+    'packageSplit=true + go_router_builder: the split feature\'s typed routes '
+    'cross into core for AppRoutePath, and the workspace analyzes cleanly',
+    () async {
+      const projectName = 'neat_gen_pkgsplit_builder_test';
+      final logs = <String>[];
+      // Same Phase 1-ish combo as the manual packageSplit test, but
+      // go_router_builder instead of plain go_router — routesAggregator()/
+      // featureRoutes() needed the same package-aware redirect as
+      // routesManual()/featureRoute() got in Step 2a.
+      final builderPackages = <PubPackage>[
+        _dep('hooks_riverpod', '3.3.1'),
+        _dep('flutter_hooks', '0.21.3+1'),
+        _dep('riverpod_annotation', '4.0.2'),
+        _dep('json_annotation', '4.11.0'),
+        _dep('freezed_annotation', '3.1.0'),
+        _dep('dio', '5.9.2'),
+        _dep('go_router', '17.2.3'),
+        _dev('go_router_builder', '4.3.0'),
+        _dev('riverpod_generator', '4.0.3'),
+        _dev('riverpod_lint', '3.1.3'),
+        _dev('json_serializable', '6.13.0'),
+        _dev('build_runner', '2.15.0'),
+        _dev('freezed', '3.2.5'),
+      ];
+
+      final identity = IdentityState(
+        name: projectName,
+        organization: 'com.neat.test',
+        projectPath: tempRoot.path,
+        description: 'NEAT packageSplit + go_router_builder integration test',
+        targetPlatforms: const ['macos'],
+      );
+
+      const architecture = ArchitectureState(packageSplit: true);
+      const cicd = CicdState();
+      const theme = ThemeEngineState(approach: ThemeApproach.customM3);
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: identity,
+          packages: builderPackages,
+          architecture: architecture,
+          cicd: cicd,
+          theme: theme,
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('Generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+      final coreRoot = '${projectDir.path}/packages/${projectName}_core';
+      final featureRoot = '${projectDir.path}/packages/${projectName}_home';
+      String read(String p) => File(p).readAsStringSync();
+
+      // The feature package's typed route class crosses into core for
+      // AppRoutePath (the one legitimate boundary crossing — the app's own
+      // copy would be the forbidden feature→app cycle), and stays relative
+      // for its own page (same package).
+      final featureRoutes = read('$featureRoot/lib/presentation/routes/home_routes.dart');
+      expect(
+        featureRoutes,
+        contains("import 'package:${projectName}_core/core/constants/app_route_path.dart';"),
+      );
+      expect(featureRoutes, contains("import '../pages/home_page.dart';"));
+      expect(featureRoutes, contains('@TypedGoRoute<HomeRoute>'));
+      expect(featureRoutes, isNot(contains('package:$projectName/')),
+          reason: 'a split feature package must never import from the app — that would be a cycle');
+
+      // The app's routes aggregator crosses into the split feature package
+      // for the typed routes file — the one legitimate app→feature import.
+      final routes = read('${projectDir.path}/lib/core/router/routes.dart');
+      expect(
+        routes,
+        contains(
+          "import 'package:${projectName}_home/presentation/routes/home_routes.dart'\n    as home;",
+        ),
+      );
+
+      // go_router_builder's codegen ran in the feature package's own
+      // build_runner pass (same as freezed/riverpod_generator already do).
+      expect(
+        File('$featureRoot/lib/presentation/routes/home_routes.g.dart').existsSync(),
+        isTrue,
+        reason: 'go_router_builder codegen did not run for the split feature package',
+      );
+      final featurePubspec = read('$featureRoot/pubspec.yaml');
+      expect(featurePubspec, contains('go_router_builder: ^4.3.0'));
+
+      // Core still ships its own AppRoutePath copy (written unconditionally
+      // by _writeCorePackage), independent of the routing style.
+      expect(File('$coreRoot/lib/core/constants/app_route_path.dart').existsSync(), isTrue);
+
+      final analyze = await Process.run(
+        'flutter',
+        ['analyze', '--no-pub'],
+        workingDirectory: projectDir.path,
+      );
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      expect(
+        RegExp(r'(\d+ issues? found|No issues found)').hasMatch(out),
+        isTrue,
+        reason: 'flutter analyze did not run as expected:\n$out',
+      );
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason: 'flutter analyze reported errors:\n${errorLines.join('\n')}\n\n'
+            '--- full analyze output ---\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
+
+  test(
+    'packageSplit=true + offline-first: the split feature shares core\'s '
+    'Drift db + connectivity, and the workspace analyzes cleanly',
+    () async {
+      const projectName = 'neat_gen_pkgsplit_offline_test';
+      final logs = <String>[];
+      // Offline-first *read* only (no sync/Outbox yet — see ROADMAP.md §6a):
+      // infrastructure_providers.dart/network_info.dart move to core, so
+      // every offline-first feature package shares the same Drift db +
+      // connectivity singletons instead of each getting its own.
+      final offlinePackages = <PubPackage>[
+        _dep('hooks_riverpod', '3.3.1'),
+        _dep('flutter_hooks', '0.21.3+1'),
+        _dep('riverpod_annotation', '4.0.2'),
+        _dep('json_annotation', '4.11.0'),
+        _dep('freezed_annotation', '3.1.0'),
+        _dep('dio', '5.9.2'),
+        _dep('go_router', '17.2.3'),
+        _dev('riverpod_generator', '4.0.3'),
+        _dev('riverpod_lint', '3.1.3'),
+        _dev('json_serializable', '6.13.0'),
+        _dev('build_runner', '2.15.0'),
+        _dev('freezed', '3.2.5'),
+      ];
+
+      final identity = IdentityState(
+        name: projectName,
+        organization: 'com.neat.test',
+        projectPath: tempRoot.path,
+        description: 'NEAT packageSplit + offline-first integration test',
+        targetPlatforms: const ['macos'],
+      );
+
+      const architecture = ArchitectureState(
+        packageSplit: true,
+        storageStrategy: StorageStrategy.offlineFirstRead,
+      );
+      const cicd = CicdState();
+      const theme = ThemeEngineState(approach: ThemeApproach.customM3);
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: identity,
+          packages: offlinePackages,
+          architecture: architecture,
+          cicd: cicd,
+          theme: theme,
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('Generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+      final coreRoot = '${projectDir.path}/packages/${projectName}_core';
+      final featureRoot = '${projectDir.path}/packages/${projectName}_home';
+      final storageRoot = '${projectDir.path}/packages/${projectName}_local_storage';
+      String read(String p) => File(p).readAsStringSync();
+
+      // Core ships NetworkInfo + the shared appDatabaseProvider/
+      // networkInfoProvider — the single instances every offline-first
+      // feature package reuses, instead of each getting its own.
+      expect(File('$coreRoot/lib/core/network/network_info.dart').existsSync(), isTrue);
+      final infraProviders = read('$coreRoot/lib/core/providers/infrastructure_providers.dart');
+      expect(infraProviders, contains('AppDatabase appDatabase(Ref ref)'));
+      expect(infraProviders, contains('NetworkInfo networkInfo(Ref ref)'));
+      expect(
+        infraProviders,
+        contains("import 'package:${projectName}_core/core/network/network_info.dart';"),
+      );
+      expect(infraProviders, contains("import 'package:${projectName}_local_storage/"));
+
+      // Core's own pubspec depends on the Drift package + connectivity_plus.
+      final corePubspec = read('$coreRoot/pubspec.yaml');
+      expect(corePubspec, contains('connectivity_plus:'));
+      expect(
+        corePubspec,
+        contains('${projectName}_local_storage:\n    path: ../${projectName}_local_storage'),
+      );
+
+      // The feature package's repository crosses into core for
+      // Failure/NetworkInfo/Result/AppLogger, and depends on the Drift
+      // package directly for its local source — never on the app.
+      final repoImpl = read('$featureRoot/lib/data/repositories/home_repository_impl.dart');
+      expect(
+        repoImpl,
+        contains("import 'package:${projectName}_core/core/error/failure.dart';"),
+      );
+      expect(
+        repoImpl,
+        contains("import 'package:${projectName}_core/core/network/network_info.dart';"),
+      );
+      expect(repoImpl, isNot(contains('package:$projectName/')),
+          reason: 'a split feature package must never import from the app — that would be a cycle');
+
+      final repoProviders =
+          read('$featureRoot/lib/data/repositories/home_repository_providers.dart');
+      expect(
+        repoProviders,
+        contains(
+          "import 'package:${projectName}_core/core/providers/infrastructure_providers.dart';",
+        ),
+      );
+
+      final localSource = read('$featureRoot/lib/data/sources/home_local_source.dart');
+      expect(
+        localSource,
+        contains("import 'package:${projectName}_local_storage/${projectName}_local_storage.dart';"),
+      );
+
+      // The feature package's own pubspec depends on the Drift package too.
+      final featurePubspec = read('$featureRoot/pubspec.yaml');
+      expect(
+        featurePubspec,
+        contains('${projectName}_local_storage:\n    path: ../${projectName}_local_storage'),
+      );
+
+      // Root pubspec wires all three packages into the workspace.
+      final rootPubspec = read('${projectDir.path}/pubspec.yaml');
+      expect(rootPubspec, contains('- packages/${projectName}_core'));
+      expect(rootPubspec, contains('- packages/${projectName}_home'));
+      expect(rootPubspec, contains('- packages/${projectName}_local_storage'));
+
+      expect(Directory(storageRoot).existsSync(), isTrue);
+
+      final analyze = await Process.run(
+        'flutter',
+        ['analyze', '--no-pub'],
+        workingDirectory: projectDir.path,
+      );
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      expect(
+        RegExp(r'(\d+ issues? found|No issues found)').hasMatch(out),
+        isTrue,
+        reason: 'flutter analyze did not run as expected:\n$out',
+      );
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason: 'flutter analyze reported errors:\n${errorLines.join('\n')}\n\n'
+            '--- full analyze output ---\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
+
+  test(
+    'Step 2b: the Workshop adds a 2nd feature package to an already-split '
+    'project, wired and analyzing cleanly',
+    () async {
+      const projectName = 'neat_pkgsplit_2b_test';
+      final logs = <String>[];
+      final pkgs = <PubPackage>[
+        _dep('hooks_riverpod', '3.3.1'),
+        _dep('flutter_hooks', '0.21.3+1'),
+        _dep('riverpod_annotation', '4.0.2'),
+        _dep('json_annotation', '4.11.0'),
+        _dep('freezed_annotation', '3.1.0'),
+        _dep('dio', '5.9.2'),
+        _dep('go_router', '17.2.3'),
+        _dev('riverpod_generator', '4.0.3'),
+        _dev('riverpod_lint', '3.1.3'),
+        _dev('json_serializable', '6.13.0'),
+        _dev('build_runner', '2.15.0'),
+        _dev('freezed', '3.2.5'),
+      ];
+
+      final identity = IdentityState(
+        name: projectName,
+        organization: 'com.neat.test',
+        projectPath: tempRoot.path,
+        description: 'NEAT packageSplit Step 2b integration test',
+        targetPlatforms: const ['macos'],
+      );
+      const architecture = ArchitectureState(packageSplit: true); // splits 'home'
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: identity,
+          packages: pkgs,
+          architecture: architecture,
+          cicd: const CicdState(),
+          theme: const ThemeEngineState(approach: ThemeApproach.customM3),
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('Base generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+
+      // Re-open via the contract, as the Hub would — the contract must carry
+      // packageSplit, and feature discovery must scan packages/, not
+      // lib/features/ (empty there for a split project).
+      final project = await const ProjectLoader().load(projectDir.path);
+      expect(project, isNotNull);
+      expect(project!.contract.packageSplit, isTrue);
+      expect(project.features, ['home']);
+
+      // Add a 2nd feature — must land in its own package, never lib/features/
+      // under the app (the bug this Step 2b fixes).
+      await const GenerateFeatureUsecase().execute(
+        project: project,
+        options: const FeatureGenOptions(name: 'orders'),
+        onLog: logs.add,
+      );
+
+      final orderRoot = '${projectDir.path}/packages/${projectName}_orders';
+      String read(String p) => File(p).readAsStringSync();
+
+      expect(
+        File('${projectDir.path}/lib/features/orders').existsSync(),
+        isFalse,
+        reason: 'a packageSplit project must never grow a lib/features/ folder',
+      );
+      expect(File('$orderRoot/lib/presentation/pages/orders_page.dart').existsSync(), isTrue);
+      expect(File('$orderRoot/lib/domain/entities/orders_entity.dart').existsSync(), isTrue);
+
+      final orderPubspec = read('$orderRoot/pubspec.yaml');
+      expect(orderPubspec, contains('name: ${projectName}_orders'));
+      expect(
+        orderPubspec,
+        contains('${projectName}_core:\n    path: ../${projectName}_core'),
+      );
+
+      // The usecase crosses into core, never the app — same discipline as the
+      // wizard's own split first feature.
+      final getUsecase = read('$orderRoot/lib/domain/usecases/get_orders_usecase.dart');
+      expect(
+        getUsecase,
+        contains("import 'package:${projectName}_core/core/usecases/use_case.dart';"),
+      );
+      expect(getUsecase, isNot(contains('package:$projectName/')));
+
+      // Root pubspec: new workspace member + path dependency (routes.dart
+      // imports the new package directly).
+      final rootPubspec = read('${projectDir.path}/pubspec.yaml');
+      expect(rootPubspec, contains('- packages/${projectName}_orders'));
+      expect(
+        rootPubspec,
+        contains('${projectName}_orders:\n    path: packages/${projectName}_orders'),
+      );
+
+      // routes.dart crosses into the new package; AppRoutePath gained the
+      // constant both in the app's own copy and the core package's mirrored
+      // copy (split features import AppRoutePath from core, not the app).
+      final routes = read('${projectDir.path}/lib/core/router/routes.dart');
+      expect(
+        routes,
+        contains("import 'package:${projectName}_orders/presentation/pages/orders_page.dart';"),
+      );
+      expect(routes, contains('AppRoutePath.orders'));
+      expect(
+        read('${projectDir.path}/lib/core/constants/app_route_path.dart'),
+        contains("static const String orders = '/orders';"),
+      );
+      expect(
+        read('${projectDir.path}/packages/${projectName}_core/lib/core/constants/app_route_path.dart'),
+        contains("static const String orders = '/orders';"),
+        reason: 'the split feature imports AppRoutePath from core, not the app — core\'s '
+            'mirrored copy must gain the constant too',
+      );
+
+      // Reload sees both features; non-destructive guard still holds.
+      final reloaded = await const ProjectLoader().load(projectDir.path);
+      expect(reloaded!.features, ['home', 'orders']);
+      expect(
+        () => const GenerateFeatureUsecase().execute(
+          project: reloaded,
+          options: const FeatureGenOptions(name: 'home'),
+          onLog: logs.add,
+        ),
+        throwsA(isA<Exception>()),
+      );
+
+      // Child routes are rejected under packageSplit (would need a path: dep
+      // from the parent package onto the child — a real cross-feature-package
+      // dependency, out of scope until Phase 3 — see ROADMAP.md §6a).
+      expect(
+        () => const GenerateFeatureUsecase().execute(
+          project: reloaded,
+          options: const FeatureGenOptions(
+            name: 'reviews',
+            routing: FeatureRouting.child,
+            parentFeature: 'home',
+          ),
+          onLog: logs.add,
+        ),
+        throwsA(isA<Exception>()),
+      );
+
+      // The whole (now 3-package) workspace analyzes cleanly.
+      final analyze = await Process.run(
+        'flutter',
+        ['analyze', '--no-pub'],
+        workingDirectory: projectDir.path,
+      );
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      expect(
+        RegExp(r'(\d+ issues? found|No issues found)').hasMatch(out),
+        isTrue,
+        reason: 'flutter analyze did not run as expected:\n$out',
+      );
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason: 'flutter analyze reported errors:\n${errorLines.join('\n')}\n\n'
+            '--- full analyze output ---\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
+
+  test(
+    'Step 2b + chopper: the Workshop-added feature package self-registers via '
+    'bootstrap.dart\'s anchors',
+    () async {
+      const projectName = 'neat_pkgsplit_2b_chopper_test';
+      final logs = <String>[];
+      final pkgs = <PubPackage>[
+        _dep('hooks_riverpod', '3.3.1'),
+        _dep('flutter_hooks', '0.21.3+1'),
+        _dep('riverpod_annotation', '4.0.2'),
+        _dep('json_annotation', '4.11.0'),
+        _dep('freezed_annotation', '3.1.0'),
+        _dep('chopper', '8.6.0'),
+        _dep('go_router', '17.2.3'),
+        _dev('riverpod_generator', '4.0.3'),
+        _dev('riverpod_lint', '3.1.3'),
+        _dev('json_serializable', '6.13.0'),
+        _dev('build_runner', '2.15.0'),
+        _dev('freezed', '3.2.5'),
+        _dev('chopper_generator', '8.6.2'),
+      ];
+
+      final identity = IdentityState(
+        name: projectName,
+        organization: 'com.neat.test',
+        projectPath: tempRoot.path,
+        description: 'NEAT packageSplit Step 2b + chopper integration test',
+        targetPlatforms: const ['macos'],
+      );
+      const architecture = ArchitectureState(packageSplit: true);
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: identity,
+          packages: pkgs,
+          architecture: architecture,
+          cicd: const CicdState(),
+          theme: const ThemeEngineState(approach: ThemeApproach.customM3),
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('Base generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+      final project = await const ProjectLoader().load(projectDir.path);
+      expect(project!.contract.httpClient, 'chopper');
+
+      await const GenerateFeatureUsecase().execute(
+        project: project,
+        options: const FeatureGenOptions(name: 'orders'),
+        onLog: logs.add,
+      );
+
+      String read(String p) => File(p).readAsStringSync();
+      final orderRoot = '${projectDir.path}/packages/${projectName}_orders';
+
+      // The new feature package generated its own registration function...
+      final repoProviders =
+          read('$orderRoot/lib/data/repositories/orders_repository_providers.dart');
+      expect(repoProviders, contains('void registerOrdersChopperDecoders() {'));
+      expect(
+        repoProviders,
+        contains("import 'package:${projectName}_core/core/network/chopper_model_converter.dart';"),
+      );
+
+      // ...and bootstrap.dart calls it (alongside the wizard's own first
+      // feature's registration — both anchors stack cleanly).
+      final bootstrap = read('${projectDir.path}/lib/core/bootstrap.dart');
+      expect(bootstrap, contains('registerHomeChopperDecoders();'));
+      expect(
+        bootstrap,
+        contains(
+          "import 'package:${projectName}_orders/data/repositories/orders_repository_providers.dart';",
+        ),
+      );
+      expect(bootstrap, contains('registerOrdersChopperDecoders();'));
+
+      final analyze = await Process.run(
+        'flutter',
+        ['analyze', '--no-pub'],
+        workingDirectory: projectDir.path,
+      );
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason: 'flutter analyze reported errors:\n${errorLines.join('\n')}\n\n'
+            '--- full analyze output ---\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
+
+  test(
+    'packageSplit=true + i18n: the whole slang setup is single-sourced in '
+    'core, never duplicated in the app',
+    () async {
+      const projectName = 'neat_pkgsplit_i18n_test';
+      final logs = <String>[];
+      final pkgs = <PubPackage>[
+        _dep('hooks_riverpod', '3.3.1'),
+        _dep('flutter_hooks', '0.21.3+1'),
+        _dep('riverpod_annotation', '4.0.2'),
+        _dep('json_annotation', '4.11.0'),
+        _dep('freezed_annotation', '3.1.0'),
+        _dep('dio', '5.9.2'),
+        _dep('go_router', '17.2.3'),
+        _dev('riverpod_generator', '4.0.3'),
+        _dev('riverpod_lint', '3.1.3'),
+        _dev('json_serializable', '6.13.0'),
+        _dev('build_runner', '2.15.0'),
+        _dev('freezed', '3.2.5'),
+      ];
+
+      final identity = IdentityState(
+        name: projectName,
+        organization: 'com.neat.test',
+        projectPath: tempRoot.path,
+        description: 'NEAT packageSplit + i18n integration test',
+        targetPlatforms: const ['macos'],
+      );
+      const architecture = ArchitectureState(packageSplit: true, generateI18n: true);
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: identity,
+          packages: pkgs,
+          architecture: architecture,
+          cicd: const CicdState(),
+          theme: const ThemeEngineState(approach: ThemeApproach.customM3),
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('Generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+      final coreRoot = '${projectDir.path}/packages/${projectName}_core';
+      final featureRoot = '${projectDir.path}/packages/${projectName}_home';
+      String read(String p) => File(p).readAsStringSync();
+
+      // The whole i18n setup lives in core...
+      expect(read('$coreRoot/slang.yaml'), contains('base_locale: en'));
+      expect(File('$coreRoot/lib/i18n/en.i18n.json').existsSync(), isTrue);
+      expect(File('$coreRoot/lib/i18n/fr.i18n.json').existsSync(), isTrue);
+      expect(File('$coreRoot/lib/i18n/strings.g.dart').existsSync(), isTrue);
+      expect(read('$coreRoot/lib/core/i18n/language_switcher.dart'), contains('LanguageSwitcher'));
+      expect(read('$coreRoot/lib/core/i18n/locale_store.dart'), contains('SharedPreferences'));
+      final corePubspec = read('$coreRoot/pubspec.yaml');
+      expect(corePubspec, contains('slang:'));
+      expect(corePubspec, contains('slang_flutter:'));
+      expect(corePubspec, contains('shared_preferences:'));
+
+      // ...never duplicated in the app.
+      expect(File('${projectDir.path}/slang.yaml').existsSync(), isFalse);
+      expect(File('${projectDir.path}/lib/i18n').existsSync(), isFalse);
+      expect(File('${projectDir.path}/lib/core/i18n/locale_store.dart').existsSync(), isFalse);
+      expect(File('${projectDir.path}/lib/core/i18n/language_switcher.dart').existsSync(), isFalse);
+
+      // The app's own files cross into core for i18n.
+      final bootstrap = read('${projectDir.path}/lib/core/bootstrap.dart');
+      expect(
+        bootstrap,
+        contains("import 'package:${projectName}_core/core/i18n/locale_store.dart';"),
+      );
+      expect(bootstrap, contains("import 'package:${projectName}_core/i18n/strings.g.dart';"));
+      expect(bootstrap, contains('LocaleStore.init()'));
+      final app = read('${projectDir.path}/lib/app.dart');
+      expect(app, contains("import 'package:${projectName}_core/i18n/strings.g.dart';"));
+
+      // The split feature's page also crosses into core — never the app.
+      final homePage = read('$featureRoot/lib/presentation/pages/home_page.dart');
+      expect(homePage, contains("import 'package:${projectName}_core/i18n/strings.g.dart';"));
+      expect(
+        homePage,
+        contains("import 'package:${projectName}_core/core/i18n/language_switcher.dart';"),
+      );
+      expect(homePage, contains('context.t.home.title'));
+      expect(homePage, isNot(contains('package:$projectName/')),
+          reason: 'a split feature package must never import from the app');
+
+      // The whole workspace analyzes cleanly.
+      final analyze = await Process.run(
+        'flutter',
+        ['analyze', '--no-pub'],
+        workingDirectory: projectDir.path,
+      );
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason: 'flutter analyze reported errors:\n${errorLines.join('\n')}\n\n'
+            '--- full analyze output ---\n$out',
       );
     },
     timeout: const Timeout(Duration(minutes: 12)),
@@ -2694,6 +3346,86 @@ void main() {
         errorLines,
         isEmpty,
         reason: 'i18n project analyze reported issues:\n${errorLines.join('\n')}\n\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
+
+  test(
+    'i18n locale selection: French-only skips the English scaffold and rebases slang',
+    () async {
+      const projectName = 'neat_i18n_single_locale_test';
+      final logs = <String>[];
+
+      final pkgs = <PubPackage>[
+        _dep('hooks_riverpod', '3.3.1'),
+        _dep('flutter_hooks', '0.21.3+1'),
+        _dep('riverpod_annotation', '4.0.2'),
+        _dep('go_router', '17.2.3'),
+        _dep('json_annotation', '4.11.0'),
+        _dep('freezed_annotation', '3.1.0'),
+        _dev('riverpod_generator', '4.0.3'),
+        _dev('build_runner', '2.15.0'),
+        _dev('freezed', '3.2.5'),
+        _dev('json_serializable', '6.13.0'),
+      ];
+
+      final identity = IdentityState(
+        name: projectName,
+        organization: 'com.neat.test',
+        projectPath: tempRoot.path,
+        description: 'NEAT i18n single-locale integration test',
+        targetPlatforms: const ['macos'],
+      );
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: identity,
+          packages: pkgs,
+          architecture: const ArchitectureState(
+            generateI18n: true,
+            // Infrastructure > Localization: only French selected — English
+            // deselected via ArchitectureNotifier.toggleI18nLocale.
+            i18nLocales: {'fr'},
+          ),
+          cicd: const CicdState(),
+          theme: const ThemeEngineState(approach: ThemeApproach.customM3),
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('i18n single-locale generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+
+      // Base locale rebased to fr — English wasn't picked, so it can't stay
+      // the slang base_locale (and its scaffold file must not exist at all).
+      final slang = File('${projectDir.path}/slang.yaml').readAsStringSync();
+      expect(slang, contains('base_locale: fr'));
+      expect(File('${projectDir.path}/lib/i18n/en.i18n.json').existsSync(), isFalse);
+      final fr = File('${projectDir.path}/lib/i18n/fr.i18n.json').readAsStringSync();
+      expect(fr, contains('Accueil'));
+
+      expect(
+        File('${projectDir.path}/lib/i18n/strings.g.dart').existsSync(),
+        isTrue,
+        reason: 'slang codegen did not run for the fr-only scaffold',
+      );
+
+      final analyze = await Process.run(
+        'flutter',
+        ['analyze', '--no-pub'],
+        workingDirectory: projectDir.path,
+      );
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason: 'fr-only i18n project analyze reported issues:\n${errorLines.join('\n')}\n\n$out',
       );
     },
     timeout: const Timeout(Duration(minutes: 12)),

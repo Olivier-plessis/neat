@@ -19,9 +19,11 @@ mixin _$ArchitectureState {
  bool get useCubit; bool get mirrorTestStructure;/// Opt-in: extract every feature into its own Dart workspace package
 /// (`packages/<feature>/`) instead of a folder under `lib/features/` —
 /// real package boundaries for a team where each dev owns a feature.
-/// **Phase 1 only**: requires a shared `<app>_core` package (Result/
-/// Failure/UseCase/dio networking), gated to dio + remote-only + Riverpod
-/// annotations + plain go_router until Phase 2 widens support (see
+/// Requires a shared `<app>_core` package (Result/Failure/UseCase/
+/// networking), gated to dio or chopper + remote-only or offline-first
+/// (no sync/Outbox yet) + Riverpod annotations (manual or typed/
+/// go_router_builder routing both work) until Phase 2 widens support
+/// further (supabase/firebase/retrofit clients, offline+sync — see
 /// ROADMAP.md §6a).
  bool get packageSplit;/// Opt-in: scaffold a first feature at all (mirrors `flutter create`'s
 /// counter app — a real worked example so a fresh project runs and shows
@@ -61,11 +63,14 @@ mixin _$ArchitectureState {
  String get firebaseConfigPath;/// Opt-in: add Google + Apple OAuth sign-in to the auth feature (via
 /// `FirebaseAuth.signInWithProvider`). Only effective with a Firebase
 /// backend + auth enabled.
- bool get generateOAuth;/// Opt-in: type-safe internationalisation with **slang** (en + fr base,
+ bool get generateOAuth;/// Opt-in: type-safe internationalisation with **slang** (base scaffold +
 /// `TranslationProvider` + `context.t`, a sample language switcher).
- bool get generateI18n;/// Path to an uploaded **compact CSV** of translations (`key,en,fr,…`). When
+ bool get generateI18n;/// Which languages ship in the default (non-CSV) scaffold — see
+/// [i18nLocales]'s own doc for why at least one is always required.
+ Set<String> get i18nLocales;/// Path to an uploaded **compact CSV** of translations (`key,en,fr,…`). When
 /// set (and [generateI18n] is on), the CSV becomes the single source of
-/// translations instead of the default en/fr JSON scaffold.
+/// translations instead of the default JSON scaffold, and [i18nLocales] is
+/// ignored — the CSV's own header columns decide the languages.
  String get i18nCsvPath;/// Opt-in: generate native **build flavors** (Android productFlavors, per-env
 /// entry points `main_<flavor>.dart`, `.vscode/launch.json`). Off by default
 /// so a plain `flutter run` works with zero config. Only effective with envied.
@@ -87,16 +92,16 @@ $ArchitectureStateCopyWith<ArchitectureState> get copyWith => _$ArchitectureStat
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ArchitectureState&&(identical(other.pattern, pattern) || other.pattern == pattern)&&(identical(other.includeMappers, includeMappers) || other.includeMappers == includeMappers)&&(identical(other.useRiverpodAnnotations, useRiverpodAnnotations) || other.useRiverpodAnnotations == useRiverpodAnnotations)&&(identical(other.useCubit, useCubit) || other.useCubit == useCubit)&&(identical(other.mirrorTestStructure, mirrorTestStructure) || other.mirrorTestStructure == mirrorTestStructure)&&(identical(other.packageSplit, packageSplit) || other.packageSplit == packageSplit)&&(identical(other.generateFirstFeature, generateFirstFeature) || other.generateFirstFeature == generateFirstFeature)&&(identical(other.firstFeatureName, firstFeatureName) || other.firstFeatureName == firstFeatureName)&&const DeepCollectionEquality().equals(other.firstFeatureFields, firstFeatureFields)&&(identical(other.firstFeatureJson, firstFeatureJson) || other.firstFeatureJson == firstFeatureJson)&&const DeepCollectionEquality().equals(other.firstFeatureFieldWarnings, firstFeatureFieldWarnings)&&(identical(other.firstFeatureApiPath, firstFeatureApiPath) || other.firstFeatureApiPath == firstFeatureApiPath)&&(identical(other.storageStrategy, storageStrategy) || other.storageStrategy == storageStrategy)&&(identical(other.useNavigationShell, useNavigationShell) || other.useNavigationShell == useNavigationShell)&&(identical(other.shellIcon, shellIcon) || other.shellIcon == shellIcon)&&(identical(other.shellLabel, shellLabel) || other.shellLabel == shellLabel)&&(identical(other.generateAuth, generateAuth) || other.generateAuth == generateAuth)&&(identical(other.generateRealtime, generateRealtime) || other.generateRealtime == generateRealtime)&&(identical(other.generateStorage, generateStorage) || other.generateStorage == generateStorage)&&(identical(other.firebaseConfigPath, firebaseConfigPath) || other.firebaseConfigPath == firebaseConfigPath)&&(identical(other.generateOAuth, generateOAuth) || other.generateOAuth == generateOAuth)&&(identical(other.generateI18n, generateI18n) || other.generateI18n == generateI18n)&&(identical(other.i18nCsvPath, i18nCsvPath) || other.i18nCsvPath == i18nCsvPath)&&(identical(other.generateFlavors, generateFlavors) || other.generateFlavors == generateFlavors)&&const DeepCollectionEquality().equals(other.environments, environments)&&(identical(other.baseEnvIndex, baseEnvIndex) || other.baseEnvIndex == baseEnvIndex));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ArchitectureState&&(identical(other.pattern, pattern) || other.pattern == pattern)&&(identical(other.includeMappers, includeMappers) || other.includeMappers == includeMappers)&&(identical(other.useRiverpodAnnotations, useRiverpodAnnotations) || other.useRiverpodAnnotations == useRiverpodAnnotations)&&(identical(other.useCubit, useCubit) || other.useCubit == useCubit)&&(identical(other.mirrorTestStructure, mirrorTestStructure) || other.mirrorTestStructure == mirrorTestStructure)&&(identical(other.packageSplit, packageSplit) || other.packageSplit == packageSplit)&&(identical(other.generateFirstFeature, generateFirstFeature) || other.generateFirstFeature == generateFirstFeature)&&(identical(other.firstFeatureName, firstFeatureName) || other.firstFeatureName == firstFeatureName)&&const DeepCollectionEquality().equals(other.firstFeatureFields, firstFeatureFields)&&(identical(other.firstFeatureJson, firstFeatureJson) || other.firstFeatureJson == firstFeatureJson)&&const DeepCollectionEquality().equals(other.firstFeatureFieldWarnings, firstFeatureFieldWarnings)&&(identical(other.firstFeatureApiPath, firstFeatureApiPath) || other.firstFeatureApiPath == firstFeatureApiPath)&&(identical(other.storageStrategy, storageStrategy) || other.storageStrategy == storageStrategy)&&(identical(other.useNavigationShell, useNavigationShell) || other.useNavigationShell == useNavigationShell)&&(identical(other.shellIcon, shellIcon) || other.shellIcon == shellIcon)&&(identical(other.shellLabel, shellLabel) || other.shellLabel == shellLabel)&&(identical(other.generateAuth, generateAuth) || other.generateAuth == generateAuth)&&(identical(other.generateRealtime, generateRealtime) || other.generateRealtime == generateRealtime)&&(identical(other.generateStorage, generateStorage) || other.generateStorage == generateStorage)&&(identical(other.firebaseConfigPath, firebaseConfigPath) || other.firebaseConfigPath == firebaseConfigPath)&&(identical(other.generateOAuth, generateOAuth) || other.generateOAuth == generateOAuth)&&(identical(other.generateI18n, generateI18n) || other.generateI18n == generateI18n)&&const DeepCollectionEquality().equals(other.i18nLocales, i18nLocales)&&(identical(other.i18nCsvPath, i18nCsvPath) || other.i18nCsvPath == i18nCsvPath)&&(identical(other.generateFlavors, generateFlavors) || other.generateFlavors == generateFlavors)&&const DeepCollectionEquality().equals(other.environments, environments)&&(identical(other.baseEnvIndex, baseEnvIndex) || other.baseEnvIndex == baseEnvIndex));
 }
 
 
 @override
-int get hashCode => Object.hashAll([runtimeType,pattern,includeMappers,useRiverpodAnnotations,useCubit,mirrorTestStructure,packageSplit,generateFirstFeature,firstFeatureName,const DeepCollectionEquality().hash(firstFeatureFields),firstFeatureJson,const DeepCollectionEquality().hash(firstFeatureFieldWarnings),firstFeatureApiPath,storageStrategy,useNavigationShell,shellIcon,shellLabel,generateAuth,generateRealtime,generateStorage,firebaseConfigPath,generateOAuth,generateI18n,i18nCsvPath,generateFlavors,const DeepCollectionEquality().hash(environments),baseEnvIndex]);
+int get hashCode => Object.hashAll([runtimeType,pattern,includeMappers,useRiverpodAnnotations,useCubit,mirrorTestStructure,packageSplit,generateFirstFeature,firstFeatureName,const DeepCollectionEquality().hash(firstFeatureFields),firstFeatureJson,const DeepCollectionEquality().hash(firstFeatureFieldWarnings),firstFeatureApiPath,storageStrategy,useNavigationShell,shellIcon,shellLabel,generateAuth,generateRealtime,generateStorage,firebaseConfigPath,generateOAuth,generateI18n,const DeepCollectionEquality().hash(i18nLocales),i18nCsvPath,generateFlavors,const DeepCollectionEquality().hash(environments),baseEnvIndex]);
 
 @override
 String toString() {
-  return 'ArchitectureState(pattern: $pattern, includeMappers: $includeMappers, useRiverpodAnnotations: $useRiverpodAnnotations, useCubit: $useCubit, mirrorTestStructure: $mirrorTestStructure, packageSplit: $packageSplit, generateFirstFeature: $generateFirstFeature, firstFeatureName: $firstFeatureName, firstFeatureFields: $firstFeatureFields, firstFeatureJson: $firstFeatureJson, firstFeatureFieldWarnings: $firstFeatureFieldWarnings, firstFeatureApiPath: $firstFeatureApiPath, storageStrategy: $storageStrategy, useNavigationShell: $useNavigationShell, shellIcon: $shellIcon, shellLabel: $shellLabel, generateAuth: $generateAuth, generateRealtime: $generateRealtime, generateStorage: $generateStorage, firebaseConfigPath: $firebaseConfigPath, generateOAuth: $generateOAuth, generateI18n: $generateI18n, i18nCsvPath: $i18nCsvPath, generateFlavors: $generateFlavors, environments: $environments, baseEnvIndex: $baseEnvIndex)';
+  return 'ArchitectureState(pattern: $pattern, includeMappers: $includeMappers, useRiverpodAnnotations: $useRiverpodAnnotations, useCubit: $useCubit, mirrorTestStructure: $mirrorTestStructure, packageSplit: $packageSplit, generateFirstFeature: $generateFirstFeature, firstFeatureName: $firstFeatureName, firstFeatureFields: $firstFeatureFields, firstFeatureJson: $firstFeatureJson, firstFeatureFieldWarnings: $firstFeatureFieldWarnings, firstFeatureApiPath: $firstFeatureApiPath, storageStrategy: $storageStrategy, useNavigationShell: $useNavigationShell, shellIcon: $shellIcon, shellLabel: $shellLabel, generateAuth: $generateAuth, generateRealtime: $generateRealtime, generateStorage: $generateStorage, firebaseConfigPath: $firebaseConfigPath, generateOAuth: $generateOAuth, generateI18n: $generateI18n, i18nLocales: $i18nLocales, i18nCsvPath: $i18nCsvPath, generateFlavors: $generateFlavors, environments: $environments, baseEnvIndex: $baseEnvIndex)';
 }
 
 
@@ -107,7 +112,7 @@ abstract mixin class $ArchitectureStateCopyWith<$Res>  {
   factory $ArchitectureStateCopyWith(ArchitectureState value, $Res Function(ArchitectureState) _then) = _$ArchitectureStateCopyWithImpl;
 @useResult
 $Res call({
- StructuralPattern pattern, bool includeMappers, bool useRiverpodAnnotations, bool useCubit, bool mirrorTestStructure, bool packageSplit, bool generateFirstFeature, String firstFeatureName, List<FieldSpec> firstFeatureFields, String firstFeatureJson, List<String> firstFeatureFieldWarnings, String firstFeatureApiPath, StorageStrategy storageStrategy, bool useNavigationShell, String shellIcon, String shellLabel, bool generateAuth, bool generateRealtime, bool generateStorage, String firebaseConfigPath, bool generateOAuth, bool generateI18n, String i18nCsvPath, bool generateFlavors, List<EnvConfig> environments, int baseEnvIndex
+ StructuralPattern pattern, bool includeMappers, bool useRiverpodAnnotations, bool useCubit, bool mirrorTestStructure, bool packageSplit, bool generateFirstFeature, String firstFeatureName, List<FieldSpec> firstFeatureFields, String firstFeatureJson, List<String> firstFeatureFieldWarnings, String firstFeatureApiPath, StorageStrategy storageStrategy, bool useNavigationShell, String shellIcon, String shellLabel, bool generateAuth, bool generateRealtime, bool generateStorage, String firebaseConfigPath, bool generateOAuth, bool generateI18n, Set<String> i18nLocales, String i18nCsvPath, bool generateFlavors, List<EnvConfig> environments, int baseEnvIndex
 });
 
 
@@ -124,7 +129,7 @@ class _$ArchitectureStateCopyWithImpl<$Res>
 
 /// Create a copy of ArchitectureState
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? pattern = null,Object? includeMappers = null,Object? useRiverpodAnnotations = null,Object? useCubit = null,Object? mirrorTestStructure = null,Object? packageSplit = null,Object? generateFirstFeature = null,Object? firstFeatureName = null,Object? firstFeatureFields = null,Object? firstFeatureJson = null,Object? firstFeatureFieldWarnings = null,Object? firstFeatureApiPath = null,Object? storageStrategy = null,Object? useNavigationShell = null,Object? shellIcon = null,Object? shellLabel = null,Object? generateAuth = null,Object? generateRealtime = null,Object? generateStorage = null,Object? firebaseConfigPath = null,Object? generateOAuth = null,Object? generateI18n = null,Object? i18nCsvPath = null,Object? generateFlavors = null,Object? environments = null,Object? baseEnvIndex = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? pattern = null,Object? includeMappers = null,Object? useRiverpodAnnotations = null,Object? useCubit = null,Object? mirrorTestStructure = null,Object? packageSplit = null,Object? generateFirstFeature = null,Object? firstFeatureName = null,Object? firstFeatureFields = null,Object? firstFeatureJson = null,Object? firstFeatureFieldWarnings = null,Object? firstFeatureApiPath = null,Object? storageStrategy = null,Object? useNavigationShell = null,Object? shellIcon = null,Object? shellLabel = null,Object? generateAuth = null,Object? generateRealtime = null,Object? generateStorage = null,Object? firebaseConfigPath = null,Object? generateOAuth = null,Object? generateI18n = null,Object? i18nLocales = null,Object? i18nCsvPath = null,Object? generateFlavors = null,Object? environments = null,Object? baseEnvIndex = null,}) {
   return _then(_self.copyWith(
 pattern: null == pattern ? _self.pattern : pattern // ignore: cast_nullable_to_non_nullable
 as StructuralPattern,includeMappers: null == includeMappers ? _self.includeMappers : includeMappers // ignore: cast_nullable_to_non_nullable
@@ -148,7 +153,8 @@ as bool,generateStorage: null == generateStorage ? _self.generateStorage : gener
 as bool,firebaseConfigPath: null == firebaseConfigPath ? _self.firebaseConfigPath : firebaseConfigPath // ignore: cast_nullable_to_non_nullable
 as String,generateOAuth: null == generateOAuth ? _self.generateOAuth : generateOAuth // ignore: cast_nullable_to_non_nullable
 as bool,generateI18n: null == generateI18n ? _self.generateI18n : generateI18n // ignore: cast_nullable_to_non_nullable
-as bool,i18nCsvPath: null == i18nCsvPath ? _self.i18nCsvPath : i18nCsvPath // ignore: cast_nullable_to_non_nullable
+as bool,i18nLocales: null == i18nLocales ? _self.i18nLocales : i18nLocales // ignore: cast_nullable_to_non_nullable
+as Set<String>,i18nCsvPath: null == i18nCsvPath ? _self.i18nCsvPath : i18nCsvPath // ignore: cast_nullable_to_non_nullable
 as String,generateFlavors: null == generateFlavors ? _self.generateFlavors : generateFlavors // ignore: cast_nullable_to_non_nullable
 as bool,environments: null == environments ? _self.environments : environments // ignore: cast_nullable_to_non_nullable
 as List<EnvConfig>,baseEnvIndex: null == baseEnvIndex ? _self.baseEnvIndex : baseEnvIndex // ignore: cast_nullable_to_non_nullable
@@ -237,10 +243,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( StructuralPattern pattern,  bool includeMappers,  bool useRiverpodAnnotations,  bool useCubit,  bool mirrorTestStructure,  bool packageSplit,  bool generateFirstFeature,  String firstFeatureName,  List<FieldSpec> firstFeatureFields,  String firstFeatureJson,  List<String> firstFeatureFieldWarnings,  String firstFeatureApiPath,  StorageStrategy storageStrategy,  bool useNavigationShell,  String shellIcon,  String shellLabel,  bool generateAuth,  bool generateRealtime,  bool generateStorage,  String firebaseConfigPath,  bool generateOAuth,  bool generateI18n,  String i18nCsvPath,  bool generateFlavors,  List<EnvConfig> environments,  int baseEnvIndex)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( StructuralPattern pattern,  bool includeMappers,  bool useRiverpodAnnotations,  bool useCubit,  bool mirrorTestStructure,  bool packageSplit,  bool generateFirstFeature,  String firstFeatureName,  List<FieldSpec> firstFeatureFields,  String firstFeatureJson,  List<String> firstFeatureFieldWarnings,  String firstFeatureApiPath,  StorageStrategy storageStrategy,  bool useNavigationShell,  String shellIcon,  String shellLabel,  bool generateAuth,  bool generateRealtime,  bool generateStorage,  String firebaseConfigPath,  bool generateOAuth,  bool generateI18n,  Set<String> i18nLocales,  String i18nCsvPath,  bool generateFlavors,  List<EnvConfig> environments,  int baseEnvIndex)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _ArchitectureState() when $default != null:
-return $default(_that.pattern,_that.includeMappers,_that.useRiverpodAnnotations,_that.useCubit,_that.mirrorTestStructure,_that.packageSplit,_that.generateFirstFeature,_that.firstFeatureName,_that.firstFeatureFields,_that.firstFeatureJson,_that.firstFeatureFieldWarnings,_that.firstFeatureApiPath,_that.storageStrategy,_that.useNavigationShell,_that.shellIcon,_that.shellLabel,_that.generateAuth,_that.generateRealtime,_that.generateStorage,_that.firebaseConfigPath,_that.generateOAuth,_that.generateI18n,_that.i18nCsvPath,_that.generateFlavors,_that.environments,_that.baseEnvIndex);case _:
+return $default(_that.pattern,_that.includeMappers,_that.useRiverpodAnnotations,_that.useCubit,_that.mirrorTestStructure,_that.packageSplit,_that.generateFirstFeature,_that.firstFeatureName,_that.firstFeatureFields,_that.firstFeatureJson,_that.firstFeatureFieldWarnings,_that.firstFeatureApiPath,_that.storageStrategy,_that.useNavigationShell,_that.shellIcon,_that.shellLabel,_that.generateAuth,_that.generateRealtime,_that.generateStorage,_that.firebaseConfigPath,_that.generateOAuth,_that.generateI18n,_that.i18nLocales,_that.i18nCsvPath,_that.generateFlavors,_that.environments,_that.baseEnvIndex);case _:
   return orElse();
 
 }
@@ -258,10 +264,10 @@ return $default(_that.pattern,_that.includeMappers,_that.useRiverpodAnnotations,
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( StructuralPattern pattern,  bool includeMappers,  bool useRiverpodAnnotations,  bool useCubit,  bool mirrorTestStructure,  bool packageSplit,  bool generateFirstFeature,  String firstFeatureName,  List<FieldSpec> firstFeatureFields,  String firstFeatureJson,  List<String> firstFeatureFieldWarnings,  String firstFeatureApiPath,  StorageStrategy storageStrategy,  bool useNavigationShell,  String shellIcon,  String shellLabel,  bool generateAuth,  bool generateRealtime,  bool generateStorage,  String firebaseConfigPath,  bool generateOAuth,  bool generateI18n,  String i18nCsvPath,  bool generateFlavors,  List<EnvConfig> environments,  int baseEnvIndex)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( StructuralPattern pattern,  bool includeMappers,  bool useRiverpodAnnotations,  bool useCubit,  bool mirrorTestStructure,  bool packageSplit,  bool generateFirstFeature,  String firstFeatureName,  List<FieldSpec> firstFeatureFields,  String firstFeatureJson,  List<String> firstFeatureFieldWarnings,  String firstFeatureApiPath,  StorageStrategy storageStrategy,  bool useNavigationShell,  String shellIcon,  String shellLabel,  bool generateAuth,  bool generateRealtime,  bool generateStorage,  String firebaseConfigPath,  bool generateOAuth,  bool generateI18n,  Set<String> i18nLocales,  String i18nCsvPath,  bool generateFlavors,  List<EnvConfig> environments,  int baseEnvIndex)  $default,) {final _that = this;
 switch (_that) {
 case _ArchitectureState():
-return $default(_that.pattern,_that.includeMappers,_that.useRiverpodAnnotations,_that.useCubit,_that.mirrorTestStructure,_that.packageSplit,_that.generateFirstFeature,_that.firstFeatureName,_that.firstFeatureFields,_that.firstFeatureJson,_that.firstFeatureFieldWarnings,_that.firstFeatureApiPath,_that.storageStrategy,_that.useNavigationShell,_that.shellIcon,_that.shellLabel,_that.generateAuth,_that.generateRealtime,_that.generateStorage,_that.firebaseConfigPath,_that.generateOAuth,_that.generateI18n,_that.i18nCsvPath,_that.generateFlavors,_that.environments,_that.baseEnvIndex);case _:
+return $default(_that.pattern,_that.includeMappers,_that.useRiverpodAnnotations,_that.useCubit,_that.mirrorTestStructure,_that.packageSplit,_that.generateFirstFeature,_that.firstFeatureName,_that.firstFeatureFields,_that.firstFeatureJson,_that.firstFeatureFieldWarnings,_that.firstFeatureApiPath,_that.storageStrategy,_that.useNavigationShell,_that.shellIcon,_that.shellLabel,_that.generateAuth,_that.generateRealtime,_that.generateStorage,_that.firebaseConfigPath,_that.generateOAuth,_that.generateI18n,_that.i18nLocales,_that.i18nCsvPath,_that.generateFlavors,_that.environments,_that.baseEnvIndex);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -278,10 +284,10 @@ return $default(_that.pattern,_that.includeMappers,_that.useRiverpodAnnotations,
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( StructuralPattern pattern,  bool includeMappers,  bool useRiverpodAnnotations,  bool useCubit,  bool mirrorTestStructure,  bool packageSplit,  bool generateFirstFeature,  String firstFeatureName,  List<FieldSpec> firstFeatureFields,  String firstFeatureJson,  List<String> firstFeatureFieldWarnings,  String firstFeatureApiPath,  StorageStrategy storageStrategy,  bool useNavigationShell,  String shellIcon,  String shellLabel,  bool generateAuth,  bool generateRealtime,  bool generateStorage,  String firebaseConfigPath,  bool generateOAuth,  bool generateI18n,  String i18nCsvPath,  bool generateFlavors,  List<EnvConfig> environments,  int baseEnvIndex)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( StructuralPattern pattern,  bool includeMappers,  bool useRiverpodAnnotations,  bool useCubit,  bool mirrorTestStructure,  bool packageSplit,  bool generateFirstFeature,  String firstFeatureName,  List<FieldSpec> firstFeatureFields,  String firstFeatureJson,  List<String> firstFeatureFieldWarnings,  String firstFeatureApiPath,  StorageStrategy storageStrategy,  bool useNavigationShell,  String shellIcon,  String shellLabel,  bool generateAuth,  bool generateRealtime,  bool generateStorage,  String firebaseConfigPath,  bool generateOAuth,  bool generateI18n,  Set<String> i18nLocales,  String i18nCsvPath,  bool generateFlavors,  List<EnvConfig> environments,  int baseEnvIndex)?  $default,) {final _that = this;
 switch (_that) {
 case _ArchitectureState() when $default != null:
-return $default(_that.pattern,_that.includeMappers,_that.useRiverpodAnnotations,_that.useCubit,_that.mirrorTestStructure,_that.packageSplit,_that.generateFirstFeature,_that.firstFeatureName,_that.firstFeatureFields,_that.firstFeatureJson,_that.firstFeatureFieldWarnings,_that.firstFeatureApiPath,_that.storageStrategy,_that.useNavigationShell,_that.shellIcon,_that.shellLabel,_that.generateAuth,_that.generateRealtime,_that.generateStorage,_that.firebaseConfigPath,_that.generateOAuth,_that.generateI18n,_that.i18nCsvPath,_that.generateFlavors,_that.environments,_that.baseEnvIndex);case _:
+return $default(_that.pattern,_that.includeMappers,_that.useRiverpodAnnotations,_that.useCubit,_that.mirrorTestStructure,_that.packageSplit,_that.generateFirstFeature,_that.firstFeatureName,_that.firstFeatureFields,_that.firstFeatureJson,_that.firstFeatureFieldWarnings,_that.firstFeatureApiPath,_that.storageStrategy,_that.useNavigationShell,_that.shellIcon,_that.shellLabel,_that.generateAuth,_that.generateRealtime,_that.generateStorage,_that.firebaseConfigPath,_that.generateOAuth,_that.generateI18n,_that.i18nLocales,_that.i18nCsvPath,_that.generateFlavors,_that.environments,_that.baseEnvIndex);case _:
   return null;
 
 }
@@ -293,7 +299,7 @@ return $default(_that.pattern,_that.includeMappers,_that.useRiverpodAnnotations,
 
 
 class _ArchitectureState extends ArchitectureState {
-  const _ArchitectureState({this.pattern = StructuralPattern.featureFirst, this.includeMappers = true, this.useRiverpodAnnotations = true, this.useCubit = false, this.mirrorTestStructure = true, this.packageSplit = false, this.generateFirstFeature = true, this.firstFeatureName = 'home', final  List<FieldSpec> firstFeatureFields = FieldSpec.idName, this.firstFeatureJson = '', final  List<String> firstFeatureFieldWarnings = const <String>[], this.firstFeatureApiPath = '', this.storageStrategy = StorageStrategy.remoteOnly, this.useNavigationShell = false, this.shellIcon = 'home', this.shellLabel = '', this.generateAuth = false, this.generateRealtime = false, this.generateStorage = false, this.firebaseConfigPath = '', this.generateOAuth = false, this.generateI18n = false, this.i18nCsvPath = '', this.generateFlavors = false, final  List<EnvConfig> environments = const <EnvConfig>[EnvConfig(name: 'prod')], this.baseEnvIndex = 0}): _firstFeatureFields = firstFeatureFields,_firstFeatureFieldWarnings = firstFeatureFieldWarnings,_environments = environments,super._();
+  const _ArchitectureState({this.pattern = StructuralPattern.featureFirst, this.includeMappers = true, this.useRiverpodAnnotations = true, this.useCubit = false, this.mirrorTestStructure = true, this.packageSplit = false, this.generateFirstFeature = true, this.firstFeatureName = 'home', final  List<FieldSpec> firstFeatureFields = FieldSpec.idName, this.firstFeatureJson = '', final  List<String> firstFeatureFieldWarnings = const <String>[], this.firstFeatureApiPath = '', this.storageStrategy = StorageStrategy.remoteOnly, this.useNavigationShell = false, this.shellIcon = 'home', this.shellLabel = '', this.generateAuth = false, this.generateRealtime = false, this.generateStorage = false, this.firebaseConfigPath = '', this.generateOAuth = false, this.generateI18n = false, final  Set<String> i18nLocales = const <String>{'en', 'fr'}, this.i18nCsvPath = '', this.generateFlavors = false, final  List<EnvConfig> environments = const <EnvConfig>[EnvConfig(name: 'prod')], this.baseEnvIndex = 0}): _firstFeatureFields = firstFeatureFields,_firstFeatureFieldWarnings = firstFeatureFieldWarnings,_i18nLocales = i18nLocales,_environments = environments,super._();
   
 
 @override@JsonKey() final  StructuralPattern pattern;
@@ -306,9 +312,11 @@ class _ArchitectureState extends ArchitectureState {
 /// Opt-in: extract every feature into its own Dart workspace package
 /// (`packages/<feature>/`) instead of a folder under `lib/features/` —
 /// real package boundaries for a team where each dev owns a feature.
-/// **Phase 1 only**: requires a shared `<app>_core` package (Result/
-/// Failure/UseCase/dio networking), gated to dio + remote-only + Riverpod
-/// annotations + plain go_router until Phase 2 widens support (see
+/// Requires a shared `<app>_core` package (Result/Failure/UseCase/
+/// networking), gated to dio or chopper + remote-only or offline-first
+/// (no sync/Outbox yet) + Riverpod annotations (manual or typed/
+/// go_router_builder routing both work) until Phase 2 widens support
+/// further (supabase/firebase/retrofit clients, offline+sync — see
 /// ROADMAP.md §6a).
 @override@JsonKey() final  bool packageSplit;
 /// Opt-in: scaffold a first feature at all (mirrors `flutter create`'s
@@ -381,12 +389,24 @@ class _ArchitectureState extends ArchitectureState {
 /// `FirebaseAuth.signInWithProvider`). Only effective with a Firebase
 /// backend + auth enabled.
 @override@JsonKey() final  bool generateOAuth;
-/// Opt-in: type-safe internationalisation with **slang** (en + fr base,
+/// Opt-in: type-safe internationalisation with **slang** (base scaffold +
 /// `TranslationProvider` + `context.t`, a sample language switcher).
 @override@JsonKey() final  bool generateI18n;
+/// Which languages ship in the default (non-CSV) scaffold — see
+/// [i18nLocales]'s own doc for why at least one is always required.
+ final  Set<String> _i18nLocales;
+/// Which languages ship in the default (non-CSV) scaffold — see
+/// [i18nLocales]'s own doc for why at least one is always required.
+@override@JsonKey() Set<String> get i18nLocales {
+  if (_i18nLocales is EqualUnmodifiableSetView) return _i18nLocales;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableSetView(_i18nLocales);
+}
+
 /// Path to an uploaded **compact CSV** of translations (`key,en,fr,…`). When
 /// set (and [generateI18n] is on), the CSV becomes the single source of
-/// translations instead of the default en/fr JSON scaffold.
+/// translations instead of the default JSON scaffold, and [i18nLocales] is
+/// ignored — the CSV's own header columns decide the languages.
 @override@JsonKey() final  String i18nCsvPath;
 /// Opt-in: generate native **build flavors** (Android productFlavors, per-env
 /// entry points `main_<flavor>.dart`, `.vscode/launch.json`). Off by default
@@ -422,16 +442,16 @@ _$ArchitectureStateCopyWith<_ArchitectureState> get copyWith => __$ArchitectureS
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ArchitectureState&&(identical(other.pattern, pattern) || other.pattern == pattern)&&(identical(other.includeMappers, includeMappers) || other.includeMappers == includeMappers)&&(identical(other.useRiverpodAnnotations, useRiverpodAnnotations) || other.useRiverpodAnnotations == useRiverpodAnnotations)&&(identical(other.useCubit, useCubit) || other.useCubit == useCubit)&&(identical(other.mirrorTestStructure, mirrorTestStructure) || other.mirrorTestStructure == mirrorTestStructure)&&(identical(other.packageSplit, packageSplit) || other.packageSplit == packageSplit)&&(identical(other.generateFirstFeature, generateFirstFeature) || other.generateFirstFeature == generateFirstFeature)&&(identical(other.firstFeatureName, firstFeatureName) || other.firstFeatureName == firstFeatureName)&&const DeepCollectionEquality().equals(other._firstFeatureFields, _firstFeatureFields)&&(identical(other.firstFeatureJson, firstFeatureJson) || other.firstFeatureJson == firstFeatureJson)&&const DeepCollectionEquality().equals(other._firstFeatureFieldWarnings, _firstFeatureFieldWarnings)&&(identical(other.firstFeatureApiPath, firstFeatureApiPath) || other.firstFeatureApiPath == firstFeatureApiPath)&&(identical(other.storageStrategy, storageStrategy) || other.storageStrategy == storageStrategy)&&(identical(other.useNavigationShell, useNavigationShell) || other.useNavigationShell == useNavigationShell)&&(identical(other.shellIcon, shellIcon) || other.shellIcon == shellIcon)&&(identical(other.shellLabel, shellLabel) || other.shellLabel == shellLabel)&&(identical(other.generateAuth, generateAuth) || other.generateAuth == generateAuth)&&(identical(other.generateRealtime, generateRealtime) || other.generateRealtime == generateRealtime)&&(identical(other.generateStorage, generateStorage) || other.generateStorage == generateStorage)&&(identical(other.firebaseConfigPath, firebaseConfigPath) || other.firebaseConfigPath == firebaseConfigPath)&&(identical(other.generateOAuth, generateOAuth) || other.generateOAuth == generateOAuth)&&(identical(other.generateI18n, generateI18n) || other.generateI18n == generateI18n)&&(identical(other.i18nCsvPath, i18nCsvPath) || other.i18nCsvPath == i18nCsvPath)&&(identical(other.generateFlavors, generateFlavors) || other.generateFlavors == generateFlavors)&&const DeepCollectionEquality().equals(other._environments, _environments)&&(identical(other.baseEnvIndex, baseEnvIndex) || other.baseEnvIndex == baseEnvIndex));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ArchitectureState&&(identical(other.pattern, pattern) || other.pattern == pattern)&&(identical(other.includeMappers, includeMappers) || other.includeMappers == includeMappers)&&(identical(other.useRiverpodAnnotations, useRiverpodAnnotations) || other.useRiverpodAnnotations == useRiverpodAnnotations)&&(identical(other.useCubit, useCubit) || other.useCubit == useCubit)&&(identical(other.mirrorTestStructure, mirrorTestStructure) || other.mirrorTestStructure == mirrorTestStructure)&&(identical(other.packageSplit, packageSplit) || other.packageSplit == packageSplit)&&(identical(other.generateFirstFeature, generateFirstFeature) || other.generateFirstFeature == generateFirstFeature)&&(identical(other.firstFeatureName, firstFeatureName) || other.firstFeatureName == firstFeatureName)&&const DeepCollectionEquality().equals(other._firstFeatureFields, _firstFeatureFields)&&(identical(other.firstFeatureJson, firstFeatureJson) || other.firstFeatureJson == firstFeatureJson)&&const DeepCollectionEquality().equals(other._firstFeatureFieldWarnings, _firstFeatureFieldWarnings)&&(identical(other.firstFeatureApiPath, firstFeatureApiPath) || other.firstFeatureApiPath == firstFeatureApiPath)&&(identical(other.storageStrategy, storageStrategy) || other.storageStrategy == storageStrategy)&&(identical(other.useNavigationShell, useNavigationShell) || other.useNavigationShell == useNavigationShell)&&(identical(other.shellIcon, shellIcon) || other.shellIcon == shellIcon)&&(identical(other.shellLabel, shellLabel) || other.shellLabel == shellLabel)&&(identical(other.generateAuth, generateAuth) || other.generateAuth == generateAuth)&&(identical(other.generateRealtime, generateRealtime) || other.generateRealtime == generateRealtime)&&(identical(other.generateStorage, generateStorage) || other.generateStorage == generateStorage)&&(identical(other.firebaseConfigPath, firebaseConfigPath) || other.firebaseConfigPath == firebaseConfigPath)&&(identical(other.generateOAuth, generateOAuth) || other.generateOAuth == generateOAuth)&&(identical(other.generateI18n, generateI18n) || other.generateI18n == generateI18n)&&const DeepCollectionEquality().equals(other._i18nLocales, _i18nLocales)&&(identical(other.i18nCsvPath, i18nCsvPath) || other.i18nCsvPath == i18nCsvPath)&&(identical(other.generateFlavors, generateFlavors) || other.generateFlavors == generateFlavors)&&const DeepCollectionEquality().equals(other._environments, _environments)&&(identical(other.baseEnvIndex, baseEnvIndex) || other.baseEnvIndex == baseEnvIndex));
 }
 
 
 @override
-int get hashCode => Object.hashAll([runtimeType,pattern,includeMappers,useRiverpodAnnotations,useCubit,mirrorTestStructure,packageSplit,generateFirstFeature,firstFeatureName,const DeepCollectionEquality().hash(_firstFeatureFields),firstFeatureJson,const DeepCollectionEquality().hash(_firstFeatureFieldWarnings),firstFeatureApiPath,storageStrategy,useNavigationShell,shellIcon,shellLabel,generateAuth,generateRealtime,generateStorage,firebaseConfigPath,generateOAuth,generateI18n,i18nCsvPath,generateFlavors,const DeepCollectionEquality().hash(_environments),baseEnvIndex]);
+int get hashCode => Object.hashAll([runtimeType,pattern,includeMappers,useRiverpodAnnotations,useCubit,mirrorTestStructure,packageSplit,generateFirstFeature,firstFeatureName,const DeepCollectionEquality().hash(_firstFeatureFields),firstFeatureJson,const DeepCollectionEquality().hash(_firstFeatureFieldWarnings),firstFeatureApiPath,storageStrategy,useNavigationShell,shellIcon,shellLabel,generateAuth,generateRealtime,generateStorage,firebaseConfigPath,generateOAuth,generateI18n,const DeepCollectionEquality().hash(_i18nLocales),i18nCsvPath,generateFlavors,const DeepCollectionEquality().hash(_environments),baseEnvIndex]);
 
 @override
 String toString() {
-  return 'ArchitectureState(pattern: $pattern, includeMappers: $includeMappers, useRiverpodAnnotations: $useRiverpodAnnotations, useCubit: $useCubit, mirrorTestStructure: $mirrorTestStructure, packageSplit: $packageSplit, generateFirstFeature: $generateFirstFeature, firstFeatureName: $firstFeatureName, firstFeatureFields: $firstFeatureFields, firstFeatureJson: $firstFeatureJson, firstFeatureFieldWarnings: $firstFeatureFieldWarnings, firstFeatureApiPath: $firstFeatureApiPath, storageStrategy: $storageStrategy, useNavigationShell: $useNavigationShell, shellIcon: $shellIcon, shellLabel: $shellLabel, generateAuth: $generateAuth, generateRealtime: $generateRealtime, generateStorage: $generateStorage, firebaseConfigPath: $firebaseConfigPath, generateOAuth: $generateOAuth, generateI18n: $generateI18n, i18nCsvPath: $i18nCsvPath, generateFlavors: $generateFlavors, environments: $environments, baseEnvIndex: $baseEnvIndex)';
+  return 'ArchitectureState(pattern: $pattern, includeMappers: $includeMappers, useRiverpodAnnotations: $useRiverpodAnnotations, useCubit: $useCubit, mirrorTestStructure: $mirrorTestStructure, packageSplit: $packageSplit, generateFirstFeature: $generateFirstFeature, firstFeatureName: $firstFeatureName, firstFeatureFields: $firstFeatureFields, firstFeatureJson: $firstFeatureJson, firstFeatureFieldWarnings: $firstFeatureFieldWarnings, firstFeatureApiPath: $firstFeatureApiPath, storageStrategy: $storageStrategy, useNavigationShell: $useNavigationShell, shellIcon: $shellIcon, shellLabel: $shellLabel, generateAuth: $generateAuth, generateRealtime: $generateRealtime, generateStorage: $generateStorage, firebaseConfigPath: $firebaseConfigPath, generateOAuth: $generateOAuth, generateI18n: $generateI18n, i18nLocales: $i18nLocales, i18nCsvPath: $i18nCsvPath, generateFlavors: $generateFlavors, environments: $environments, baseEnvIndex: $baseEnvIndex)';
 }
 
 
@@ -442,7 +462,7 @@ abstract mixin class _$ArchitectureStateCopyWith<$Res> implements $ArchitectureS
   factory _$ArchitectureStateCopyWith(_ArchitectureState value, $Res Function(_ArchitectureState) _then) = __$ArchitectureStateCopyWithImpl;
 @override @useResult
 $Res call({
- StructuralPattern pattern, bool includeMappers, bool useRiverpodAnnotations, bool useCubit, bool mirrorTestStructure, bool packageSplit, bool generateFirstFeature, String firstFeatureName, List<FieldSpec> firstFeatureFields, String firstFeatureJson, List<String> firstFeatureFieldWarnings, String firstFeatureApiPath, StorageStrategy storageStrategy, bool useNavigationShell, String shellIcon, String shellLabel, bool generateAuth, bool generateRealtime, bool generateStorage, String firebaseConfigPath, bool generateOAuth, bool generateI18n, String i18nCsvPath, bool generateFlavors, List<EnvConfig> environments, int baseEnvIndex
+ StructuralPattern pattern, bool includeMappers, bool useRiverpodAnnotations, bool useCubit, bool mirrorTestStructure, bool packageSplit, bool generateFirstFeature, String firstFeatureName, List<FieldSpec> firstFeatureFields, String firstFeatureJson, List<String> firstFeatureFieldWarnings, String firstFeatureApiPath, StorageStrategy storageStrategy, bool useNavigationShell, String shellIcon, String shellLabel, bool generateAuth, bool generateRealtime, bool generateStorage, String firebaseConfigPath, bool generateOAuth, bool generateI18n, Set<String> i18nLocales, String i18nCsvPath, bool generateFlavors, List<EnvConfig> environments, int baseEnvIndex
 });
 
 
@@ -459,7 +479,7 @@ class __$ArchitectureStateCopyWithImpl<$Res>
 
 /// Create a copy of ArchitectureState
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? pattern = null,Object? includeMappers = null,Object? useRiverpodAnnotations = null,Object? useCubit = null,Object? mirrorTestStructure = null,Object? packageSplit = null,Object? generateFirstFeature = null,Object? firstFeatureName = null,Object? firstFeatureFields = null,Object? firstFeatureJson = null,Object? firstFeatureFieldWarnings = null,Object? firstFeatureApiPath = null,Object? storageStrategy = null,Object? useNavigationShell = null,Object? shellIcon = null,Object? shellLabel = null,Object? generateAuth = null,Object? generateRealtime = null,Object? generateStorage = null,Object? firebaseConfigPath = null,Object? generateOAuth = null,Object? generateI18n = null,Object? i18nCsvPath = null,Object? generateFlavors = null,Object? environments = null,Object? baseEnvIndex = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? pattern = null,Object? includeMappers = null,Object? useRiverpodAnnotations = null,Object? useCubit = null,Object? mirrorTestStructure = null,Object? packageSplit = null,Object? generateFirstFeature = null,Object? firstFeatureName = null,Object? firstFeatureFields = null,Object? firstFeatureJson = null,Object? firstFeatureFieldWarnings = null,Object? firstFeatureApiPath = null,Object? storageStrategy = null,Object? useNavigationShell = null,Object? shellIcon = null,Object? shellLabel = null,Object? generateAuth = null,Object? generateRealtime = null,Object? generateStorage = null,Object? firebaseConfigPath = null,Object? generateOAuth = null,Object? generateI18n = null,Object? i18nLocales = null,Object? i18nCsvPath = null,Object? generateFlavors = null,Object? environments = null,Object? baseEnvIndex = null,}) {
   return _then(_ArchitectureState(
 pattern: null == pattern ? _self.pattern : pattern // ignore: cast_nullable_to_non_nullable
 as StructuralPattern,includeMappers: null == includeMappers ? _self.includeMappers : includeMappers // ignore: cast_nullable_to_non_nullable
@@ -483,7 +503,8 @@ as bool,generateStorage: null == generateStorage ? _self.generateStorage : gener
 as bool,firebaseConfigPath: null == firebaseConfigPath ? _self.firebaseConfigPath : firebaseConfigPath // ignore: cast_nullable_to_non_nullable
 as String,generateOAuth: null == generateOAuth ? _self.generateOAuth : generateOAuth // ignore: cast_nullable_to_non_nullable
 as bool,generateI18n: null == generateI18n ? _self.generateI18n : generateI18n // ignore: cast_nullable_to_non_nullable
-as bool,i18nCsvPath: null == i18nCsvPath ? _self.i18nCsvPath : i18nCsvPath // ignore: cast_nullable_to_non_nullable
+as bool,i18nLocales: null == i18nLocales ? _self._i18nLocales : i18nLocales // ignore: cast_nullable_to_non_nullable
+as Set<String>,i18nCsvPath: null == i18nCsvPath ? _self.i18nCsvPath : i18nCsvPath // ignore: cast_nullable_to_non_nullable
 as String,generateFlavors: null == generateFlavors ? _self.generateFlavors : generateFlavors // ignore: cast_nullable_to_non_nullable
 as bool,environments: null == environments ? _self._environments : environments // ignore: cast_nullable_to_non_nullable
 as List<EnvConfig>,baseEnvIndex: null == baseEnvIndex ? _self.baseEnvIndex : baseEnvIndex // ignore: cast_nullable_to_non_nullable

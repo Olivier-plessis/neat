@@ -202,9 +202,15 @@ class ${p}Error extends ${p}State {
   ]) {
     final p = pascal(featureName);
     final c = camel(featureName);
+    // packageSplit: i18n is single-sourced in the core package (see
+    // LaunchGenerationUsecase's i18n block) — same redirect as
+    // theme_mode_controller.dart just below. Without this, a split feature
+    // page would import from the app directly, the exact feature→app cycle
+    // packageSplit exists to avoid.
+    final i18nPkg = corePackageName ?? packageName;
     final i18nImports = i18n
-        ? "import 'package:$packageName/core/i18n/language_switcher.dart';\n"
-              "import 'package:$packageName/i18n/strings.g.dart';\n"
+        ? "import 'package:$i18nPkg/core/i18n/language_switcher.dart';\n"
+              "import 'package:$i18nPkg/i18n/strings.g.dart';\n"
         : '';
     final titleWidget = i18n ? 'Text(context.t.$c.title)' : "const Text('$p')";
     final switcherAction = i18n ? 'const LanguageSwitcher(),\n          ' : '';
@@ -543,9 +549,11 @@ $disposeLines
 
     if (hasRiverpod) {
       final c = camel(featureName);
+      // packageSplit: same i18n single-sourcing rationale as _riverpodListPage.
+      final i18nPkg = corePackageName ?? packageName;
       final i18nImports = i18n
-          ? "import 'package:$packageName/core/i18n/language_switcher.dart';\n"
-                "import 'package:$packageName/i18n/strings.g.dart';\n"
+          ? "import 'package:$i18nPkg/core/i18n/language_switcher.dart';\n"
+                "import 'package:$i18nPkg/i18n/strings.g.dart';\n"
           : '';
       final titleWidget = i18n ? 'Text(context.t.$c.title)' : "const Text('$p')";
       final switcherAction = i18n ? 'const LanguageSwitcher(),\n          ' : '';
