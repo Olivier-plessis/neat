@@ -30,8 +30,15 @@ class ArchitectureNotifier extends _$ArchitectureNotifier {
   void setFirstFeatureName(String val) =>
       state = state.copyWith(firstFeatureName: val.trim());
 
+  /// Only remote-only is wired for packageSplit today (see ROADMAP.md §6a) —
+  /// leaving offline-first turns the toggle off in the UI (see
+  /// architecture_screen.dart's canPackageSplit), but the underlying flag
+  /// isn't reset here: the generator re-derives the effective combo itself
+  /// (launch_generation_usecase.dart's packageSplitSupported), so a stale
+  /// `true` while the toggle is hidden is harmless.
   void setStorageStrategy(StorageStrategy strategy) =>
       state = state.copyWith(storageStrategy: strategy);
+  void togglePackageSplit(bool val) => state = state.copyWith(packageSplit: val);
   void toggleNavigationShell(bool val) => state = state.copyWith(useNavigationShell: val);
   void toggleGenerateAuth(bool val) => state = state.copyWith(generateAuth: val);
   void toggleGenerateRealtime(bool val) => state = state.copyWith(generateRealtime: val);

@@ -50,6 +50,16 @@ abstract class ArchitectureState with _$ArchitectureState {
     @Default(false) bool useCubit,
     @Default(true) bool mirrorTestStructure,
 
+    /// Opt-in: extract every feature into its own Dart workspace package
+    /// (`packages/<feature>/`) instead of a folder under `lib/features/` —
+    /// real package boundaries for a team where each dev owns a feature.
+    /// Requires a shared `<app>_core` package (Result/Failure/UseCase/
+    /// networking), gated to dio or chopper + remote-only + Riverpod
+    /// annotations + plain go_router until Phase 2 widens support further
+    /// (supabase/firebase/retrofit clients, offline-first + Drift,
+    /// go_router_builder — see ROADMAP.md §6a).
+    @Default(false) bool packageSplit,
+
     /// Opt-in: scaffold a first feature at all (mirrors `flutter create`'s
     /// counter app — a real worked example so a fresh project runs and shows
     /// data). Off → the app ships with zero features, just a placeholder
