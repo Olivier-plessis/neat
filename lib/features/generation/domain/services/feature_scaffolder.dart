@@ -175,6 +175,7 @@ class FeatureScaffolder {
         realtime: liveList,
         fields: fields,
         apiPath: apiPath,
+        corePackageName: corePackageName,
       ),
     );
     // The repository-level DI graph (ApiSource/LocalSource/Repository/Sync
@@ -296,7 +297,11 @@ class FeatureScaffolder {
     } else if (hasGoRouterBuilder) {
       await _write(
         '$presentationBase/routes/${featureName}_routes.dart',
-        CoreTemplates.featureRoutes(packageName: packageName, featureName: featureName),
+        CoreTemplates.featureRoutes(
+          packageName: packageName,
+          featureName: featureName,
+          corePackageName: corePackageName,
+        ),
       );
     } else if (hasGoRouter) {
       await _write(

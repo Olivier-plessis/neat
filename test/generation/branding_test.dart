@@ -26,7 +26,9 @@ void main() {
 
   group('branding config templates', () {
     test('launcher icons config points at the logo across platforms', () {
-      final yaml = CoreTemplates.launcherIconsConfig();
+      final yaml = CoreTemplates.launcherIconsConfig(
+        platforms: const ['android', 'ios', 'macos', 'web'],
+      );
       expect(yaml, contains('flutter_launcher_icons:'));
       expect(yaml, contains('image_path: "assets/branding/logo.png"'));
       expect(yaml, contains('adaptive_icon_foreground: "assets/branding/logo.png"'));
@@ -34,8 +36,17 @@ void main() {
       expect(yaml, contains('web:'));
     });
 
+    test('launcher icons config only generates for the selected platforms', () {
+      final yaml = CoreTemplates.launcherIconsConfig(platforms: const ['android', 'ios']);
+      expect(yaml, contains('android: true'));
+      expect(yaml, contains('ios: true'));
+      expect(yaml, contains('generate: false')); // web/macos/windows/linux all off
+    });
+
     test('native splash config has light + dark + android_12', () {
-      final yaml = CoreTemplates.nativeSplashConfig();
+      final yaml = CoreTemplates.nativeSplashConfig(
+        platforms: const ['android', 'ios', 'macos', 'web'],
+      );
       expect(yaml, contains('flutter_native_splash:'));
       expect(yaml, contains('image: assets/branding/logo.png'));
       expect(yaml, contains('color: "#FFFFFF"'));
@@ -50,7 +61,8 @@ description: x
 publish_to: 'none'
 version: 1.0.0+1
 environment:
-  sdk: ^3.6.0
+  sdk: ^3.12.0
+  flutter: ">=1.17.0"
 dependencies:
   flutter:
     sdk: flutter
@@ -70,10 +82,7 @@ dev_dependencies:
     });
 
     test('no branding deps when addBranding is false', () {
-      final out = LaunchGenerationUsecase.buildPubspecContent(
-        base,
-        const <PubPackage>[],
-      );
+      final out = LaunchGenerationUsecase.buildPubspecContent(base, const <PubPackage>[]);
       expect(out, isNot(contains('flutter_launcher_icons')));
       expect(out, isNot(contains('flutter_native_splash')));
     });

@@ -21,7 +21,8 @@ version: 0.1.0
 publish_to: 'none'
 
 environment:
-  sdk: ^3.6.0
+  sdk: ^3.12.0
+  flutter: ">=1.17.0"
 
 resolution: workspace
 
@@ -41,7 +42,8 @@ dev_dependencies:
   ///
   /// Re-exports the drift runtime so consumers manipulate rows/queries without
   /// declaring a direct dependency on `drift`.
-  static String publicApi({required String packageName}) => '''/// Public API of the $packageName package.
+  static String publicApi({required String packageName}) =>
+      '''/// Public API of the $packageName package.
 library;
 
 export 'package:drift/drift.dart';

@@ -193,8 +193,9 @@ class NetworkInfo {
 
   // ── core/error/error_handler.dart (global error routing) ──────────────────
 
-  static String errorHandler({required String packageName}) => '''import 'package:flutter/foundation.dart';
-import 'package:$packageName/core/utils/app_logger.dart';
+  static String errorHandler({required String packageName, String? corePackageName}) =>
+      '''import 'package:flutter/foundation.dart';
+import 'package:${corePackageName ?? packageName}/core/utils/app_logger.dart';
 
 /// Routes framework (sync) and platform (async) errors to [AppLogger].
 /// Call once from bootstrap(), inside the guarded zone.
@@ -274,12 +275,13 @@ abstract final class AppLogger {
   static String riverpodObserver({
     required String packageName,
     required bool useAnnotations,
+    String? corePackageName,
   }) {
     final riverpodImport = useAnnotations
         ? "import 'package:hooks_riverpod/hooks_riverpod.dart';"
         : "import 'package:flutter_riverpod/flutter_riverpod.dart';";
     return '''$riverpodImport
-import 'package:$packageName/core/utils/app_logger.dart';
+import 'package:${corePackageName ?? packageName}/core/utils/app_logger.dart';
 
 /// Logs the lifecycle of every provider (add / update / dispose / fail).
 final class RiverpodObserver extends ProviderObserver {
@@ -1464,10 +1466,20 @@ final appRouter = GoRouter(
 
   /// Aggregates each feature's generated `\$appRoutes`. New features add an
   /// aliased import + spread here.
-  static String routesAggregator({required String packageName, required String featureName}) =>
-      '''import 'package:go_router/go_router.dart';
-import 'package:$packageName/features/$featureName/presentation/routes/${featureName}_routes.dart'
-    as $featureName;
+  ///
+  /// [featurePackageName] is set when the feature was split into its own
+  /// workspace package (packageSplit — see ROADMAP.md §6a): the one
+  /// legitimate app→feature-package import, same as [routesManual].
+  static String routesAggregator({
+    required String packageName,
+    required String featureName,
+    String? featurePackageName,
+  }) {
+    final routesImport = featurePackageName != null
+        ? "import 'package:$featurePackageName/presentation/routes/${featureName}_routes.dart'\n    as $featureName;"
+        : "import 'package:$packageName/features/$featureName/presentation/routes/${featureName}_routes.dart'\n    as $featureName;";
+    return '''import 'package:go_router/go_router.dart';
+$routesImport
 // neat:route-imports
 
 /// Aggregated app routes. NEAT inserts new features at the anchors below.
@@ -1476,14 +1488,24 @@ final List<RouteBase> appRoutes = [
   // neat:route-entries
 ];
 ''';
+  }
 
   // ── features/<f>/presentation/routes/<f>_routes.dart (typed routes) ──────
 
-  static String featureRoutes({required String packageName, required String featureName}) =>
+  static String featureRoutes({
+    required String packageName,
+    required String featureName,
+    // Set when the feature was split into its own workspace package
+    // (packageSplit — see ROADMAP.md §6a): AppRoutePath crosses into the
+    // shared core package instead of the app (the app's own copy would be
+    // the forbidden feature→app cycle) — the page self-reference is already
+    // relative, since this file lives in the same package as the page.
+    String? corePackageName,
+  }) =>
       '''import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:$packageName/core/constants/app_route_path.dart';
-import 'package:$packageName/features/$featureName/presentation/pages/${featureName}_page.dart';
+import 'package:${corePackageName ?? packageName}/core/constants/app_route_path.dart';
+import '../pages/${featureName}_page.dart';
 
 part '${featureName}_routes.g.dart';
 
@@ -1602,12 +1624,21 @@ final List<RouteBase> appRoutes = [
 ''';
 
   /// `routes.dart` for a shell-rooted app (plain go_router): the first feature is
-  /// the shell's first branch, wrapped in a [StatefulShellRoute].
-  static String routesManualShell({required String packageName, required String featureName}) =>
-      '''import 'package:go_router/go_router.dart';
+  /// the shell's first branch, wrapped in a [StatefulShellRoute]. [featurePackageName]
+  /// crosses into the split feature package instead of `features/<name>/` when
+  /// packageSplit is on (see ROADMAP.md §6a).
+  static String routesManualShell({
+    required String packageName,
+    required String featureName,
+    String? featurePackageName,
+  }) {
+    final pageImport = featurePackageName != null
+        ? "import 'package:$featurePackageName/presentation/pages/${featureName}_page.dart';"
+        : "import 'package:$packageName/features/$featureName/presentation/pages/${featureName}_page.dart';";
+    return '''import 'package:go_router/go_router.dart';
 import 'package:$packageName/core/constants/app_route_path.dart';
 import 'package:$packageName/core/router/scaffold_with_nav_bar.dart';
-import 'package:$packageName/features/$featureName/presentation/pages/${featureName}_page.dart';
+$pageImport
 // neat:route-imports
 
 /// Aggregated app routes. The app boots into the navigation shell; NEAT inserts
@@ -1617,6 +1648,7 @@ ${shellRouteEntryPlain(featureName: featureName)}
   // neat:route-entries
 ];
 ''';
+  }
 
   // ── core/providers/infrastructure_providers.dart (shared singletons) ──────
 
@@ -1650,35 +1682,55 @@ NetworkInfo networkInfo(Ref ref) => NetworkInfo(Connectivity());
 
   /// `flutter_launcher_icons.yaml` — generates platform app icons from the logo.
   static String launcherIconsConfig({
+    required List<String> platforms,
     String imagePath = 'assets/branding/logo.png',
     String adaptiveBackground = '#FFFFFF',
-  }) =>
-      '''flutter_launcher_icons:
+  }) {
+    final hasAndroid = platforms.contains('android');
+    final hasIos = platforms.contains('ios');
+    final hasWeb = platforms.contains('web');
+    final hasMacos = platforms.contains('macos');
+    final hasWindows = platforms.contains('windows');
+    final hasLinux = platforms.contains('linux');
+
+    return '''flutter_launcher_icons:
   image_path: "$imagePath"
-  android: true
-  ios: true
+  android: $hasAndroid
+  ios: $hasIos
   min_sdk_android: 21
   remove_alpha_ios: true
   adaptive_icon_background: "$adaptiveBackground"
   adaptive_icon_foreground: "$imagePath"
   web:
-    generate: true
+    generate: $hasWeb
     image_path: "$imagePath"
   macos:
-    generate: true
+    generate: $hasMacos
     image_path: "$imagePath"
   windows:
-    generate: true
+    generate: $hasWindows
+    image_path: "$imagePath"
+  linux:
+    generate: $hasLinux
     image_path: "$imagePath"
 ''';
+  }
 
   /// `flutter_native_splash.yaml` — generates the native splash screen.
   static String nativeSplashConfig({
+    required List<String> platforms,
     String imagePath = 'assets/branding/logo.png',
     String colorLight = '#FFFFFF',
     String colorDark = '#0E0E0E',
-  }) =>
-      '''flutter_native_splash:
+  }) {
+    final hasAndroid = platforms.contains('android');
+    final hasIos = platforms.contains('ios');
+    final hasWeb = platforms.contains('web');
+    final hasMacos = platforms.contains('macos');
+    final hasWindows = platforms.contains('windows');
+    final hasLinux = platforms.contains('linux');
+
+    return '''flutter_native_splash:
   color: "$colorLight"
   color_dark: "$colorDark"
   image: $imagePath
@@ -1688,10 +1740,14 @@ NetworkInfo networkInfo(Ref ref) => NetworkInfo(Connectivity());
     icon_background_color: "$colorLight"
     image_dark: $imagePath
     icon_background_color_dark: "$colorDark"
-  android: true
-  ios: true
-  web: true
+  android: $hasAndroid
+  ios: $hasIos
+  web: $hasWeb
+  macos: $hasMacos
+  windows: $hasWindows
+  linux: $hasLinux
 ''';
+  }
 
   // ── Shell scaffold (bottom NavigationBar driven by a StatefulShellRoute) ──
 
@@ -1780,17 +1836,23 @@ class ScaffoldWithNavBar extends StatelessWidget {
 
   /// The full `lib/core/router/app_shell_route.dart` (typed shell with the first
   /// branch + anchors), created when the first shell branch is added.
+  /// [featurePackageName] crosses into the split feature package instead of
+  /// `features/<name>/` when packageSplit is on (see ROADMAP.md §6a).
   static String appShellRouteBuilder({
     required String packageName,
     required String featureName,
+    String? featurePackageName,
   }) {
     final p = _pascal(featureName);
     final c = _camel(featureName);
+    final pageImport = featurePackageName != null
+        ? "import 'package:$featurePackageName/presentation/pages/${featureName}_page.dart';"
+        : "import 'package:$packageName/features/$featureName/presentation/pages/${featureName}_page.dart';";
     return '''import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:$packageName/core/constants/app_route_path.dart';
 import 'package:$packageName/core/router/scaffold_with_nav_bar.dart';
-import 'package:$packageName/features/$featureName/presentation/pages/${featureName}_page.dart';
+$pageImport
 // neat:shell-imports
 
 part 'app_shell_route.g.dart';

@@ -1,6 +1,3 @@
-import 'dart:io';
-
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:neat/core/theme/app_theme.dart';
@@ -50,22 +47,22 @@ class ArchitectureScreen extends ConsumerWidget {
     final hasRetrofit = ref.watch(
       selectedPackagesProvider.select((list) => list.any((p) => p.name == 'retrofit')),
     );
-    // packageSplit combo (see ROADMAP.md §6a): dio or chopper, remote-only,
-    // Riverpod annotations, plain go_router, and a first feature to split.
-    // Mirrors launch_generation_usecase.dart's packageSplitSupported — the
-    // generator re-derives this independently rather than trusting the raw
-    // flag, so keeping the toggle disabled outside this combo is a UX
-    // courtesy, not the only safety net. supabase/firebase/retrofit clients +
-    // offline-first + go_router_builder remain Phase 2/3.
+    // packageSplit combo (see ROADMAP.md §6a): dio or chopper, remote-only or
+    // offline-first (read-through cache, no sync/Outbox yet), Riverpod
+    // annotations, manual or typed (go_router_builder) routing, and a first
+    // feature to split. Mirrors launch_generation_usecase.dart's
+    // packageSplitSupported — the generator re-derives this independently
+    // rather than trusting the raw flag, so keeping the toggle disabled
+    // outside this combo is a UX courtesy, not the only safety net.
+    // supabase/firebase/retrofit clients + offline+sync remain Phase 2/3.
     final canPackageSplit = state.generateFirstFeature &&
         hasRiverpod &&
         state.useRiverpodAnnotations &&
         hasGoRouter &&
-        !hasGoRouterBuilder &&
         (hasDio || hasChopper) &&
         !hasRetrofit &&
         !hasBackend &&
-        state.storageStrategy == StorageStrategy.remoteOnly;
+        !state.storageStrategy.hasSync;
     final tree = const GenerateTreeUsecase().execute(
       state,
       hasRiverpod: hasRiverpod,
@@ -256,39 +253,26 @@ class ArchitectureScreen extends ConsumerWidget {
                                 'UseCase/networking) — never on the app itself, so multiple devs '
                                 'can own separate features without touching a shared lib/.'
                             : 'Requires: a first feature, dio or chopper (no retrofit yet), '
-                                'remote-only storage, Riverpod annotations, and plain go_router '
-                                '(not go_router_builder). See ROADMAP.md §6a.',
+                                'remote-only or offline-first storage (no sync/Outbox yet), '
+                                'and Riverpod annotations. See ROADMAP.md §6a.',
                         value: canPackageSplit && state.packageSplit,
                         disabled: !canPackageSplit,
                         onChanged: notifier.togglePackageSplit,
                       ),
 
                       if (hasGoRouter) ...[
-                        const SizedBox(height: 28),
-                        _SectionHeader(
-                          icon: Icons.space_dashboard_outlined,
-                          label: 'Navigation',
-                        ),
-                        const SizedBox(height: 12),
-                        _ToggleTile(
-                          title: 'Bottom navigation shell',
-                          description: state.generateFirstFeature
-                              ? 'L\'app démarre dans un StatefulShellRoute : la 1ʳᵉ feature devient le 1er onglet d\'une NavigationBar. Les Shell Branch ajoutées ensuite deviennent des onglets.'
-                              : 'Nécessite une 1ʳᵉ feature — active "Generate example feature" ci-dessus.',
-                          value: state.generateFirstFeature && state.useNavigationShell,
-                          disabled: !state.generateFirstFeature,
-                          onChanged: notifier.toggleNavigationShell,
-                        ),
-                        if (state.useNavigationShell) ...[
-                          const SizedBox(height: 12),
-                          _ShellTabConfig(
-                            icon: state.shellIcon,
-                            labelHint: state.effectiveShellLabel,
-                            onIcon: notifier.setShellIcon,
-                            onLabel: notifier.setShellLabel,
-                          ),
-                        ],
+                        // The bottom-navigation-shell toggle (+ its
+                        // _ShellTabConfig) moved to Infrastructure > Navigation
+                        // — it's a navigation-engine concern, not an
+                        // architecture-layer one. This section now only
+                        // covers backend-driven auth, which still needs
+                        // go_router (its guard) to make sense.
                         if (canAuth) ...[
+                          const SizedBox(height: 28),
+                          _SectionHeader(
+                            icon: Icons.space_dashboard_outlined,
+                            label: 'Navigation',
+                          ),
                           const SizedBox(height: 12),
                           _ToggleTile(
                             title: 'Generate Auth ($backendLabel)',
@@ -345,40 +329,11 @@ class ArchitectureScreen extends ConsumerWidget {
                         ),
                       ],
 
-                      const SizedBox(height: 28),
-                      _SectionHeader(
-                        icon: Icons.translate_outlined,
-                        label: 'Internationalization',
-                      ),
-                      const SizedBox(height: 12),
-                      _ToggleTile(
-                        title: 'i18n (slang)',
-                        description:
-                            'Traductions type-safe avec slang : base en + fr, '
-                            'TranslationProvider + `context.t`, et un sélecteur de langue dans l\'AppBar.',
-                        value: state.generateI18n,
-                        onChanged: notifier.toggleGenerateI18n,
-                      ),
-                      if (state.generateI18n) ...[
-                        const SizedBox(height: 12),
-                        _UploadFileCard(
-                          title: 'Traductions (CSV)',
-                          icon: Icons.table_chart_outlined,
-                          filePath: state.i18nCsvPath,
-                          emptyHint:
-                              'Optionnel : un CSV compact (`key,en,fr,…`) à faire traduire dans un '
-                              'tableur. Remplace le scaffold en/fr par défaut.',
-                          onPick: () async {
-                            final result = await FilePicker.pickFiles(
-                              type: FileType.custom,
-                              allowedExtensions: const ['csv'],
-                            );
-                            final path = result?.files.single.path;
-                            if (path != null) notifier.setI18nCsvPath(path);
-                          },
-                          onRemove: () => notifier.setI18nCsvPath(''),
-                        ),
-                      ],
+                      // Internationalization moved to Infrastructure >
+                      // Localization — it's a "which providers/languages does
+                      // this app ship with" decision, same family as
+                      // Backend/Navigation provider, not an architecture-layer
+                      // concern.
 
                       const SizedBox(height: 28),
                       _SectionHeader(
@@ -769,175 +724,6 @@ class _ToggleTile extends StatelessWidget {
         ],
       ),
       ),
-    );
-  }
-}
-
-// ── File upload card (Firebase config / i18n CSV / …) ──────────────────────────
-
-/// A reusable "upload a file" row: title + hint (or the picked file name) + an
-/// Upload/Change button and a clear button.
-class _UploadFileCard extends StatelessWidget {
-  const _UploadFileCard({
-    required this.title,
-    required this.icon,
-    required this.filePath,
-    required this.emptyHint,
-    required this.onPick,
-    required this.onRemove,
-  });
-
-  final String title;
-  final IconData icon;
-  final String filePath;
-  final String emptyHint;
-  final VoidCallback onPick;
-  final VoidCallback onRemove;
-
-  @override
-  Widget build(BuildContext context) {
-    final hasFile = filePath.isNotEmpty;
-    final fileName = hasFile ? filePath.split(Platform.pathSeparator).last : null;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF18181C),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white10),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            hasFile ? Icons.check_circle_outline : icon,
-            color: hasFile ? AppTheme.colorPrimaryCyan : Colors.grey[500],
-            size: 20,
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  fileName ?? emptyHint,
-                  style: TextStyle(color: Colors.grey[500], fontSize: 12),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          if (hasFile)
-            IconButton(
-              icon: const Icon(Icons.close, size: 18, color: Colors.white54),
-              onPressed: onRemove,
-              tooltip: 'Retirer',
-            ),
-          OutlinedButton(
-            onPressed: onPick,
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppTheme.colorPrimaryCyan,
-              side: BorderSide(color: AppTheme.colorPrimaryCyan.withValues(alpha: 0.5)),
-            ),
-            child: Text(hasFile ? 'Changer' : 'Upload'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Shell first-tab config (icon + label) ──────────────────────────────────────
-
-/// Curated Material icons (kept so the generated `Icon(Icons.<name>)` compiles).
-const _shellIcons = <String, IconData>{
-  'home': Icons.home, 'dashboard': Icons.dashboard, 'person': Icons.person,
-  'settings': Icons.settings, 'search': Icons.search, 'favorite': Icons.favorite,
-  'notifications': Icons.notifications, 'list': Icons.list,
-  'shopping_cart': Icons.shopping_cart, 'explore': Icons.explore,
-  'calendar_today': Icons.calendar_today, 'chat': Icons.chat, 'map': Icons.map,
-  'star': Icons.star, 'folder': Icons.folder, 'account_circle': Icons.account_circle,
-};
-
-class _ShellTabConfig extends StatefulWidget {
-  const _ShellTabConfig({
-    required this.icon,
-    required this.labelHint,
-    required this.onIcon,
-    required this.onLabel,
-  });
-
-  final String icon;
-  final String labelHint;
-  final ValueChanged<String> onIcon;
-  final ValueChanged<String> onLabel;
-
-  @override
-  State<_ShellTabConfig> createState() => _ShellTabConfigState();
-}
-
-class _ShellTabConfigState extends State<_ShellTabConfig> {
-  final _labelCtrl = TextEditingController();
-
-  @override
-  void dispose() {
-    _labelCtrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final icon = _shellIcons.containsKey(widget.icon) ? widget.icon : 'home';
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 160,
-          child: InputDecorator(
-            decoration: const InputDecoration(labelText: 'First tab icon'),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                value: icon,
-                isExpanded: true,
-                dropdownColor: const Color(0xFF18181C),
-                style: const TextStyle(color: Colors.white, fontSize: 13),
-                onChanged: (v) => widget.onIcon(v ?? 'home'),
-                items: _shellIcons.entries
-                    .map((e) => DropdownMenuItem(
-                          value: e.key,
-                          child: Row(
-                            children: [
-                              Icon(e.value, size: 16, color: AppTheme.colorPrimaryCyan),
-                              const SizedBox(width: 8),
-                              Expanded(child: Text(e.key, overflow: TextOverflow.ellipsis)),
-                            ],
-                          ),
-                        ))
-                    .toList(),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: TextField(
-            controller: _labelCtrl,
-            onChanged: widget.onLabel,
-            style: const TextStyle(color: Colors.white, fontSize: 14),
-            decoration: InputDecoration(
-              labelText: 'First tab label',
-              hintText: widget.labelHint.isEmpty ? 'e.g. Home' : widget.labelHint,
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

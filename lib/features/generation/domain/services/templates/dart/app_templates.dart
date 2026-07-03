@@ -50,6 +50,12 @@ void main() => $call;
     // its own registration the same way the router aggregator's anchors do.
     String? chopperRegisterFeaturePackage,
     String? chopperRegisterFeatureName,
+    // packageSplit: AppLogger is a stateless utility (unlike
+    // theme_mode_controller, no singleton-sharing correctness issue either
+    // way), but the app no longer writes its own copy when split — so this
+    // redirects bootstrap.dart's import to the single copy that does exist,
+    // in the core package.
+    String? corePackageName,
   }) {
     final registersChopper = chopperRegisterFeaturePackage != null;
     final imports = StringBuffer()
@@ -77,15 +83,19 @@ void main() => $call;
       imports.writeln("import 'package:$packageName/firebase_options.dart';");
     }
     if (hasI18n) {
+      // packageSplit: the whole i18n setup is single-sourced in the core
+      // package (see LaunchGenerationUsecase's i18n block) — same redirect as
+      // AppLogger just below.
+      final i18nPkg = corePackageName ?? packageName;
       imports
-        ..writeln("import 'package:$packageName/core/i18n/locale_store.dart';")
-        ..writeln("import 'package:$packageName/i18n/strings.g.dart';");
+        ..writeln("import 'package:$i18nPkg/core/i18n/locale_store.dart';")
+        ..writeln("import 'package:$i18nPkg/i18n/strings.g.dart';");
     }
     if (useEnvied) {
       imports.writeln("import 'package:$packageName/core/env/app_env.dart';");
     }
     imports.writeln("import 'package:$packageName/core/error/error_handler.dart';");
-    imports.writeln("import 'package:$packageName/core/utils/app_logger.dart';");
+    imports.writeln("import 'package:${corePackageName ?? packageName}/core/utils/app_logger.dart';");
     if (hasRiverpod) {
       imports.writeln("import 'package:$packageName/core/observers/provider_observer.dart';");
     }
@@ -173,9 +183,16 @@ $setEnv  await runZonedGuarded(
   }) {
     final imports = StringBuffer()..writeln("import 'package:flutter/material.dart';");
     if (hasI18n) {
+      // packageSplit: strings.g.dart lives in the core package (see
+      // LaunchGenerationUsecase's i18n block) — a plain relative import
+      // couldn't cross the package boundary, so this needs the same
+      // corePackageName redirect theme_mode_controller.dart already has below.
+      final stringsImport = corePackageName != null
+          ? "import 'package:$corePackageName/i18n/strings.g.dart';"
+          : "import 'i18n/strings.g.dart';";
       imports
         ..writeln("import 'package:flutter_localizations/flutter_localizations.dart';")
-        ..writeln("import 'i18n/strings.g.dart';");
+        ..writeln(stringsImport);
     }
     if (useScreenUtil) {
       imports.writeln("import 'package:flutter_screenutil/flutter_screenutil.dart';");

@@ -63,9 +63,27 @@ void main() {
       expect(out, contains(r'class UserProfileRoute extends GoRouteData with $UserProfileRoute'));
     });
 
-    test('imports the feature page and emits a part directive', () {
-      expect(out, contains('features/user_profile/presentation/pages/user_profile_page.dart'));
+    test('imports the feature page (relative — same package) and emits a part directive', () {
+      // Relative, not package:$pkgName/features/... — works unchanged whether
+      // the feature is flat or split into its own workspace package (see
+      // ROADMAP.md §6a): only the depth between routes/ and pages/ matters,
+      // and that's identical either way.
+      expect(out, contains("import '../pages/user_profile_page.dart';"));
       expect(out, contains("part 'user_profile_routes.g.dart';"));
+    });
+
+    test('packageSplit: AppRoutePath crosses into the core package instead of the app', () {
+      final split = CoreTemplates.featureRoutes(
+        packageName: pkgName,
+        featureName: feature,
+        corePackageName: '${pkgName}_core',
+      );
+      expect(
+        split,
+        contains("import 'package:${pkgName}_core/core/constants/app_route_path.dart';"),
+      );
+      expect(split, isNot(contains('package:$pkgName/')),
+          reason: 'a split feature package must never import from the app — that would be a cycle');
     });
   });
 

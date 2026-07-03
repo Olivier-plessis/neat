@@ -12,7 +12,12 @@ class I18nTemplates {
   /// CLI rather than `slang_build_runner` because the build_runner integration
   /// clashes with source_gen builders (freezed/json_serializable), throwing an
   /// `InvalidOutputException` on `strings.g.dart`.
-  static String slangConfig() => '''base_locale: en
+  ///
+  /// [baseLocale] must be one of the locales actually scaffolded (see
+  /// [baseTranslations]/[frTranslations]) — defaults to `en` to match NEAT's
+  /// long-standing default, but the caller picks `fr` when English wasn't
+  /// selected (see ArchitectureState.i18nLocales).
+  static String slangConfig({String baseLocale = 'en'}) => '''base_locale: $baseLocale
 fallback_strategy: base_locale
 input_directory: lib/i18n
 input_file_pattern: .i18n.json
@@ -100,7 +105,7 @@ class LanguageSwitcher extends StatelessWidget {
   Widget build(BuildContext context) {
     return PopupMenuButton<AppLocale>(
       icon: const Icon(Icons.language),
-      initialValue: LocaleSettings.currentLocale,
+      initialValue: TranslationProvider.of(context).locale,
       onSelected: LocaleStore.setLocale,
       itemBuilder: (context) => AppLocale.values
           .map(
