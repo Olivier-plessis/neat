@@ -5,6 +5,7 @@ import 'package:neat/features/feature_gen/domain/models/feature_gen_options.dart
 import 'package:neat/features/feature_gen/domain/models/loaded_project.dart';
 import 'package:neat/features/generation/domain/models/field_spec.dart';
 import 'package:neat/features/generation/domain/services/feature_scaffolder.dart';
+import 'package:neat/features/generation/domain/services/templates/core_package_templates.dart';
 import 'package:neat/features/generation/domain/services/templates/core_templates.dart';
 import 'package:neat/features/generation/domain/services/templates/local_storage_templates.dart';
 
@@ -25,9 +26,21 @@ class GenerateFeatureUsecase {
     final lib = '${project.path}/lib';
     final isFeatureFirst = c.architecture == 'feature_first';
 
+    // Modular Monorepo (ROADMAP.md §6a): once a project is packageSplit, every
+    // feature — including ones added later here — lives in its own workspace
+    // package instead of a folder under lib/features/. Names follow the same
+    // convention the wizard itself uses.
+    final packageSplit = c.packageSplit;
+    final corePackageName = packageSplit ? '${c.projectName}_core' : null;
+    final featurePackageName = packageSplit ? '${c.projectName}_$featureName' : null;
+
     // Non-destructive guard.
     final featureDir = Directory(
-      isFeatureFirst ? '$lib/features/$featureName' : '$lib/domain/$featureName',
+      packageSplit
+          ? '${project.path}/packages/$featurePackageName'
+          : isFeatureFirst
+              ? '$lib/features/$featureName'
+              : '$lib/domain/$featureName',
     );
     if (featureDir.existsSync()) {
       throw Exception('Feature "$featureName" already exists — aborting (nothing overwritten).');
@@ -62,9 +75,42 @@ class GenerateFeatureUsecase {
     // A shell branch joins the app's StatefulShellRoute (bottom NavigationBar).
     final asShell = hasGoRouter && options.routing == FeatureRouting.shell;
 
+    // A child route means the parent package would need a path: dependency on
+    // the new feature package — a real cross-feature-package dependency,
+    // exactly the kind of thing Phase 3 (shared_contracts) is meant to solve.
+    // Not yet supported: reject clearly instead of generating a broken import.
+    if (packageSplit && asChild) {
+      throw Exception(
+        'Child routes aren\'t supported yet for packageSplit projects — nesting '
+        'under "${options.parentFeature}" would need a path: dependency from '
+        'that feature package onto "$featureName" (see ROADMAP.md §6a). Use a '
+        'top-level or shell route instead.',
+      );
+    }
+
+    // packages/<pkg>_<feature>/pubspec.yaml + wiring into the root workspace —
+    // same shape as the wizard's own first split feature (see
+    // CorePackageTemplates.featurePackagePubspec / LaunchGenerationUsecase).
+    if (packageSplit) {
+      final featurePubspec = File('${project.path}/packages/$featurePackageName/pubspec.yaml');
+      await featurePubspec.create(recursive: true);
+      await featurePubspec.writeAsString(
+        CorePackageTemplates.featurePackagePubspec(
+          featurePackageName: featurePackageName!,
+          corePackageName: corePackageName!,
+          httpClient: c.httpClient,
+          hasGoRouterBuilder: hasGoRouterBuilder,
+          localStoragePackage: localStoragePackage,
+        ),
+      );
+      await _addWorkspaceMember(project.path, featurePackageName);
+      // routes.dart (or the shell scaffold) imports the new package directly.
+      await _addPathDependency(project.path, featurePackageName);
+    }
+
     onLog('[▶] Generating feature "$featureName" (matching the project stack)...');
     await const FeatureScaffolder().writeFeature(
-      lib: lib,
+      lib: packageSplit ? '${project.path}/packages/$featurePackageName/lib' : lib,
       featureName: featureName,
       packageName: c.projectName,
       isFeatureFirst: isFeatureFirst,
@@ -87,6 +133,8 @@ class GenerateFeatureUsecase {
       isShellBranch: asShell,
       fields: options.fields,
       apiPath: options.apiPath.isEmpty ? null : options.apiPath,
+      packageSplit: packageSplit,
+      corePackageName: corePackageName,
     );
     onLog('[✓] Feature files written.');
 
@@ -113,10 +161,19 @@ class GenerateFeatureUsecase {
           label: options.effectiveShellLabel,
           builder: hasGoRouterBuilder,
           onLog: onLog,
+          featurePackageName: featurePackageName,
+          corePackageName: corePackageName,
         );
       } else {
         onLog('[▶] Wiring routes...');
-        await _wireRoutes(project.path, c.projectName, featureName, builder: hasGoRouterBuilder);
+        await _wireRoutes(
+          project.path,
+          c.projectName,
+          featureName,
+          builder: hasGoRouterBuilder,
+          featurePackageName: featurePackageName,
+          corePackageName: corePackageName,
+        );
       }
     }
 
@@ -124,7 +181,14 @@ class GenerateFeatureUsecase {
     // register this feature's Model in the shared decoder registry (only
     // relevant when the new feature actually has a chopper remote source).
     if (httpClient == 'chopper') {
-      await _registerChopperDecoder(project.path, c.projectName, featureName);
+      if (packageSplit) {
+        // The split feature already generated its own register<Feature>
+        // ChopperDecoders() (see DataTemplates.featureRepositoryProviders) —
+        // only bootstrap.dart's call-site wiring is left to do.
+        await _registerChopperDecoderSplit(project.path, featurePackageName!, featureName);
+      } else {
+        await _registerChopperDecoder(project.path, c.projectName, featureName);
+      }
     }
 
     // Offline-first: inject the feature's typed table + DAO into the Drift
@@ -135,7 +199,12 @@ class GenerateFeatureUsecase {
       // The feature DI references the shared infrastructure providers; create
       // them if this project predates that file (self-heal).
       if (useAnnotations) {
-        await _ensureInfrastructureProviders(project.path, c.projectName, localStoragePackage);
+        await _ensureInfrastructureProviders(
+          project.path,
+          packageSplit ? corePackageName! : c.projectName,
+          localStoragePackage,
+          corePackageName: corePackageName,
+        );
       }
     }
 
@@ -149,6 +218,12 @@ class GenerateFeatureUsecase {
     if (localStoragePackage != null) {
       onLog('[▶] Running build_runner in packages/$localStoragePackage...');
       await _runBuildRunner(dart, '${project.path}/packages/$localStoragePackage', onLog);
+    }
+    // packageSplit: the new feature package has its own build_runner pass too
+    // (riverpod_generator/freezed/json_serializable/go_router_builder/chopper).
+    if (packageSplit) {
+      onLog('[▶] Running build_runner in packages/$featurePackageName...');
+      await _runBuildRunner(dart, '${project.path}/packages/$featurePackageName', onLog);
     }
     await _dartFormat(dart, project.path, onLog);
     onLog('[✓✓] Feature "$featureName" added.');
@@ -174,6 +249,38 @@ class GenerateFeatureUsecase {
         "import 'package:$packageName/features/$featureName/data/models/${featureName}_model.dart';\n");
     s = _insertBefore(
         s, '// neat:chopper-decoders', '  ${p}Model: (json) => ${p}Model.fromJson(json),');
+    await file.writeAsString(s);
+  }
+
+  /// packageSplit variant: the split feature already generates its own
+  /// `register<Feature>ChopperDecoders()` (see
+  /// `DataTemplates.featureRepositoryProviders` — triggered automatically
+  /// whenever `packageSplit`+chopper is passed to `FeatureScaffolder`). Core
+  /// can't import the feature's Model back to populate its registry itself
+  /// (the exact cycle packageSplit exists to avoid), so instead this wires
+  /// `bootstrap.dart`'s `// neat:chopper-register-imports`/`-calls` anchors to
+  /// import and call that function before anything hits the shared
+  /// ChopperClient — mirrors the wizard's own first-feature wiring
+  /// (`AppTemplates.bootstrap`). No-op if the project predates these anchors.
+  Future<void> _registerChopperDecoderSplit(
+    String projectPath,
+    String featurePackageName,
+    String featureName,
+  ) async {
+    final file = File('$projectPath/lib/core/bootstrap.dart');
+    if (!file.existsSync()) return;
+    final p = _pascal(featureName);
+    var s = await file.readAsString();
+    s = _insertBefore(
+      s,
+      '// neat:chopper-register-imports',
+      "import 'package:$featurePackageName/data/repositories/${featureName}_repository_providers.dart';",
+    );
+    s = _insertBefore(
+      s,
+      '// neat:chopper-register-calls',
+      '      register${p}ChopperDecoders();',
+    );
     await file.writeAsString(s);
   }
 
@@ -203,30 +310,41 @@ class GenerateFeatureUsecase {
     String packageName,
     String featureName, {
     required bool builder,
+    // packageSplit: crosses into the split feature package instead of
+    // features/<name>/, and mirrors the AppRoutePath constant into the core
+    // package's own copy (split features import AppRoutePath from there, not
+    // from the app — see ROADMAP.md §6a).
+    String? featurePackageName,
+    String? corePackageName,
   }) async {
     final camel = _camel(featureName);
     final pascal = _pascal(featureName);
 
-    // 1. AppRoutePath constant.
-    final routePath = File('$projectPath/lib/core/constants/app_route_path.dart');
-    if (routePath.existsSync()) {
-      final s = _insertBefore(
-        await routePath.readAsString(),
-        '// neat:routes',
-        "  static const String $camel = '/$featureName';",
+    // 1. AppRoutePath constant — the app's own copy, always.
+    await _addRouteConstant(
+      '$projectPath/lib/core/constants/app_route_path.dart',
+      camel,
+      '/$featureName',
+    );
+    if (corePackageName != null) {
+      await _addRouteConstant(
+        '$projectPath/packages/$corePackageName/lib/core/constants/app_route_path.dart',
+        camel,
+        '/$featureName',
       );
-      await routePath.writeAsString(s);
     }
 
     // 2. routes.dart (single wiring point for both routing modes).
     final routes = File('$projectPath/lib/core/router/routes.dart');
     if (!routes.existsSync()) return;
     var s = await routes.readAsString();
+    final pkg = featurePackageName ?? packageName;
+    final pathPrefix = featurePackageName != null ? '' : 'features/$featureName/';
     if (builder) {
       s = _insertBefore(
         s,
         '// neat:route-imports',
-        "import 'package:$packageName/features/$featureName/presentation/routes/"
+        "import 'package:$pkg/${pathPrefix}presentation/routes/"
             "${featureName}_routes.dart' as $featureName;",
       );
       s = _insertBefore(s, '// neat:route-entries', '  ...$featureName.\$appRoutes,');
@@ -234,7 +352,7 @@ class GenerateFeatureUsecase {
       s = _insertBefore(
         s,
         '// neat:route-imports',
-        "import 'package:$packageName/features/$featureName/presentation/pages/"
+        "import 'package:$pkg/${pathPrefix}presentation/pages/"
             "${featureName}_page.dart';",
       );
       s = _insertBefore(
@@ -390,18 +508,23 @@ class GenerateFeatureUsecase {
     required String label,
     required bool builder,
     required void Function(String) onLog,
+    String? featurePackageName,
+    String? corePackageName,
   }) async {
     final camel = _camel(featureName);
 
     // 1. AppRoutePath: absolute top-level path for the branch.
-    final routePath = File('$projectPath/lib/core/constants/app_route_path.dart');
-    if (routePath.existsSync()) {
-      final s = _insertBefore(
-        await routePath.readAsString(),
-        '// neat:routes',
-        "  static const String $camel = '/$featureName';",
+    await _addRouteConstant(
+      '$projectPath/lib/core/constants/app_route_path.dart',
+      camel,
+      '/$featureName',
+    );
+    if (corePackageName != null) {
+      await _addRouteConstant(
+        '$projectPath/packages/$corePackageName/lib/core/constants/app_route_path.dart',
+        camel,
+        '/$featureName',
       );
-      await routePath.writeAsString(s);
     }
 
     // 2. Shared scaffold: create on the first branch, else add a destination.
@@ -424,9 +547,21 @@ class GenerateFeatureUsecase {
 
     // 3. Route tree wiring (plain vs typed).
     if (builder) {
-      await _wireShellBranchBuilder(projectPath, packageName, featureName, firstBranch: firstBranch);
+      await _wireShellBranchBuilder(
+        projectPath,
+        packageName,
+        featureName,
+        firstBranch: firstBranch,
+        featurePackageName: featurePackageName,
+      );
     } else {
-      await _wireShellBranchPlain(projectPath, packageName, featureName, firstBranch: firstBranch);
+      await _wireShellBranchPlain(
+        projectPath,
+        packageName,
+        featureName,
+        firstBranch: firstBranch,
+        featurePackageName: featurePackageName,
+      );
     }
   }
 
@@ -435,14 +570,17 @@ class GenerateFeatureUsecase {
     String packageName,
     String featureName, {
     required bool firstBranch,
+    String? featurePackageName,
   }) async {
     final routes = File('$projectPath/lib/core/router/routes.dart');
     if (!routes.existsSync()) return;
     var s = await routes.readAsString();
+    final pkg = featurePackageName ?? packageName;
+    final pathPrefix = featurePackageName != null ? '' : 'features/$featureName/';
     s = _insertBefore(
       s,
       '// neat:route-imports',
-      "import 'package:$packageName/features/$featureName/presentation/pages/"
+      "import 'package:$pkg/${pathPrefix}presentation/pages/"
           "${featureName}_page.dart';",
     );
     if (firstBranch) {
@@ -471,12 +609,17 @@ class GenerateFeatureUsecase {
     String packageName,
     String featureName, {
     required bool firstBranch,
+    String? featurePackageName,
   }) async {
     final shellFile = File('$projectPath/lib/core/router/app_shell_route.dart');
     if (firstBranch) {
       await shellFile.create(recursive: true);
       await shellFile.writeAsString(
-        CoreTemplates.appShellRouteBuilder(packageName: packageName, featureName: featureName),
+        CoreTemplates.appShellRouteBuilder(
+          packageName: packageName,
+          featureName: featureName,
+          featurePackageName: featurePackageName,
+        ),
       );
       // Aggregate the shell's generated routes into routes.dart.
       final routes = File('$projectPath/lib/core/router/routes.dart');
@@ -497,6 +640,7 @@ class GenerateFeatureUsecase {
           shellSource: await shellFile.readAsString(),
           packageName: packageName,
           featureName: featureName,
+          featurePackageName: featurePackageName,
         ),
       );
     }
@@ -511,12 +655,15 @@ class GenerateFeatureUsecase {
     required String shellSource,
     required String packageName,
     required String featureName,
+    String? featurePackageName,
   }) {
     var s = shellSource;
+    final pkg = featurePackageName ?? packageName;
+    final pathPrefix = featurePackageName != null ? '' : 'features/$featureName/';
     s = _insertBefore(
       s,
       '// neat:shell-imports',
-      "import 'package:$packageName/features/$featureName/presentation/pages/"
+      "import 'package:$pkg/${pathPrefix}presentation/pages/"
           "${featureName}_page.dart';",
     );
     s = _insertBefore(
@@ -593,18 +740,68 @@ class GenerateFeatureUsecase {
     return '${content.substring(0, lineStart)}$line\n${content.substring(lineStart)}';
   }
 
+  /// Adds a `static const String $camel = '$routeValue';` to an
+  /// `AppRoutePath`-shaped file at [path] (app's own copy, or the core
+  /// package's mirrored copy — see `_wireRoutes`'s doc). No-op if the file is
+  /// absent.
+  Future<void> _addRouteConstant(String path, String camel, String routeValue) async {
+    final file = File(path);
+    if (!file.existsSync()) return;
+    final s = _insertBefore(
+      await file.readAsString(),
+      '// neat:routes',
+      "  static const String $camel = '$routeValue';",
+    );
+    await file.writeAsString(s);
+  }
+
+  // ── Root pubspec.yaml editing (packageSplit: wiring a new feature package) ─
+
+  /// Adds `packages/$memberDir` to the root pubspec's `workspace:` list.
+  /// Idempotent — a project with `packageSplit` on always already has a
+  /// `workspace:` block (the shared core package is always a member), so this
+  /// only ever appends a line to the existing list.
+  Future<void> _addWorkspaceMember(String projectPath, String memberDir) async {
+    final pubspec = File('$projectPath/pubspec.yaml');
+    var s = await pubspec.readAsString();
+    final line = '  - packages/$memberDir';
+    if (s.contains(line)) return;
+    s = s.contains('\nworkspace:\n')
+        ? s.replaceFirst('\nworkspace:\n', '\nworkspace:\n$line\n')
+        : '${s.trimRight()}\n\nworkspace:\n$line\n';
+    await pubspec.writeAsString(s);
+  }
+
+  /// Adds a sibling `path:` dependency on `packages/$dependencyName` to the
+  /// root pubspec — needed because the app's own `routes.dart` (or shell
+  /// scaffold) imports the new feature package directly. Idempotent.
+  Future<void> _addPathDependency(String projectPath, String dependencyName) async {
+    final pubspec = File('$projectPath/pubspec.yaml');
+    var s = await pubspec.readAsString();
+    if (s.contains('  $dependencyName:\n    path: packages/$dependencyName')) return;
+    s = s.replaceFirst(
+      'dependencies:\n  flutter:\n    sdk: flutter',
+      'dependencies:\n  flutter:\n    sdk: flutter\n  $dependencyName:\n    path: packages/$dependencyName\n',
+    );
+    await pubspec.writeAsString(s);
+  }
+
   // ── Anchor self-healing (forward-compat for pre-anchor projects) ───────────
 
   /// Creates `core/providers/infrastructure_providers.dart` (shared Drift db +
   /// connectivity singletons) when missing. New projects already ship it; this
   /// self-heals projects generated before it existed, since the feature DI now
-  /// imports it.
+  /// imports it. packageSplit: lives in the core package instead of the app
+  /// (see ROADMAP.md §6a) — [packageName] is already `corePackageName` in that
+  /// case (see the call site), and [corePackageName] picks the right root dir.
   Future<void> _ensureInfrastructureProviders(
     String projectPath,
     String packageName,
-    String localStoragePackage,
-  ) async {
-    final file = File('$projectPath/lib/core/providers/infrastructure_providers.dart');
+    String localStoragePackage, {
+    String? corePackageName,
+  }) async {
+    final root = corePackageName != null ? '$projectPath/packages/$corePackageName' : projectPath;
+    final file = File('$root/lib/core/providers/infrastructure_providers.dart');
     if (file.existsSync()) return;
     await file.create(recursive: true);
     await file.writeAsString(

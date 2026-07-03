@@ -76,35 +76,45 @@ class Palette {
     }
     sb.writeln('}\n');
 
+    sb.writeln('// Padding.');
+    sb.writeln('extension GapPaddingX on num {');
     if (useScreenUtil) {
-      // Responsive gaps: getters so `.w`/`.h` re-evaluate against the current
-      // screen (a const SizedBox would freeze the value before ScreenUtilInit).
-      sb.writeln('// Responsive gaps (flutter_screenutil): widths use .w, heights use .h.');
-      for (final s in sizes) {
-        sb.writeln('SizedBox get gapW$s => SizedBox(width: Sizes.p$s.w);');
-      }
+      // .w/.h/.sp scale the raw number *before* it's wrapped — applying them
+      // to the already-built SizedBox/EdgeInsets instead (as this used to)
+      // doesn't compile, since those extensions are declared on num, not on
+      // SizedBox/EdgeInsets.
+      sb.writeln('SizedBox get gapW => SizedBox(width: toDouble().w);');
       sb.writeln();
-      for (final s in sizes) {
-        sb.writeln('SizedBox get gapH$s => SizedBox(height: Sizes.p$s.h);');
-      }
+      sb.writeln('SizedBox get gapH => SizedBox(height: toDouble().h);');
+      sb.writeln();
+      sb.writeln('EdgeInsets get pAll => EdgeInsets.all(toDouble().sp);');
+      sb.writeln();
+      sb.writeln('EdgeInsets get pH => EdgeInsets.symmetric(horizontal: toDouble().w);');
+      sb.writeln();
+      sb.writeln('EdgeInsets get pV => EdgeInsets.symmetric(vertical: toDouble().h);');
+      sb.writeln();
+      sb.writeln('double get p => toDouble().sp;');
     } else {
-      for (final s in sizes) {
-        sb.writeln('const SizedBox gapW$s = SizedBox(width: Sizes.p$s);');
-      }
+      sb.writeln('SizedBox get gapW => SizedBox(width: toDouble()); ');
       sb.writeln();
-      for (final s in sizes) {
-        sb.writeln('const SizedBox gapH$s = SizedBox(height: Sizes.p$s);');
-      }
+      sb.writeln('SizedBox get gapH => SizedBox(height: toDouble());');
+      sb.writeln();
+      sb.writeln('EdgeInsets get pAll => EdgeInsets.all(toDouble());');
+      sb.writeln();
+      sb.writeln('EdgeInsets get pH => EdgeInsets.symmetric(horizontal: toDouble());');
+      sb.writeln();
+      sb.writeln('EdgeInsets get pV => EdgeInsets.symmetric(vertical: toDouble());');
+      sb.writeln();
+      sb.writeln('double get p => toDouble();');
     }
+    sb.writeln('}\n');
+
     return sb.toString();
   }
 
   // ── typography/typography.dart ────────────────────────────────────────────
 
-  static String typographyBarrel({
-    required String packageName,
-    bool useScreenUtil = false,
-  }) {
+  static String typographyBarrel({required String packageName, bool useScreenUtil = false}) {
     final su = useScreenUtil
         ? "import 'package:flutter_screenutil/flutter_screenutil.dart';\n"
         : '';
@@ -125,13 +135,15 @@ part 'text_style.dart';
     bool useScreenUtil = false,
   }) {
     // With ScreenUtil, sizes are responsive (.sp) so they can't be const.
-    final entries = textStyles.entries.map((e) {
-      final name = e.key.name;
-      final value = e.value.fontSize;
-      return useScreenUtil
-          ? '  static double get $name => $value.sp;'
-          : '  static const double $name = $value;';
-    }).join('\n');
+    final entries = textStyles.entries
+        .map((e) {
+          final name = e.key.name;
+          final value = e.value.fontSize;
+          return useScreenUtil
+              ? '  static double get $name => $value.sp;'
+              : '  static const double $name = $value;';
+        })
+        .join('\n');
     return '''part of 'typography.dart';
 
 class FontSizeTheme {
@@ -144,7 +156,8 @@ $entries
 
   // ── typography/font_weight.dart ───────────────────────────────────────────
 
-  static String fontWeight(String fontFamily) => '''part of 'typography.dart';
+  static String fontWeight(String fontFamily) =>
+      '''part of 'typography.dart';
 
 class FontFamilyTheme {
   FontFamilyTheme._();
@@ -170,18 +183,20 @@ class FontWeightTheme {
   // ── typography/text_style.dart ────────────────────────────────────────────
 
   static String textStyle(Map<TextStyleKey, TextStyleConfig> textStyles) {
-    final getters = textStyles.entries.map((e) {
-      final fw = e.value.fontWeight;
-      final ls = e.value.letterSpacing.toStringAsFixed(2);
-      final h = e.value.height.toStringAsFixed(2);
-      return '  static TextStyle get ${e.key.name} =>\n'
-          '      _base.copyWith(\n'
-          '        fontSize: FontSizeTheme.${e.key.name},\n'
-          '        fontWeight: FontWeight.w$fw,\n'
-          '        letterSpacing: $ls,\n'
-          '        height: $h,\n'
-          '      );';
-    }).join('\n\n');
+    final getters = textStyles.entries
+        .map((e) {
+          final fw = e.value.fontWeight;
+          final ls = e.value.letterSpacing.toStringAsFixed(2);
+          final h = e.value.height.toStringAsFixed(2);
+          return '  static TextStyle get ${e.key.name} =>\n'
+              '      _base.copyWith(\n'
+              '        fontSize: FontSizeTheme.${e.key.name},\n'
+              '        fontWeight: FontWeight.w$fw,\n'
+              '        letterSpacing: $ls,\n'
+              '        height: $h,\n'
+              '      );';
+        })
+        .join('\n\n');
 
     return '''part of 'typography.dart';
 
@@ -753,8 +768,7 @@ class _AppTextFieldState extends State<AppTextField> {
       "import 'package:flutter/material.dart';",
       "import 'package:widgetbook/widgetbook.dart';",
       "import 'package:$packageName/core/theme/app_theme.dart';",
-      for (final c in components)
-        "import 'package:$packageName/components/${c.fileName}';",
+      for (final c in components) "import 'package:$packageName/components/${c.fileName}';",
     ].join('\n');
 
     final entries = components.map(_widgetbookEntry).join('\n');
@@ -957,7 +971,7 @@ groups:
   static String assetsClass({required bool hasLogo}) {
     final logo = hasLogo
         ? '\n  /// Uploaded branding logo (also used for app icon + splash).\n'
-            "  static const String brandingLogo = 'assets/branding/logo.png';\n"
+              "  static const String brandingLogo = 'assets/branding/logo.png';\n"
         : '';
     return '''// GENERATED by NEAT (spider-compatible). Pass these to SvgPictureCustom /
 // ImagePictureCustom. Regenerate after adding assets: `dart run spider build`.
@@ -1075,9 +1089,11 @@ $logo}
     final oSt = outlinedStroke.toStringAsFixed(1);
 
     // Build TextTheme entries only for configured styles
-    final textThemeEntries = textStyles.keys.map((k) {
-      return '      ${k.name}: StyleTheme.${k.name},';
-    }).join('\n');
+    final textThemeEntries = textStyles.keys
+        .map((k) {
+          return '      ${k.name}: StyleTheme.${k.name},';
+        })
+        .join('\n');
 
     // AppBar uses titleLarge if configured, else falls back gracefully
     final hasTitle = textStyles.containsKey(TextStyleKey.titleLarge);
@@ -1260,15 +1276,12 @@ $textThemeEntries
     // ── Full file pasted from playground ─────────────────────────────────────
     if (isFullFile) {
       // Inject NEAT's extensions import right after the last import line.
-      const extensionsImport =
-          "import 'app_theme_extensions.dart';";
-      final neatImport =
-          "import 'package:$packageName/core/theme/constant/constant.dart';";
+      const extensionsImport = "import 'app_theme_extensions.dart';";
+      final neatImport = "import 'package:$packageName/core/theme/constant/constant.dart';";
 
       // Find insertion point: after the last `import` line
       final lines = code.split('\n');
-      final lastImportIdx =
-          lines.lastIndexWhere((l) => l.trimLeft().startsWith('import'));
+      final lastImportIdx = lines.lastIndexWhere((l) => l.trimLeft().startsWith('import'));
       final insertAt = lastImportIdx + 1;
 
       final injected = [
@@ -1292,48 +1305,48 @@ $textThemeEntries
 
     final bodyConfig = code.isNotEmpty
         ? '  static ThemeData get light => ($code).toTheme.copyWith(\n'
-            '    textTheme: _textTheme,\n'
-            '    extensions: const [AppColors.light],\n'
-            '    scaffoldBackgroundColor: Palette.background,\n'
-            '  );\n\n'
-            '  // Derive dark from light or paste your dark config here\n'
-            '  static ThemeData get dark => light.copyWith(\n'
-            '    extensions: const [AppColors.light],\n'
-            '  );'
+              '    textTheme: _textTheme,\n'
+              '    extensions: const [AppColors.light],\n'
+              '    scaffoldBackgroundColor: Palette.background,\n'
+              '  );\n\n'
+              '  // Derive dark from light or paste your dark config here\n'
+              '  static ThemeData get dark => light.copyWith(\n'
+              '    extensions: const [AppColors.light],\n'
+              '  );'
         : '  static ThemeData get light => FlexThemeData.light(\n'
-            '    scheme: FlexScheme.materialBaseline,\n'
-            '    subThemesData: const FlexSubThemesData(\n'
-            '      interactionEffects: true,\n'
-            '      tintedDisabledControls: true,\n'
-            '      useM2StyleDividerInM3: true,\n'
-            '      inputDecoratorIsFilled: true,\n'
-            '      inputDecoratorBorderType: FlexInputBorderType.outline,\n'
-            '      alignedDropdown: true,\n'
-            '    ),\n'
-            '    visualDensity: FlexColorScheme.comfortablePlatformDensity,\n'
-            '    useMaterial3: true,\n'
-            '    extensions: const [AppColors.light],\n'
-            '  ).copyWith(\n'
-            '    textTheme: _textTheme,\n'
-            '    scaffoldBackgroundColor: Palette.background,\n'
-            '  );\n\n'
-            '  static ThemeData get dark => FlexThemeData.dark(\n'
-            '    scheme: FlexScheme.materialBaseline,\n'
-            '    subThemesData: const FlexSubThemesData(\n'
-            '      interactionEffects: true,\n'
-            '      tintedDisabledControls: true,\n'
-            '      blendOnColors: true,\n'
-            '      useM2StyleDividerInM3: true,\n'
-            '      inputDecoratorIsFilled: true,\n'
-            '      inputDecoratorBorderType: FlexInputBorderType.outline,\n'
-            '      alignedDropdown: true,\n'
-            '    ),\n'
-            '    visualDensity: FlexColorScheme.comfortablePlatformDensity,\n'
-            '    useMaterial3: true,\n'
-            '    extensions: const [AppColors.light],\n'
-            '  ).copyWith(\n'
-            '    textTheme: _textTheme,\n'
-            '  );';
+              '    scheme: FlexScheme.materialBaseline,\n'
+              '    subThemesData: const FlexSubThemesData(\n'
+              '      interactionEffects: true,\n'
+              '      tintedDisabledControls: true,\n'
+              '      useM2StyleDividerInM3: true,\n'
+              '      inputDecoratorIsFilled: true,\n'
+              '      inputDecoratorBorderType: FlexInputBorderType.outline,\n'
+              '      alignedDropdown: true,\n'
+              '    ),\n'
+              '    visualDensity: FlexColorScheme.comfortablePlatformDensity,\n'
+              '    useMaterial3: true,\n'
+              '    extensions: const [AppColors.light],\n'
+              '  ).copyWith(\n'
+              '    textTheme: _textTheme,\n'
+              '    scaffoldBackgroundColor: Palette.background,\n'
+              '  );\n\n'
+              '  static ThemeData get dark => FlexThemeData.dark(\n'
+              '    scheme: FlexScheme.materialBaseline,\n'
+              '    subThemesData: const FlexSubThemesData(\n'
+              '      interactionEffects: true,\n'
+              '      tintedDisabledControls: true,\n'
+              '      blendOnColors: true,\n'
+              '      useM2StyleDividerInM3: true,\n'
+              '      inputDecoratorIsFilled: true,\n'
+              '      inputDecoratorBorderType: FlexInputBorderType.outline,\n'
+              '      alignedDropdown: true,\n'
+              '    ),\n'
+              '    visualDensity: FlexColorScheme.comfortablePlatformDensity,\n'
+              '    useMaterial3: true,\n'
+              '    extensions: const [AppColors.light],\n'
+              '  ).copyWith(\n'
+              '    textTheme: _textTheme,\n'
+              '  );';
 
     return '''import 'package:flex_color_scheme/flex_color_scheme.dart';
 import 'package:flutter/material.dart';
@@ -1376,7 +1389,8 @@ class ThemeModeController extends _\$ThemeModeController {
 
   // ── theme_mode_controller.dart (riverpod manual) ──────────────────────────
 
-  static String themeModeControllerRiverpodManual() => r'''import 'package:flutter_riverpod/flutter_riverpod.dart';
+  static String themeModeControllerRiverpodManual() =>
+      r'''import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/material.dart';
 
 final themeModeControllerProvider =
@@ -1547,17 +1561,13 @@ final class BrightnessDark extends BrightnessState {
           final cwStart = result.indexOf('.copyWith(', closeParen + 1);
           final cwOpenParen = cwStart + '.copyWith('.length - 1;
           const inject = '\n    extensions: const [AppColors.light],';
-          result = result.substring(0, cwOpenParen + 1) +
-              inject +
-              result.substring(cwOpenParen + 1);
+          result =
+              result.substring(0, cwOpenParen + 1) + inject + result.substring(cwOpenParen + 1);
           searchFrom = cwOpenParen + inject.length + 1;
         } else {
           // No .copyWith — add one right after the closing paren.
-          const inject =
-              '.copyWith(\n    extensions: const [AppColors.light],\n  )';
-          result = result.substring(0, closeParen + 1) +
-              inject +
-              result.substring(closeParen + 1);
+          const inject = '.copyWith(\n    extensions: const [AppColors.light],\n  )';
+          result = result.substring(0, closeParen + 1) + inject + result.substring(closeParen + 1);
           searchFrom = closeParen + inject.length + 1;
         }
       }

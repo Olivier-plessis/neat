@@ -345,14 +345,66 @@ foundation everything else is configured through.
 >     page, the root `workspace:`/`path:` lists both packages, and `flutter
 >     analyze` passes 0/0 for the **whole workspace**. Full 24-test suite still
 >     green — zero regressions.
-> - **Phase 1, step 2b — Workshop adds a second feature package**: same shared
->   `feature_scaffolder.dart`/`packageSplit` plumbing from step 2a, but from
->   `generate_feature_usecase.dart` — add a new package + workspace-list edit +
->   `// neat:route-imports`/`// neat:route-entries` anchor insertion, to an
->   **already-split** project. Not started.
->   - **Harness-done when**: an integration test opens a packageSplit project,
->     adds a second feature via the Workshop, and confirms the new package
->     exists, is wired into the workspace, and `flutter analyze` passes 0/0.
+> - ✅ **Phase 1, step 2b — Workshop adds a second feature package — done**.
+>   Real bug this closed: `GenerateFeatureUsecase` had **zero** awareness of
+>   `packageSplit` — every Workshop-added feature landed in `lib/features/`
+>   under the app regardless of how the project was generated (found by the
+>   user generating a real test project and noticing the new feature never
+>   left `lib/`). Root cause: the Workspace Contract (`.neat.json`) never
+>   recorded `packageSplit` at all, so the Workshop had no way to know.
+>   - `NeatContract` gained a `packageSplit` bool (derived convention-based
+>     naming, same as `localStoragePackage`/`uiPackage` already do — no need to
+>     persist `corePackageName`/per-feature package names separately).
+>     `LaunchGenerationUsecase` now writes it.
+>   - `ProjectLoader.scanFeatures` was hardcoded to scan `lib/features/` —
+>     useless for a split project (features never live there). Now
+>     packageSplit-aware: scans `packages/` for `<projectName>_<feature>`
+>     dirs, excluding the non-feature siblings (`_core`/`_local_storage`/`_ui`).
+>   - `GenerateFeatureUsecase.execute` now derives `corePackageName`/
+>     `featurePackageName` from the contract, writes the new package's own
+>     `pubspec.yaml` (`CorePackageTemplates.featurePackagePubspec`, same as the
+>     wizard's first feature), wires it into the root `workspace:`/`path:`
+>     (two new idempotent pubspec-editing helpers), and points
+>     `FeatureScaffolder` at `packages/<pkg>/lib` instead of the app's `lib/`.
+>   - Route wiring (`_wireRoutes`/`_wireShellBranch*`) now crosses into the new
+>     feature package instead of `features/<name>/`, **and** mirrors the new
+>     `AppRoutePath` constant into the core package's own copy — a split
+>     feature imports `AppRoutePath` from core, never the app, so core's copy
+>     needs the constant too or the new route wouldn't compile.
+>   - **Found and fixed in passing** (same root cause, different call site):
+>     the *wizard's own* first-feature-split path had never actually been
+>     exercised combined with `useNavigationShell` — `appShellRouteBuilder`/
+>     `routesManualShell` hardcoded `features/<name>/` imports unconditionally,
+>     so a wizard user picking shell nav + packageSplit together would have
+>     gotten a broken import. Fixed both templates to take an optional
+>     `featurePackageName` and threaded it from `LaunchGenerationUsecase`
+>     too, not just the Workshop path.
+>   - **Scoped out, rejected with a clear error**: nesting a new feature as a
+>     *child route* under an existing packageSplit feature. That would need a
+>     `path:` dependency from the parent package onto the child — a genuine
+>     cross-feature-package dependency, exactly the problem Phase 3
+>     (`shared_contracts`) exists to solve. `GenerateFeatureUsecase` now throws
+>     a clear exception instead of generating a broken/undeclared import.
+>     Shell branches stay supported (app→feature, never feature→feature, so no
+>     new dependency problem).
+>   - Chopper: the split feature already self-registers its own
+>     `register<Feature>ChopperDecoders()` (existing `packageSplit`+chopper
+>     machinery in `FeatureScaffolder`/`DataTemplates` — no changes needed
+>     there). The only new piece is wiring `bootstrap.dart`'s
+>     `// neat:chopper-register-imports`/`-calls` anchors (previously only the
+>     wizard's first feature used them) — a new `_registerChopperDecoderSplit`
+>     mirrors the wizard's own bootstrap wiring instead of editing the
+>     (now-absent, see the core/ cleanup above) app-local
+>     `chopper_model_converter.dart`.
+>   - Harness-proven: two new integration tests — a dio top-level-route
+>     scenario (asserts the new package/pubspec/workspace-wiring/route-import/
+>     both AppRoutePath copies/reload-sees-both-features/non-destructive-guard/
+>     child-route-rejection, `flutter analyze` 0/0 for the 3-package
+>     workspace) and a chopper scenario (asserts the new feature's own
+>     registration function + `bootstrap.dart`'s anchors, analyze 0/0). Full
+>     fast + integration suites still green, including the pre-existing
+>     `navigation-shell` test (confirms the `featurePackageName` param addition
+>     didn't regress the non-split shell path).
 > - ✅ **Wizard UI toggle — done**. `architecture_screen.dart`'s "Modular
 >   Monorepo" section: a toggle gated on `canPackageSplit` (mirrors
 >   `launch_generation_usecase.dart`'s `packageSplitSupported` — the generator
@@ -389,13 +441,150 @@ foundation everything else is configured through.
 >   a first feature, asserts the registration function/call/anchors, that core
 >   and the app's own dead-code copy both stay witness-free, and `flutter
 >   analyze` passes 0/0 for the whole workspace. Full suite still green.
-> - **Phase 2 — fuller structure**: go_router_builder (typed, cross-package
->   codegen) instead of manual; offline-first + Drift (the `_local_storage`
->   package becomes a 3rd package in the graph; the offline-first 3-source
->   repository must work across packages); supabase/firebase backends; retrofit
+> - ✅ **Phase 2, go_router_builder — done**. `CoreTemplates.featureRoutes()`
+>   (the per-feature typed route file) and `routesAggregator()` (the app's
+>   aggregator) got the exact same package-aware treatment `routesManual()`/
+>   `featureRoute()` already had for manual routing: `featureRoutes()` gained
+>   `corePackageName` to redirect its `AppRoutePath` import (the feature's own
+>   page import was already convertible to relative — same package, no
+>   change needed there); `routesAggregator()` gained `featurePackageName` to
+>   redirect the one legitimate app→feature-package import (the typed routes
+>   file itself). go_router_builder's own codegen (`part '<feature>_routes.g.dart'`)
+>   just runs inside the split feature package's own build_runner pass —
+>   already wired, same as freezed/riverpod_generator. `featurePackagePubspec()`
+>   gained a `hasGoRouterBuilder` param adding the generator as a dev dep.
+>   `packageSplitSupported`/`canPackageSplit` widened to drop the
+>   `!hasGoRouterBuilder` restriction — manual and typed routing both work now.
+>   No decoder-registry-style problem here (unlike chopper): go_router_builder
+>   has no cross-feature shared mutable state to worry about.
+>   Harness-proven: a new integration test generates packageSplit +
+>   go_router_builder + a first feature, asserts the AppRoutePath/page import
+>   redirects, that the aggregator crosses into the split package, that the
+>   feature package's own build_runner produced its `.g.dart`, and `flutter
+>   analyze` passes 0/0 for the whole workspace. Full suite still green (one
+>   pre-existing unit test's assertion updated to match the new relative
+>   self-import, not a behavior regression).
+> - ✅ **Phase 2, offline-first + Drift (read-only, no sync/Outbox yet) —
+>   done**. `_local_storage` needed no changes at all — it's already a leaf
+>   package with nothing else in the workspace depending on it, so both the
+>   core package and a split feature package can depend on it directly
+>   without creating anything resembling a cycle. The real work was
+>   `network_info.dart` + `infrastructure_providers.dart` (the shared
+>   `appDatabaseProvider`/`networkInfoProvider` singletons every offline-first
+>   feature reuses) moving into the core package, and redirecting
+>   `featureRepositoryImpl()`'s offlineFirst branch (Failure/NetworkInfo/
+>   Result/AppLogger) + `featureRepositoryProviders()`'s offlineFirst branch
+>   (`infrastructure_providers.dart`) to `corePackageName` — the exact same
+>   mechanical pattern as every other boundary this phase. Both the core
+>   package's and the feature package's own pubspecs gained a sibling `path:`
+>   dep on `_local_storage` + `connectivity_plus` where needed.
+>   `packageSplitSupported`/`canPackageSplit` widened from "remote-only only"
+>   to "remote-only or offline-first-read" — sync/Outbox (`hasSync`) stays
+>   out of scope for now, since `sync_service.dart` hasn't had the same
+>   core-package treatment yet.
+>   - **Also fixed in passing (real bug, unrelated to packageSplit, found
+>     because it broke this test)**: `ThemeTemplates.appGap()`'s
+>     `useScreenUtil` branch applied `.w`/`.h`/`.sp` to an *already-built*
+>     `SizedBox`/`EdgeInsets` instead of to the raw number before wrapping it
+>     — those extensions are declared on `num`, not on `SizedBox`/
+>     `EdgeInsets`, so it never compiled. Reproduced on a pre-existing,
+>     completely unrelated test (`offline-first generates a valid Dart
+>     workspace`) to confirm it predated this session's packageSplit work.
+>   - **Scope surprise, resolved**: verified empirically (a standalone 2-package
+>     workspace reproduction, not just reasoning) that Dart pub workspaces do
+>     **not** actually block a member from importing another member's
+>     `package:` URI just because its own `pubspec.yaml` doesn't declare that
+>     dependency — `dart analyze`/`flutter analyze` resolves every workspace
+>     member via one shared `package_config.json` regardless. So the
+>     "forbidden cycle" this whole packageSplit epic is framed around isn't
+>     literally enforced by the analyzer today — it's a deliberate discipline
+>     (never import the app from a feature package) that matters the moment a
+>     feature package is ever pulled out of the workspace into its own repo,
+>     which is the actual point of packageSplit. Found and fixed one place
+>     this discipline had lapsed: `featureRepositoryImpl()`'s chopper
+>     branch imported `chopper_model_converter.dart` from the app
+>     unconditionally, never redirected to `corePackageName` — invisible to
+>     `flutter analyze` inside the workspace, but wrong all the same. Now
+>     fixed alongside this phase's other redirects.
+>   - Harness-proven: a new integration test generates packageSplit +
+>     offline-first + a first feature, asserts the core package ships
+>     NetworkInfo/infrastructure_providers.dart and depends on `_local_storage`,
+>     that the feature package's repository/providers/local source all cross
+>     into the right packages (core for infra, `_local_storage` directly,
+>     never the app), and `flutter analyze` passes 0/0 for the whole
+>     (now 3-package) workspace. Full suite still green.
+> - ✅ **Clean up the app's duplicated `core/` — done**. Every phase above
+>   redirected split features to import `<app>_core`'s copy of a file, but the
+>   app itself kept writing its own witness-free copy of the same file too —
+>   pure dead code nothing in the app read anymore. Now every app-level file
+>   that becomes 100% dead once split is skipped entirely (gated on
+>   `corePackageName == null`): `result.dart`, `use_case.dart`, `failure.dart`,
+>   `network_error_handler.dart`, `logger_interceptor.dart`, `dio_provider.dart`,
+>   `chopper_model_converter.dart`/`chopper_client_provider.dart`,
+>   `network_info.dart`, `infrastructure_providers.dart`, `app_logger.dart`.
+>   Files the app still genuinely needs but that reference one of the above
+>   (`error_handler.dart`, `provider_observer.dart`, `bootstrap.dart`) keep
+>   being written, just with their internal `AppLogger` import redirected to
+>   `corePackageName ?? packageName` instead of duplicating it — the same
+>   redirect pattern as every other cross-boundary import this phase. Left
+>   deliberately untouched: `app_route_path.dart` — purely cosmetic duplication
+>   (no shared mutable state, unlike `theme_mode_controller`/`app_logger`),
+>   referenced by 8+ router-template call sites, higher blast radius than
+>   payoff for now.
+>   Harness-proven: the existing packageSplit+chopper test's assertion changed
+>   from reading the app's dead `chopper_model_converter.dart` content to
+>   asserting the file no longer exists at all. Full targeted (dio/chopper/
+>   go_router_builder/offline-first), fast (`--exclude-tags integration`,
+>   165/165), and full integration (`--tags integration`) suites all green —
+>   zero regressions.
+> - **Phase 2, remaining** — supabase/firebase backends (would reopen
+>   `!hasBackend`, and pull in Auth/Realtime/Storage); offline+sync/Outbox
+>   (`sync_service.dart` needs the same core-package move); retrofit
 >   (untested with packageSplit — likely close to working already, since its
 >   ApiSource already falls into the same dio-provider branch and its model
->   import was already made relative, but not verified).
+>   import was already made relative, but not verified — and separately, not
+>   yet selectable in the wizard at all regardless of packageSplit, since its
+>   generation path has no harness coverage — see `isUnsupportedPackage`).
+> - ✅ **i18n scoping — resolved: no per-package split, but a real bug fixed**.
+>   Raised by comparing against `maxit-front-flutter` (a real multi-dev Melos
+>   monorepo) — its `packages/feature/<name>/` each ship their own `l10n.yaml`
+>   + prefixed `.arb` files, rather than one global translation file. Decided
+>   **against** replicating that for NEAT's slang setup:
+>   - slang's config only reads from **one** `input_directory` — it can't
+>     aggregate `.i18n.json` files that live in genuinely separate workspace
+>     packages (each with its own `lib/`) into one generated class. Doing this
+>     "properly" would need either independent slang instances per package
+>     (unverified whether slang exposes a clean way to avoid a `Translations`/
+>     `AppLocale`/`context.t` symbol collision the moment a page needs two
+>     packages' translations at once) or a fragile file-copying step.
+>   - Translations are cross-cutting by nature (shared strings, the language
+>     switcher itself) — unlike code, which has clear per-feature ownership.
+>     Even maxit keeps its own app-level `l10n/` for shared strings alongside
+>     the per-feature split — a hybrid, not a clean per-package boundary. The
+>     real problem it solves there (merge contention on one shared JSON file
+>     across a big team) is a softer problem than the cycle discipline the
+>     redirects elsewhere in this section solve.
+>   - **Found and fixed a real bug while scoping this**: unlike every other
+>     cross-cutting concern (`theme_mode_controller`, `AppLogger`, dio/
+>     chopper providers), i18n had **never** been redirected to
+>     `corePackageName` at all — a split feature's page, `bootstrap.dart`, and
+>     `app.dart` all unconditionally imported slang's `strings.g.dart`/
+>     `LanguageSwitcher`/`LocaleStore` from the **app**, a genuine
+>     feature→app import (the exact cycle packageSplit exists to avoid),
+>     simply never caught because no test combined `packageSplit` + i18n
+>     before. Fixed the same way as everything else in this section: the
+>     whole slang setup (config, translation files, generated
+>     `strings.g.dart`, `locale_store.dart`, `language_switcher.dart`, the
+>     `dart run slang` codegen pass) is now single-sourced in the core
+>     package when `packageSplit` is on — the app stops writing its own copy
+>     entirely, and `PresentationTemplates`/`AppTemplates.appDart`/
+>     `AppTemplates.bootstrap` all redirect to `corePackageName ?? packageName`.
+>     `CorePackageTemplates.pubspec` gained a `hasI18n` param for the slang/
+>     `shared_preferences` deps. Harness-proven: a new integration test
+>     generates packageSplit + i18n, asserts core ships the whole setup, the
+>     app has zero i18n files of its own, and the split feature's page/
+>     bootstrap.dart/app.dart all cross into core, never the app — `flutter
+>     analyze` 0/0. Full suite still green.
 > - **Phase 3 — cross-feature contracts**: two features that need to reference
 >   each other (the actual reason for a `shared_contracts`-equivalent package) —
 >   deferred until Phase 1/2 are solid, since it's a genuinely separate design

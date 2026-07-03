@@ -4,6 +4,7 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:neat/core/contract/neat_contract.dart';
 import 'package:neat/core/theme/app_theme.dart';
+import 'package:neat/core/theme/gap.dart';
 import 'package:neat/features/architecture/presentation/widgets/entity_fields_editor.dart';
 import 'package:neat/features/feature_gen/domain/models/feature_gen_options.dart';
 import 'package:neat/features/feature_gen/presentation/providers/workshop_controller.dart';
@@ -27,17 +28,43 @@ class FeatureGenScreen extends HookConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Feature Workshop',
-          style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white),
+        DecoratedBox(
+          decoration: BoxDecoration(color: Colors.transparent),
+          child: Padding(
+            padding: const .fromLTRB(0, 28, 20, 24),
+            child: Row(
+              spacing: 12,
+              children: [
+                InkWell(
+                  onTap: () => ref.read(currentStepProvider.notifier).setStep(NeatStep.hub),
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF111416),
+                      borderRadius: .circular(10),
+                      border: .all(color: AppTheme.colorPrimaryCyan.withValues(alpha: 0.4)),
+                    ),
+                    child: const Icon(Icons.bolt, color: AppTheme.colorPrimaryCyan, size: 22),
+                  ),
+                ),
+
+                const Text(
+                  'Feature Workshop',
+                  style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white),
+                ),
+              ],
+            ),
+          ),
         ),
-        const SizedBox(height: 8),
+
+        8.gapH,
         Text(
           'Generate production-ready features for your existing project. '
           'Select layers and routing strategy.',
           style: TextStyle(color: Colors.grey[400], fontSize: 14),
         ),
-        const SizedBox(height: 24),
+        12.gapH,
         Expanded(
           child: project == null
               ? _OpenProjectPanel(error: state.error, onOpen: () => _pickAndOpen(notifier))
@@ -51,6 +78,7 @@ class FeatureGenScreen extends HookConsumerWidget {
                   onImportTranslations: notifier.importTranslations,
                 ),
         ),
+        24.gapH,
       ],
     );
   }
@@ -74,20 +102,20 @@ class _OpenProjectPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: .min,
         children: [
           Icon(Icons.folder_open_outlined, size: 48, color: Colors.grey[600]),
-          const SizedBox(height: 16),
+          16.gapH,
           const Text(
             'No project open',
             style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
           ),
-          const SizedBox(height: 6),
+          6.gapH,
           Text(
             'Select a folder created by NEAT (it contains a .neat.json).',
             style: TextStyle(color: Colors.grey[500], fontSize: 13),
           ),
-          const SizedBox(height: 20),
+          20.gapH,
           FilledButton.icon(
             onPressed: onOpen,
             icon: const Icon(Icons.folder_open, size: 18),
@@ -95,11 +123,11 @@ class _OpenProjectPanel extends StatelessWidget {
             style: FilledButton.styleFrom(
               backgroundColor: AppTheme.colorPrimaryCyan,
               foregroundColor: const Color(0xFF0E0E0E),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+              padding: const .symmetric(horizontal: 20, vertical: 14),
             ),
           ),
           if (error != null) ...[
-            const SizedBox(height: 16),
+            16.gapH,
             Text(error!, style: TextStyle(color: Colors.redAccent[100], fontSize: 12)),
           ],
         ],
@@ -152,8 +180,12 @@ class _Workshop extends HookWidget {
 
     final nameError = nameCtrl.text.isEmpty
         ? null
-        : (opts.validateName() ?? (project.features.contains(opts.name) ? 'feature "${opts.name}" already exists' : null));
-    final canGenerate = nameCtrl.text.isNotEmpty &&
+        : (opts.validateName() ??
+              (project.features.contains(opts.name)
+                  ? 'feature "${opts.name}" already exists'
+                  : null));
+    final canGenerate =
+        nameCtrl.text.isNotEmpty &&
         nameError == null &&
         opts.hasAnyDataSource &&
         !parentMissing &&
@@ -162,25 +194,31 @@ class _Workshop extends HookWidget {
     void set(FeatureGenOptions v) => options.value = v;
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: .start,
       children: [
         // Project header.
         Row(
           children: [
             const Icon(Icons.folder_special_outlined, size: 16, color: AppTheme.colorPrimaryCyan),
-            const SizedBox(width: 8),
+            8.gapW,
             Expanded(
               child: Text(
                 c.projectName,
-                style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            Text('${project.features.length} features',
-                style: TextStyle(color: Colors.grey[600], fontSize: 11)),
+            Text(
+              '${project.features.length} features',
+              style: TextStyle(color: Colors.grey[600], fontSize: 11),
+            ),
             // Import translations (CSV) — only for projects generated with i18n.
             if (c.generateI18n) ...[
-              const SizedBox(width: 12),
+              12.gapW,
               TextButton.icon(
                 onPressed: state.isGenerating
                     ? null
@@ -197,7 +235,7 @@ class _Workshop extends HookWidget {
                 style: TextButton.styleFrom(foregroundColor: AppTheme.colorPrimaryCyan),
               ),
             ],
-            const SizedBox(width: 12),
+            12.gapW,
             TextButton.icon(
               onPressed: state.isGenerating ? null : onClose,
               icon: const Icon(Icons.close, size: 14),
@@ -206,200 +244,246 @@ class _Workshop extends HookWidget {
             ),
           ],
         ),
-        const SizedBox(height: 10),
+        10.gapH,
         Wrap(spacing: 8, runSpacing: 8, children: _stackBadges(c).map((b) => _Badge(b)).toList()),
-        const SizedBox(height: 20),
+        20.gapH,
         Expanded(
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: .start,
             children: [
               // Left: the form.
               Expanded(
                 flex: 6,
-                child: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const _SectionTitle(Icons.edit_note, 'Feature Identity'),
-                      const SizedBox(height: 10),
-                      TextField(
-                        controller: nameCtrl,
-                        enabled: !state.isGenerating,
-                        style: const TextStyle(color: Colors.white),
-                        decoration: _fieldDecoration('e.g. user_profile, auth_login', nameError),
-                      ),
-                      if (projectHasHttp) ...[
-                        const SizedBox(height: 10),
+                child: ScrollConfiguration(
+                  behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: .start,
+                      children: [
+                        const _SectionTitle(Icons.edit_note, 'Feature Identity'),
+                        10.gapH,
                         TextField(
-                          controller: apiPathCtrl,
+                          controller: nameCtrl,
                           enabled: !state.isGenerating,
-                          style: const TextStyle(color: Colors.white, fontFamily: 'monospace'),
-                          decoration: _fieldDecoration(
-                            'API Path (optional) — e.g. /products or https://api.example.com/products',
-                            null,
-                          ),
+                          style: const TextStyle(color: Colors.white),
+                          decoration: _fieldDecoration('e.g. user_profile, auth_login', nameError),
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          opts.apiPath.isEmpty
-                              ? 'Default REST path: /${opts.name.isEmpty ? '...' : opts.name}s'
-                              : 'A relative path is prepended to the API Base URL; an absolute '
-                                  'URL overrides it entirely.',
-                          style: TextStyle(color: Colors.grey[600], fontSize: 11),
-                        ),
-                      ],
-                      const SizedBox(height: 24),
-                      if (hasNav) ...[
-                        const _SectionTitle(Icons.alt_route, 'Navigation & Routing'),
-                        const SizedBox(height: 10),
-                        _RoutingRow(
-                          selected: opts.routing,
-                          enabled: !state.isGenerating,
-                          routingEnabled: routingEnabled,
-                          onSelect: (r) => set(opts.copyWith(routing: r)),
-                        ),
-                        if (needsParent) ...[
-                          const SizedBox(height: 12),
-                          _ParentSelector(
-                            features: project.features,
-                            selected: opts.parentFeature.isEmpty ? null : opts.parentFeature,
+
+                        24.gapH,
+                        if (hasNav) ...[
+                          const _SectionTitle(Icons.alt_route, 'Navigation & Routing'),
+                          10.gapH,
+                          _RoutingRow(
+                            selected: opts.routing,
                             enabled: !state.isGenerating,
-                            error: parentMissing ? 'Choose the parent feature.' : null,
-                            onSelect: (f) => set(opts.copyWith(parentFeature: f ?? '')),
+                            routingEnabled: routingEnabled,
+                            onSelect: (r) => set(opts.copyWith(routing: r)),
+                          ),
+                          if (needsParent) ...[
+                            12.gapH,
+                            _ParentSelector(
+                              features: project.features,
+                              selected: opts.parentFeature.isEmpty ? null : opts.parentFeature,
+                              enabled: !state.isGenerating,
+                              error: parentMissing ? 'Choose the parent feature.' : null,
+                              onSelect: (f) => set(opts.copyWith(parentFeature: f ?? '')),
+                            ),
+                          ],
+                          if (isShell) ...[
+                            12.gapH,
+                            _ShellBranchFields(
+                              icon: opts.shellIcon,
+                              labelCtrl: labelCtrl,
+                              labelHint: opts.effectiveShellLabel,
+                              enabled: !state.isGenerating,
+                              onIcon: (i) => set(opts.copyWith(shellIcon: i)),
+                            ),
+                          ],
+                          24.gapH,
+                        ],
+                        const _SectionTitle(Icons.layers, 'Architecture Layers'),
+                        10.gapH,
+                        _LayerToggle(
+                          title: 'Remote Data Source',
+                          subtitle: projectHasHttp
+                              ? 'Generates the ${c.httpClient} API source & CRUD.'
+                              : 'Project has no HTTP client — unavailable.',
+                          value: projectHasHttp && opts.includeRemoteDataSource,
+                          enabled: projectHasHttp && !state.isGenerating,
+                          onChanged: (v) => set(opts.copyWith(includeRemoteDataSource: v)),
+                        ),
+                        if (projectHasHttp && opts.hasAnyDataSource) ...[
+                          10.gapH,
+                          TextField(
+                            controller: apiPathCtrl,
+                            enabled: !state.isGenerating,
+                            style: const TextStyle(color: Colors.white, fontFamily: 'monospace'),
+                            decoration: _fieldDecoration(
+                              'API Path (optional) — e.g. /products',
+                              null,
+                            ),
+                          ),
+                          4.gapH,
+                          Text(
+                            opts.apiPath.isEmpty
+                                ? 'Default REST path: /${opts.name.isEmpty ? '...' : opts.name}s'
+                                : 'A relative path is prepended to the API Base URL; an absolute '
+                                      'URL overrides it entirely.',
+                            style: TextStyle(color: Colors.grey[600], fontSize: 11),
                           ),
                         ],
-                        if (isShell) ...[
-                          const SizedBox(height: 12),
-                          _ShellBranchFields(
-                            icon: opts.shellIcon,
-                            labelCtrl: labelCtrl,
-                            labelHint: opts.effectiveShellLabel,
-                            enabled: !state.isGenerating,
-                            onIcon: (i) => set(opts.copyWith(shellIcon: i)),
+                        _LayerToggle(
+                          title: 'Local Data Source',
+                          subtitle: c.storageStrategy == 'remoteOnly'
+                              ? 'In-memory cache stub.'
+                              : 'Drift-backed local cache (typed table injected).',
+                          value: opts.includeLocalDataSource,
+                          enabled: !state.isGenerating,
+                          onChanged: (v) => set(opts.copyWith(includeLocalDataSource: v)),
+                        ),
+                        _LayerToggle(
+                          title: 'Domain UseCase',
+                          subtitle: 'Business logic classes with Result<T> return type.',
+                          value: opts.includeUseCase,
+                          enabled: !state.isGenerating,
+                          onChanged: (v) => set(opts.copyWith(includeUseCase: v)),
+                        ),
+                        const _LayerToggle(
+                          title: 'Data Mapper',
+                          subtitle: 'DTO → Entity conversion (intrinsic to Clean Architecture).',
+                          value: true,
+                          enabled: false,
+                          locked: true,
+                        ),
+                        if (!opts.hasAnyDataSource) ...[
+                          8.gapH,
+                          Text(
+                            'Pick at least one data source.',
+                            style: TextStyle(color: Colors.orangeAccent[100], fontSize: 12),
                           ),
                         ],
-                        const SizedBox(height: 24),
+                        24.gapH,
+                        const _SectionTitle(Icons.data_object, 'Entity Fields'),
+                        10.gapH,
+                        EntityFieldsEditor(
+                          json: opts.json,
+                          fields: opts.fields,
+                          warnings: opts.fieldWarnings,
+                          onInfer: (j) {
+                            if (j.trim().isEmpty) {
+                              set(
+                                opts.copyWith(
+                                  json: '',
+                                  fields: FieldSpec.idName,
+                                  fieldWarnings: const [],
+                                ),
+                              );
+                              return;
+                            }
+                            final r = const JsonEntityInferencer().infer(j);
+                            set(
+                              opts.copyWith(json: j, fields: r.fields, fieldWarnings: r.warnings),
+                            );
+                          },
+                          onReset: () => set(
+                            opts.copyWith(
+                              json: '',
+                              fields: FieldSpec.idName,
+                              fieldWarnings: const [],
+                            ),
+                          ),
+                          onAddField: () {
+                            final used = opts.fields.map((f) => f.dartName).toSet();
+                            var n = 'field';
+                            for (var i = 1; used.contains(n); i++) {
+                              n = 'field$i';
+                            }
+                            set(
+                              opts.copyWith(
+                                fields: [
+                                  ...opts.fields,
+                                  FieldSpec(jsonKey: n, dartName: n),
+                                ],
+                              ),
+                            );
+                          },
+                          onName: (i, v) => set(
+                            opts.copyWith(
+                              fields: _editField(
+                                opts.fields,
+                                i,
+                                (f) => f.copyWith(dartName: v.trim()),
+                              ),
+                            ),
+                          ),
+                          onType: (i, v) => set(
+                            opts.copyWith(
+                              fields: _editField(
+                                opts.fields,
+                                i,
+                                (f) => f.isId ? f : f.copyWith(dartType: v),
+                              ),
+                            ),
+                          ),
+                          onNullable: (i, v) => set(
+                            opts.copyWith(
+                              fields: _editField(
+                                opts.fields,
+                                i,
+                                (f) => f.isId ? f : f.copyWith(nullable: v),
+                              ),
+                            ),
+                          ),
+                          onRemove: (i) {
+                            if (opts.fields[i].isId) return;
+                            set(opts.copyWith(fields: [...opts.fields]..removeAt(i)));
+                          },
+                        ),
                       ],
-                      const _SectionTitle(Icons.layers, 'Architecture Layers'),
-                      const SizedBox(height: 10),
-                      _LayerToggle(
-                        title: 'Remote Data Source',
-                        subtitle: projectHasHttp
-                            ? 'Generates the ${c.httpClient} API source & CRUD.'
-                            : 'Project has no HTTP client — unavailable.',
-                        value: projectHasHttp && opts.includeRemoteDataSource,
-                        enabled: projectHasHttp && !state.isGenerating,
-                        onChanged: (v) => set(opts.copyWith(includeRemoteDataSource: v)),
-                      ),
-                      _LayerToggle(
-                        title: 'Local Data Source',
-                        subtitle: c.storageStrategy == 'remoteOnly'
-                            ? 'In-memory cache stub.'
-                            : 'Drift-backed local cache (typed table injected).',
-                        value: opts.includeLocalDataSource,
-                        enabled: !state.isGenerating,
-                        onChanged: (v) => set(opts.copyWith(includeLocalDataSource: v)),
-                      ),
-                      _LayerToggle(
-                        title: 'Domain UseCase',
-                        subtitle: 'Business logic classes with Result<T> return type.',
-                        value: opts.includeUseCase,
-                        enabled: !state.isGenerating,
-                        onChanged: (v) => set(opts.copyWith(includeUseCase: v)),
-                      ),
-                      const _LayerToggle(
-                        title: 'Data Mapper',
-                        subtitle: 'DTO → Entity conversion (intrinsic to Clean Architecture).',
-                        value: true,
-                        enabled: false,
-                        locked: true,
-                      ),
-                      if (!opts.hasAnyDataSource) ...[
-                        const SizedBox(height: 8),
-                        Text('Pick at least one data source.',
-                            style: TextStyle(color: Colors.orangeAccent[100], fontSize: 12)),
-                      ],
-                      const SizedBox(height: 24),
-                      const _SectionTitle(Icons.data_object, 'Entity Fields'),
-                      const SizedBox(height: 10),
-                      EntityFieldsEditor(
-                        json: opts.json,
-                        fields: opts.fields,
-                        warnings: opts.fieldWarnings,
-                        onInfer: (j) {
-                          if (j.trim().isEmpty) {
-                            set(opts.copyWith(
-                                json: '', fields: FieldSpec.idName, fieldWarnings: const []));
-                            return;
-                          }
-                          final r = const JsonEntityInferencer().infer(j);
-                          set(opts.copyWith(json: j, fields: r.fields, fieldWarnings: r.warnings));
-                        },
-                        onReset: () => set(opts.copyWith(
-                            json: '', fields: FieldSpec.idName, fieldWarnings: const [])),
-                        onAddField: () {
-                          final used = opts.fields.map((f) => f.dartName).toSet();
-                          var n = 'field';
-                          for (var i = 1; used.contains(n); i++) {
-                            n = 'field$i';
-                          }
-                          set(opts.copyWith(fields: [
-                            ...opts.fields,
-                            FieldSpec(jsonKey: n, dartName: n),
-                          ]));
-                        },
-                        onName: (i, v) => set(opts.copyWith(
-                            fields: _editField(opts.fields, i, (f) => f.copyWith(dartName: v.trim())))),
-                        onType: (i, v) => set(opts.copyWith(
-                            fields: _editField(
-                                opts.fields, i, (f) => f.isId ? f : f.copyWith(dartType: v)))),
-                        onNullable: (i, v) => set(opts.copyWith(
-                            fields: _editField(
-                                opts.fields, i, (f) => f.isId ? f : f.copyWith(nullable: v)))),
-                        onRemove: (i) {
-                          if (opts.fields[i].isId) return;
-                          set(opts.copyWith(fields: [...opts.fields]..removeAt(i)));
-                        },
-                      ),
-                    ],
+                    ),
                   ),
                 ),
               ),
-              const SizedBox(width: 24),
+              24.gapW,
               // Right: blueprint + generate + logs.
               Expanded(
                 flex: 6,
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: .start,
                   children: [
                     const _SectionTitle(Icons.visibility_outlined, 'Blueprint Overview'),
-                    const SizedBox(height: 10),
-                    Expanded(child: _BlueprintTree(options: opts, contract: c, hasHttp: projectHasHttp)),
-                    const SizedBox(height: 12),
+                    10.gapH,
+                    Expanded(
+                      child: _BlueprintTree(options: opts, contract: c, hasHttp: projectHasHttp),
+                    ),
+                    12.gapH,
                     if (state.error != null) ...[
-                      Text(state.error!, style: TextStyle(color: Colors.redAccent[100], fontSize: 12)),
-                      const SizedBox(height: 8),
+                      Text(
+                        state.error!,
+                        style: TextStyle(color: Colors.redAccent[100], fontSize: 12),
+                      ),
+                      8.gapH,
                     ],
-                    if (state.logs.isNotEmpty) ...[
-                      _LogsConsole(logs: state.logs),
-                      const SizedBox(height: 12),
-                    ],
+                    if (state.logs.isNotEmpty) ...[_LogsConsole(logs: state.logs), 12.gapH],
                     SizedBox(
-                      width: double.infinity,
+                      width: .infinity,
                       child: FilledButton.icon(
                         onPressed: canGenerate ? () => onGenerate(opts) : null,
                         icon: state.isGenerating
                             ? const SizedBox(
                                 width: 14,
                                 height: 14,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF0E0E0E)),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Color(0xFF0E0E0E),
+                                ),
                               )
                             : const Icon(Icons.auto_awesome, size: 16),
                         label: Text(state.isGenerating ? 'Generating…' : 'Generate Feature'),
                         style: FilledButton.styleFrom(
                           backgroundColor: AppTheme.colorPrimaryCyan,
                           foregroundColor: const Color(0xFF0E0E0E),
-                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          padding: const .symmetric(vertical: 16),
                         ),
                       ),
                     ),
@@ -415,35 +499,35 @@ class _Workshop extends HookWidget {
 
   /// Sensible per-feature defaults derived from the project stack.
   static FeatureGenOptions _defaultsFor(NeatContract c) => FeatureGenOptions(
-        includeRemoteDataSource: c.httpClient != 'none',
-        includeLocalDataSource: c.storageStrategy != 'remoteOnly',
-      );
+    includeRemoteDataSource: c.httpClient != 'none',
+    includeLocalDataSource: c.storageStrategy != 'remoteOnly',
+  );
 
   static InputDecoration _fieldDecoration(String hint, String? error) => InputDecoration(
-        hintText: hint,
-        hintStyle: TextStyle(color: Colors.grey[600]),
-        errorText: error,
-        filled: true,
-        fillColor: const Color(0xFF18181C),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: Colors.white10),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: AppTheme.colorPrimaryCyan),
-        ),
-      );
+    hintText: hint,
+    hintStyle: TextStyle(color: Colors.grey[600]),
+    errorText: error,
+    filled: true,
+    fillColor: const Color(0xFF18181C),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(8),
+      borderSide: const BorderSide(color: Colors.white10),
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(8),
+      borderSide: const BorderSide(color: AppTheme.colorPrimaryCyan),
+    ),
+  );
 
   static List<String> _stackBadges(NeatContract c) => [
-        c.architecture == 'feature_first' ? 'Feature-First' : 'Layer-First',
-        c.stateManagement,
-        if (c.navigation != 'none') c.navigation,
-        if (c.httpClient != 'none') c.httpClient,
-        if (c.themeApproach != 'none') c.themeApproach,
-        if (c.storageStrategy != 'remoteOnly') c.storageStrategy,
-        if (c.extractUiPackage) 'ui-package',
-      ];
+    c.architecture == 'feature_first' ? 'Feature-First' : 'Layer-First',
+    c.stateManagement,
+    if (c.navigation != 'none') c.navigation,
+    if (c.httpClient != 'none') c.httpClient,
+    if (c.themeApproach != 'none') c.themeApproach,
+    if (c.storageStrategy != 'remoteOnly') c.storageStrategy,
+    if (c.extractUiPackage) 'ui-package',
+  ];
 }
 
 // ── Navigation & Routing cards ─────────────────────────────────────────────────
@@ -473,7 +557,7 @@ class _RoutingRow extends StatelessWidget {
             onTap: enabled ? () => onSelect(FeatureRouting.root) : null,
           ),
         ),
-        const SizedBox(width: 12),
+        12.gapH,
         Expanded(
           child: _RoutingCard(
             title: 'Child Route',
@@ -483,7 +567,7 @@ class _RoutingRow extends StatelessWidget {
             onTap: enabled && routingEnabled ? () => onSelect(FeatureRouting.child) : null,
           ),
         ),
-        const SizedBox(width: 12),
+        12.gapH,
         Expanded(
           child: _RoutingCard(
             title: 'Shell Branch',
@@ -501,18 +585,41 @@ class _RoutingRow extends StatelessWidget {
 /// Common Material icons offered for a shell branch (kept curated so the
 /// generated `Icon(Icons.<name>)` always compiles).
 const _shellIcons = <String>[
-  'home', 'dashboard', 'person', 'settings', 'search', 'favorite',
-  'notifications', 'list', 'shopping_cart', 'explore', 'calendar_today',
-  'chat', 'map', 'star', 'folder', 'account_circle',
+  'home',
+  'dashboard',
+  'person',
+  'settings',
+  'search',
+  'favorite',
+  'notifications',
+  'list',
+  'shopping_cart',
+  'explore',
+  'calendar_today',
+  'chat',
+  'map',
+  'star',
+  'folder',
+  'account_circle',
 ];
 
 const _iconData = <String, IconData>{
-  'home': Icons.home, 'dashboard': Icons.dashboard, 'person': Icons.person,
-  'settings': Icons.settings, 'search': Icons.search, 'favorite': Icons.favorite,
-  'notifications': Icons.notifications, 'list': Icons.list,
-  'shopping_cart': Icons.shopping_cart, 'explore': Icons.explore,
-  'calendar_today': Icons.calendar_today, 'chat': Icons.chat, 'map': Icons.map,
-  'star': Icons.star, 'folder': Icons.folder, 'account_circle': Icons.account_circle,
+  'home': Icons.home,
+  'dashboard': Icons.dashboard,
+  'person': Icons.person,
+  'settings': Icons.settings,
+  'search': Icons.search,
+  'favorite': Icons.favorite,
+  'notifications': Icons.notifications,
+  'list': Icons.list,
+  'shopping_cart': Icons.shopping_cart,
+  'explore': Icons.explore,
+  'calendar_today': Icons.calendar_today,
+  'chat': Icons.chat,
+  'map': Icons.map,
+  'star': Icons.star,
+  'folder': Icons.folder,
+  'account_circle': Icons.account_circle,
 };
 
 /// Icon + label for a shell branch's NavigationBar destination.
@@ -548,22 +655,24 @@ class _ShellBranchFields extends StatelessWidget {
                 style: const TextStyle(color: Colors.white, fontSize: 13),
                 onChanged: enabled ? (v) => onIcon(v ?? 'home') : null,
                 items: _shellIcons
-                    .map((i) => DropdownMenuItem(
-                          value: i,
-                          child: Row(
-                            children: [
-                              Icon(_iconData[i], size: 16, color: AppTheme.colorPrimaryCyan),
-                              const SizedBox(width: 8),
-                              Expanded(child: Text(i, overflow: TextOverflow.ellipsis)),
-                            ],
-                          ),
-                        ))
+                    .map(
+                      (i) => DropdownMenuItem(
+                        value: i,
+                        child: Row(
+                          children: [
+                            Icon(_iconData[i], size: 16, color: AppTheme.colorPrimaryCyan),
+                            8.gapW,
+                            Expanded(child: Text(i, overflow: TextOverflow.ellipsis)),
+                          ],
+                        ),
+                      ),
+                    )
                     .toList(),
               ),
             ),
           ),
         ),
-        const SizedBox(width: 12),
+        12.gapW,
         Expanded(
           child: TextField(
             controller: labelCtrl,
@@ -580,20 +689,20 @@ class _ShellBranchFields extends StatelessWidget {
   }
 
   InputDecoration _decoration(String label) => InputDecoration(
-        labelText: label,
-        labelStyle: const TextStyle(color: Colors.white54, fontSize: 13),
-        filled: true,
-        fillColor: const Color(0xFF18181C),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: Colors.white10),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: AppTheme.colorPrimaryCyan),
-        ),
-      );
+    labelText: label,
+    labelStyle: const TextStyle(color: Colors.white54, fontSize: 13),
+    filled: true,
+    fillColor: const Color(0xFF18181C),
+    contentPadding: const .symmetric(horizontal: 12, vertical: 8),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(8),
+      borderSide: const BorderSide(color: Colors.white10),
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(8),
+      borderSide: const BorderSide(color: AppTheme.colorPrimaryCyan),
+    ),
+  );
 }
 
 /// Dropdown of existing features to nest a child route under.
@@ -621,7 +730,7 @@ class _ParentSelector extends StatelessWidget {
         errorText: error,
         filled: true,
         fillColor: const Color(0xFF18181C),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        contentPadding: const .symmetric(horizontal: 12, vertical: 4),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
           borderSide: const BorderSide(color: Colors.white10),
@@ -639,9 +748,7 @@ class _ParentSelector extends StatelessWidget {
           hint: Text('Select a feature', style: TextStyle(color: Colors.grey[600], fontSize: 13)),
           style: const TextStyle(color: Colors.white, fontSize: 13),
           onChanged: enabled ? onSelect : null,
-          items: features
-              .map((f) => DropdownMenuItem(value: f, child: Text(f)))
-              .toList(),
+          items: features.map((f) => DropdownMenuItem(value: f, child: Text(f))).toList(),
         ),
       ),
     );
@@ -672,11 +779,14 @@ class _RoutingCard extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(10),
         child: Container(
-          padding: const EdgeInsets.all(16),
+          padding: const .all(16),
           decoration: BoxDecoration(
             color: isSelected ? cyan.withValues(alpha: 0.08) : const Color(0xFF161619),
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: isSelected ? cyan : Colors.white12, width: isSelected ? 1.5 : 1),
+            border: Border.all(
+              color: isSelected ? cyan : Colors.white12,
+              width: isSelected ? 1.5 : 1,
+            ),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -692,20 +802,26 @@ class _RoutingCard extends StatelessWidget {
                     ),
                   ),
                   if (comingSoon) ...[
-                    const SizedBox(width: 6),
+                    6.gapW,
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                      padding: const .symmetric(horizontal: 5, vertical: 1),
                       decoration: BoxDecoration(
                         color: Colors.white10,
                         borderRadius: BorderRadius.circular(4),
                       ),
-                      child: const Text('soon',
-                          style: TextStyle(color: Colors.white54, fontSize: 9, fontWeight: FontWeight.bold)),
+                      child: const Text(
+                        'soon',
+                        style: TextStyle(
+                          color: Colors.white54,
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                   ],
                 ],
               ),
-              const SizedBox(height: 4),
+              4.gapH,
               Text(subtitle, style: TextStyle(color: Colors.grey[500], fontSize: 11)),
             ],
           ),
@@ -737,7 +853,7 @@ class _LayerToggle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
+      padding: const .symmetric(vertical: 10),
       child: Row(
         children: [
           Expanded(
@@ -748,12 +864,12 @@ class _LayerToggle extends StatelessWidget {
                   children: [
                     Text(title, style: const TextStyle(color: Colors.white, fontSize: 14)),
                     if (locked) ...[
-                      const SizedBox(width: 6),
+                      6.gapW,
                       const Icon(Icons.lock_outline, size: 12, color: Colors.white38),
                     ],
                   ],
                 ),
-                const SizedBox(height: 2),
+                2.gapH,
                 Text(subtitle, style: TextStyle(color: Colors.grey[500], fontSize: 12)),
               ],
             ),
@@ -817,15 +933,15 @@ class _BlueprintTree extends StatelessWidget {
         children: [
           // Terminal chrome.
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            padding: const .symmetric(horizontal: 14, vertical: 12),
             child: Row(
               children: [
                 _dot(const Color(0xFFFF5F56)),
-                const SizedBox(width: 6),
+                6.gapW,
                 _dot(const Color(0xFFFFBD2E)),
-                const SizedBox(width: 6),
+                6.gapW,
                 _dot(const Color(0xFF27C93F)),
-                const SizedBox(width: 14),
+                14.gapW,
                 Text('feature.tree', style: TextStyle(color: Colors.grey[500], fontSize: 12)),
               ],
             ),
@@ -833,24 +949,26 @@ class _BlueprintTree extends StatelessWidget {
           const Divider(height: 1, color: Colors.white10),
           Expanded(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(18, 14, 14, 14),
+              padding: const .fromLTRB(18, 14, 14, 14),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: .start,
                 children: lines
-                    .map((l) => Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 1.5),
-                          child: Text(
-                            l,
-                            style: TextStyle(
-                              color: l.startsWith('lib/')
-                                  ? Colors.white
-                                  : AppTheme.colorPrimaryCyan.withValues(alpha: 0.85),
-                              fontSize: 12.5,
-                              fontFamily: 'monospace',
-                              height: 1.2,
-                            ),
+                    .map(
+                      (l) => Padding(
+                        padding: const .symmetric(vertical: 1.5),
+                        child: Text(
+                          l,
+                          style: TextStyle(
+                            color: l.startsWith('lib/')
+                                ? Colors.white
+                                : AppTheme.colorPrimaryCyan.withValues(alpha: 0.85),
+                            fontSize: 12.5,
+                            fontFamily: 'monospace',
+                            height: 1.2,
                           ),
-                        ))
+                        ),
+                      ),
+                    )
                     .toList(),
               ),
             ),
@@ -860,31 +978,41 @@ class _BlueprintTree extends StatelessWidget {
     );
   }
 
-  Widget _dot(Color c) => Container(width: 12, height: 12, decoration: BoxDecoration(color: c, shape: BoxShape.circle));
+  Widget _dot(Color c) => Container(
+    width: 12,
+    height: 12,
+    decoration: BoxDecoration(color: c, shape: BoxShape.circle),
+  );
 }
 
 // ── Logs console ───────────────────────────────────────────────────────────────
 
 class _LogsConsole extends StatelessWidget {
   const _LogsConsole({required this.logs});
+
   final List<String> logs;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: double.infinity,
+      width: .infinity,
       constraints: const BoxConstraints(maxHeight: 140),
-      padding: const EdgeInsets.all(12),
+      padding: const .all(12),
       decoration: BoxDecoration(
         color: const Color(0xFF0D0D0F),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white10),
+        borderRadius: .circular(8),
+        border: .all(color: Colors.white10),
       ),
       child: SingleChildScrollView(
         reverse: true,
         child: Text(
           logs.join('\n'),
-          style: TextStyle(color: Colors.grey[400], fontSize: 11, fontFamily: 'monospace', height: 1.5),
+          style: TextStyle(
+            color: Colors.grey[400],
+            fontSize: 11,
+            fontFamily: 'monospace',
+            height: 1.5,
+          ),
         ),
       ),
     );
@@ -895,6 +1023,7 @@ class _LogsConsole extends StatelessWidget {
 
 class _SectionTitle extends StatelessWidget {
   const _SectionTitle(this.icon, this.label);
+
   final IconData icon;
   final String label;
 
@@ -903,8 +1032,11 @@ class _SectionTitle extends StatelessWidget {
     return Row(
       children: [
         Icon(icon, size: 16, color: AppTheme.colorPrimaryCyan),
-        const SizedBox(width: 8),
-        Text(label, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+        8.gapW,
+        Text(
+          label,
+          style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+        ),
       ],
     );
   }
@@ -912,20 +1044,25 @@ class _SectionTitle extends StatelessWidget {
 
 class _Badge extends StatelessWidget {
   const _Badge(this.label);
+
   final String label;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      padding: const .symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         color: AppTheme.colorPrimaryCyan.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: AppTheme.colorPrimaryCyan.withValues(alpha: 0.3)),
+        borderRadius: .circular(6),
+        border: .all(color: AppTheme.colorPrimaryCyan.withValues(alpha: 0.3)),
       ),
       child: Text(
         label,
-        style: const TextStyle(color: AppTheme.colorPrimaryCyan, fontSize: 11, fontWeight: FontWeight.w600),
+        style: const TextStyle(
+          color: AppTheme.colorPrimaryCyan,
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }

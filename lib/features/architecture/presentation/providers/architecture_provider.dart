@@ -47,6 +47,20 @@ class ArchitectureNotifier extends _$ArchitectureNotifier {
       state = state.copyWith(firebaseConfigPath: path.trim());
   void toggleGenerateOAuth(bool val) => state = state.copyWith(generateOAuth: val);
   void toggleGenerateI18n(bool val) => state = state.copyWith(generateI18n: val);
+
+  /// Toggles [locale] in [ArchitectureState.i18nLocales] — a no-op when it
+  /// would deselect the last remaining language (at least one is always
+  /// required for the default scaffold to make sense).
+  void toggleI18nLocale(String locale) {
+    final current = state.i18nLocales;
+    if (current.contains(locale)) {
+      if (current.length == 1) return;
+      state = state.copyWith(i18nLocales: {...current}..remove(locale));
+    } else {
+      state = state.copyWith(i18nLocales: {...current, locale});
+    }
+  }
+
   void setI18nCsvPath(String path) => state = state.copyWith(i18nCsvPath: path.trim());
   void toggleGenerateFlavors(bool val) => state = state.copyWith(generateFlavors: val);
 

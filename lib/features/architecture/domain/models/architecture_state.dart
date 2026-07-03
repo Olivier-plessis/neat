@@ -54,10 +54,11 @@ abstract class ArchitectureState with _$ArchitectureState {
     /// (`packages/<feature>/`) instead of a folder under `lib/features/` —
     /// real package boundaries for a team where each dev owns a feature.
     /// Requires a shared `<app>_core` package (Result/Failure/UseCase/
-    /// networking), gated to dio or chopper + remote-only + Riverpod
-    /// annotations + plain go_router until Phase 2 widens support further
-    /// (supabase/firebase/retrofit clients, offline-first + Drift,
-    /// go_router_builder — see ROADMAP.md §6a).
+    /// networking), gated to dio or chopper + remote-only or offline-first
+    /// (no sync/Outbox yet) + Riverpod annotations (manual or typed/
+    /// go_router_builder routing both work) until Phase 2 widens support
+    /// further (supabase/firebase/retrofit clients, offline+sync — see
+    /// ROADMAP.md §6a).
     @Default(false) bool packageSplit,
 
     /// Opt-in: scaffold a first feature at all (mirrors `flutter create`'s
@@ -128,13 +129,18 @@ abstract class ArchitectureState with _$ArchitectureState {
     /// backend + auth enabled.
     @Default(false) bool generateOAuth,
 
-    /// Opt-in: type-safe internationalisation with **slang** (en + fr base,
+    /// Opt-in: type-safe internationalisation with **slang** (base scaffold +
     /// `TranslationProvider` + `context.t`, a sample language switcher).
     @Default(false) bool generateI18n,
 
+    /// Which languages ship in the default (non-CSV) scaffold — see
+    /// [i18nLocales]'s own doc for why at least one is always required.
+    @Default(<String>{'en', 'fr'}) Set<String> i18nLocales,
+
     /// Path to an uploaded **compact CSV** of translations (`key,en,fr,…`). When
     /// set (and [generateI18n] is on), the CSV becomes the single source of
-    /// translations instead of the default en/fr JSON scaffold.
+    /// translations instead of the default JSON scaffold, and [i18nLocales] is
+    /// ignored — the CSV's own header columns decide the languages.
     @Default('') String i18nCsvPath,
 
     /// Opt-in: generate native **build flavors** (Android productFlavors, per-env

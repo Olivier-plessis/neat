@@ -1,50 +1,85 @@
+import 'dart:io';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:neat/core/theme/app_theme.dart';
 import 'package:neat/core/theme/gap.dart';
-import 'package:neat/core/theme/padding.dart';
 import 'package:neat/features/architecture/domain/models/env_config.dart';
 import 'package:neat/features/architecture/presentation/providers/architecture_provider.dart';
 import 'package:neat/features/dependencies/domain/constants/backend_presets.dart';
 import 'package:neat/features/dependencies/domain/models/pub_package.dart';
 import 'package:neat/features/dependencies/presentation/providers/dependencies_provider.dart';
 import 'package:neat/features/identity/presentation/providers/identity_provider.dart';
+import 'package:neat/features/infrastructure/presentation/providers/infrastructure_tab_provider.dart';
 
 class InfrastructureScreen extends ConsumerWidget {
   const InfrastructureScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final tab = ref.watch(currentInfrastructureTabProvider);
+    final title = switch (tab) {
+      InfrastructureTab.backend => 'Project Infrastructure',
+      InfrastructureTab.navigation => 'Navigation',
+      InfrastructureTab.localization => 'Localization',
+    };
+    final subtitle = switch (tab) {
+      InfrastructureTab.backend =>
+        'Pick a backend to seed your stack — its preset packages appear on the right.',
+      InfrastructureTab.navigation => 'Pick a navigation engine and how routes are declared.',
+      InfrastructureTab.localization => 'Pick which languages your app ships with.',
+    };
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Project Infrastructure',
-          style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white),
+        Text(
+          title,
+          style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white),
         ),
         const SizedBox(height: 8),
-        Text(
-          'Pick a backend to seed your stack — its preset packages appear on the right.',
-          style: TextStyle(color: Colors.grey[400], fontSize: 14),
-        ),
+        Text(subtitle, style: TextStyle(color: Colors.grey[400], fontSize: 14)),
         const SizedBox(height: 24),
 
-        const _BackendSelector(),
-
-        const SizedBox(height: 24),
-
-        const Expanded(
+        Expanded(
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(flex: 6, child: _BackendConfig()),
-              SizedBox(width: 20),
-              Expanded(flex: 4, child: _ManagedPackagesPanel()),
+              Expanded(
+                flex: 6,
+                child: switch (tab) {
+                  InfrastructureTab.backend => const _BackendTab(),
+                  InfrastructureTab.navigation => const _NavigationTab(),
+                  InfrastructureTab.localization => const _LocalizationTab(),
+                },
+              ),
+              const SizedBox(width: 20),
+              const Expanded(flex: 4, child: _ManagedPackagesPanel()),
             ],
           ),
         ),
         const SizedBox(height: 20),
+      ],
+    );
+  }
+}
+
+// ── Backend tab ───────────────────────────────────────────────────────────────
+
+class _BackendTab extends StatelessWidget {
+  const _BackendTab();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _SectionLabel('Backend provider', icon: Icons.dns_outlined),
+        12.gapH,
+        const _BackendSelector(),
+        24.gapH,
+        const Expanded(child: _BackendConfig()),
       ],
     );
   }
@@ -121,8 +156,8 @@ class _BackendCard extends StatelessWidget {
   final VoidCallback onTap;
   final double fontSize;
 
-  /// Visible but not selectable (e.g. a client the generation harness hasn't
-  /// validated yet) — mirrors architecture_screen.dart's _PatternCard.
+  /// Visible but not selectable (e.g. a navigation engine NEAT doesn't
+  /// generate yet) — mirrors architecture_screen.dart's _PatternCard.
   final bool disabled;
 
   @override
@@ -200,6 +235,117 @@ class _BackendCard extends StatelessWidget {
   }
 }
 
+// ── Section label ────────────────────────────────────────────────────────────
+
+/// A small icon+label header for a sub-group within a screen — lighter than a
+/// full page/section title, used to visually separate the compact option rows
+/// below (HTTP client, routing style, environments) without adding wizard steps.
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel(this.label, {required this.icon});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, color: Colors.grey[500], size: 14),
+        const SizedBox(width: 8),
+        Text(
+          label.toUpperCase(),
+          style: TextStyle(
+            color: Colors.grey[500],
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 0.8,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Compact option card (secondary choices: HTTP client, routing style) ──────
+
+/// A lighter, horizontal alternative to [_BackendCard] for secondary choices
+/// nested under an already-made primary decision (e.g. the HTTP client within
+/// "REST API"). Keeps those rows scannable in one glance instead of repeating
+/// full-size cards for every sub-choice on the screen.
+class _CompactOptionCard extends StatelessWidget {
+  const _CompactOptionCard({
+    required this.icon,
+    required this.iconColor,
+    required this.title,
+    required this.active,
+    required this.onTap,
+    this.disabled = false,
+    this.tooltip,
+  });
+
+  final IconData icon;
+  final Color iconColor;
+  final String title;
+  final bool active;
+  final VoidCallback onTap;
+  final bool disabled;
+
+  /// Extra context (e.g. what the option does, or why it's disabled) shown on
+  /// hover instead of taking up permanent vertical space.
+  final String? tooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    final card = InkWell(
+      onTap: disabled ? null : onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF131316),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: active ? AppTheme.colorPrimaryCyan : Colors.white10,
+            width: active ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: iconColor, size: 18),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            if (active)
+              const Icon(Icons.check_circle, color: AppTheme.colorPrimaryCyan, size: 16)
+            else if (disabled)
+              Text(
+                'SOON',
+                style: TextStyle(
+                  color: Colors.grey[700],
+                  fontSize: 9,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.8,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+
+    final withOpacity = disabled ? Opacity(opacity: 0.5, child: card) : card;
+    return tooltip == null ? withOpacity : Tooltip(message: tooltip!, child: withOpacity);
+  }
+}
+
 // ── Backend configuration (environments + per-backend credentials) ──────────────
 
 class _BackendConfig extends ConsumerWidget {
@@ -218,7 +364,6 @@ class _BackendConfig extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final backend = ref.watch(selectedPackagesProvider.select(backendOf));
     final httpClient = ref.watch(selectedPackagesProvider.select(httpClientOf));
-    final routingStyle = ref.watch(selectedPackagesProvider.select(routingStyleOf));
     final packagesNotifier = ref.read(selectedPackagesProvider.notifier);
     final arch = ref.watch(architectureProvider);
     final notifier = ref.read(architectureProvider.notifier);
@@ -251,105 +396,51 @@ class _BackendConfig extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (backend == BackendKind.rest) ...[
-              Text(
-                'Select your favorite Http client: ',
-                style: TextStyle(color: Colors.grey[400], fontSize: 15),
-              ).paddedV(16),
+              const _SectionLabel('HTTP client', icon: Icons.dns_outlined),
+              10.gapH,
               Row(
-                spacing: 16,
+                spacing: 10,
                 children: [
-                  Flexible(
-                    flex: 6,
-                    child: _BackendCard(
+                  Expanded(
+                    child: _CompactOptionCard(
                       icon: Icons.local_fire_department,
                       iconColor: const Color(0xFFFFA000),
                       title: 'Chopper',
-                      subtitle: '',
                       active: httpClient == HttpClientKind.chopper,
                       onTap: () => packagesNotifier.applyHttpClientPreset(
                         presetForHttpClient(HttpClientKind.chopper),
                       ),
                     ),
                   ),
-                  Flexible(
-                    flex: 6,
-                    child: _BackendCard(
+                  Expanded(
+                    child: _CompactOptionCard(
                       icon: Icons.api_outlined,
                       iconColor: AppTheme.colorPrimaryCyan,
                       title: 'Dio',
-                      subtitle: '',
                       active: httpClient == HttpClientKind.dio,
                       onTap: () => packagesNotifier.applyHttpClientPreset(
                         presetForHttpClient(HttpClientKind.dio),
                       ),
                     ),
                   ),
-                  Flexible(
-                    flex: 6,
-                    child: Tooltip(
-                      message:
+                  Expanded(
+                    child: _CompactOptionCard(
+                      icon: Icons.bolt,
+                      iconColor: const Color(0xFF3ECF8E),
+                      title: 'Retrofit',
+                      active: false,
+                      disabled: true,
+                      tooltip:
                           'Not selectable yet — its API-source path has no generation-harness coverage.',
-                      child: _BackendCard(
-                        icon: Icons.bolt,
-                        iconColor: const Color(0xFF3ECF8E),
-                        title: 'Retrofit',
-                        subtitle: '',
-                        active: false,
-                        disabled: true,
-                        onTap: () {},
-                      ),
+                      onTap: () {},
                     ),
                   ),
                 ],
               ),
-              24.gapH,
+              20.gapH,
             ],
-            Text(
-              'Routing style: ',
-              style: TextStyle(color: Colors.grey[400], fontSize: 15),
-            ).paddedV(16),
-            Row(
-              spacing: 16,
-              children: [
-                Flexible(
-                  flex: 6,
-                  child: _BackendCard(
-                    icon: Icons.edit_road_outlined,
-                    iconColor: AppTheme.colorPrimaryCyan,
-                    title: 'Manual',
-                    subtitle: 'Hand-written GoRoute list',
-                    active: routingStyle == RoutingStyle.manual,
-                    onTap: () => packagesNotifier.setRoutingStyle(RoutingStyle.manual),
-                  ),
-                ),
-                Flexible(
-                  flex: 6,
-                  child: _BackendCard(
-                    icon: Icons.route_outlined,
-                    iconColor: const Color(0xFF3ECF8E),
-                    title: 'Typed',
-                    subtitle: 'go_router_builder codegen',
-                    active: routingStyle == RoutingStyle.typed,
-                    onTap: () => packagesNotifier.setRoutingStyle(RoutingStyle.typed),
-                  ),
-                ),
-              ],
-            ),
-            24.gapH,
-            Row(
-              children: [
-                Text('Configuration: ', style: TextStyle(color: Colors.grey[400], fontSize: 15)),
-                Text(
-                  label,
-                  style: const TextStyle(
-                    color: AppTheme.colorPrimaryCyan,
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
+            _SectionLabel('Environments · $label', icon: Icons.dns_outlined),
+            12.gapH,
             if (backend == BackendKind.firebase) ...[
               _FirebaseConfigUpload(
                 path: arch.firebaseConfigPath,
@@ -384,18 +475,425 @@ class _BackendConfig extends ConsumerWidget {
                   style: TextButton.styleFrom(foregroundColor: AppTheme.colorPrimaryCyan),
                 ),
             ],
-            const SizedBox(height: 4),
-            _FlavorsToggle(
+            16.gapH,
+            const Divider(color: Colors.white10, height: 1),
+            16.gapH,
+            _ToggleRow(
+              title: 'Native build flavors (Android/iOS)',
               value: arch.generateFlavors && flavorsAvailable,
               enabled: flavorsAvailable,
-              note: flavorsSupported
-                  ? (envCount < 2 ? 'Add a 2nd environment to enable native flavors.' : null)
+              description: flavorsSupported
+                  ? (envCount < 2
+                      ? 'Add a 2nd environment to enable native flavors.'
+                      : 'productFlavors + per-flavor app id. OFF → envs run as Dart entry '
+                            'points and a plain `flutter run` works.')
                   : 'Native flavors need an Android/iOS target. Environments still '
                         'work as Dart entry points on web/desktop.',
               onChanged: notifier.toggleGenerateFlavors,
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ── Navigation tab ────────────────────────────────────────────────────────────
+
+class _NavigationTab extends ConsumerWidget {
+  const _NavigationTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final routingStyle = ref.watch(selectedPackagesProvider.select(routingStyleOf));
+    final packagesNotifier = ref.read(selectedPackagesProvider.notifier);
+    final arch = ref.watch(architectureProvider);
+    final notifier = ref.read(architectureProvider.notifier);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFF131316),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const _SectionLabel('Navigation provider', icon: Icons.alt_route_outlined),
+            12.gapH,
+            const Row(
+              spacing: 16,
+              children: [
+                Expanded(
+                  child: _BackendCard(
+                    icon: Icons.api_outlined,
+                    iconColor: AppTheme.colorPrimaryCyan,
+                    title: 'Go Router',
+                    subtitle: '',
+                    active: true,
+                    onTap: _noop,
+                  ),
+                ),
+                Expanded(
+                  child: _BackendCard(
+                    icon: Icons.bolt,
+                    iconColor: Color(0xFF3ECF8E),
+                    title: 'Auto Route',
+                    subtitle: '',
+                    active: false,
+                    disabled: true,
+                    onTap: _noop,
+                  ),
+                ),
+                Expanded(
+                  child: _BackendCard(
+                    icon: Icons.local_fire_department,
+                    iconColor: Color(0xFFFFA000),
+                    title: 'Navigator',
+                    subtitle: '',
+                    active: false,
+                    disabled: true,
+                    onTap: _noop,
+                  ),
+                ),
+              ],
+            ),
+            24.gapH,
+            const Divider(color: Colors.white10, height: 1),
+            24.gapH,
+            const _SectionLabel('Routing style', icon: Icons.route_outlined),
+            10.gapH,
+            Row(
+              spacing: 10,
+              children: [
+                Expanded(
+                  child: _CompactOptionCard(
+                    icon: Icons.edit_road_outlined,
+                    iconColor: AppTheme.colorPrimaryCyan,
+                    title: 'Manual',
+                    active: routingStyle == RoutingStyle.manual,
+                    tooltip: 'Hand-written GoRoute list.',
+                    onTap: () => packagesNotifier.setRoutingStyle(RoutingStyle.manual),
+                  ),
+                ),
+                Expanded(
+                  child: _CompactOptionCard(
+                    icon: Icons.route_outlined,
+                    iconColor: const Color(0xFF3ECF8E),
+                    title: 'Typed',
+                    active: routingStyle == RoutingStyle.typed,
+                    tooltip: 'go_router_builder codegen.',
+                    onTap: () => packagesNotifier.setRoutingStyle(RoutingStyle.typed),
+                  ),
+                ),
+              ],
+            ),
+            24.gapH,
+            const Divider(color: Colors.white10, height: 1),
+            24.gapH,
+            const _SectionLabel('Navigation shell', icon: Icons.space_dashboard_outlined),
+            12.gapH,
+            _ToggleRow(
+              title: 'Bottom navigation shell',
+              description: arch.generateFirstFeature
+                  ? 'The app boots into a StatefulShellRoute: the 1st feature becomes the '
+                        '1st tab of a NavigationBar. Shell Branches added later become tabs.'
+                  : 'Requires a first feature — enable "Generate example feature" on the '
+                        'Architecture step.',
+              value: arch.generateFirstFeature && arch.useNavigationShell,
+              enabled: arch.generateFirstFeature,
+              onChanged: notifier.toggleNavigationShell,
+            ),
+            if (arch.useNavigationShell) ...[
+              12.gapH,
+              _ShellTabConfig(
+                icon: arch.shellIcon,
+                labelHint: arch.effectiveShellLabel,
+                onIcon: notifier.setShellIcon,
+                onLabel: notifier.setShellLabel,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+void _noop() {}
+
+// ── Shell first-tab config (icon + label) ──────────────────────────────────────
+
+/// Curated Material icons (kept so the generated `Icon(Icons.<name>)` compiles).
+const _shellIcons = <String, IconData>{
+  'home': Icons.home, 'dashboard': Icons.dashboard, 'person': Icons.person,
+  'settings': Icons.settings, 'search': Icons.search, 'favorite': Icons.favorite,
+  'notifications': Icons.notifications, 'list': Icons.list,
+  'shopping_cart': Icons.shopping_cart, 'explore': Icons.explore,
+  'calendar_today': Icons.calendar_today, 'chat': Icons.chat, 'map': Icons.map,
+  'star': Icons.star, 'folder': Icons.folder, 'account_circle': Icons.account_circle,
+};
+
+class _ShellTabConfig extends StatefulWidget {
+  const _ShellTabConfig({
+    required this.icon,
+    required this.labelHint,
+    required this.onIcon,
+    required this.onLabel,
+  });
+
+  final String icon;
+  final String labelHint;
+  final ValueChanged<String> onIcon;
+  final ValueChanged<String> onLabel;
+
+  @override
+  State<_ShellTabConfig> createState() => _ShellTabConfigState();
+}
+
+class _ShellTabConfigState extends State<_ShellTabConfig> {
+  final _labelCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _labelCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = _shellIcons.containsKey(widget.icon) ? widget.icon : 'home';
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 160,
+          child: InputDecorator(
+            decoration: const InputDecoration(labelText: 'First tab icon'),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: icon,
+                isExpanded: true,
+                dropdownColor: const Color(0xFF18181C),
+                style: const TextStyle(color: Colors.white, fontSize: 13),
+                onChanged: (v) => widget.onIcon(v ?? 'home'),
+                items: _shellIcons.entries
+                    .map((e) => DropdownMenuItem(
+                          value: e.key,
+                          child: Row(
+                            children: [
+                              Icon(e.value, size: 16, color: AppTheme.colorPrimaryCyan),
+                              const SizedBox(width: 8),
+                              Expanded(child: Text(e.key, overflow: TextOverflow.ellipsis)),
+                            ],
+                          ),
+                        ))
+                    .toList(),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: TextField(
+            controller: _labelCtrl,
+            onChanged: widget.onLabel,
+            style: const TextStyle(color: Colors.white, fontSize: 14),
+            decoration: InputDecoration(
+              labelText: 'First tab label',
+              hintText: widget.labelHint.isEmpty ? 'e.g. Home' : widget.labelHint,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Localization tab ──────────────────────────────────────────────────────────
+
+class _LocalizationTab extends ConsumerWidget {
+  const _LocalizationTab();
+
+  Future<void> _pickCsv(WidgetRef ref) async {
+    final result = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['csv'],
+    );
+    final path = result?.files.single.path;
+    if (path != null) ref.read(architectureProvider.notifier).setI18nCsvPath(path);
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final arch = ref.watch(architectureProvider);
+    final notifier = ref.read(architectureProvider.notifier);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFF131316),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _ToggleRow(
+              title: 'i18n (slang)',
+              description: 'Type-safe translations with slang: TranslationProvider + '
+                  '`context.t`, and a sample language switcher in the AppBar.',
+              value: arch.generateI18n,
+              onChanged: notifier.toggleGenerateI18n,
+            ),
+            if (arch.generateI18n) ...[
+              24.gapH,
+              const Divider(color: Colors.white10, height: 1),
+              24.gapH,
+              const _SectionLabel('Languages', icon: Icons.translate_outlined),
+              12.gapH,
+              Row(
+                spacing: 16,
+                children: [
+                  Expanded(
+                    child: _BackendCard(
+                      icon: Icons.language,
+                      iconColor: AppTheme.colorPrimaryCyan,
+                      title: 'English',
+                      subtitle: '',
+                      active: arch.i18nLocales.contains('en'),
+                      onTap: () => notifier.toggleI18nLocale('en'),
+                    ),
+                  ),
+                  Expanded(
+                    child: _BackendCard(
+                      icon: Icons.language,
+                      iconColor: const Color(0xFF3ECF8E),
+                      title: 'French',
+                      subtitle: '',
+                      active: arch.i18nLocales.contains('fr'),
+                      onTap: () => notifier.toggleI18nLocale('fr'),
+                    ),
+                  ),
+                  Expanded(
+                    child: _BackendCard(
+                      icon: Icons.language,
+                      iconColor: const Color(0xFFFFA000),
+                      title: 'Spanish',
+                      subtitle: '',
+                      active: false,
+                      disabled: true,
+                      onTap: _noop,
+                    ),
+                  ),
+                ],
+              ),
+              8.gapH,
+              Text(
+                'At least one language stays selected.',
+                style: TextStyle(color: Colors.grey[600], fontSize: 11),
+              ),
+              24.gapH,
+              const Divider(color: Colors.white10, height: 1),
+              24.gapH,
+              _UploadFileCard(
+                title: 'Translations (CSV)',
+                icon: Icons.table_chart_outlined,
+                filePath: arch.i18nCsvPath,
+                emptyHint: 'Optional: a compact CSV (`key,en,fr,…`) to translate in a '
+                    'spreadsheet. Replaces the default scaffold above.',
+                onPick: () => _pickCsv(ref),
+                onRemove: () => notifier.setI18nCsvPath(''),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── File upload card (Firebase config / i18n CSV) ────────────────────────────
+
+/// A reusable "upload a file" row: title + hint (or the picked file name) + an
+/// Upload/Change button and a clear button.
+class _UploadFileCard extends StatelessWidget {
+  const _UploadFileCard({
+    required this.title,
+    required this.icon,
+    required this.filePath,
+    required this.emptyHint,
+    required this.onPick,
+    required this.onRemove,
+  });
+
+  final String title;
+  final IconData icon;
+  final String filePath;
+  final String emptyHint;
+  final VoidCallback onPick;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasFile = filePath.isNotEmpty;
+    final fileName = hasFile ? filePath.split(Platform.pathSeparator).last : null;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF18181C),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            hasFile ? Icons.check_circle_outline : icon,
+            color: hasFile ? AppTheme.colorPrimaryCyan : Colors.grey[500],
+            size: 20,
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  fileName ?? emptyHint,
+                  style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          if (hasFile)
+            IconButton(
+              icon: const Icon(Icons.close, size: 18, color: Colors.white54),
+              onPressed: onRemove,
+              tooltip: 'Remove',
+            ),
+          OutlinedButton(
+            onPressed: onPick,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppTheme.colorPrimaryCyan,
+              side: BorderSide(color: AppTheme.colorPrimaryCyan.withValues(alpha: 0.5)),
+            ),
+            child: Text(hasFile ? 'Change' : 'Upload'),
+          ),
+        ],
       ),
     );
   }
@@ -529,20 +1027,22 @@ class _EnvFieldRow extends StatelessWidget {
   }
 }
 
-class _FlavorsToggle extends StatelessWidget {
-  const _FlavorsToggle({
+/// A generic title+description+switch row (no card wrapper) — used for both
+/// native flavors and the bottom-navigation-shell toggle.
+class _ToggleRow extends StatelessWidget {
+  const _ToggleRow({
+    required this.title,
+    required this.description,
     required this.value,
     required this.onChanged,
     this.enabled = true,
-    this.note,
   });
 
+  final String title;
+  final String description;
   final bool value;
   final ValueChanged<bool> onChanged;
   final bool enabled;
-
-  /// Optional hint shown under the title (e.g. why the toggle is disabled).
-  final String? note;
 
   @override
   Widget build(BuildContext context) {
@@ -556,16 +1056,11 @@ class _FlavorsToggle extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Native build flavors (Android/iOS)',
+                  title,
                   style: TextStyle(color: titleColor, fontSize: 13, fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 2),
-                Text(
-                  note ??
-                      'productFlavors + per-flavor app id. OFF → envs run as Dart '
-                          'entry points and a plain `flutter run` works.',
-                  style: TextStyle(color: Colors.grey[500], fontSize: 11),
-                ),
+                Text(description, style: TextStyle(color: Colors.grey[500], fontSize: 11)),
               ],
             ),
           ),

@@ -41,6 +41,13 @@ class LaunchGenerationUsecase {
 
     // 1. flutter create
     onLog("[▶] Running 'flutter create ${identity.name}'...");
+
+    // Expand "desktop" into the three individual native platforms
+    final platforms = identity.targetPlatforms.expand((p) {
+      if (p == 'desktop') return ['macos', 'windows', 'linux'];
+      return [p];
+    }).toList();
+
     final createResult = await Process.run(flutter, [
       'create',
       '--project-name',
@@ -51,7 +58,8 @@ class LaunchGenerationUsecase {
       '--description',
       identity.description,
       '--platforms',
-      identity.targetPlatforms.join(','),
+      // identity.targetPlatforms.join(','),
+      platforms.join(','),
       projectDir.path,
     ]);
 
@@ -90,11 +98,9 @@ class LaunchGenerationUsecase {
     //    opt-in AND mobile-only (web/desktop have no flavor concept).
     // A single environment collapses both → one `main.dart` + one `.env`.
     final multiEnv = environments.length >= 2;
-    final flavorsSupported =
-        identity.targetPlatforms.any((p) => p == 'android' || p == 'ios');
+    final flavorsSupported = identity.targetPlatforms.any((p) => p == 'android' || p == 'ios');
     final hasEntryPoints = hasEnvied && multiEnv;
-    final hasNativeFlavors =
-        hasEntryPoints && architecture.generateFlavors && flavorsSupported;
+    final hasNativeFlavors = hasEntryPoints && architecture.generateFlavors && flavorsSupported;
     final hasFreezed = packages.any((p) => p.name == 'freezed');
     final hasJsonSerializable = packages.any((p) => p.name == 'json_serializable');
     final hasRetrofit = packages.any((p) => p.name == 'retrofit');
@@ -104,8 +110,7 @@ class LaunchGenerationUsecase {
     // REST client: they back the feature's remote source. They take precedence.
     final hasSupabase = packages.any((p) => p.name == 'supabase_flutter');
     final hasFirebase = packages.any((p) => p.name == 'cloud_firestore');
-    final hasHttpClient =
-        hasRetrofit || hasChopper || hasDio || hasSupabase || hasFirebase;
+    final hasHttpClient = hasRetrofit || hasChopper || hasDio || hasSupabase || hasFirebase;
     final httpClient = hasFirebase
         ? 'firebase'
         : hasSupabase
@@ -135,10 +140,7 @@ class LaunchGenerationUsecase {
 
     // Opt-in auth (login/signup/forgot + go_router guard). Requires the typed
     // router (a riverpod-provider GoRouter) to wire the guard.
-    final hasAuth = architecture.generateAuth &&
-        hasBackend &&
-        hasGoRouterBuilder &&
-        useAnnotations;
+    final hasAuth = architecture.generateAuth && hasBackend && hasGoRouterBuilder && useAnnotations;
 
     // Opt-in Realtime: the first feature's list screen becomes live (a
     // StreamNotifier over `.stream()` / Firestore `.snapshots()`). Needs the
@@ -172,23 +174,27 @@ class LaunchGenerationUsecase {
     // Widgetbook becomes a workspace member when the UI package is on.
     final widgetbookIsMember = uiPackage != null && theme.generateWidgetbook;
     // Opt-in: Result/Failure/UseCase/dio-networking as a shared <app>_core
-    // workspace package — a prerequisite for packageSplit. A pub workspace
-    // forbids cycles, and the app already depends on its feature packages,
-    // so feature packages can't depend back on the app for these — they need
-    // a package that sits below both. Re-derived from the raw flag the same
-    // way hasAuth/hasRealtime/hasStorage are below, rather than trusted
-    // as-is — the wizard disables its toggle outside this exact combo, but
-    // the underlying flag can still drift (e.g. flipping storage strategy
-    // after turning packageSplit on), so the generator re-validates the
-    // combo before acting on it. dio + chopper only for now (see
-    // ROADMAP.md §6a) — supabase/firebase/retrofit clients + offline-first +
-    // go_router_builder remain Phase 2/3.
-    final packageSplitSupported = architecture.packageSplit &&
+    // workspace package — a prerequisite for packageSplit. Cross-package
+    // imports resolve fine either way in a Dart workspace (every member
+    // shares one package_config.json — verified directly, not assumed), so
+    // this isn't actually enforced by the analyzer; it's a deliberate
+    // discipline (never import the app from a feature package) so a feature
+    // package stays viable if it's ever pulled out of the workspace into its
+    // own repo, which is the whole point of packageSplit. Re-derived from the
+    // raw flag the same way hasAuth/hasRealtime/hasStorage are below, rather
+    // than trusted as-is — the wizard disables its toggle outside this exact
+    // combo, but the underlying flag can still drift (e.g. flipping storage
+    // strategy after turning packageSplit on), so the generator re-validates
+    // the combo before acting on it. dio + chopper only for now, manual or
+    // typed (go_router_builder) routing, offline-first without sync/Outbox
+    // yet (see ROADMAP.md §6a) — supabase/firebase/retrofit clients +
+    // offline+sync remain Phase 2/3.
+    final packageSplitSupported =
+        architecture.packageSplit &&
         (httpClient == 'dio' || httpClient == 'chopper') &&
-        !offlineFirst &&
+        !hasSync &&
         useAnnotations &&
-        hasGoRouter &&
-        !hasGoRouterBuilder;
+        hasGoRouter;
     final corePackageName = packageSplitSupported ? '${packageName}_core' : null;
     // The split first feature — only meaningful when there is one.
     final featurePackageName = packageSplitSupported && architecture.generateFirstFeature
@@ -250,6 +256,8 @@ class LaunchGenerationUsecase {
         corePackageName,
         featureName: featureName,
         httpClient: httpClient,
+        localStoragePackage: localStoragePackage,
+        hasI18n: hasI18n,
       );
       onLog('[✓] packages/$corePackageName created.');
     }
@@ -281,8 +289,12 @@ class LaunchGenerationUsecase {
         baseFlavor,
       ];
       onLog('[▶] Wiring environments (${names.join(', ')})...');
-      await _writeFlavors(projectDir, _titleCase(packageName), names,
-          nativeFlavors: hasNativeFlavors);
+      await _writeFlavors(
+        projectDir,
+        _titleCase(packageName),
+        names,
+        nativeFlavors: hasNativeFlavors,
+      );
       final what = hasNativeFlavors
           ? 'launch.json + Android productFlavors + docs/FLAVORS.md'
           : 'launch.json + docs/FLAVORS.md (entry points; no native flavors)';
@@ -319,7 +331,7 @@ class LaunchGenerationUsecase {
     // 3b. Branding files: copy the logo + write the icon/splash configs.
     if (hasLogo) {
       onLog('[▶] Setting up branding (icons + splash)...');
-      await _writeBranding(projectDir, theme.logoPath);
+      await _writeBranding(projectDir, theme.logoPath, platforms);
     }
 
     // 4. CI/CD files (fastlane lanes are flavor-aware when envied is on).
@@ -347,37 +359,33 @@ class LaunchGenerationUsecase {
     // own codegen (database.g.dart) that the root build does not produce.
     if (localStoragePackage != null) {
       onLog('[▶] Running build_runner in packages/$localStoragePackage (Drift)...');
-      await _runBuildRunner(
-        Directory('${projectDir.path}/packages/$localStoragePackage'),
-        onLog,
-      );
+      await _runBuildRunner(Directory('${projectDir.path}/packages/$localStoragePackage'), onLog);
     }
 
     // Same for the shared core package — dioProvider's own @Riverpod codegen
     // (dio_provider.g.dart) isn't produced by the root build either.
     if (corePackageName != null) {
       onLog('[▶] Running build_runner in packages/$corePackageName...');
-      await _runBuildRunner(
-        Directory('${projectDir.path}/packages/$corePackageName'),
-        onLog,
-      );
+      await _runBuildRunner(Directory('${projectDir.path}/packages/$corePackageName'), onLog);
     }
 
     // Same for the split feature package — its own entity/model/provider
     // codegen (freezed/.g.dart) isn't produced by the root build either.
     if (featurePackageName != null) {
       onLog('[▶] Running build_runner in packages/$featurePackageName...');
-      await _runBuildRunner(
-        Directory('${projectDir.path}/packages/$featurePackageName'),
-        onLog,
-      );
+      await _runBuildRunner(Directory('${projectDir.path}/packages/$featurePackageName'), onLog);
     }
 
     // 6c. slang i18n codegen via the standalone CLI (not slang_build_runner —
     // that clashes with source_gen builders). Generates lib/i18n/strings.g.dart.
+    // packageSplit: the whole i18n setup was written into the core package
+    // instead (see _buildScaffold's i18n block) — run slang there instead.
     if (hasI18n) {
+      final i18nCodegenDir = corePackageName != null
+          ? Directory('${projectDir.path}/packages/$corePackageName')
+          : projectDir;
       onLog("[▶] Running 'dart run slang' (i18n codegen)...");
-      await const I18nImporter().runSlang(projectDir, onLog);
+      await const I18nImporter().runSlang(i18nCodegenDir, onLog);
     }
 
     // 6b. Branding tools — generate app icons + native splash from the logo.
@@ -426,6 +434,7 @@ class LaunchGenerationUsecase {
       generateI18n: hasI18n,
       useNavigationShell: architecture.useNavigationShell && hasGoRouter,
       components: theme.components.map((c) => c.name).toList(),
+      packageSplit: packageSplitSupported,
     );
     onLog('[▶] Writing .neat.json (Workspace Contract)...');
     await _writeContract(projectDir, contract);
@@ -502,7 +511,8 @@ class LaunchGenerationUsecase {
     // we don't know the translation keys, so the sample page consumption
     // (`context.t.<feature>.title` + switcher) is skipped — the rest of the
     // slang setup is still wired.
-    final i18nFromCsv = hasI18n &&
+    final i18nFromCsv =
+        hasI18n &&
         architecture.i18nCsvPath.isNotEmpty &&
         File(architecture.i18nCsvPath).existsSync();
     final hasI18nSample = hasI18n && !i18nFromCsv;
@@ -548,9 +558,9 @@ class LaunchGenerationUsecase {
         hasSupabase: httpClient == 'supabase',
         hasFirebase: httpClient == 'firebase',
         hasI18n: hasI18n,
-        chopperRegisterFeaturePackage:
-            httpClient == 'chopper' ? featurePackageName : null,
+        chopperRegisterFeaturePackage: httpClient == 'chopper' ? featurePackageName : null,
         chopperRegisterFeatureName: httpClient == 'chopper' ? featureName : null,
+        corePackageName: corePackageName,
       ),
     );
 
@@ -590,14 +600,20 @@ class LaunchGenerationUsecase {
     );
 
     // ── core/result ───────────────────────────────────────────────────────
-    await _write(
-      '$lib/core/result/result.dart',
-      CoreDartTemplates.coreResultDart(packageName: packageName),
-    );
-    await _write(
-      '$lib/core/usecases/use_case.dart',
-      CoreDartTemplates.coreUsecaseDart(packageName: packageName),
-    );
+    // packageSplit: these only exist to be imported by feature domain/data
+    // code, which now lives entirely in split packages and imports them from
+    // corePackageName instead — the app's own copies would just be dead code
+    // (see ROADMAP.md §6a's "clean up the duplicated core/" note).
+    if (corePackageName == null) {
+      await _write(
+        '$lib/core/result/result.dart',
+        CoreDartTemplates.coreResultDart(packageName: packageName),
+      );
+      await _write(
+        '$lib/core/usecases/use_case.dart',
+        CoreDartTemplates.coreUsecaseDart(packageName: packageName),
+      );
+    }
 
     // ── core/constants ────────────────────────────────────────────────────
     await _write(
@@ -619,56 +635,79 @@ class LaunchGenerationUsecase {
     }
 
     // ── core/error ────────────────────────────────────────────────────────
-    await _write('$lib/core/error/failure.dart', CoreTemplates.failure());
+    // packageSplit: dead code in the app for the same reason as result.dart/
+    // use_case.dart above — only feature repositories reference Failure/
+    // NetworkErrorHandler, and they import from corePackageName instead.
+    if (corePackageName == null) {
+      await _write('$lib/core/error/failure.dart', CoreTemplates.failure());
 
-    // ── core/network/network_error_handler.dart ───────────────────────────
-    // The only place exceptions are caught and mapped to a Failure —
-    // UseCase.call() invokes it. Always generated (even with no http client).
-    await _write(
-      '$lib/core/network/network_error_handler.dart',
-      CoreTemplates.networkErrorHandler(
-        packageName: packageName,
-        httpClient: httpClient,
-        hasRiverpod: hasRiverpod,
-      ),
-    );
+      // ── core/network/network_error_handler.dart ───────────────────────────
+      // The only place exceptions are caught and mapped to a Failure —
+      // UseCase.call() invokes it. Always generated (even with no http client).
+      await _write(
+        '$lib/core/network/network_error_handler.dart',
+        CoreTemplates.networkErrorHandler(
+          packageName: packageName,
+          httpClient: httpClient,
+          hasRiverpod: hasRiverpod,
+        ),
+      );
+    }
 
     // ── core/utils ────────────────────────────────────────────────────────
     await _write('$lib/core/utils/extensions.dart', CoreTemplates.extensions());
 
     // ── core/utils + observers (observability) ──────────────────────────────
-    await _write(
-      '$lib/core/utils/app_logger.dart',
-      CoreTemplates.appLogger(
-        // Single-env has no production flavor to compare against → fall back to
-        // the kReleaseMode logger (quietens logs in release builds).
-        useEnvied: hasEnvied && !singleEnv,
-        packageName: packageName,
-        // Production = the explicit base environment (quietens logs there).
-        prodFlavor: hasEnvied && environments.isNotEmpty ? architecture.baseEnv.flavor : 'prod',
-      ),
-    );
+    // packageSplit: AppLogger is stateless (no singleton-sharing correctness
+    // issue, unlike theme_mode_controller), but the app no longer keeps its
+    // own copy either — error_handler.dart/provider_observer.dart/
+    // bootstrap.dart all redirect to corePackageName's copy instead, so
+    // there's exactly one AppLogger for the whole workspace.
+    if (corePackageName == null) {
+      await _write(
+        '$lib/core/utils/app_logger.dart',
+        CoreTemplates.appLogger(
+          // Single-env has no production flavor to compare against → fall back
+          // to the kReleaseMode logger (quietens logs in release builds).
+          useEnvied: hasEnvied && !singleEnv,
+          packageName: packageName,
+          // Production = the explicit base environment (quietens logs there).
+          prodFlavor: hasEnvied && environments.isNotEmpty ? architecture.baseEnv.flavor : 'prod',
+        ),
+      );
+    }
     await _write(
       '$lib/core/error/error_handler.dart',
-      CoreTemplates.errorHandler(packageName: packageName),
+      CoreTemplates.errorHandler(packageName: packageName, corePackageName: corePackageName),
     );
     if (hasRiverpod) {
       await _write(
         '$lib/core/observers/provider_observer.dart',
-        CoreTemplates.riverpodObserver(packageName: packageName, useAnnotations: useAnnotations),
+        CoreTemplates.riverpodObserver(
+          packageName: packageName,
+          useAnnotations: useAnnotations,
+          corePackageName: corePackageName,
+        ),
       );
     }
     // HTTP logging interceptor — REST clients only (Supabase has its own).
-    final isRestClient =
-        httpClient == 'dio' || httpClient == 'chopper' || httpClient == 'retrofit';
-    if (isRestClient) {
+    // packageSplit: only ever imported by dio_provider.dart/
+    // chopper_client_provider.dart below, both skipped in the app when split
+    // (features import the core package's copies instead) — so this would be
+    // dead code too.
+    final isRestClient = httpClient == 'dio' || httpClient == 'chopper' || httpClient == 'retrofit';
+    if (isRestClient && corePackageName == null) {
       await _write(
         '$lib/core/observers/logger_interceptor.dart',
         CoreTemplates.loggerInterceptor(packageName: packageName, httpClient: httpClient),
       );
     }
     final isDioBased = httpClient == 'dio' || httpClient == 'retrofit';
-    if (isDioBased && hasRiverpod) {
+    // packageSplit: dead code — every feature's dio_provider.dart import
+    // already redirects to corePackageName (see DataTemplates.
+    // featureRepositoryProviders), and nothing in the app itself reads
+    // dioProvider directly.
+    if (isDioBased && hasRiverpod && corePackageName == null) {
       await _write(
         '$lib/core/network/dio_provider.dart',
         CoreTemplates.dioProvider(
@@ -678,26 +717,17 @@ class LaunchGenerationUsecase {
         ),
       );
     }
-    if (httpClient == 'chopper' && hasRiverpod) {
-      // Chopper's built-in JsonConverter can't call a custom Model's
-      // fromJson (it only decodes to Map/List) — this registry-backed
-      // converter fixes that; the witness feature registers itself here (if
-      // there is one), the Workshop appends more at `// neat:chopper-decoders`.
-      //
-      // packageSplit: the app's own copy becomes dead code (the split
-      // feature's registry entry lives in core, self-registered at runtime —
-      // see DataTemplates.featureRepositoryProviders/AppTemplates.bootstrap),
-      // so it must NOT seed the witness here: the witness feature's Model no
-      // longer lives at the app-relative path this template assumes, which
-      // would otherwise be a broken import in an unused-but-still-analyzed file.
+    // packageSplit + chopper: skipped entirely rather than written as an
+    // inert witness-free copy — the split feature's registry entry lives in
+    // (and is self-registered into) corePackageName instead (see
+    // DataTemplates.featureRepositoryProviders/AppTemplates.bootstrap), so
+    // the app never reads its own copy either way.
+    if (httpClient == 'chopper' && hasRiverpod && corePackageName == null) {
       await _write(
         '$lib/core/network/chopper_model_converter.dart',
         CoreTemplates.chopperModelConverter(
           packageName: packageName,
-          featureName:
-              (architecture.generateFirstFeature && featurePackageName == null)
-                  ? featureName
-                  : null,
+          featureName: architecture.generateFirstFeature ? featureName : null,
         ),
       );
       await _write(
@@ -738,8 +768,7 @@ class LaunchGenerationUsecase {
         '${projectDir.path}/firestore.rules',
         CoreTemplates.firestoreRules(featureName: featureName, hasAuth: hasAuth),
       );
-      await _write(
-          '${projectDir.path}/firestore.indexes.json', CoreTemplates.firestoreIndexes());
+      await _write('${projectDir.path}/firestore.indexes.json', CoreTemplates.firestoreIndexes());
       await _write('${projectDir.path}/firebase.json', CoreTemplates.firebaseJson());
     }
 
@@ -760,13 +789,17 @@ class LaunchGenerationUsecase {
     }
 
     // ── core/network (offline-first) ────────────────────────────────────────
-    if (localStoragePackage != null) {
+    // packageSplit: dead code — every feature's offline-first repository
+    // already redirects to corePackageName's copies (see DataTemplates.
+    // featureRepositoryImpl/featureRepositoryProviders), and the app itself
+    // never reads NetworkInfo/appDatabaseProvider directly.
+    if (localStoragePackage != null && corePackageName == null) {
       await _write('$lib/core/network/network_info.dart', CoreTemplates.networkInfo());
     }
 
     // ── core/providers (shared infrastructure singletons) ────────────────────
     // Drift db + connectivity, declared once for the whole app (not per feature).
-    if (localStoragePackage != null && useAnnotations) {
+    if (localStoragePackage != null && useAnnotations && corePackageName == null) {
       await _write(
         '$lib/core/providers/infrastructure_providers.dart',
         CoreTemplates.infrastructureProviders(
@@ -857,26 +890,48 @@ class LaunchGenerationUsecase {
     }
 
     // ── i18n (slang, opt-in) ─────────────────────────────────────────────────
+    // packageSplit: single-sourced in the core package, same reasoning as
+    // theme_mode_controller.dart — a split feature's page reads `context.t`/
+    // `LanguageSwitcher` from there (see PresentationTemplates), so the app
+    // must not keep its own separate copy (that would be a feature→app
+    // import if the feature read the app's copy instead — the exact cycle
+    // packageSplit exists to avoid).
     if (hasI18n) {
+      final i18nRoot = corePackageName != null ? '${projectDir.path}/packages/$corePackageName' : projectDir.path;
+      final i18nLib = corePackageName != null ? '$i18nRoot/lib' : lib;
+      final i18nPackageName = corePackageName ?? packageName;
       if (i18nFromCsv) {
         // The user uploaded a compact CSV → it is the single source of truth.
         final csv = File(architecture.i18nCsvPath).readAsStringSync();
         final base = I18nImporter.parseLocales(csv).firstOrNull ?? 'en';
-        await _write('${projectDir.path}/slang.yaml', I18nImporter.slangCsvConfig(base));
-        await _write('$lib/i18n/strings.i18n.csv', csv);
+        await _write('$i18nRoot/slang.yaml', I18nImporter.slangCsvConfig(base));
+        await _write('$i18nLib/i18n/strings.i18n.csv', csv);
       } else {
-        await _write('${projectDir.path}/slang.yaml', I18nTemplates.slangConfig());
+        // English preferred as the base locale when picked (matches NEAT's
+        // long-standing default); otherwise fall back to whatever is selected
+        // (at least one is always guaranteed — see ArchitectureNotifier.
+        // toggleI18nLocale).
+        final locales = architecture.i18nLocales;
+        final baseLocale = locales.contains('en') ? 'en' : locales.first;
+        await _write(
+          '$i18nRoot/slang.yaml',
+          I18nTemplates.slangConfig(baseLocale: baseLocale),
+        );
         // Non-namespace mode → files are named `<locale>.i18n.json`.
-        await _write('$lib/i18n/en.i18n.json', I18nTemplates.baseTranslations(featureName));
-        await _write('$lib/i18n/fr.i18n.json', I18nTemplates.frTranslations(featureName));
+        if (locales.contains('en')) {
+          await _write('$i18nLib/i18n/en.i18n.json', I18nTemplates.baseTranslations(featureName));
+        }
+        if (locales.contains('fr')) {
+          await _write('$i18nLib/i18n/fr.i18n.json', I18nTemplates.frTranslations(featureName));
+        }
       }
       await _write(
-        '$lib/core/i18n/locale_store.dart',
-        I18nTemplates.localeStore(packageName: packageName),
+        '$i18nLib/core/i18n/locale_store.dart',
+        I18nTemplates.localeStore(packageName: i18nPackageName),
       );
       await _write(
-        '$lib/core/i18n/language_switcher.dart',
-        I18nTemplates.languageSwitcher(packageName: packageName),
+        '$i18nLib/core/i18n/language_switcher.dart',
+        I18nTemplates.languageSwitcher(packageName: i18nPackageName),
       );
     }
 
@@ -897,6 +952,8 @@ class LaunchGenerationUsecase {
             featurePackageName: featurePackageName,
             corePackageName: corePackageName,
             httpClient: httpClient,
+            hasGoRouterBuilder: hasGoRouterBuilder,
+            localStoragePackage: localStoragePackage,
           ),
         );
       }
@@ -953,8 +1010,7 @@ class LaunchGenerationUsecase {
     // their imports target <ui> instead of the app. State (theme mode / bloc)
     // always stays in the app.
     final themePkg = uiPackage ?? packageName;
-    final themeLib =
-        uiPackage != null ? '${projectDir.path}/packages/$uiPackage/lib' : lib;
+    final themeLib = uiPackage != null ? '${projectDir.path}/packages/$uiPackage/lib' : lib;
     final t = '$themeLib/core/theme';
 
     final useFlexColorScheme =
@@ -1028,8 +1084,10 @@ class LaunchGenerationUsecase {
 
     // Widgetbook catalog.
     if (theme.generateWidgetbook) {
-      final widgetbookApp =
-          ThemeTemplates.widgetbookApp(packageName: themePkg, components: theme.components);
+      final widgetbookApp = ThemeTemplates.widgetbookApp(
+        packageName: themePkg,
+        components: theme.components,
+      );
       if (uiPackage != null) {
         // A proper workspace member that depends on <app>_ui.
         await _write('${projectDir.path}/widgetbook/lib/main.dart', widgetbookApp);
@@ -1059,14 +1117,18 @@ class LaunchGenerationUsecase {
     if (hasBloc || useCubit) {
       if (useCubit) {
         await _write(
-            '$appT/brightness_theme/brightness_cubit.dart', ThemeTemplates.brightnessCubit());
+          '$appT/brightness_theme/brightness_cubit.dart',
+          ThemeTemplates.brightnessCubit(),
+        );
         await _write(
           '$appT/brightness_theme/brightness_state.dart',
           ThemeTemplates.brightnessCubitState(),
         );
       } else {
         await _write(
-            '$appT/brightness_theme/brightness_bloc.dart', ThemeTemplates.brightnessBloc());
+          '$appT/brightness_theme/brightness_bloc.dart',
+          ThemeTemplates.brightnessBloc(),
+        );
         await _write(
           '$appT/brightness_theme/brightness_event.dart',
           ThemeTemplates.brightnessBlocEvent(),
@@ -1105,7 +1167,8 @@ version: 0.1.0
 publish_to: 'none'
 
 environment:
-  sdk: ^3.6.0
+  sdk: ^3.12.0
+  flutter: ">=1.17.0"
 
 resolution: workspace
 
@@ -1124,8 +1187,10 @@ flutter:
 ''');
 
     // Shared SVG/image widgets + an assets folder for branding.
-    await _write('$root/lib/widgets/asset_images.dart',
-        ThemeTemplates.assetWidgets(packageName: uiPackage));
+    await _write(
+      '$root/lib/widgets/asset_images.dart',
+      ThemeTemplates.assetWidgets(packageName: uiPackage),
+    );
     await _write('$root/assets/.gitkeep', '');
 
     // A displayable copy of the logo + typed asset paths (spider-compatible).
@@ -1158,13 +1223,15 @@ ${exports.toString().trimRight()}
   /// pubspec for the standalone Widgetbook workspace member (depends on `<ui>`).
   /// Named `<app>_widgetbook` — it can't be called `widgetbook` since it depends
   /// on the `widgetbook` package.
-  String _widgetbookPubspec(String packageName, String uiPackage) => '''name: ${packageName}_widgetbook
+  String _widgetbookPubspec(String packageName, String uiPackage) =>
+      '''name: ${packageName}_widgetbook
 description: "Interactive component catalog — generated by NEAT."
 version: 0.1.0
 publish_to: 'none'
 
 environment:
-  sdk: ^3.6.0
+  sdk: ^3.12.0
+  flutter: ">=1.17.0"
 
 resolution: workspace
 
@@ -1193,8 +1260,10 @@ dev_dependencies:
     bool hasApiBaseUrl = true,
   }) async {
     // Dart: contract shared by every env.
-    await _write('$lib/core/env/app_env.dart',
-        CoreTemplates.appEnv(hasApiBaseUrl: hasApiBaseUrl, hasSupabase: hasSupabase));
+    await _write(
+      '$lib/core/env/app_env.dart',
+      CoreTemplates.appEnv(hasApiBaseUrl: hasApiBaseUrl, hasSupabase: hasSupabase),
+    );
 
     if (singleEnv) {
       // One env → a single `Env`/`EnvVars` reading a plain `.env` (no flavor
@@ -1250,8 +1319,14 @@ dev_dependencies:
         );
       }
     }
-    await _write('${projectDir.path}/.env.example',
-        CoreTemplates.envFile(appName: packageName, hasApiBaseUrl: hasApiBaseUrl, hasSupabase: hasSupabase));
+    await _write(
+      '${projectDir.path}/.env.example',
+      CoreTemplates.envFile(
+        appName: packageName,
+        hasApiBaseUrl: hasApiBaseUrl,
+        hasSupabase: hasSupabase,
+      ),
+    );
 
     // Keep secrets out of git (but commit .env.example).
     await _appendGitignore(projectDir, '''
@@ -1282,35 +1357,60 @@ dev_dependencies:
     bool oauth = false,
   }) async {
     final a = '$lib/features/auth';
-    await _write('$a/domain/repositories/i_auth_repository.dart',
-        AuthTemplates.iAuthRepository(packageName: packageName, oauth: oauth));
-    await _write('$a/data/repositories/auth_repository_impl.dart',
-        AuthTemplates.authRepositoryImpl(packageName: packageName, backend: backend, oauth: oauth));
-    await _write('$a/presentation/providers/auth_provider.dart',
-        AuthTemplates.authProvider(packageName: packageName, backend: backend));
-    await _write('$a/data/repositories/auth_repository_providers.dart',
-        AuthTemplates.authRepositoryProviders(packageName: packageName, backend: backend));
-    await _write('$a/presentation/screens/login_screen.dart',
-        AuthTemplates.loginScreen(packageName: packageName, oauth: oauth));
     await _write(
-        '$a/presentation/screens/signup_screen.dart', AuthTemplates.signupScreen(packageName: packageName));
-    await _write('$a/presentation/screens/forgot_password_screen.dart',
-        AuthTemplates.forgotPasswordScreen(packageName: packageName));
+      '$a/domain/repositories/i_auth_repository.dart',
+      AuthTemplates.iAuthRepository(packageName: packageName, oauth: oauth),
+    );
     await _write(
-        '$a/presentation/routes/auth_routes.dart', AuthTemplates.authRoutesBuilder(packageName: packageName));
+      '$a/data/repositories/auth_repository_impl.dart',
+      AuthTemplates.authRepositoryImpl(packageName: packageName, backend: backend, oauth: oauth),
+    );
+    await _write(
+      '$a/presentation/providers/auth_provider.dart',
+      AuthTemplates.authProvider(packageName: packageName, backend: backend),
+    );
+    await _write(
+      '$a/data/repositories/auth_repository_providers.dart',
+      AuthTemplates.authRepositoryProviders(packageName: packageName, backend: backend),
+    );
+    await _write(
+      '$a/presentation/screens/login_screen.dart',
+      AuthTemplates.loginScreen(packageName: packageName, oauth: oauth),
+    );
+    await _write(
+      '$a/presentation/screens/signup_screen.dart',
+      AuthTemplates.signupScreen(packageName: packageName),
+    );
+    await _write(
+      '$a/presentation/screens/forgot_password_screen.dart',
+      AuthTemplates.forgotPasswordScreen(packageName: packageName),
+    );
+    await _write(
+      '$a/presentation/routes/auth_routes.dart',
+      AuthTemplates.authRoutesBuilder(packageName: packageName),
+    );
 
     // The go_router guard. Logged-in users on an auth route go to the first
     // feature's route ('/').
     final homeRoute = 'AppRoutePath.${_camelCase(featureName)}';
-    await _write('$lib/core/router/router_notifier.dart',
-        AuthTemplates.routerNotifier(packageName: packageName, homeRoute: homeRoute, backend: backend));
+    await _write(
+      '$lib/core/router/router_notifier.dart',
+      AuthTemplates.routerNotifier(
+        packageName: packageName,
+        homeRoute: homeRoute,
+        backend: backend,
+      ),
+    );
 
     // Aggregate the auth routes into the shared route table (at the anchors).
     final routes = File('$lib/core/router/routes.dart');
     if (routes.existsSync()) {
       var s = await routes.readAsString();
-      s = _insertBeforeAnchor(s, '// neat:route-imports',
-          "import 'package:$packageName/features/auth/presentation/routes/auth_routes.dart' as auth;");
+      s = _insertBeforeAnchor(
+        s,
+        '// neat:route-imports',
+        "import 'package:$packageName/features/auth/presentation/routes/auth_routes.dart' as auth;",
+      );
       s = _insertBeforeAnchor(s, '// neat:route-entries', r'  ...auth.$appRoutes,');
       await routes.writeAsString(s);
     }
@@ -1432,13 +1532,24 @@ dev_dependencies:
       if (hasGoRouterBuilder) {
         await _write(
           '$r/app_shell_route.dart',
-          CoreTemplates.appShellRouteBuilder(packageName: packageName, featureName: featureName),
+          CoreTemplates.appShellRouteBuilder(
+            packageName: packageName,
+            featureName: featureName,
+            featurePackageName: featurePackageName,
+          ),
         );
-        await _write('$r/routes.dart', CoreTemplates.routesAggregatorShell(packageName: packageName));
+        await _write(
+          '$r/routes.dart',
+          CoreTemplates.routesAggregatorShell(packageName: packageName),
+        );
       } else {
         await _write(
           '$r/routes.dart',
-          CoreTemplates.routesManualShell(packageName: packageName, featureName: featureName),
+          CoreTemplates.routesManualShell(
+            packageName: packageName,
+            featureName: featureName,
+            featurePackageName: featurePackageName,
+          ),
         );
       }
       return;
@@ -1447,7 +1558,11 @@ dev_dependencies:
     await _write(
       '$r/routes.dart',
       hasGoRouterBuilder
-          ? CoreTemplates.routesAggregator(packageName: packageName, featureName: featureName)
+          ? CoreTemplates.routesAggregator(
+              packageName: packageName,
+              featureName: featureName,
+              featurePackageName: featurePackageName,
+            )
           : CoreTemplates.routesManual(
               packageName: packageName,
               featureName: featureName,
@@ -1503,8 +1618,7 @@ dev_dependencies:
       realtime: realtime,
       i18n: i18n,
       fields: architecture.firstFeatureFields,
-      apiPath:
-          architecture.firstFeatureApiPath.isEmpty ? null : architecture.firstFeatureApiPath,
+      apiPath: architecture.firstFeatureApiPath.isEmpty ? null : architecture.firstFeatureApiPath,
       // The simple detail/create sheets are scoped to NEAT's own worked
       // example for now (see FeatureScaffolder.writeFeature's includeCrudUi
       // doc) — not a general Workshop/wizard capability yet. `generateFirstFeature`
@@ -1530,14 +1644,20 @@ dev_dependencies:
 
   /// Copies the picked logo into `assets/branding/logo.png` and writes the
   /// flutter_launcher_icons / flutter_native_splash configs.
-  Future<void> _writeBranding(Directory projectDir, String logoPath) async {
+  Future<void> _writeBranding(Directory projectDir, String logoPath, List<String> platforms) async {
     final src = File(logoPath);
     if (!src.existsSync()) return;
     final dest = File('${projectDir.path}/assets/branding/logo.png');
     await dest.create(recursive: true);
     await dest.writeAsBytes(await src.readAsBytes());
-    await _write('${projectDir.path}/flutter_launcher_icons.yaml', CoreTemplates.launcherIconsConfig());
-    await _write('${projectDir.path}/flutter_native_splash.yaml', CoreTemplates.nativeSplashConfig());
+    await _write(
+      '${projectDir.path}/flutter_launcher_icons.yaml',
+      CoreTemplates.launcherIconsConfig(platforms: platforms),
+    );
+    await _write(
+      '${projectDir.path}/flutter_native_splash.yaml',
+      CoreTemplates.nativeSplashConfig(platforms: platforms),
+    );
   }
 
   /// Runs flutter_launcher_icons + flutter_native_splash. Best-effort: failures
@@ -1563,9 +1683,11 @@ dev_dependencies:
             'PATH': '${Platform.environment['PATH']}:/usr/local/bin:/opt/homebrew/bin',
           },
         ).timeout(const Duration(minutes: 3));
-        onLog(result.exitCode == 0
-            ? '[✓] ${args.last} done.'
-            : '[!] ${args.last}: ${result.stderr.toString().trim().split('\n').take(1).join()}');
+        onLog(
+          result.exitCode == 0
+              ? '[✓] ${args.last} done.'
+              : '[!] ${args.last}: ${result.stderr.toString().trim().split('\n').take(1).join()}',
+        );
       } catch (e) {
         onLog('[!] ${args.last} skipped: $e');
       }
@@ -1670,11 +1792,23 @@ dev_dependencies:
     String corePackageName, {
     required String featureName,
     required String httpClient,
+    // Set when offline-first is on: NetworkInfo + the shared
+    // appDatabaseProvider/networkInfoProvider (infrastructure_providers.dart)
+    // move here too — every offline-first repository across every feature
+    // package needs to share the *same* Drift db + connectivity instances,
+    // and core is the only place that sits below all of them.
+    String? localStoragePackage,
+    bool hasI18n = false,
   }) async {
     final root = '${projectDir.path}/packages/$corePackageName';
     await _write(
       '$root/pubspec.yaml',
-      CorePackageTemplates.pubspec(corePackageName: corePackageName, httpClient: httpClient),
+      CorePackageTemplates.pubspec(
+        corePackageName: corePackageName,
+        httpClient: httpClient,
+        localStoragePackage: localStoragePackage,
+        hasI18n: hasI18n,
+      ),
     );
     await _write('$root/lib/core/error/failure.dart', CoreTemplates.failure());
     await _write(
@@ -1694,7 +1828,10 @@ dev_dependencies:
       await _write(
         '$root/lib/core/network/dio_provider.dart',
         CoreTemplates.dioProvider(
-            packageName: corePackageName, useAnnotations: true, useEnvied: false),
+          packageName: corePackageName,
+          useAnnotations: true,
+          useEnvied: false,
+        ),
       );
     }
     if (httpClient == 'chopper') {
@@ -1710,7 +1847,10 @@ dev_dependencies:
       await _write(
         '$root/lib/core/network/chopper_client_provider.dart',
         CoreTemplates.chopperClientProvider(
-            packageName: corePackageName, useAnnotations: true, useEnvied: false),
+          packageName: corePackageName,
+          useAnnotations: true,
+          useEnvied: false,
+        ),
       );
     }
     await _write(
@@ -1739,6 +1879,16 @@ dev_dependencies:
       '$root/lib/core/theme/theme_mode_controller.dart',
       ThemeTemplates.themeModeControllerRiverpod(packageName: corePackageName),
     );
+    if (localStoragePackage != null) {
+      await _write('$root/lib/core/network/network_info.dart', CoreTemplates.networkInfo());
+      await _write(
+        '$root/lib/core/providers/infrastructure_providers.dart',
+        CoreTemplates.infrastructureProviders(
+          packageName: corePackageName,
+          localStoragePackage: localStoragePackage,
+        ),
+      );
+    }
   }
 
   // ── Offline-first workspace package ─────────────────────────────────────────
@@ -1925,10 +2075,7 @@ dev_dependencies:
 
     // Declare the Dart workspace at the root (app = workspace root). Members
     // live under packages/ (or widgetbook/) and each carries `resolution: workspace`.
-    final members = [
-      ...pathPackages.map((p) => 'packages/$p'),
-      ...extraWorkspaceMembers,
-    ];
+    final members = [...pathPackages.map((p) => 'packages/$p'), ...extraWorkspaceMembers];
     if (members.isNotEmpty) {
       final block = members.map((m) => '  - $m').join('\n');
       content = '${content.trimRight()}\n\nworkspace:\n$block\n';
@@ -1941,8 +2088,11 @@ dev_dependencies:
 
   // ── Build flavors (dev/staging/prod) ────────────────────────────────────────
 
-  static String _titleCase(String snake) =>
-      snake.split('_').where((w) => w.isNotEmpty).map((w) => '${w[0].toUpperCase()}${w.substring(1)}').join(' ');
+  static String _titleCase(String snake) => snake
+      .split('_')
+      .where((w) => w.isNotEmpty)
+      .map((w) => '${w[0].toUpperCase()}${w.substring(1)}')
+      .join(' ');
 
   Future<void> _writeFlavors(
     Directory projectDir,
@@ -1952,10 +2102,14 @@ dev_dependencies:
   }) async {
     // VS Code run/debug configs, one per env (--flavor only with native flavors).
     await _write(
-        '${projectDir.path}/.vscode/launch.json', _launchJson(flavors, nativeFlavors: nativeFlavors));
+      '${projectDir.path}/.vscode/launch.json',
+      _launchJson(flavors, nativeFlavors: nativeFlavors),
+    );
     // How-to (covers the iOS Xcode-scheme step we can't script reliably).
     await _write(
-        '${projectDir.path}/docs/FLAVORS.md', _flavorsDoc(appName, flavors, nativeFlavors: nativeFlavors));
+      '${projectDir.path}/docs/FLAVORS.md',
+      _flavorsDoc(appName, flavors, nativeFlavors: nativeFlavors),
+    );
     // Android productFlavors only make sense for native (mobile) flavors.
     if (nativeFlavors) {
       await _patchAndroidFlavors(projectDir, appName, flavors);
@@ -1992,7 +2146,8 @@ dev_dependencies:
           flavorsBlock.writeln('        }');
         }
         // AGP 8+ disables resValues by default; the per-flavor app_name needs it.
-        final block = '''    buildFeatures {
+        final block =
+            '''    buildFeatures {
         resValues = true
     }
     flavorDimensions += "env"
@@ -2052,10 +2207,12 @@ ${configs.join(',\n')}
     // Without native flavors (web/desktop targets, or the opt-in left off), the
     // environments are pure Dart entry points: same app id, selected via `-t`.
     if (!nativeFlavors) {
-      final rows = flavors.map((f) {
-        final tag = f == base ? '`$f` *(production base)*' : '`$f`';
-        return '| $tag | `lib/main_$f.dart` | `.env.$f` → ${_pascalFlavor(f)}Env |';
-      }).join('\n');
+      final rows = flavors
+          .map((f) {
+            final tag = f == base ? '`$f` *(production base)*' : '`$f`';
+            return '| $tag | `lib/main_$f.dart` | `.env.$f` → ${_pascalFlavor(f)}Env |';
+          })
+          .join('\n');
       return '''# Environments (${flavors.join(' / ')})
 
 This project wires ${flavors.length} environments as **Dart entry points** (no native
@@ -2088,12 +2245,14 @@ pre-filled in each `.env.<env>`.
 ''';
     }
 
-    final rows = flavors.map((f) {
-      final isBase = f == base;
-      final suffix = isBase ? '—' : '`.$f`';
-      final label = isBase ? appName : '$appName ${_titleCase(f)}';
-      return '| $f | `lib/main_$f.dart` | $suffix | $label |';
-    }).join('\n');
+    final rows = flavors
+        .map((f) {
+          final isBase = f == base;
+          final suffix = isBase ? '—' : '`.$f`';
+          final label = isBase ? appName : '$appName ${_titleCase(f)}';
+          return '| $f | `lib/main_$f.dart` | $suffix | $label |';
+        })
+        .join('\n');
     return '''# Build flavors (${flavors.join(' / ')})
 
 This project ships ${flavors.length} flavors. Each pairs a **native flavor** (separate
