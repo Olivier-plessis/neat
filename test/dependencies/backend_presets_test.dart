@@ -56,4 +56,106 @@ void main() {
       expect(names(), contains('cloud_firestore'));
     });
   });
+
+  group('httpClientOf', () {
+    PubPackage pkg(String n) => PubPackage(name: n, version: '1.0.0', description: '');
+
+    test('detects retrofit, dio, else defaults to chopper', () {
+      expect(httpClientOf([pkg('retrofit'), pkg('dio')]), HttpClientKind.retrofit);
+      expect(httpClientOf([pkg('dio')]), HttpClientKind.dio);
+      expect(httpClientOf([pkg('chopper')]), HttpClientKind.chopper);
+      expect(httpClientOf([]), HttpClientKind.chopper);
+    });
+  });
+
+  group('applyHttpClientPreset (Infrastructure screen\'s client picker)', () {
+    late ProviderContainer container;
+    SelectedPackages notifier() => container.read(selectedPackagesProvider.notifier);
+    List<String> names() =>
+        container.read(selectedPackagesProvider).map((p) => p.name).toList();
+
+    setUp(() => container = ProviderContainer());
+    tearDown(() => container.dispose());
+
+    test('switching to dio strips chopper, keeps the shared core packages', () {
+      notifier().applyBackendPreset(presetFor(BackendKind.rest));
+      notifier().applyHttpClientPreset(presetForHttpClient(HttpClientKind.dio));
+      expect(names(), contains('dio'));
+      expect(names(), isNot(contains('chopper')));
+      expect(names(), isNot(contains('chopper_generator')));
+      expect(names(), contains('hooks_riverpod'), reason: 'core packages stay untouched');
+      expect(names(), contains('go_router'), reason: 'core packages stay untouched');
+    });
+
+    test('switching back to chopper strips dio', () {
+      notifier().applyHttpClientPreset(presetForHttpClient(HttpClientKind.dio));
+      notifier().applyHttpClientPreset(presetForHttpClient(HttpClientKind.chopper));
+      expect(names(), contains('chopper'));
+      expect(names(), isNot(contains('dio')));
+    });
+
+    test('retrofit is filtered out — not yet selectable (isUnsupportedPackage)', () {
+      notifier().applyHttpClientPreset(presetForHttpClient(HttpClientKind.retrofit));
+      expect(names(), isNot(contains('retrofit')),
+          reason: 'the UI must keep the Retrofit card disabled instead of relying on this');
+      expect(names(), isNot(contains('retrofit_generator')));
+      // dio (retrofit's own transport) still lands, since it isn't itself
+      // unsupported — only the retrofit/retrofit_generator pair is filtered.
+      expect(names(), contains('dio'));
+    });
+  });
+
+  group('routingStyleOf', () {
+    PubPackage pkg(String n) => PubPackage(name: n, version: '1.0.0', description: '');
+
+    test('typed when go_router_builder is present, else manual by default', () {
+      expect(routingStyleOf([pkg('go_router_builder')]), RoutingStyle.typed);
+      expect(routingStyleOf([pkg('go_router')]), RoutingStyle.manual);
+      expect(routingStyleOf([]), RoutingStyle.manual);
+    });
+
+    test('go_router_builder is not bundled into any default preset', () {
+      // Regression: it used to live in _corePackages, so every preset always
+      // carried it — packageSplit (which requires manual routing) could then
+      // never be reached without the user manually deleting the package.
+      for (final preset in [restPreset, supabasePreset, firebasePreset, dioPreset]) {
+        expect(preset.map((p) => p.name), isNot(contains('go_router_builder')));
+      }
+    });
+  });
+
+  group('setRoutingStyle (Infrastructure screen\'s routing picker)', () {
+    late ProviderContainer container;
+    SelectedPackages notifier() => container.read(selectedPackagesProvider.notifier);
+    List<String> names() =>
+        container.read(selectedPackagesProvider).map((p) => p.name).toList();
+
+    setUp(() => container = ProviderContainer());
+    tearDown(() => container.dispose());
+
+    test('defaults to manual — no go_router_builder out of the box', () {
+      expect(names(), isNot(contains('go_router_builder')));
+    });
+
+    test('typed adds go_router_builder, manual removes it', () {
+      notifier().setRoutingStyle(RoutingStyle.typed);
+      expect(names(), contains('go_router_builder'));
+
+      notifier().setRoutingStyle(RoutingStyle.manual);
+      expect(names(), isNot(contains('go_router_builder')));
+    });
+
+    test('re-applying the current style is a no-op (idempotent)', () {
+      notifier().setRoutingStyle(RoutingStyle.typed);
+      notifier().setRoutingStyle(RoutingStyle.typed);
+      expect(names().where((n) => n == 'go_router_builder').length, 1);
+    });
+
+    test('switching HTTP client keeps the routing style untouched', () {
+      notifier().setRoutingStyle(RoutingStyle.typed);
+      notifier().applyHttpClientPreset(presetForHttpClient(HttpClientKind.dio));
+      expect(names(), contains('go_router_builder'),
+          reason: 'routing style is orthogonal to the HTTP client preset swap');
+    });
+  });
 }

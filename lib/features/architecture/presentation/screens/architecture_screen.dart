@@ -8,6 +8,7 @@ import 'package:neat/features/architecture/domain/models/architecture_state.dart
 import 'package:neat/features/architecture/domain/usecases/generate_tree_usecase.dart';
 import 'package:neat/features/architecture/presentation/providers/architecture_provider.dart';
 import 'package:neat/features/dependencies/presentation/providers/dependencies_provider.dart';
+import 'package:neat/features/identity/presentation/providers/identity_provider.dart';
 
 class ArchitectureScreen extends ConsumerWidget {
   const ArchitectureScreen({super.key});
@@ -16,6 +17,7 @@ class ArchitectureScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(architectureProvider);
     final notifier = ref.read(architectureProvider.notifier);
+    final packageName = ref.watch(identityProvider.select((i) => i.name));
     final hasRiverpod = ref.watch(
       selectedPackagesProvider.select((list) => list.any((p) => p.name.contains('riverpod'))),
     );
@@ -39,10 +41,37 @@ class ArchitectureScreen extends ConsumerWidget {
     final hasBackend = hasSupabase || hasFirebase;
     final backendLabel = hasFirebase ? 'Firebase' : 'Supabase';
     final canAuth = hasBackend && hasGoRouterBuilder;
+    final hasDio = ref.watch(
+      selectedPackagesProvider.select((list) => list.any((p) => p.name == 'dio')),
+    );
+    final hasChopper = ref.watch(
+      selectedPackagesProvider.select((list) => list.any((p) => p.name == 'chopper')),
+    );
+    final hasRetrofit = ref.watch(
+      selectedPackagesProvider.select((list) => list.any((p) => p.name == 'retrofit')),
+    );
+    // packageSplit combo (see ROADMAP.md §6a): dio or chopper, remote-only,
+    // Riverpod annotations, plain go_router, and a first feature to split.
+    // Mirrors launch_generation_usecase.dart's packageSplitSupported — the
+    // generator re-derives this independently rather than trusting the raw
+    // flag, so keeping the toggle disabled outside this combo is a UX
+    // courtesy, not the only safety net. supabase/firebase/retrofit clients +
+    // offline-first + go_router_builder remain Phase 2/3.
+    final canPackageSplit = state.generateFirstFeature &&
+        hasRiverpod &&
+        state.useRiverpodAnnotations &&
+        hasGoRouter &&
+        !hasGoRouterBuilder &&
+        (hasDio || hasChopper) &&
+        !hasRetrofit &&
+        !hasBackend &&
+        state.storageStrategy == StorageStrategy.remoteOnly;
     final tree = const GenerateTreeUsecase().execute(
       state,
       hasRiverpod: hasRiverpod,
       hasBloc: hasBloc,
+      packageSplit: canPackageSplit && state.packageSplit,
+      packageName: packageName,
     );
 
     return Column(
@@ -91,7 +120,9 @@ class ArchitectureScreen extends ConsumerWidget {
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          'Generated at lib/features/${state.firstFeatureName.isEmpty ? '...' : state.firstFeatureName}/',
+                          canPackageSplit && state.packageSplit
+                              ? 'Generated at packages/${state.firstFeatureName.isEmpty ? '...' : '${packageName}_${state.firstFeatureName}'}/'
+                              : 'Generated at lib/features/${state.firstFeatureName.isEmpty ? '...' : state.firstFeatureName}/',
                           style: TextStyle(
                             color: AppTheme.colorPrimaryCyan.withValues(alpha: 0.7),
                             fontSize: 11,
@@ -207,6 +238,29 @@ class ArchitectureScreen extends ConsumerWidget {
                             'Tout le mode lecture + Outbox : les écritures hors ligne sont mises en file et rejouées par un SyncService au retour du réseau.',
                         },
                         style: Theme.of(context).textTheme.bodySmall,
+                      ),
+
+                      const SizedBox(height: 28),
+                      _SectionHeader(
+                        icon: Icons.dns_outlined,
+                        label: 'Modular Monorepo',
+                      ),
+                      const SizedBox(height: 12),
+                      _ToggleTile(
+                        title: 'Split first feature into its own package',
+                        description: canPackageSplit
+                            ? 'Team workflow: the first feature moves into its own workspace '
+                                'package (packages/${packageName.isEmpty ? '<app>' : packageName}_'
+                                '${state.firstFeatureName.isEmpty ? '<feature>' : state.firstFeatureName}/), '
+                                'depending only on a shared <app>_core package (Result/Failure/'
+                                'UseCase/networking) — never on the app itself, so multiple devs '
+                                'can own separate features without touching a shared lib/.'
+                            : 'Requires: a first feature, dio or chopper (no retrofit yet), '
+                                'remote-only storage, Riverpod annotations, and plain go_router '
+                                '(not go_router_builder). See ROADMAP.md §6a.',
+                        value: canPackageSplit && state.packageSplit,
+                        disabled: !canPackageSplit,
+                        onChanged: notifier.togglePackageSplit,
                       ),
 
                       if (hasGoRouter) ...[

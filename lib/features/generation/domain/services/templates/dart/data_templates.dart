@@ -9,14 +9,16 @@ class DataTemplates {
 
   static String featureModel({
     required String featureName,
-    required String packageName,
     required bool hasFreezed,
     required bool hasJsonSerializable,
     List<FieldSpec> fields = FieldSpec.idName,
   }) {
     final p = pascal(featureName);
-    final entityImport =
-        "import 'package:$packageName/features/$featureName/domain/entities/${featureName}_entity.dart';";
+    // Relative, not `package:` — works unchanged whether the feature lives
+    // flat under lib/features/<name>/ or split into its own workspace
+    // package (packageSplit — see ROADMAP.md §6a): the nesting depth between
+    // data/models/ and domain/entities/ is identical either way.
+    final entityImport = "import '../../domain/entities/${featureName}_entity.dart';";
     // Nested objects (and list-element objects) each become their own sub-model.
     final objects = collectObjectSpecs(fields);
 
@@ -283,8 +285,8 @@ $classes
 import 'package:$packageName/core/network/network_info.dart';
 import 'package:$packageName/core/result/result.dart';
 import 'package:$packageName/core/utils/app_logger.dart';
-import 'package:$packageName/features/$featureName/domain/entities/${featureName}_entity.dart';
-import 'package:$packageName/features/$featureName/domain/repositories/i_${featureName}_repository.dart';
+import '../../domain/entities/${featureName}_entity.dart';
+import '../../domain/repositories/i_${featureName}_repository.dart';
 import '../models/${featureName}_model.dart';
 import '../sources/${featureName}_api_source.dart';
 import '../sources/${featureName}_local_source.dart';
@@ -341,8 +343,8 @@ class ${p}RepositoryImpl implements I${p}Repository {
 
     // ── Remote-only, full CRUD ────────────────────────────────────────────────
     if (hasHttpClient) {
-      return '''${chopperImport}import 'package:$packageName/features/$featureName/domain/entities/${featureName}_entity.dart';
-import 'package:$packageName/features/$featureName/domain/repositories/i_${featureName}_repository.dart';
+      return '''${chopperImport}import '../../domain/entities/${featureName}_entity.dart';
+import '../../domain/repositories/i_${featureName}_repository.dart';
 import '../models/${featureName}_model.dart';
 import '../sources/${featureName}_api_source.dart';
 
@@ -390,8 +392,8 @@ class ${p}RepositoryImpl implements I${p}Repository {
     }
 
     // ── No HTTP client: read-only local stub ──────────────────────────────────
-    return '''import 'package:$packageName/features/$featureName/domain/entities/${featureName}_entity.dart';
-import 'package:$packageName/features/$featureName/domain/repositories/i_${featureName}_repository.dart';
+    return '''import '../../domain/entities/${featureName}_entity.dart';
+import '../../domain/repositories/i_${featureName}_repository.dart';
 import '../sources/${featureName}_local_source.dart';
 
 class ${p}RepositoryImpl implements I${p}Repository {
@@ -418,7 +420,6 @@ class ${p}RepositoryImpl implements I${p}Repository {
 
   static String featureApiSource({
     required String featureName,
-    required String packageName,
     required String httpClient,
     bool realtime = false,
     String? apiPath,
@@ -433,7 +434,7 @@ class ${p}RepositoryImpl implements I${p}Repository {
     if (httpClient == 'retrofit') {
       return '''import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
-import 'package:$packageName/features/$featureName/data/models/${featureName}_model.dart';
+import '../models/${featureName}_model.dart';
 
 part '${featureName}_api_source.g.dart';
 
@@ -461,7 +462,7 @@ abstract class ${p}ApiSource {
 
     if (httpClient == 'chopper') {
       return '''import 'package:chopper/chopper.dart';
-import 'package:$packageName/features/$featureName/data/models/${featureName}_model.dart';
+import '../models/${featureName}_model.dart';
 
 part '${featureName}_api_source.chopper.dart';
 
@@ -489,7 +490,7 @@ abstract class ${p}ApiSource extends ChopperService {
 
     if (httpClient == 'supabase') {
       return '''import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:$packageName/features/$featureName/data/models/${featureName}_model.dart';
+import '../models/${featureName}_model.dart';
 
 /// Supabase-backed remote source. Exposes the same contract as the REST api
 /// source, so the repository / usecases / providers stay unchanged.
@@ -537,7 +538,7 @@ ${realtime ? '''
 
     if (httpClient == 'firebase') {
       return '''import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:$packageName/features/$featureName/data/models/${featureName}_model.dart';
+import '../models/${featureName}_model.dart';
 
 /// Firestore-backed remote source. The document id is merged into the model's
 /// JSON, so the repository / usecases / providers stay unchanged.
@@ -584,7 +585,7 @@ ${realtime ? '''
 
     // Dio plain
     return '''import 'package:dio/dio.dart';
-import 'package:$packageName/features/$featureName/data/models/${featureName}_model.dart';
+import '../models/${featureName}_model.dart';
 
 class ${p}ApiSource {
   const ${p}ApiSource(this._dio);
@@ -631,7 +632,6 @@ class ${p}ApiSource {
 
   static String featureLocalSource({
     required String featureName,
-    required String packageName,
     bool offlineFirst = false,
     bool hasSync = false,
     String? localStoragePackage,
@@ -662,7 +662,7 @@ class ${p}ApiSource {
           : '';
 
       return '''${convertImport}import 'package:$localStoragePackage/$localStoragePackage.dart';
-import 'package:$packageName/features/$featureName/data/models/${featureName}_model.dart';
+import '../models/${featureName}_model.dart';
 
 class ${p}LocalSource {
   const ${p}LocalSource(this._db);
@@ -692,7 +692,7 @@ class ${p}LocalSource {
     }
 
     // Remote-only: in-memory stub the user fills in.
-    return '''import 'package:$packageName/features/$featureName/data/models/${featureName}_model.dart';
+    return '''import '../models/${featureName}_model.dart';
 
 class ${p}LocalSource {
   const ${p}LocalSource();
@@ -725,9 +725,18 @@ class ${p}LocalSource {
     required bool offlineFirst,
     bool hasSync = false,
     String? localStoragePackage,
+    // See featureIRepository's doc — same packageSplit rationale. Both the
+    // dio and chopper branches below are redirected: supabase/firebase client
+    // providers aren't part of the core package yet.
+    String? corePackageName,
   }) {
     final p = pascal(featureName);
     final c = camel(featureName);
+    // Split + chopper: this feature must register its Model's decoder into
+    // core's chopperModelDecoders itself — core can't import it back the
+    // other way (that would be the same forbidden app←feature cycle this
+    // whole packageSplit mechanism exists to avoid). See ROADMAP.md §6a.
+    final registersChopperDecoder = httpClient == 'chopper' && corePackageName != null;
 
     final imports = StringBuffer();
     if (hasSync) imports.writeln("import 'dart:convert';\n");
@@ -739,20 +748,24 @@ class ${p}LocalSource {
           "import 'package:$packageName/core/providers/infrastructure_providers.dart';");
     }
     imports.writeln(switch (httpClient) {
-      'chopper' => "import 'package:$packageName/core/network/chopper_client_provider.dart';",
+      'chopper' =>
+        "import 'package:${corePackageName ?? packageName}/core/network/chopper_client_provider.dart';",
       'supabase' => "import 'package:$packageName/core/network/supabase_provider.dart';",
       'firebase' => "import 'package:$packageName/core/network/firebase_provider.dart';",
-      _ => "import 'package:$packageName/core/network/dio_provider.dart';",
+      _ => "import 'package:${corePackageName ?? packageName}/core/network/dio_provider.dart';",
     });
+    if (registersChopperDecoder) {
+      imports.writeln(
+          "import 'package:$corePackageName/core/network/chopper_model_converter.dart';");
+    }
     if (hasSync) {
       imports.writeln("import 'package:$packageName/core/sync/sync_service.dart';");
     }
     imports
-      ..writeln(
-          "import 'package:$packageName/features/$featureName/domain/repositories/i_${featureName}_repository.dart';")
+      ..writeln("import '../../domain/repositories/i_${featureName}_repository.dart';")
       ..writeln("import '${featureName}_repository_impl.dart';")
       ..writeln("import '../sources/${featureName}_api_source.dart';");
-    if (hasSync) {
+    if (hasSync || registersChopperDecoder) {
       imports.writeln("import '../models/${featureName}_model.dart';");
     }
     if (offlineFirst) {
@@ -812,6 +825,17 @@ SyncService ${c}Sync(Ref ref) {
 }'''
         : '';
 
+    // Called once from the app's bootstrap (see AppTemplates.bootstrap's
+    // chopper-register anchors) before anything can hit the shared
+    // ChopperClient — populates core's registry with this feature's decoder.
+    final chopperRegisterFn = registersChopperDecoder
+        ? '''
+
+void register${p}ChopperDecoders() {
+  chopperModelDecoders[${p}Model] = ${p}Model.fromJson;
+}'''
+        : '';
+
     return '''${imports.toString()}
 part '${featureName}_repository_providers.g.dart';
 
@@ -819,7 +843,7 @@ part '${featureName}_repository_providers.g.dart';
 ${p}ApiSource ${c}ApiSource(Ref ref) => $apiConstruct;$offlineProviders
 
 @Riverpod(keepAlive: true)
-I${p}Repository ${c}Repository(Ref ref) => $repoConstruct;$syncProvider
+I${p}Repository ${c}Repository(Ref ref) => $repoConstruct;$syncProvider$chopperRegisterFn
 ''';
   }
 }

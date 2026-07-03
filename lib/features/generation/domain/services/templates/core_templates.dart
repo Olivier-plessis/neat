@@ -1499,10 +1499,21 @@ class ${_pascal(featureName)}Route extends GoRouteData with \$${_pascal(featureN
 
   // ── core/router/routes.dart (manual) ─────────────────────────────────────
 
-  static String routesManual({required String packageName, required String featureName}) =>
-      '''import 'package:go_router/go_router.dart';
+  static String routesManual({
+    required String packageName,
+    required String featureName,
+    // Set when the first feature was split into its own workspace package
+    // (packageSplit — see ROADMAP.md §6a): the app still owns its own
+    // AppRoutePath, only the feature-page import crosses the package
+    // boundary.
+    String? featurePackageName,
+  }) {
+    final pageImport = featurePackageName != null
+        ? "import 'package:$featurePackageName/presentation/pages/${featureName}_page.dart';"
+        : "import 'package:$packageName/features/$featureName/presentation/pages/${featureName}_page.dart';";
+    return '''import 'package:go_router/go_router.dart';
 import 'package:$packageName/core/constants/app_route_path.dart';
-import 'package:$packageName/features/$featureName/presentation/pages/${featureName}_page.dart';
+$pageImport
 // neat:route-imports
 
 /// App routes. NEAT inserts new features at the anchors below.
@@ -1514,6 +1525,7 @@ final List<RouteBase> appRoutes = [
   // neat:route-entries
 ];
 ''';
+  }
 
   /// `routes.dart` (manual go_router) when there's no first feature — the
   /// welcome placeholder owns `/` instead. Same anchors as [routesManual], so

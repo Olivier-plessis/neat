@@ -95,6 +95,27 @@ class SelectedPackages extends _$SelectedPackages {
     state = [...stripped, ...toAdd];
   }
 
+  /// Switches the REST HTTP client (chopper/dio/retrofit) — same strip-then-add
+  /// mechanism as [applyBackendPreset], just named for its own call sites
+  /// (infrastructure_screen.dart's client picker, only shown for
+  /// `BackendKind.rest`). An unsupported client (e.g. retrofit — see
+  /// [isUnsupportedPackage]) is silently filtered out by the same guard
+  /// [applyBackendPreset] already has, so the UI must keep that option
+  /// disabled rather than relying on this to reject it loudly.
+  void applyHttpClientPreset(List<PubPackage> preset) => applyBackendPreset(preset);
+
+  /// Switches routing style: adds/removes go_router_builder — a plain add/
+  /// remove rather than a strip-then-add preset swap, since it just layers on
+  /// top of the always-present go_router rather than replacing anything.
+  void setRoutingStyle(RoutingStyle style) {
+    final hasBuilder = isSelected('go_router_builder');
+    if (style == RoutingStyle.typed && !hasBuilder) {
+      state = [...state, goRouterBuilderPackage];
+    } else if (style == RoutingStyle.manual && hasBuilder) {
+      state = state.where((p) => p.name != 'go_router_builder').toList();
+    }
+  }
+
   void setDev(String name, {required bool isDev}) {
     state = state
         .map((p) => p.name == name ? p.copyWith(isDev: isDev) : p)
