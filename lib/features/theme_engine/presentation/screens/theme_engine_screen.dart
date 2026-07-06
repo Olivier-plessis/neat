@@ -6,14 +6,13 @@ import 'package:flutter/services.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
-import 'package:neat/core/theme/app_theme.dart';
-import 'package:neat/core/theme/gap.dart';
 import 'package:neat/features/dependencies/presentation/providers/dependencies_provider.dart';
 import 'package:neat/features/identity/presentation/providers/identity_provider.dart';
 import 'package:neat/features/theme_engine/domain/models/theme_engine_state.dart';
 import 'package:neat/features/theme_engine/domain/services/color_extractor_service.dart';
 import 'package:neat/features/theme_engine/domain/services/theme_templates.dart';
 import 'package:neat/features/theme_engine/presentation/providers/theme_engine_provider.dart';
+import 'package:neat_ui/neat_ui.dart';
 
 // ── Root screen ───────────────────────────────────────────────────────────────
 
@@ -120,12 +119,12 @@ class _ApproachCardState extends State<_ApproachCard> {
         padding: const EdgeInsets.all(28),
         decoration: BoxDecoration(
           color: _hovered
-              ? AppTheme.colorPrimaryCyan.withValues(alpha: 0.06)
+              ? Palette.colorPrimaryCyan.withValues(alpha: 0.06)
               : const Color(0xFF111316),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: _hovered
-                ? AppTheme.colorPrimaryCyan.withValues(alpha: 0.5)
+                ? Palette.colorPrimaryCyan.withValues(alpha: 0.5)
                 : Colors.white.withValues(alpha: 0.08),
             width: _hovered ? 1.5 : 1,
           ),
@@ -137,7 +136,7 @@ class _ApproachCardState extends State<_ApproachCard> {
             Icon(
               widget.icon,
               size: 40,
-              color: _hovered ? AppTheme.colorPrimaryCyan : Colors.white38,
+              color: _hovered ? Palette.colorPrimaryCyan : Colors.white38,
             ),
             const SizedBox(height: 20),
             Text(
@@ -159,8 +158,8 @@ class _ApproachCardState extends State<_ApproachCard> {
             OutlinedButton(
               onPressed: widget.onTap,
               style: OutlinedButton.styleFrom(
-                foregroundColor: _hovered ? AppTheme.colorPrimaryCyan : Colors.white54,
-                side: BorderSide(color: _hovered ? AppTheme.colorPrimaryCyan : Colors.white24),
+                foregroundColor: _hovered ? Palette.colorPrimaryCyan : Colors.white54,
+                side: BorderSide(color: _hovered ? Palette.colorPrimaryCyan : Colors.white24),
                 minimumSize: const Size(140, 42),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
@@ -211,11 +210,9 @@ class _TabbedEditor extends HookConsumerWidget {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                       decoration: BoxDecoration(
-                        color: AppTheme.colorPrimaryCyan.withValues(alpha: 0.1),
+                        color: Palette.colorPrimaryCyan.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(6),
-                        border: Border.all(
-                          color: AppTheme.colorPrimaryCyan.withValues(alpha: 0.35),
-                        ),
+                        border: Border.all(color: Palette.colorPrimaryCyan.withValues(alpha: 0.35)),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -224,7 +221,7 @@ class _TabbedEditor extends HookConsumerWidget {
                             width: 6,
                             height: 6,
                             decoration: const BoxDecoration(
-                              color: AppTheme.colorPrimaryCyan,
+                              color: Palette.colorPrimaryCyan,
                               shape: BoxShape.circle,
                             ),
                           ),
@@ -232,7 +229,7 @@ class _TabbedEditor extends HookConsumerWidget {
                           const Text(
                             'FLEX COLOR SCHEME',
                             style: TextStyle(
-                              color: AppTheme.colorPrimaryCyan,
+                              color: Palette.colorPrimaryCyan,
                               fontSize: 10,
                               fontWeight: FontWeight.bold,
                               letterSpacing: 0.8,
@@ -367,7 +364,7 @@ class _CustomTabBar extends StatelessWidget {
             decoration: BoxDecoration(
               border: Border(
                 bottom: BorderSide(
-                  color: isActive ? AppTheme.colorPrimaryCyan : Colors.transparent,
+                  color: isActive ? Palette.colorPrimaryCyan : Colors.transparent,
                   width: 2,
                 ),
               ),
@@ -375,7 +372,7 @@ class _CustomTabBar extends StatelessWidget {
             child: Text(
               _kTabLabels[i],
               style: TextStyle(
-                color: isActive ? AppTheme.colorPrimaryCyan : Colors.white38,
+                color: isActive ? Palette.colorPrimaryCyan : Colors.white38,
                 fontSize: 11,
                 fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
                 letterSpacing: 0.8,
@@ -428,7 +425,7 @@ class _ColorsTabState extends ConsumerState<_ColorsTab> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // ── Palette Generator ────────────────────────────────────────────
-          _SectionHeader(icon: Icons.palette_outlined, label: 'Palette Generator'),
+          SectionHeader(iconSize: 16, fontSize: 14, icon: Icons.palette_outlined, label: 'Palette Generator'),
           const SizedBox(height: 16),
 
           Row(
@@ -445,7 +442,7 @@ class _ColorsTabState extends ConsumerState<_ColorsTab> {
                     color: const Color(0xFF1A1A1E),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: extractingImage ? AppTheme.colorPrimaryCyan : Colors.white12,
+                      color: extractingImage ? Palette.colorPrimaryCyan : Colors.white12,
                       style: imagePath == null ? BorderStyle.solid : BorderStyle.solid,
                     ),
                   ),
@@ -465,7 +462,7 @@ class _ColorsTabState extends ConsumerState<_ColorsTab> {
                                       height: 24,
                                       child: CircularProgressIndicator(
                                         strokeWidth: 2,
-                                        color: AppTheme.colorPrimaryCyan,
+                                        color: Palette.colorPrimaryCyan,
                                       ),
                                     ),
                                   ),
@@ -558,10 +555,10 @@ class _ColorsTabState extends ConsumerState<_ColorsTab> {
                         child: const Text(
                           '↩ Reset all color overrides',
                           style: TextStyle(
-                            color: AppTheme.colorPrimaryCyan,
+                            color: Palette.colorPrimaryCyan,
                             fontSize: 11,
                             decoration: TextDecoration.underline,
-                            decorationColor: AppTheme.colorPrimaryCyan,
+                            decorationColor: Palette.colorPrimaryCyan,
                           ),
                         ),
                       ),
@@ -574,7 +571,7 @@ class _ColorsTabState extends ConsumerState<_ColorsTab> {
           24.gapH,
 
           // ── Generated color swatches ─────────────────────────────────────
-          _SectionHeader(icon: Icons.grid_view_outlined, label: 'Generated Palette'),
+          SectionHeader(iconSize: 16, fontSize: 14, icon: Icons.grid_view_outlined, label: 'Generated Palette'),
           16.gapH,
 
           // Row 1: primary, primaryContainer, secondary, surfaceHigh
@@ -632,7 +629,7 @@ class _ColorsTabState extends ConsumerState<_ColorsTab> {
           24.gapH,
 
           // ── Semantic colors (palette tokens used by AppButton & theme) ───
-          _SectionHeader(icon: Icons.bookmark_outline, label: 'Semantic Colors'),
+          SectionHeader(iconSize: 16, fontSize: 14, icon: Icons.bookmark_outline, label: 'Semantic Colors'),
           12.gapH,
           Row(
             spacing: 10,
@@ -920,7 +917,7 @@ class _TextStyleCard extends StatelessWidget {
               Text(
                 '$fontFamily  ${config.fontSize.round().toDouble()} · w${config.fontWeight}',
                 style: const TextStyle(
-                  color: AppTheme.colorPrimaryCyan,
+                  color: Palette.colorPrimaryCyan,
                   fontSize: 10,
                   letterSpacing: 0.5,
                 ),
@@ -1089,7 +1086,7 @@ class _ButtonsShapesTab extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // ── Global Shape Geometry ────────────────────────────────────────
-          _SectionHeader(icon: Icons.rounded_corner_outlined, label: 'Global Shape Geometry'),
+          SectionHeader(iconSize: 16, fontSize: 14, icon: Icons.rounded_corner_outlined, label: 'Global Shape Geometry'),
           const SizedBox(height: 16),
 
           Container(
@@ -1133,13 +1130,13 @@ class _ButtonsShapesTab extends ConsumerWidget {
                   width: 72,
                   height: 72,
                   decoration: BoxDecoration(
-                    color: AppTheme.colorPrimaryCyan.withValues(alpha: 0.15),
+                    color: Palette.colorPrimaryCyan.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(state.containerRadius),
-                    border: Border.all(color: AppTheme.colorPrimaryCyan.withValues(alpha: 0.5)),
+                    border: Border.all(color: Palette.colorPrimaryCyan.withValues(alpha: 0.5)),
                   ),
                   child: Icon(
                     Icons.crop_square_outlined,
-                    color: AppTheme.colorPrimaryCyan.withValues(alpha: 0.6),
+                    color: Palette.colorPrimaryCyan.withValues(alpha: 0.6),
                     size: 28,
                   ),
                 ),
@@ -1150,7 +1147,7 @@ class _ButtonsShapesTab extends ConsumerWidget {
           const SizedBox(height: 24),
 
           // ── Button Theme Customizer ──────────────────────────────────────
-          _SectionHeader(icon: Icons.smart_button_outlined, label: 'Button Theme Customizer'),
+          SectionHeader(iconSize: 16, fontSize: 14, icon: Icons.smart_button_outlined, label: 'Button Theme Customizer'),
           const SizedBox(height: 16),
 
           _ButtonConfigCard(
@@ -1195,7 +1192,7 @@ class _ButtonsShapesTab extends ConsumerWidget {
           const SizedBox(height: 24),
 
           // ── Component Library (opt-in) ───────────────────────────────────
-          _SectionHeader(icon: Icons.widgets_outlined, label: 'Component Library'),
+          SectionHeader(iconSize: 16, fontSize: 14, icon: Icons.widgets_outlined, label: 'Component Library'),
           const SizedBox(height: 16),
           for (final c in AppComponent.values)
             Padding(
@@ -1226,7 +1223,7 @@ class _ButtonsShapesTab extends ConsumerWidget {
           ),
 
           const SizedBox(height: 24),
-          _SectionHeader(icon: Icons.image_outlined, label: 'Branding (App Icon & Splash)'),
+          SectionHeader(iconSize: 16, fontSize: 14, icon: Icons.image_outlined, label: 'Branding (App Icon & Splash)'),
           const SizedBox(height: 16),
           _BrandingCard(
             logoPath: state.logoPath,
@@ -1313,7 +1310,7 @@ class _BrandingCard extends StatelessWidget {
             icon: const Icon(Icons.upload_outlined, size: 16),
             label: Text(hasLogo ? 'Replace' : 'Upload PNG'),
             style: FilledButton.styleFrom(
-              backgroundColor: AppTheme.colorPrimaryCyan,
+              backgroundColor: Palette.colorPrimaryCyan,
               foregroundColor: const Color(0xFF0E0E0E),
             ),
           ),
@@ -1346,12 +1343,12 @@ class _WidgetbookToggleCard extends StatelessWidget {
           color: const Color(0xFF0E1A1A),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: active ? AppTheme.colorPrimaryCyan.withValues(alpha: 0.5) : Colors.white10,
+            color: active ? Palette.colorPrimaryCyan.withValues(alpha: 0.5) : Colors.white10,
           ),
         ),
         child: Row(
           children: [
-            const Icon(Icons.menu_book_outlined, color: AppTheme.colorPrimaryCyan, size: 20),
+            const Icon(Icons.menu_book_outlined, color: Palette.colorPrimaryCyan, size: 20),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
@@ -1384,12 +1381,10 @@ class _WidgetbookToggleCard extends StatelessWidget {
                 width: 48,
                 height: 28,
                 decoration: BoxDecoration(
-                  color: active
-                      ? AppTheme.colorPrimaryCyan.withValues(alpha: 0.15)
-                      : Colors.white10,
+                  color: active ? Palette.colorPrimaryCyan.withValues(alpha: 0.15) : Colors.white10,
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
-                    color: active ? AppTheme.colorPrimaryCyan : Colors.white12,
+                    color: active ? Palette.colorPrimaryCyan : Colors.white12,
                     width: 1.5,
                   ),
                 ),
@@ -1402,7 +1397,7 @@ class _WidgetbookToggleCard extends StatelessWidget {
                       width: 20,
                       height: 20,
                       decoration: BoxDecoration(
-                        color: active ? AppTheme.colorPrimaryCyan : Colors.grey[700],
+                        color: active ? Palette.colorPrimaryCyan : Colors.grey[700],
                         shape: BoxShape.circle,
                       ),
                       child: active
@@ -1444,12 +1439,12 @@ class _SimpleToggleCard extends StatelessWidget {
         color: const Color(0xFF0E1A1A),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: enabled ? AppTheme.colorPrimaryCyan.withValues(alpha: 0.5) : Colors.white10,
+          color: enabled ? Palette.colorPrimaryCyan.withValues(alpha: 0.5) : Colors.white10,
         ),
       ),
       child: Row(
         children: [
-          Icon(icon, color: AppTheme.colorPrimaryCyan, size: 20),
+          Icon(icon, color: Palette.colorPrimaryCyan, size: 20),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
@@ -1479,10 +1474,10 @@ class _SimpleToggleCard extends StatelessWidget {
               width: 48,
               height: 28,
               decoration: BoxDecoration(
-                color: enabled ? AppTheme.colorPrimaryCyan.withValues(alpha: 0.15) : Colors.white10,
+                color: enabled ? Palette.colorPrimaryCyan.withValues(alpha: 0.15) : Colors.white10,
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(
-                  color: enabled ? AppTheme.colorPrimaryCyan : Colors.white12,
+                  color: enabled ? Palette.colorPrimaryCyan : Colors.white12,
                   width: 1.5,
                 ),
               ),
@@ -1495,7 +1490,7 @@ class _SimpleToggleCard extends StatelessWidget {
                     width: 20,
                     height: 20,
                     decoration: BoxDecoration(
-                      color: enabled ? AppTheme.colorPrimaryCyan : Colors.grey[700],
+                      color: enabled ? Palette.colorPrimaryCyan : Colors.grey[700],
                       shape: BoxShape.circle,
                     ),
                     child: enabled
@@ -1532,7 +1527,7 @@ class _ComponentToggleCard extends StatelessWidget {
         color: const Color(0xFF111316),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: enabled ? AppTheme.colorPrimaryCyan.withValues(alpha: 0.4) : Colors.white10,
+          color: enabled ? Palette.colorPrimaryCyan.withValues(alpha: 0.4) : Colors.white10,
         ),
       ),
       child: Row(
@@ -1558,7 +1553,7 @@ class _ComponentToggleCard extends StatelessWidget {
                 Text(
                   'lib/components/${component.fileName}',
                   style: TextStyle(
-                    color: AppTheme.colorPrimaryCyan.withValues(alpha: 0.7),
+                    color: Palette.colorPrimaryCyan.withValues(alpha: 0.7),
                     fontSize: 11,
                     fontFamily: 'monospace',
                   ),
@@ -1574,10 +1569,10 @@ class _ComponentToggleCard extends StatelessWidget {
               width: 48,
               height: 28,
               decoration: BoxDecoration(
-                color: enabled ? AppTheme.colorPrimaryCyan.withValues(alpha: 0.15) : Colors.white10,
+                color: enabled ? Palette.colorPrimaryCyan.withValues(alpha: 0.15) : Colors.white10,
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(
-                  color: enabled ? AppTheme.colorPrimaryCyan : Colors.white12,
+                  color: enabled ? Palette.colorPrimaryCyan : Colors.white12,
                   width: 1.5,
                 ),
               ),
@@ -1590,7 +1585,7 @@ class _ComponentToggleCard extends StatelessWidget {
                     width: 20,
                     height: 20,
                     decoration: BoxDecoration(
-                      color: enabled ? AppTheme.colorPrimaryCyan : Colors.grey[700],
+                      color: enabled ? Palette.colorPrimaryCyan : Colors.grey[700],
                       shape: BoxShape.circle,
                     ),
                     child: enabled
@@ -1824,7 +1819,7 @@ class _RadiusOverrideSlider extends StatelessWidget {
             Text(
               isOverridden ? '${value.round()}px' : '${globalRadius.round()}px (global)',
               style: TextStyle(
-                color: isOverridden ? AppTheme.colorPrimaryCyan : Colors.white24,
+                color: isOverridden ? Palette.colorPrimaryCyan : Colors.white24,
                 fontSize: 10,
                 fontWeight: FontWeight.bold,
               ),
@@ -1833,7 +1828,7 @@ class _RadiusOverrideSlider extends StatelessWidget {
               const SizedBox(width: 6),
               _Clickable(
                 onTap: onReset,
-                child: const Icon(Icons.refresh, size: 12, color: AppTheme.colorPrimaryCyan),
+                child: const Icon(Icons.refresh, size: 12, color: Palette.colorPrimaryCyan),
               ),
             ],
           ],
@@ -1842,10 +1837,10 @@ class _RadiusOverrideSlider extends StatelessWidget {
         SliderTheme(
           data: SliderThemeData(
             trackHeight: 2,
-            thumbColor: isOverridden ? AppTheme.colorPrimaryCyan : Colors.white24,
-            activeTrackColor: isOverridden ? AppTheme.colorPrimaryCyan : Colors.white24,
+            thumbColor: isOverridden ? Palette.colorPrimaryCyan : Colors.white24,
+            activeTrackColor: isOverridden ? Palette.colorPrimaryCyan : Colors.white24,
             inactiveTrackColor: Colors.white10,
-            overlayColor: AppTheme.colorPrimaryCyan.withValues(alpha: 0.12),
+            overlayColor: Palette.colorPrimaryCyan.withValues(alpha: 0.12),
             thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
           ),
           child: Slider(value: value, max: 32, divisions: 32, onChanged: onChanged),
@@ -1911,8 +1906,8 @@ class _FlexColorSchemeTabState extends ConsumerState<_FlexColorSchemeTab> {
               icon: const Icon(Icons.open_in_new, size: 14),
               label: const Text('Open Playground', style: TextStyle(fontSize: 12)),
               style: OutlinedButton.styleFrom(
-                foregroundColor: AppTheme.colorPrimaryCyan,
-                side: const BorderSide(color: AppTheme.colorPrimaryCyan),
+                foregroundColor: Palette.colorPrimaryCyan,
+                side: const BorderSide(color: Palette.colorPrimaryCyan),
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
@@ -1921,7 +1916,7 @@ class _FlexColorSchemeTabState extends ConsumerState<_FlexColorSchemeTab> {
           const SizedBox(height: 16),
 
           // ── Code editor ──────────────────────────────────────────────────
-          _SectionHeader(icon: Icons.code_outlined, label: 'Import Configuration'),
+          SectionHeader(iconSize: 16, fontSize: 14, icon: Icons.code_outlined, label: 'Import Configuration'),
           const SizedBox(height: 16),
 
           DecoratedBox(
@@ -1956,8 +1951,8 @@ class _FlexColorSchemeTabState extends ConsumerState<_FlexColorSchemeTab> {
                       OutlinedButton(
                         onPressed: _applyCode,
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: AppTheme.colorPrimaryCyan,
-                          side: const BorderSide(color: AppTheme.colorPrimaryCyan),
+                          foregroundColor: Palette.colorPrimaryCyan,
+                          side: const BorderSide(color: Palette.colorPrimaryCyan),
                           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                           minimumSize: Size.zero,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
@@ -1999,7 +1994,7 @@ class _FlexColorSchemeTabState extends ConsumerState<_FlexColorSchemeTab> {
                         'import \'package:flex_color_scheme/flex_color_scheme.dart\';\n'
                         'import \'package:flutter/material.dart\';\n'
                         '...\n'
-                        'abstract final class AppTheme {\n'
+                        'abstract final class Palette {\n'
                         '  static ThemeData light = FlexThemeData.light(...);\n'
                         '  static ThemeData dark  = FlexThemeData.dark(...);\n'
                         '}',
@@ -2039,7 +2034,7 @@ class _FlexColorSchemeTabState extends ConsumerState<_FlexColorSchemeTab> {
           const SizedBox(height: 24),
 
           // ── Scheme Definition ────────────────────────────────────────────
-          _SectionHeader(icon: Icons.tune_outlined, label: 'Scheme Definition'),
+          SectionHeader(iconSize: 16, fontSize: 14, icon: Icons.tune_outlined, label: 'Scheme Definition'),
           const SizedBox(height: 16),
 
           Row(
@@ -2200,7 +2195,7 @@ class _FlexColorSchemeTabState extends ConsumerState<_FlexColorSchemeTab> {
           const SizedBox(height: 24),
 
           // Packaging — available in FlexColorScheme too (not just Custom M3).
-          _SectionHeader(icon: Icons.widgets_outlined, label: 'Packaging'),
+          SectionHeader(iconSize: 16, fontSize: 14, icon: Icons.widgets_outlined, label: 'Packaging'),
           const SizedBox(height: 12),
           _SimpleToggleCard(
             icon: Icons.widgets_outlined,
@@ -2213,7 +2208,7 @@ class _FlexColorSchemeTabState extends ConsumerState<_FlexColorSchemeTab> {
           ),
 
           const SizedBox(height: 24),
-          _SectionHeader(icon: Icons.image_outlined, label: 'Branding (App Icon & Splash)'),
+          SectionHeader(iconSize: 16, fontSize: 14, icon: Icons.image_outlined, label: 'Branding (App Icon & Splash)'),
           const SizedBox(height: 16),
           _BrandingCard(
             logoPath: state.logoPath,
@@ -2309,7 +2304,7 @@ class _LivePreview extends ConsumerWidget {
               width: 3,
               height: 16,
               decoration: BoxDecoration(
-                color: AppTheme.colorPrimaryCyan,
+                color: Palette.colorPrimaryCyan,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -2342,17 +2337,17 @@ class _LivePreview extends ConsumerWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: AppTheme.colorPrimaryCyan.withValues(alpha: 0.4)),
+                  border: Border.all(color: Palette.colorPrimaryCyan.withValues(alpha: 0.4)),
                 ),
                 child: const Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.code, size: 13, color: AppTheme.colorPrimaryCyan),
+                    Icon(Icons.code, size: 13, color: Palette.colorPrimaryCyan),
                     SizedBox(width: 5),
                     Text(
                       'Code',
                       style: TextStyle(
-                        color: AppTheme.colorPrimaryCyan,
+                        color: Palette.colorPrimaryCyan,
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
                       ),
@@ -2579,7 +2574,7 @@ void neatSnack(BuildContext context, String message, {bool success = true}) {
           children: [
             Icon(
               success ? Icons.check_circle_outline : Icons.error_outline,
-              color: success ? AppTheme.colorPrimaryCyan : Colors.redAccent,
+              color: success ? Palette.colorPrimaryCyan : Colors.redAccent,
               size: 18,
             ),
             const SizedBox(width: 10),
@@ -2609,26 +2604,6 @@ class _Clickable extends StatelessWidget {
   }
 }
 
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.icon, required this.label});
-
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, color: AppTheme.colorPrimaryCyan, size: 16),
-        const SizedBox(width: 8),
-        Text(
-          label,
-          style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
-        ),
-      ],
-    );
-  }
-}
 
 /// Reusable styled slider
 class _NeatSlider extends StatelessWidget {
@@ -2668,7 +2643,7 @@ class _NeatSlider extends StatelessWidget {
             Text(
               _format(value),
               style: const TextStyle(
-                color: AppTheme.colorPrimaryCyan,
+                color: Palette.colorPrimaryCyan,
                 fontSize: 10,
                 fontWeight: FontWeight.bold,
               ),
@@ -2679,10 +2654,10 @@ class _NeatSlider extends StatelessWidget {
         SliderTheme(
           data: SliderThemeData(
             trackHeight: 2,
-            thumbColor: AppTheme.colorPrimaryCyan,
-            activeTrackColor: AppTheme.colorPrimaryCyan,
+            thumbColor: Palette.colorPrimaryCyan,
+            activeTrackColor: Palette.colorPrimaryCyan,
             inactiveTrackColor: Colors.white10,
-            overlayColor: AppTheme.colorPrimaryCyan.withValues(alpha: 0.12),
+            overlayColor: Palette.colorPrimaryCyan.withValues(alpha: 0.12),
             thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
           ),
           child: Slider(value: value.clamp(min, max), min: min, max: max, onChanged: onChanged),
@@ -2716,7 +2691,7 @@ class _WeightSlider extends StatelessWidget {
             Text(
               'w$value',
               style: const TextStyle(
-                color: AppTheme.colorPrimaryCyan,
+                color: Palette.colorPrimaryCyan,
                 fontSize: 10,
                 fontWeight: FontWeight.bold,
               ),
@@ -2727,10 +2702,10 @@ class _WeightSlider extends StatelessWidget {
         SliderTheme(
           data: SliderThemeData(
             trackHeight: 2,
-            thumbColor: AppTheme.colorPrimaryCyan,
-            activeTrackColor: AppTheme.colorPrimaryCyan,
+            thumbColor: Palette.colorPrimaryCyan,
+            activeTrackColor: Palette.colorPrimaryCyan,
             inactiveTrackColor: Colors.white10,
-            overlayColor: AppTheme.colorPrimaryCyan.withValues(alpha: 0.12),
+            overlayColor: Palette.colorPrimaryCyan.withValues(alpha: 0.12),
             thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
           ),
           child: Slider(
@@ -2865,7 +2840,7 @@ class _FontSelector extends StatelessWidget {
                       child: Text(
                         f,
                         style: TextStyle(
-                          color: f == value ? AppTheme.colorPrimaryCyan : Colors.white70,
+                          color: f == value ? Palette.colorPrimaryCyan : Colors.white70,
                           fontSize: 13,
                           fontWeight: f == value ? FontWeight.w600 : FontWeight.normal,
                         ),
@@ -3227,7 +3202,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
             widget.onPicked(_current);
             Navigator.pop(context);
           },
-          style: FilledButton.styleFrom(backgroundColor: AppTheme.colorPrimaryCyan),
+          style: FilledButton.styleFrom(backgroundColor: Palette.colorPrimaryCyan),
           child: const Text('Apply', style: TextStyle(color: Colors.black)),
         ),
       ],
@@ -3261,7 +3236,7 @@ class _GeneratedCodeDialog extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.code, size: 16, color: AppTheme.colorPrimaryCyan),
+                  const Icon(Icons.code, size: 16, color: Palette.colorPrimaryCyan),
                   const SizedBox(width: 8),
                   const Text(
                     'app_theme.dart',
@@ -3287,17 +3262,17 @@ class _GeneratedCodeDialog extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: AppTheme.colorPrimaryCyan.withValues(alpha: 0.4)),
+                        border: Border.all(color: Palette.colorPrimaryCyan.withValues(alpha: 0.4)),
                       ),
                       child: const Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.copy_outlined, size: 13, color: AppTheme.colorPrimaryCyan),
+                          Icon(Icons.copy_outlined, size: 13, color: Palette.colorPrimaryCyan),
                           SizedBox(width: 6),
                           Text(
                             'Copy',
                             style: TextStyle(
-                              color: AppTheme.colorPrimaryCyan,
+                              color: Palette.colorPrimaryCyan,
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
                             ),

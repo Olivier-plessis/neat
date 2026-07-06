@@ -21,21 +21,32 @@ class CorePackageTemplates {
   /// chopper (+ its generator, for `ModelJsonConverter`'s registry file —
   /// the converter itself needs no codegen, but keeping chopper's own dev
   /// tooling alongside it matches how every other package ships it) for
-  /// chopper. [localStoragePackage] adds `connectivity_plus` (for
-  /// `NetworkInfo`) + a sibling `path:` dep on the Drift package — every
-  /// offline-first feature shares the *same* db/connectivity instances via
-  /// `infrastructure_providers.dart`, which lives here. [hasI18n] adds slang's
-  /// runtime + `shared_preferences` (for `LocaleStore`'s persistence) — the
-  /// whole i18n setup is single-sourced here too, same reasoning as
-  /// `theme_mode_controller.dart` (see `LaunchGenerationUsecase`'s i18n block).
+  /// chopper, supabase_flutter/cloud_firestore for supabase/firebase ([hasAuth]/
+  /// [hasStorage] add firebase_auth/firebase_storage — supabase's auth/storage
+  /// APIs already ship inside supabase_flutter). [localStoragePackage] adds
+  /// `connectivity_plus` (for `NetworkInfo`) + a sibling `path:` dep on the
+  /// Drift package — every offline-first feature shares the *same*
+  /// db/connectivity instances via `infrastructure_providers.dart`, which
+  /// lives here. [hasI18n] adds slang's runtime + `shared_preferences` (for
+  /// `LocaleStore`'s persistence) — the whole i18n setup is single-sourced
+  /// here too, same reasoning as `theme_mode_controller.dart` (see
+  /// `LaunchGenerationUsecase`'s i18n block).
   static String pubspec({
     required String corePackageName,
     String httpClient = 'dio',
     String? localStoragePackage,
     bool hasI18n = false,
+    bool hasAuth = false,
+    bool hasStorage = false,
   }) {
-    final isChopper = httpClient == 'chopper';
-    final clientDep = isChopper ? '  chopper: ^8.6.0\n' : '  dio: ^5.9.2\n';
+    final clientDep = switch (httpClient) {
+      'chopper' => '  chopper: ^8.6.0\n',
+      'supabase' => '  supabase_flutter: ^2.14.1\n',
+      'firebase' => '  cloud_firestore: ^5.6.0\n'
+          '${hasAuth ? '  firebase_auth: ^5.3.4\n' : ''}'
+          '${hasStorage ? '  firebase_storage: ^12.4.0\n' : ''}',
+      _ => '  dio: ^5.9.2\n',
+    };
     final offlineDeps = localStoragePackage != null
         ? '  connectivity_plus: ^7.1.1\n'
               '  $localStoragePackage:\n'

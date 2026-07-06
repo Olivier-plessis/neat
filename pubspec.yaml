@@ -6,6 +6,8 @@ version: 1.0.0+1
 environment:
   sdk: ^3.11.5
 
+workspace:
+  - packages/neat_ui
 dependencies:
   flutter:
     sdk: flutter
@@ -29,6 +31,8 @@ dependencies:
   image: ^4.8.0
   url_launcher: ^6.3.2
   google_fonts: ^8.1.0
+  neat_ui:
+    path: packages/neat_ui
 
 
 dev_dependencies:

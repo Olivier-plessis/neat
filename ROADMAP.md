@@ -221,6 +221,31 @@ foundation everything else is configured through.
   §5c split, watching a provider from the wrong file) and Auth's repository/
   screens not yet updated to the `Failure`-typed `Result`.
 
+### 5e. Drift schema migration — ✅ (real bug, found via a device run)
+- **The defect**: `AppDatabase.schemaVersion` was hardcoded to `1` forever, with
+  no `MigrationStrategy` at all. Drift only runs `onCreate` on a **brand-new**
+  database file; a table added later (Workshop `_injectDriftTable`, or any
+  regeneration) never reaches a device that already has the app installed with
+  an older schema — `schemaVersion` never changed, so Drift's default
+  migration behavior is a silent no-op. Found from a real user's device log
+  (`SqliteException: no such table: product_rows`) after adding a feature via
+  the Workshop to an already-running project — the Dart code compiled and the
+  providers registered fine, only the on-disk SQLite schema was stale.
+- **The fix**: every generated `database.dart` now ships a `MigrationStrategy`
+  getter from the start (`onCreate: (m) => m.createAll()`, an `onUpgrade` with
+  a `// neat:migrations` anchor) — a no-op structurally, but the hook
+  subsequent additions insert into. `GenerateFeatureUsecase._injectDriftTable`
+  now bumps `schemaVersion` by 1 and inserts
+  `if (from < N) await m.createTable(<table>);` at the anchor every time a
+  table is added, self-healing projects generated before this fix (no
+  `MigrationStrategy` getter yet) by inserting the whole block after the
+  `schemaVersion` getter first. Same anchor-insertion methodology as every
+  other `// neat:` mechanism in NEAT.
+- Harness-proven: unit tests for the self-heal (idempotent, legacy-format
+  input) + reading the current version; the existing Workshop Drift-injection
+  integration test now also asserts `schemaVersion => 2`, the `migration`
+  getter, and the exact `onUpgrade` step, still analyzing 0/0. Full suite green.
+
 ### 6. Multiple architectures — later, with caution
 - The harness makes **every** architecture a ~3× maintenance cost (each must be proven).
   **Clean done deeply > 3 architectures done shallowly.** If adding one, MVVM at most;
@@ -537,14 +562,113 @@ foundation everything else is configured through.
 >   go_router_builder/offline-first), fast (`--exclude-tags integration`,
 >   165/165), and full integration (`--tags integration`) suites all green —
 >   zero regressions.
-> - **Phase 2, remaining** — supabase/firebase backends (would reopen
->   `!hasBackend`, and pull in Auth/Realtime/Storage); offline+sync/Outbox
->   (`sync_service.dart` needs the same core-package move); retrofit
->   (untested with packageSplit — likely close to working already, since its
->   ApiSource already falls into the same dio-provider branch and its model
->   import was already made relative, but not verified — and separately, not
->   yet selectable in the wizard at all regardless of packageSplit, since its
->   generation path has no harness coverage — see `isUnsupportedPackage`).
+> - ✅ **Phase 2, offline+sync/Outbox — done**. Same mechanical redirect
+>   pattern as every other core/-boundary fix this phase: `sync_service.dart`
+>   moves into the core package when packageSplit is on (`_writeCorePackage`
+>   gained `hasSync`), the app stops writing its own copy (dead code, gated on
+>   `corePackageName == null` — same as every file in the "clean up the
+>   duplicated core/" note above), and `featureRepositoryProviders()`'s one
+>   remaining unredirected import (`core/sync/sync_service.dart` — the only
+>   spot in that function still hardcoded to `packageName`) now uses
+>   `corePackageName ?? packageName`. `packageSplitSupported`/`canPackageSplit`
+>   dropped the `!hasSync` restriction — every storage strategy (remote-only,
+>   offline-first read, offline-first + sync) now works with packageSplit.
+>   Harness-proven: a new integration test generates packageSplit +
+>   `offlineFirstSync`, asserts core ships `sync_service.dart` importing its
+>   own `network_info.dart`, the app has no copy, the split feature's
+>   `SyncService` provider crosses into core, and `flutter analyze` 0/0. Full
+>   suite still green.
+> - ✅ **Phase 2, Supabase/Firebase backends — done**. Dropped `!hasBackend`
+>   from `packageSplitSupported`/`canPackageSplit` — dio/chopper/supabase/
+>   firebase all work now, with auth/realtime/storage.
+>   - `_writeCorePackage` gained `httpClient == 'supabase'/'firebase'`
+>     branches (mirrors dio/chopper exactly) writing `supabase_provider.dart`/
+>     `firebase_provider.dart` into core; the app's own copies are skipped
+>     when split (same dead-code gating as every other core/-boundary file).
+>     `networkErrorHandler` needed no changes — it was already httpClient-
+>     driven (dio/chopper/supabase/firebase branches all pre-existed from
+>     §5d), just never actually exercised with `corePackageName` before since
+>     the combo was excluded.
+>   - **Auth becomes its own workspace package too — `packages/<app>_auth/`**
+>     (superseding an earlier draft of this note that kept Auth app-level).
+>     Compared directly against **wesioo**: it splits auth into a standalone
+>     `packages/authentication` with **zero** workspace dependencies — its own
+>     `Result`/`Failure`/`UseCase`/network interceptors/secure storage,
+>     literally copy-pasteable into another app — while its screens/routes/
+>     form-state stay in `lib/features/auth/`. NEAT deliberately diverges:
+>     the whole feature (screens included) moves into the package, but it
+>     depends on `<app>_core` for `Result`/`Failure`/`UseCase` like every
+>     other split feature, rather than duplicating them — consistent with
+>     NEAT's own single-core-dependency model, and avoiding a second,
+>     divergent "zero-dep package" pattern that would only exist for Auth.
+>     Mechanically the same conversion as Phase 1 Step 2a's first split
+>     feature: `AuthTemplates` gained `authPackageName` (relative self-imports
+>     for same-feature references, e.g. `authRepositoryImpl`'s
+>     `i_auth_repository.dart` import) alongside the existing
+>     `corePackageName` (Result/Failure/client-init-provider/`AppRoutePath`
+>     redirects). `router_notifier.dart` — the go_router guard — always stays
+>     app-level (it's plumbing, not a feature) but its `auth_provider.dart`
+>     import now crosses into the auth package when split, mirroring how
+>     `routesAggregator` already crosses into any other split feature's page.
+>     `_writeAuth` writes the package's own `pubspec.yaml` (reusing
+>     `CorePackageTemplates.featurePackagePubspec`, the same function every
+>     other split feature's pubspec already uses), and the auth route
+>     aggregator import/build_runner pass follow the established per-package
+>     pattern. `ProjectLoader.scanFeatures`'s `nonFeatureSuffixes` gained
+>     `'auth'` so the Workshop doesn't mistake the auth package for an
+>     addable/existing CRUD feature.
+>   - **Another real bug found via a failing integration test**:
+>     `_writeCorePackage`'s call to `CoreTemplates.appRoutePath()` never
+>     passed `hasAuth`, so core's `AppRoutePath` mirror never got the
+>     `login`/`signup`/`forgotPassword` constants — invisible until Auth
+>     actually became a package that imports `AppRoutePath` from core (every
+>     auth screen/route file failed to resolve `AppRoutePath.login` etc.).
+>     Fixed by threading `hasAuth` through that call, mirroring the app's own
+>     already-correct call.
+>   - `storage_service.dart`/`avatar_upload_field.dart` stay app-level
+>     (nothing NEAT generates imports them cross-package), but
+>     `storageService()`'s one import of the client-init provider still
+>     redirects to `corePackageName ?? packageName`, since *that* file does
+>     move when split.
+>   - **Two real bugs found and fixed along the way** (both pre-existing,
+>     never exercised before since backend+packageSplit was excluded):
+>     1. `CorePackageTemplates.pubspec()` never added `supabase_flutter`/
+>        `cloud_firestore` (+ `firebase_auth`/`firebase_storage` when
+>        auth/storage are on) to the core package's own dependencies — it
+>        only ever branched on chopper vs. dio. Without this, riverpod
+>        codegen for `supabase_provider.dart`/`firebase_provider.dart`
+>        silently failed to produce its `.g.dart`, cascading into
+>        `Undefined name 'supabaseClientProvider'` everywhere that imported
+>        it. Now a full `switch` on `httpClient` adds the right SDK dep(s).
+>     2. `PresentationTemplates._riverpodListStreamNotifier` (the realtime
+>        list notifier — `dataList && realtime`) hardcoded its two
+>        same-feature imports (`_repository_providers.dart`/`_entity.dart`)
+>        as `package:$packageName/features/$featureName/...` instead of a
+>        plain relative import, unlike every other same-feature cross-layer
+>        import in this codebase. Invisible outside packageSplit (the app
+>        always resolves its own package name), but a genuine feature→app
+>        import once split. Fixed to match `_riverpodListNotifier`'s existing
+>        relative-import convention; the now-fully-unused `packageName` param
+>        was deleted from `featureProvider()` rather than threaded through
+>        dead (one call site, `feature_scaffolder.dart`).
+>   - Harness-proven: two integration tests — packageSplit + Supabase + auth
+>     (asserts core ships `supabase_provider.dart`, nothing is left under
+>     `lib/features/auth/`, the auth package's `Result`/`Failure`/client
+>     imports redirect to core while its self-reference stays a relative
+>     import, `router_notifier.dart` crosses into the auth package, and the
+>     split feature's own DI crosses into core too) and packageSplit +
+>     Firebase + auth + realtime + storage (same, plus `firebase_provider.dart`'s
+>     auth/storage singletons, the realtime `watchAll()` stream, and
+>     `storageService`'s redirected import) — both `flutter analyze` 0/0.
+>     Full suite (including every pre-existing non-split Supabase/Firebase
+>     test, which stays on the unsplit `lib/features/auth/` path unchanged)
+>     still green.
+> - **Phase 2, remaining** — retrofit (untested with packageSplit — likely
+>   close to working already, since its ApiSource already falls into the same
+>   dio-provider branch and its model import was already made relative, but
+>   not verified — and separately, not yet selectable in the wizard at all
+>   regardless of packageSplit, since its generation path has no harness
+>   coverage — see `isUnsupportedPackage`).
 > - ✅ **i18n scoping — resolved: no per-package split, but a real bug fixed**.
 >   Raised by comparing against `maxit-front-flutter` (a real multi-dev Melos
 >   monorepo) — its `packages/feature/<name>/` each ship their own `l10n.yaml`

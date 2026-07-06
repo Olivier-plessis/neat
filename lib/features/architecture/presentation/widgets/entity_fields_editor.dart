@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:neat/core/theme/app_theme.dart';
 import 'package:neat/features/generation/domain/models/field_spec.dart';
+import 'package:neat_ui/neat_ui.dart';
 
 /// Paste-a-Response-JSON → editable entity fields. Presentational + callback
 /// driven so it works from both the wizard (Architecture step) and the
@@ -78,7 +78,7 @@ class _EntityFieldsEditorState extends State<EntityFieldsEditor> {
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: AppTheme.colorPrimaryCyan.withValues(alpha: 0.5)),
+                borderSide: BorderSide(color: Palette.colorPrimaryCyan.withValues(alpha: 0.5)),
               ),
             ),
           ),
@@ -90,7 +90,7 @@ class _EntityFieldsEditorState extends State<EntityFieldsEditor> {
                 icon: const Icon(Icons.auto_fix_high, size: 16),
                 label: const Text('Infer fields'),
                 style: FilledButton.styleFrom(
-                  backgroundColor: AppTheme.colorPrimaryCyan,
+                  backgroundColor: Palette.colorPrimaryCyan,
                   foregroundColor: Colors.black,
                   iconColor: Colors.black,
                   minimumSize: const Size(0, 40),
@@ -130,7 +130,7 @@ class _EntityFieldsEditorState extends State<EntityFieldsEditor> {
               onPressed: widget.onAddField,
               icon: const Icon(Icons.add, size: 16),
               label: const Text('Add field'),
-              style: TextButton.styleFrom(foregroundColor: AppTheme.colorPrimaryCyan),
+              style: TextButton.styleFrom(foregroundColor: Palette.colorPrimaryCyan),
             ),
           ),
           if (widget.warnings.isNotEmpty) ...[
@@ -224,13 +224,13 @@ class _FieldRowState extends State<_FieldRow> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
-                border: Border.all(color: AppTheme.colorPrimaryCyan.withValues(alpha: 0.5)),
+                border: Border.all(color: Palette.colorPrimaryCyan.withValues(alpha: 0.5)),
                 borderRadius: BorderRadius.circular(4),
               ),
               child: const Text(
                 'ID',
                 style: TextStyle(
-                  color: AppTheme.colorPrimaryCyan,
+                  color: Palette.colorPrimaryCyan,
                   fontSize: 9,
                   fontWeight: FontWeight.bold,
                 ),
@@ -270,7 +270,7 @@ class _FieldRowState extends State<_FieldRow> {
                 onChanged: locked ? null : (v) => widget.onNullable(v ?? false),
                 visualDensity: VisualDensity.compact,
                 materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                activeColor: AppTheme.colorPrimaryCyan,
+                activeColor: Palette.colorPrimaryCyan,
               ),
               Text('null?', style: TextStyle(color: Colors.grey[500], fontSize: 11)),
             ],

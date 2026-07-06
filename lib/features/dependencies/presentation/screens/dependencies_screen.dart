@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
-import 'package:neat/core/theme/app_theme.dart';
-import 'package:neat/core/theme/gap.dart';
 import 'package:neat/features/dependencies/domain/constants/backend_presets.dart';
 import 'package:neat/features/dependencies/domain/constants/unsupported_packages.dart';
 import 'package:neat/features/dependencies/domain/models/pub_package.dart';
 import 'package:neat/features/dependencies/presentation/providers/dependencies_provider.dart';
+import 'package:neat_ui/neat_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class DependenciesScreen extends HookConsumerWidget {
@@ -50,7 +49,7 @@ class DependenciesScreen extends HookConsumerWidget {
           style: const TextStyle(color: Colors.white),
           decoration: InputDecoration(
             hintText: 'Search packages on pub.dev...',
-            prefixIcon: const Icon(Icons.search, color: AppTheme.colorPrimaryCyan, size: 20),
+            prefixIcon: const Icon(Icons.search, color: Palette.colorPrimaryCyan, size: 20),
             suffixIcon: query.isNotEmpty
                 ? IconButton(
                     icon: const Icon(Icons.clear, color: Colors.grey, size: 18),
@@ -172,7 +171,7 @@ class _TabButton extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 14, color: isSelected ? AppTheme.colorPrimaryCyan : Colors.white24),
+              Icon(icon, size: 14, color: isSelected ? Palette.colorPrimaryCyan : Colors.white24),
               8.gapW,
               Text(
                 label,
@@ -212,7 +211,7 @@ class _ManagedPackagesPanel extends ConsumerWidget {
             padding: const EdgeInsets.all(16),
             child: Row(
               children: [
-                const Icon(Icons.inventory_2_outlined, color: AppTheme.colorPrimaryCyan, size: 16),
+                const Icon(Icons.inventory_2_outlined, color: Palette.colorPrimaryCyan, size: 16),
                 const SizedBox(width: 8),
                 Text(
                   '${packages.length} SELECTED PACKAGES',
@@ -329,11 +328,11 @@ class _SheetPackageTileState extends ConsumerState<_SheetPackageTile> {
                                 fillColor: const Color(0xFF2A2A2E),
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(4),
-                                  borderSide: const BorderSide(color: AppTheme.colorPrimaryCyan),
+                                  borderSide: const BorderSide(color: Palette.colorPrimaryCyan),
                                 ),
                                 focusedBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(4),
-                                  borderSide: const BorderSide(color: AppTheme.colorPrimaryCyan),
+                                  borderSide: const BorderSide(color: Palette.colorPrimaryCyan),
                                 ),
                               ),
                               onSubmitted: (_) => _commit(),
@@ -355,7 +354,7 @@ class _SheetPackageTileState extends ConsumerState<_SheetPackageTile> {
                               child: Text(
                                 widget.package.version,
                                 style: const TextStyle(
-                                  color: AppTheme.colorPrimaryCyan,
+                                  color: Palette.colorPrimaryCyan,
                                   fontSize: 12,
                                 ),
                               ),
@@ -373,7 +372,7 @@ class _SheetPackageTileState extends ConsumerState<_SheetPackageTile> {
                       style: TextStyle(
                         color: widget.package.isDev
                             ? const Color(0xFFFFA726)
-                            : AppTheme.colorPrimaryCyan,
+                            : Palette.colorPrimaryCyan,
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
                       ),
@@ -416,7 +415,7 @@ class _SearchResults extends ConsumerWidget {
       AsyncError() => Center(
         child: Text('Error connecting to pub.dev', style: TextStyle(color: Colors.redAccent[100])),
       ),
-      _ => const Center(child: CircularProgressIndicator(color: AppTheme.colorPrimaryCyan)),
+      _ => const Center(child: CircularProgressIndicator(color: Palette.colorPrimaryCyan)),
     };
   }
 
@@ -485,7 +484,7 @@ class _PackageListTile extends StatelessWidget {
             color: const Color(0xFF141416),
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
-              color: isSelected ? AppTheme.colorPrimaryCyan : Colors.white10,
+              color: isSelected ? Palette.colorPrimaryCyan : Colors.white10,
               width: isSelected ? 1.5 : 1,
             ),
           ),
@@ -553,7 +552,7 @@ class _PackageListTile extends StatelessWidget {
                       style: TextStyle(color: Color(0xFFFFA726), fontSize: 10),
                     ),
                   ),
-                const Icon(Icons.check_circle, color: AppTheme.colorPrimaryCyan, size: 20),
+                const Icon(Icons.check_circle, color: Palette.colorPrimaryCyan, size: 20),
               ],
             ],
           ),
@@ -647,8 +646,8 @@ class _PackageDetailCard extends ConsumerWidget {
                   height: 46,
                   child: OutlinedButton.icon(
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: AppTheme.colorPrimaryCyan,
-                      side: const BorderSide(color: AppTheme.colorPrimaryCyan),
+                      foregroundColor: Palette.colorPrimaryCyan,
+                      side: const BorderSide(color: Palette.colorPrimaryCyan),
                     ),
                     icon: const Icon(Icons.open_in_new, size: 16),
                     label: const Text('View on pub.dev'),
@@ -665,8 +664,8 @@ class _PackageDetailCard extends ConsumerWidget {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: isAdded
                             ? const Color(0xFF2A1A1A)
-                            : AppTheme.colorPrimaryCyan,
-                        foregroundColor: isAdded ? Colors.redAccent : AppTheme.colorNeutralBg,
+                            : Palette.colorPrimaryCyan,
+                        foregroundColor: isAdded ? Colors.redAccent : Palette.colorNeutralBg,
                         side: isAdded ? const BorderSide(color: Colors.redAccent) : BorderSide.none,
                       ),
                       icon: Icon(isAdded ? Icons.remove_circle_outline : Icons.add, size: 18),
@@ -727,12 +726,12 @@ class _VersionBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: AppTheme.colorSecondaryBlue,
+        color: Palette.colorSecondaryBlue,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
         'v$version',
-        style: const TextStyle(color: AppTheme.colorPrimaryCyan, fontSize: 11),
+        style: const TextStyle(color: Palette.colorPrimaryCyan, fontSize: 11),
       ),
     );
   }
@@ -805,7 +804,7 @@ class _DevToggle extends StatelessWidget {
                 Text(
                   isDev ? 'dev_dependencies' : 'dependencies',
                   style: TextStyle(
-                    color: isDev ? const Color(0xFFFFA726) : AppTheme.colorPrimaryCyan,
+                    color: isDev ? const Color(0xFFFFA726) : Palette.colorPrimaryCyan,
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
                     fontFamily: 'monospace',
@@ -824,8 +823,8 @@ class _DevToggle extends StatelessWidget {
             onChanged: isAdded ? onChanged : null,
             activeThumbColor: const Color(0xFFFFA726),
             activeTrackColor: const Color(0xFF3D2A10),
-            inactiveThumbColor: AppTheme.colorPrimaryCyan,
-            inactiveTrackColor: AppTheme.colorSecondaryBlue,
+            inactiveThumbColor: Palette.colorPrimaryCyan,
+            inactiveTrackColor: Palette.colorSecondaryBlue,
           ),
         ],
       ),

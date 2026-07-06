@@ -95,4 +95,49 @@ final List<RouteBase> appRoutes = [
       expect(routeIdx, lessThan(entriesIdx));
     });
   });
+
+  group('database.dart migration strategy', () {
+    // Exact legacy format: no MigrationStrategy getter (predates the fix for
+    // the real bug found via a device log — a table added later never got
+    // created on a device that already had the app installed, since Drift
+    // only runs onCreate on a brand-new db file).
+    const legacy = '''class AppDatabase extends _\$AppDatabase {
+  AppDatabase([QueryExecutor? executor]) : super(executor ?? _open());
+
+  @override
+  int get schemaVersion => 1;
+
+  // ── home CRUD ───────────────────────────────────────────────────────────
+
+  Future<List<HomeRow>> getAllHomes() => select(homeRows).get();
+
+  // neat:daos — feature DAOs are inserted above this line.
+
+  static QueryExecutor _open() => driftDatabase(name: 'app_db');
+}
+''';
+
+    test('currentSchemaVersion reads the getter', () {
+      expect(GenerateFeatureUsecase.currentSchemaVersion(legacy), 1);
+    });
+
+    test('ensureMigrationStrategy adds the getter + anchor after schemaVersion', () {
+      final healed = GenerateFeatureUsecase.ensureMigrationStrategy(legacy);
+      expect(healed, contains('MigrationStrategy get migration'));
+      expect(healed, contains('// neat:migrations'));
+      expect(healed, contains('onCreate: (m) => m.createAll(),'));
+      final schemaIdx = healed.indexOf('int get schemaVersion => 1;');
+      final migrationIdx = healed.indexOf('MigrationStrategy get migration');
+      final daoIdx = healed.indexOf('getAllHomes');
+      expect(schemaIdx, lessThan(migrationIdx));
+      expect(migrationIdx, lessThan(daoIdx));
+    });
+
+    test('ensureMigrationStrategy is idempotent (already-anchored stays unchanged)', () {
+      final once = GenerateFeatureUsecase.ensureMigrationStrategy(legacy);
+      final twice = GenerateFeatureUsecase.ensureMigrationStrategy(once);
+      expect(twice, once);
+      expect('MigrationStrategy get migration'.allMatches(twice).length, 1);
+    });
+  });
 }

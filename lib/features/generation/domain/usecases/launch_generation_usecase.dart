@@ -185,14 +185,17 @@ class LaunchGenerationUsecase {
     // than trusted as-is — the wizard disables its toggle outside this exact
     // combo, but the underlying flag can still drift (e.g. flipping storage
     // strategy after turning packageSplit on), so the generator re-validates
-    // the combo before acting on it. dio + chopper only for now, manual or
-    // typed (go_router_builder) routing, offline-first without sync/Outbox
-    // yet (see ROADMAP.md §6a) — supabase/firebase/retrofit clients +
-    // offline+sync remain Phase 2/3.
+    // the combo before acting on it. dio/chopper/supabase/firebase, manual or
+    // typed (go_router_builder) routing, remote-only/offline-first-read/
+    // offline-first-sync, auth/realtime/storage all supported (see
+    // ROADMAP.md §6a) — retrofit remains untested (no harness coverage at
+    // all yet, regardless of packageSplit).
     final packageSplitSupported =
         architecture.packageSplit &&
-        (httpClient == 'dio' || httpClient == 'chopper') &&
-        !hasSync &&
+        (httpClient == 'dio' ||
+            httpClient == 'chopper' ||
+            httpClient == 'supabase' ||
+            httpClient == 'firebase') &&
         useAnnotations &&
         hasGoRouter;
     final corePackageName = packageSplitSupported ? '${packageName}_core' : null;
@@ -200,12 +203,20 @@ class LaunchGenerationUsecase {
     final featurePackageName = packageSplitSupported && architecture.generateFirstFeature
         ? '${packageName}_$featureName'
         : null;
+    // Auth becomes its own workspace package too when split — same
+    // package-root shape as any other split feature (screens included), just
+    // depending on corePackageName for Result/Failure/UseCase instead of
+    // duplicating them (unlike wesioo's standalone `authentication` package,
+    // which has zero workspace deps — see ROADMAP.md §6a for why NEAT
+    // deliberately diverges here).
+    final authPackageName = packageSplitSupported && hasAuth ? '${packageName}_auth' : null;
     // App path-deps + workspace members.
     final pathPackages = <String>[
       ?localStoragePackage,
       ?uiPackage,
       ?corePackageName,
       ?featurePackageName,
+      ?authPackageName,
     ];
     final extraWorkspaceMembers = <String>[if (widgetbookIsMember) 'widgetbook'];
 
@@ -245,6 +256,7 @@ class LaunchGenerationUsecase {
       hasI18n: hasI18n,
       corePackageName: corePackageName,
       featurePackageName: featurePackageName,
+      authPackageName: authPackageName,
     );
     onLog('[✓] Scaffold created.');
 
@@ -258,6 +270,9 @@ class LaunchGenerationUsecase {
         httpClient: httpClient,
         localStoragePackage: localStoragePackage,
         hasI18n: hasI18n,
+        hasSync: hasSync,
+        hasAuth: hasAuth,
+        hasStorage: hasStorage,
       );
       onLog('[✓] packages/$corePackageName created.');
     }
@@ -374,6 +389,14 @@ class LaunchGenerationUsecase {
     if (featurePackageName != null) {
       onLog('[▶] Running build_runner in packages/$featurePackageName...');
       await _runBuildRunner(Directory('${projectDir.path}/packages/$featurePackageName'), onLog);
+    }
+
+    // Same for the auth package — its own riverpod codegen (auth_provider.g.dart,
+    // auth_repository_providers.g.dart, auth_routes.g.dart) isn't produced by
+    // the root build either.
+    if (authPackageName != null) {
+      onLog('[▶] Running build_runner in packages/$authPackageName...');
+      await _runBuildRunner(Directory('${projectDir.path}/packages/$authPackageName'), onLog);
     }
 
     // 6c. slang i18n codegen via the standalone CLI (not slang_build_runner —
@@ -504,6 +527,7 @@ class LaunchGenerationUsecase {
     bool hasI18n = false,
     String? corePackageName,
     String? featurePackageName,
+    String? authPackageName,
   }) async {
     final lib = '${projectDir.path}/lib';
 
@@ -739,7 +763,11 @@ class LaunchGenerationUsecase {
         ),
       );
     }
-    if (httpClient == 'supabase' && hasRiverpod) {
+    // packageSplit: dead code — every feature's supabase_provider.dart import
+    // already redirects to corePackageName (see DataTemplates.
+    // featureRepositoryProviders), and Auth (which stays app-level even when
+    // split — see AuthTemplates) redirects there too.
+    if (httpClient == 'supabase' && hasRiverpod && corePackageName == null) {
       await _write(
         '$lib/core/network/supabase_provider.dart',
         CoreTemplates.supabaseProvider(packageName: packageName, useAnnotations: useAnnotations),
@@ -747,7 +775,10 @@ class LaunchGenerationUsecase {
     }
 
     // ── core/network + firebase_options (Firebase backend) ───────────────────
-    if (httpClient == 'firebase' && hasRiverpod) {
+    // packageSplit: same reasoning as supabase above for firebase_provider.dart
+    // — firebase_options.dart/firestore config stay app-level regardless (not
+    // Dart-importable, no boundary to cross).
+    if (httpClient == 'firebase' && hasRiverpod && corePackageName == null) {
       await _write(
         '$lib/core/network/firebase_provider.dart',
         CoreTemplates.firebaseProvider(
@@ -757,6 +788,8 @@ class LaunchGenerationUsecase {
           hasStorage: hasStorage,
         ),
       );
+    }
+    if (httpClient == 'firebase' && hasRiverpod) {
       // firebase_options.dart from the uploaded config JSON (stub values if
       // none was provided — the project still compiles).
       final config = _readFirebaseConfig(architecture.firebaseConfigPath);
@@ -780,6 +813,7 @@ class LaunchGenerationUsecase {
           packageName: packageName,
           useAnnotations: useAnnotations,
           backend: httpClient,
+          corePackageName: corePackageName,
         ),
       );
       await _write(
@@ -810,7 +844,11 @@ class LaunchGenerationUsecase {
     }
 
     // ── core/sync (offline-first + sync / Outbox) ────────────────────────────
-    if (localStoragePackage != null && hasSync) {
+    // packageSplit: dead code — every feature's SyncService provider already
+    // redirects to corePackageName's copy (see
+    // DataTemplates.featureRepositoryProviders), and the app itself never
+    // reads SyncService directly.
+    if (localStoragePackage != null && hasSync && corePackageName == null) {
       await _write(
         '$lib/core/sync/sync_service.dart',
         CoreTemplates.syncService(
@@ -881,11 +919,14 @@ class LaunchGenerationUsecase {
     // ── auth feature (opt-in, Supabase + go_router_builder) ──────────────────
     if (hasAuth) {
       await _writeAuth(
+        projectDir: projectDir,
         lib: lib,
         packageName: packageName,
         featureName: featureName,
         backend: httpClient,
         oauth: hasOAuth,
+        corePackageName: corePackageName,
+        authPackageName: authPackageName,
       );
     }
 
@@ -1349,49 +1390,107 @@ dev_dependencies:
 
   // ── auth feature (opt-in: Supabase + go_router_builder + riverpod) ──────────
 
+  /// [authPackageName] set when packageSplit is on: Auth (screens included)
+  /// becomes its own workspace package (`packages/<app>_auth/`, package-root
+  /// layout like any other split feature) instead of `lib/features/auth/`,
+  /// depending on [corePackageName] for Result/Failure/UseCase rather than
+  /// duplicating them the way wesioo's standalone `authentication` package
+  /// does (see ROADMAP.md §6a).
   Future<void> _writeAuth({
+    required Directory projectDir,
     required String lib,
     required String packageName,
     required String featureName,
     String backend = 'supabase',
     bool oauth = false,
+    String? corePackageName,
+    String? authPackageName,
   }) async {
-    final a = '$lib/features/auth';
+    final a = authPackageName != null
+        ? '${projectDir.path}/packages/$authPackageName/lib'
+        : '$lib/features/auth';
+    if (authPackageName != null) {
+      await _write(
+        '${projectDir.path}/packages/$authPackageName/pubspec.yaml',
+        CorePackageTemplates.featurePackagePubspec(
+          featurePackageName: authPackageName,
+          corePackageName: corePackageName!,
+          httpClient: backend,
+          hasGoRouterBuilder: true, // generateAuth already requires it
+        ),
+      );
+    }
     await _write(
       '$a/domain/repositories/i_auth_repository.dart',
-      AuthTemplates.iAuthRepository(packageName: packageName, oauth: oauth),
+      AuthTemplates.iAuthRepository(
+        packageName: packageName,
+        oauth: oauth,
+        corePackageName: corePackageName,
+      ),
     );
     await _write(
       '$a/data/repositories/auth_repository_impl.dart',
-      AuthTemplates.authRepositoryImpl(packageName: packageName, backend: backend, oauth: oauth),
+      AuthTemplates.authRepositoryImpl(
+        packageName: packageName,
+        backend: backend,
+        oauth: oauth,
+        corePackageName: corePackageName,
+        authPackageName: authPackageName,
+      ),
     );
     await _write(
       '$a/presentation/providers/auth_provider.dart',
-      AuthTemplates.authProvider(packageName: packageName, backend: backend),
+      AuthTemplates.authProvider(
+        packageName: packageName,
+        backend: backend,
+        corePackageName: corePackageName,
+      ),
     );
     await _write(
       '$a/data/repositories/auth_repository_providers.dart',
-      AuthTemplates.authRepositoryProviders(packageName: packageName, backend: backend),
+      AuthTemplates.authRepositoryProviders(
+        packageName: packageName,
+        backend: backend,
+        corePackageName: corePackageName,
+        authPackageName: authPackageName,
+      ),
     );
     await _write(
       '$a/presentation/screens/login_screen.dart',
-      AuthTemplates.loginScreen(packageName: packageName, oauth: oauth),
+      AuthTemplates.loginScreen(
+        packageName: packageName,
+        oauth: oauth,
+        corePackageName: corePackageName,
+        authPackageName: authPackageName,
+      ),
     );
     await _write(
       '$a/presentation/screens/signup_screen.dart',
-      AuthTemplates.signupScreen(packageName: packageName),
+      AuthTemplates.signupScreen(
+        packageName: packageName,
+        corePackageName: corePackageName,
+        authPackageName: authPackageName,
+      ),
     );
     await _write(
       '$a/presentation/screens/forgot_password_screen.dart',
-      AuthTemplates.forgotPasswordScreen(packageName: packageName),
+      AuthTemplates.forgotPasswordScreen(
+        packageName: packageName,
+        corePackageName: corePackageName,
+        authPackageName: authPackageName,
+      ),
     );
     await _write(
       '$a/presentation/routes/auth_routes.dart',
-      AuthTemplates.authRoutesBuilder(packageName: packageName),
+      AuthTemplates.authRoutesBuilder(
+        packageName: packageName,
+        corePackageName: corePackageName,
+        authPackageName: authPackageName,
+      ),
     );
 
     // The go_router guard. Logged-in users on an auth route go to the first
-    // feature's route ('/').
+    // feature's route ('/'). router_notifier.dart always stays app-level.
     final homeRoute = 'AppRoutePath.${_camelCase(featureName)}';
     await _write(
       '$lib/core/router/router_notifier.dart',
@@ -1399,18 +1498,18 @@ dev_dependencies:
         packageName: packageName,
         homeRoute: homeRoute,
         backend: backend,
+        authPackageName: authPackageName,
       ),
     );
 
     // Aggregate the auth routes into the shared route table (at the anchors).
+    final authRoutesImport = authPackageName != null
+        ? "import 'package:$authPackageName/presentation/routes/auth_routes.dart' as auth;"
+        : "import 'package:$packageName/features/auth/presentation/routes/auth_routes.dart' as auth;";
     final routes = File('$lib/core/router/routes.dart');
     if (routes.existsSync()) {
       var s = await routes.readAsString();
-      s = _insertBeforeAnchor(
-        s,
-        '// neat:route-imports',
-        "import 'package:$packageName/features/auth/presentation/routes/auth_routes.dart' as auth;",
-      );
+      s = _insertBeforeAnchor(s, '// neat:route-imports', authRoutesImport);
       s = _insertBeforeAnchor(s, '// neat:route-entries', r'  ...auth.$appRoutes,');
       await routes.writeAsString(s);
     }
@@ -1799,6 +1898,20 @@ dev_dependencies:
     // and core is the only place that sits below all of them.
     String? localStoragePackage,
     bool hasI18n = false,
+    // Set when offline-first *sync* (Outbox) is on: sync_service.dart moves
+    // here too, for the same reason as network_info.dart/
+    // infrastructure_providers.dart above — every feature package's
+    // SyncService provider (see DataTemplates.featureRepositoryProviders)
+    // needs to import the same copy, and a feature package can't import the
+    // app's.
+    bool hasSync = false,
+    // Supabase/Firebase client-init providers move here too, for the same
+    // reason as dio/chopper above — Auth (which stays app-level even when
+    // split, see AuthTemplates) and every feature's ApiSource both need the
+    // same client instance. hasAuth/hasStorage drive which extra Firebase
+    // singletons firebase_provider.dart exposes (mirrors the app-level call).
+    bool hasAuth = false,
+    bool hasStorage = false,
   }) async {
     final root = '${projectDir.path}/packages/$corePackageName';
     await _write(
@@ -1808,6 +1921,8 @@ dev_dependencies:
         httpClient: httpClient,
         localStoragePackage: localStoragePackage,
         hasI18n: hasI18n,
+        hasAuth: hasAuth,
+        hasStorage: hasStorage,
       ),
     );
     await _write('$root/lib/core/error/failure.dart', CoreTemplates.failure());
@@ -1853,6 +1968,23 @@ dev_dependencies:
         ),
       );
     }
+    if (httpClient == 'supabase') {
+      await _write(
+        '$root/lib/core/network/supabase_provider.dart',
+        CoreTemplates.supabaseProvider(packageName: corePackageName, useAnnotations: true),
+      );
+    }
+    if (httpClient == 'firebase') {
+      await _write(
+        '$root/lib/core/network/firebase_provider.dart',
+        CoreTemplates.firebaseProvider(
+          packageName: corePackageName,
+          useAnnotations: true,
+          hasAuth: hasAuth,
+          hasStorage: hasStorage,
+        ),
+      );
+    }
     await _write(
       '$root/lib/core/observers/logger_interceptor.dart',
       CoreTemplates.loggerInterceptor(packageName: corePackageName, httpClient: httpClient),
@@ -1867,7 +1999,11 @@ dev_dependencies:
     );
     await _write(
       '$root/lib/core/constants/app_route_path.dart',
-      CoreTemplates.appRoutePath(featureName: featureName),
+      // hasAuth: the split Auth package's screens/routes import AppRoutePath
+      // from here, so the login/signup/forgotPassword constants must be
+      // mirrored here too — missing this made every auth route constant
+      // undefined in the auth package (found via a failing integration test).
+      CoreTemplates.appRoutePath(featureName: featureName, hasAuth: hasAuth),
     );
     // theme_mode_controller is a single app-wide *stateful* provider (unlike
     // the other core files above, which are stateless types/singletons) —
@@ -1888,6 +2024,15 @@ dev_dependencies:
           localStoragePackage: localStoragePackage,
         ),
       );
+      if (hasSync) {
+        await _write(
+          '$root/lib/core/sync/sync_service.dart',
+          CoreTemplates.syncService(
+            packageName: corePackageName,
+            localStoragePackage: localStoragePackage,
+          ),
+        );
+      }
     }
   }
 
