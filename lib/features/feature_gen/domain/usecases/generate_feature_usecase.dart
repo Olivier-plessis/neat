@@ -300,7 +300,59 @@ class GenerateFeatureUsecase {
         s, '// neat:tables', '${LocalStorageTemplates.featureTable(featureName, fields: fields)}\n');
     s = _insertBefore(s, '// neat:table-names', '    ${p}Rows,');
     s = _insertBefore(s, '// neat:daos', '${LocalStorageTemplates.featureDao(featureName)}\n');
+
+    // Bump the schema version + add a migration step so a device that
+    // already has the app installed picks up the new table — Drift only
+    // runs onCreate on a brand-new db file, never onUpgrade, unless the
+    // version actually changes (see LocalStorageTemplates.database's doc).
+    // Self-heals projects generated before this mechanism existed.
+    s = _ensureMigrationStrategy(s);
+    final newVersion = _currentSchemaVersion(s) + 1;
+    s = _setSchemaVersion(s, newVersion);
+    s = _insertBefore(
+      s,
+      '// neat:migrations',
+      '          if (from < $newVersion) await m.createTable(${_camel(featureName)}Rows);',
+    );
     await db.writeAsString(s);
+  }
+
+  /// Reads `int get schemaVersion => N;`. Defaults to 1 if the getter can't
+  /// be found (shouldn't happen — every generated database.dart has one).
+  @visibleForTesting
+  static int currentSchemaVersion(String source) => _currentSchemaVersion(source);
+  static int _currentSchemaVersion(String source) {
+    final m = RegExp(r'int get schemaVersion => (\d+);').firstMatch(source);
+    return m != null ? int.parse(m.group(1)!) : 1;
+  }
+
+  static String _setSchemaVersion(String source, int version) =>
+      source.replaceFirst(RegExp(r'int get schemaVersion => \d+;'), 'int get schemaVersion => $version;');
+
+  /// Adds the `MigrationStrategy get migration` getter (with the
+  /// `// neat:migrations` anchor inside `onUpgrade`) right after the
+  /// `schemaVersion` getter, when missing. Idempotent — no-op if a project
+  /// already has it (every project generated after this fix does).
+  @visibleForTesting
+  static String ensureMigrationStrategy(String source) => _ensureMigrationStrategy(source);
+  static String _ensureMigrationStrategy(String source) {
+    if (source.contains('MigrationStrategy get migration')) return source;
+    const anchor = 'int get schemaVersion => ';
+    final idx = source.indexOf(anchor);
+    if (idx < 0) return source; // can't self-heal without the getter to anchor on
+    final lineEnd = source.indexOf('\n', idx);
+    if (lineEnd < 0) return source;
+    const migrationBlock = '''
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+        onCreate: (m) => m.createAll(),
+        onUpgrade: (m, from, to) async {
+          // neat:migrations
+        },
+      );
+''';
+    return source.substring(0, lineEnd + 1) + migrationBlock + source.substring(lineEnd + 1);
   }
 
   // ── Route wiring (inserts at the // neat: anchors) ─────────────────────────

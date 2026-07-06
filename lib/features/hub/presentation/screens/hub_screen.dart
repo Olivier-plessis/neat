@@ -1,11 +1,11 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
-import 'package:neat/core/theme/app_theme.dart';
 import 'package:neat/features/feature_gen/presentation/providers/workshop_controller.dart';
 import 'package:neat/features/hub/domain/models/recent_project.dart';
 import 'package:neat/features/hub/presentation/providers/recent_projects_provider.dart';
 import 'package:neat/features/identity/presentation/providers/stepper_provider.dart';
+import 'package:neat_ui/neat_ui.dart';
 
 /// The landing screen: create a fresh project (→ wizard) or open an existing
 /// NEAT project (→ Workshop), plus a list of recent projects.
@@ -85,7 +85,7 @@ class HubScreen extends ConsumerWidget {
                         const SizedBox(height: 48),
                         Row(
                           children: [
-                            const Icon(Icons.history, size: 18, color: AppTheme.colorPrimaryCyan),
+                            const Icon(Icons.history, size: 18, color: Palette.colorPrimaryCyan),
                             const SizedBox(width: 8),
                             const Text(
                               'Recent Projects',
@@ -148,7 +148,7 @@ class _Header extends StatelessWidget {
               TextSpan(text: 'Welcome to '),
               TextSpan(
                 text: 'NEAT',
-                style: TextStyle(color: AppTheme.colorPrimaryCyan),
+                style: TextStyle(color: Palette.colorPrimaryCyan),
               ),
             ],
           ),
@@ -200,16 +200,16 @@ class _ActionCard extends StatelessWidget {
               height: 64,
               decoration: BoxDecoration(
                 color: accent
-                    ? AppTheme.colorPrimaryCyan.withValues(alpha: 0.12)
+                    ? Palette.colorPrimaryCyan.withValues(alpha: 0.12)
                     : Colors.white.withValues(alpha: 0.04),
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: accent ? AppTheme.colorPrimaryCyan.withValues(alpha: 0.4) : Colors.white12,
+                  color: accent ? Palette.colorPrimaryCyan.withValues(alpha: 0.4) : Colors.white12,
                 ),
               ),
               child: Icon(
                 icon,
-                color: accent ? AppTheme.colorPrimaryCyan : Colors.white70,
+                color: accent ? Palette.colorPrimaryCyan : Colors.white70,
                 size: 26,
               ),
             ),
@@ -233,8 +233,8 @@ class _ActionCard extends StatelessWidget {
               onPressed: onTap,
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size(160, 44),
-                foregroundColor: accent ? AppTheme.colorPrimaryCyan : Colors.white,
-                side: BorderSide(color: accent ? AppTheme.colorPrimaryCyan : Colors.white24),
+                foregroundColor: accent ? Palette.colorPrimaryCyan : Colors.white,
+                side: BorderSide(color: accent ? Palette.colorPrimaryCyan : Colors.white24),
               ),
               child: Text(button.toUpperCase(), style: const TextStyle(letterSpacing: 0.8)),
             ),

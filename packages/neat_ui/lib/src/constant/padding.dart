@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+part of 'constant.dart';
 
 extension PaddingExt on Widget {
   Widget paddedH(double value) {

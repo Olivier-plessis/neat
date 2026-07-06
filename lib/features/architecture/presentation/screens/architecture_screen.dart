@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
-import 'package:neat/core/theme/app_theme.dart';
 import 'package:neat/features/architecture/domain/models/architecture_state.dart';
 import 'package:neat/features/architecture/domain/usecases/generate_tree_usecase.dart';
 import 'package:neat/features/architecture/presentation/providers/architecture_provider.dart';
 import 'package:neat/features/dependencies/presentation/providers/dependencies_provider.dart';
 import 'package:neat/features/identity/presentation/providers/identity_provider.dart';
+import 'package:neat_ui/neat_ui.dart';
 
 class ArchitectureScreen extends ConsumerWidget {
   const ArchitectureScreen({super.key});
@@ -47,22 +47,23 @@ class ArchitectureScreen extends ConsumerWidget {
     final hasRetrofit = ref.watch(
       selectedPackagesProvider.select((list) => list.any((p) => p.name == 'retrofit')),
     );
-    // packageSplit combo (see ROADMAP.md §6a): dio or chopper, remote-only or
-    // offline-first (read-through cache, no sync/Outbox yet), Riverpod
-    // annotations, manual or typed (go_router_builder) routing, and a first
-    // feature to split. Mirrors launch_generation_usecase.dart's
-    // packageSplitSupported — the generator re-derives this independently
-    // rather than trusting the raw flag, so keeping the toggle disabled
-    // outside this combo is a UX courtesy, not the only safety net.
-    // supabase/firebase/retrofit clients + offline+sync remain Phase 2/3.
-    final canPackageSplit = state.generateFirstFeature &&
+    // packageSplit combo (see ROADMAP.md §6a): dio/chopper/supabase/firebase,
+    // any storage strategy (remote-only, offline-first read, or offline-first
+    // + sync/Outbox), Riverpod annotations, manual or typed (go_router_builder)
+    // routing, and a first feature to split. Auth/realtime/storage all work
+    // too (Auth stays app-level even when split — see AuthTemplates). Mirrors
+    // launch_generation_usecase.dart's packageSplitSupported — the generator
+    // re-derives this independently rather than trusting the raw flag, so
+    // keeping the toggle disabled outside this combo is a UX courtesy, not
+    // the only safety net. retrofit remains untested (no harness coverage at
+    // all yet, regardless of packageSplit).
+    final canPackageSplit =
+        state.generateFirstFeature &&
         hasRiverpod &&
         state.useRiverpodAnnotations &&
         hasGoRouter &&
-        (hasDio || hasChopper) &&
-        !hasRetrofit &&
-        !hasBackend &&
-        !state.storageStrategy.hasSync;
+        (hasDio || hasChopper || hasBackend) &&
+        !hasRetrofit;
     final tree = const GenerateTreeUsecase().execute(
       state,
       hasRiverpod: hasRiverpod,
@@ -96,7 +97,7 @@ class ArchitectureScreen extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _SectionHeader(icon: Icons.bookmark_added_outlined, label: 'First Feature'),
+                      SectionHeader(icon: Icons.bookmark_added_outlined, label: 'First Feature'),
                       const SizedBox(height: 12),
                       _ToggleTile(
                         title: 'Generate example feature',
@@ -121,7 +122,7 @@ class ArchitectureScreen extends ConsumerWidget {
                               ? 'Generated at packages/${state.firstFeatureName.isEmpty ? '...' : '${packageName}_${state.firstFeatureName}'}/'
                               : 'Generated at lib/features/${state.firstFeatureName.isEmpty ? '...' : state.firstFeatureName}/',
                           style: TextStyle(
-                            color: AppTheme.colorPrimaryCyan.withValues(alpha: 0.7),
+                            color: Palette.colorPrimaryCyan.withValues(alpha: 0.7),
                             fontSize: 11,
                             fontFamily: 'monospace',
                           ),
@@ -129,7 +130,7 @@ class ArchitectureScreen extends ConsumerWidget {
                       ],
                       const SizedBox(height: 28),
 
-                      _SectionHeader(icon: Icons.view_quilt_outlined, label: 'Structural Pattern'),
+                      SectionHeader(icon: Icons.view_quilt_outlined, label: 'Structural Pattern'),
                       const SizedBox(height: 12),
                       IntrinsicHeight(
                         child: Row(
@@ -162,7 +163,7 @@ class ArchitectureScreen extends ConsumerWidget {
                       ),
 
                       const SizedBox(height: 28),
-                      _SectionHeader(
+                      SectionHeader(
                         icon: Icons.layers_outlined,
                         label: 'Clean Architecture Layers',
                       ),
@@ -195,10 +196,7 @@ class ArchitectureScreen extends ConsumerWidget {
                         ),
 
                       const SizedBox(height: 28),
-                      _SectionHeader(
-                        icon: Icons.cloud_off_outlined,
-                        label: 'Storage Strategy',
-                      ),
+                      SectionHeader(icon: Icons.cloud_off_outlined, label: 'Storage Strategy'),
                       const SizedBox(height: 12),
                       SizedBox(
                         width: double.infinity,
@@ -225,36 +223,29 @@ class ArchitectureScreen extends ConsumerWidget {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      Text(
-                        switch (state.storageStrategy) {
-                          StorageStrategy.remoteOnly =>
-                            'Source distante uniquement (Dio/Retrofit standard).',
-                          StorageStrategy.offlineFirstRead =>
-                            'Workspace + package Drift `_local_storage` : lecture local-first avec fallback cache.',
-                          StorageStrategy.offlineFirstSync =>
-                            'Tout le mode lecture + Outbox : les écritures hors ligne sont mises en file et rejouées par un SyncService au retour du réseau.',
-                        },
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
+                      Text(switch (state.storageStrategy) {
+                        StorageStrategy.remoteOnly =>
+                          'Source distante uniquement (Dio/Retrofit standard).',
+                        StorageStrategy.offlineFirstRead =>
+                          'Workspace + package Drift `_local_storage` : lecture local-first avec fallback cache.',
+                        StorageStrategy.offlineFirstSync =>
+                          'Tout le mode lecture + Outbox : les écritures hors ligne sont mises en file et rejouées par un SyncService au retour du réseau.',
+                      }, style: Theme.of(context).textTheme.bodySmall),
 
                       const SizedBox(height: 28),
-                      _SectionHeader(
-                        icon: Icons.dns_outlined,
-                        label: 'Modular Monorepo',
-                      ),
+                      SectionHeader(icon: Icons.dns_outlined, label: 'Modular Monorepo'),
                       const SizedBox(height: 12),
                       _ToggleTile(
                         title: 'Split first feature into its own package',
                         description: canPackageSplit
                             ? 'Team workflow: the first feature moves into its own workspace '
-                                'package (packages/${packageName.isEmpty ? '<app>' : packageName}_'
-                                '${state.firstFeatureName.isEmpty ? '<feature>' : state.firstFeatureName}/), '
-                                'depending only on a shared <app>_core package (Result/Failure/'
-                                'UseCase/networking) — never on the app itself, so multiple devs '
-                                'can own separate features without touching a shared lib/.'
-                            : 'Requires: a first feature, dio or chopper (no retrofit yet), '
-                                'remote-only or offline-first storage (no sync/Outbox yet), '
-                                'and Riverpod annotations. See ROADMAP.md §6a.',
+                                  'package (packages/${packageName.isEmpty ? '<app>' : packageName}_'
+                                  '${state.firstFeatureName.isEmpty ? '<feature>' : state.firstFeatureName}/), '
+                                  'depending only on a shared <app>_core package (Result/Failure/'
+                                  'UseCase/networking) — never on the app itself, so multiple devs '
+                                  'can own separate features without touching a shared lib/.'
+                            : 'Requires: a first feature, dio/chopper/Supabase/Firebase (no '
+                                  'retrofit yet), and Riverpod annotations. See ROADMAP.md §6a.',
                         value: canPackageSplit && state.packageSplit,
                         disabled: !canPackageSplit,
                         onChanged: notifier.togglePackageSplit,
@@ -269,10 +260,7 @@ class ArchitectureScreen extends ConsumerWidget {
                         // go_router (its guard) to make sense.
                         if (canAuth) ...[
                           const SizedBox(height: 28),
-                          _SectionHeader(
-                            icon: Icons.space_dashboard_outlined,
-                            label: 'Navigation',
-                          ),
+                          SectionHeader(icon: Icons.space_dashboard_outlined, label: 'Navigation'),
                           const SizedBox(height: 12),
                           _ToggleTile(
                             title: 'Generate Auth ($backendLabel)',
@@ -299,7 +287,7 @@ class ArchitectureScreen extends ConsumerWidget {
 
                       if (hasBackend && hasRiverpod) ...[
                         const SizedBox(height: 28),
-                        _SectionHeader(
+                        SectionHeader(
                           icon: Icons.cloud_outlined,
                           label: 'Backend ($backendLabel)',
                         ),
@@ -311,10 +299,10 @@ class ArchitectureScreen extends ConsumerWidget {
                             title: 'Realtime list',
                             description: hasFirebase
                                 ? 'La liste de la 1ʳᵉ feature devient live : un StreamNotifier '
-                                    's\'abonne aux `.snapshots()` Firestore.'
+                                      's\'abonne aux `.snapshots()` Firestore.'
                                 : 'La liste de la 1ʳᵉ feature devient live : un StreamNotifier '
-                                    's\'abonne à Supabase `.stream()` et l\'écran se met à jour à '
-                                    'chaque INSERT/UPDATE/DELETE.',
+                                      's\'abonne à Supabase `.stream()` et l\'écran se met à jour à '
+                                      'chaque INSERT/UPDATE/DELETE.',
                             value: state.generateRealtime,
                             onChanged: notifier.toggleGenerateRealtime,
                           ),
@@ -334,9 +322,8 @@ class ArchitectureScreen extends ConsumerWidget {
                       // this app ship with" decision, same family as
                       // Backend/Navigation provider, not an architecture-layer
                       // concern.
-
                       const SizedBox(height: 28),
-                      _SectionHeader(
+                      SectionHeader(
                         icon: Icons.bug_report_outlined,
                         label: 'Testing Architecture',
                       ),
@@ -365,14 +352,14 @@ class ArchitectureScreen extends ConsumerWidget {
                       children: [
                         const Icon(
                           Icons.remove_red_eye_outlined,
-                          color: AppTheme.colorPrimaryCyan,
+                          color: Palette.colorPrimaryCyan,
                           size: 14,
                         ),
                         const SizedBox(width: 6),
                         const Text(
                           'FOLDER STRUCTURE PREVIEW',
                           style: TextStyle(
-                            color: AppTheme.colorPrimaryCyan,
+                            color: Palette.colorPrimaryCyan,
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
                             letterSpacing: 1.2,
@@ -503,26 +490,6 @@ class _FeatureNameFieldState extends State<_FeatureNameField> {
   }
 }
 
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.icon, required this.label});
-
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, color: AppTheme.colorPrimaryCyan, size: 18),
-        const SizedBox(width: 8),
-        Text(
-          label,
-          style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-        ),
-      ],
-    );
-  }
-}
 
 // ── Pattern card ──────────────────────────────────────────────────────────────
 
@@ -556,7 +523,7 @@ class _PatternCard extends StatelessWidget {
           color: isSelected ? const Color(0xFF0E1A1A) : const Color(0xFF18181C),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isSelected ? AppTheme.colorPrimaryCyan : Colors.white10,
+            color: isSelected ? Palette.colorPrimaryCyan : Colors.white10,
             width: isSelected ? 1.5 : 1,
           ),
         ),
@@ -567,7 +534,7 @@ class _PatternCard extends StatelessWidget {
               children: [
                 Icon(
                   Icons.layers,
-                  color: isSelected ? AppTheme.colorPrimaryCyan : Colors.grey[600],
+                  color: isSelected ? Palette.colorPrimaryCyan : Colors.grey[600],
                   size: 22,
                 ),
                 const Spacer(),
@@ -577,9 +544,9 @@ class _PatternCard extends StatelessWidget {
                   height: 20,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: isSelected ? AppTheme.colorPrimaryCyan : Colors.transparent,
+                    color: isSelected ? Palette.colorPrimaryCyan : Colors.transparent,
                     border: Border.all(
-                      color: isSelected ? AppTheme.colorPrimaryCyan : Colors.white24,
+                      color: isSelected ? Palette.colorPrimaryCyan : Colors.white24,
                       width: 2,
                     ),
                   ),
@@ -593,7 +560,7 @@ class _PatternCard extends StatelessWidget {
             Text(
               title,
               style: TextStyle(
-                color: isSelected ? AppTheme.colorPrimaryCyan : Colors.white,
+                color: isSelected ? Palette.colorPrimaryCyan : Colors.white,
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
               ),
@@ -608,14 +575,14 @@ class _PatternCard extends StatelessWidget {
                   border: Border.all(
                     color: disabled
                         ? Colors.white24
-                        : AppTheme.colorPrimaryCyan.withValues(alpha: 0.5),
+                        : Palette.colorPrimaryCyan.withValues(alpha: 0.5),
                   ),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
                   disabled ? 'COMING SOON' : 'RECOMMENDED',
                   style: TextStyle(
-                    color: disabled ? Colors.white38 : AppTheme.colorPrimaryCyan,
+                    color: disabled ? Colors.white38 : Palette.colorPrimaryCyan,
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
                     letterSpacing: 0.8,
@@ -656,73 +623,73 @@ class _ToggleTile extends StatelessWidget {
     return Opacity(
       opacity: disabled ? 0.55 : 1,
       child: Container(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF18181C),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white10),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(description, style: TextStyle(color: Colors.grey[500], fontSize: 12)),
-              ],
-            ),
-          ),
-          const SizedBox(width: 16),
-          GestureDetector(
-            onTap: disabled ? null : () => onChanged(!value),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              width: 48,
-              height: 28,
-              decoration: BoxDecoration(
-                color: value ? AppTheme.colorPrimaryCyan.withValues(alpha: 0.15) : Colors.white10,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: value ? AppTheme.colorPrimaryCyan : Colors.white12,
-                  width: 1.5,
-                ),
-              ),
-              child: Stack(
-                alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        decoration: BoxDecoration(
+          color: const Color(0xFF18181C),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.white10),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  AnimatedAlign(
-                    duration: const Duration(milliseconds: 200),
-                    alignment: value ? Alignment.centerRight : Alignment.centerLeft,
-                    child: Padding(
-                      padding: const EdgeInsets.all(3),
-                      child: Container(
-                        width: 20,
-                        height: 20,
-                        decoration: BoxDecoration(
-                          color: value ? AppTheme.colorPrimaryCyan : Colors.grey[700],
-                          shape: BoxShape.circle,
-                        ),
-                        child: value
-                            ? const Icon(Icons.check, size: 11, color: Color(0xFF0E0E0E))
-                            : null,
-                      ),
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
+                  const SizedBox(height: 4),
+                  Text(description, style: TextStyle(color: Colors.grey[500], fontSize: 12)),
                 ],
               ),
             ),
-          ),
-        ],
-      ),
+            const SizedBox(width: 16),
+            GestureDetector(
+              onTap: disabled ? null : () => onChanged(!value),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                width: 48,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: value ? Palette.colorPrimaryCyan.withValues(alpha: 0.15) : Colors.white10,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: value ? Palette.colorPrimaryCyan : Colors.white12,
+                    width: 1.5,
+                  ),
+                ),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    AnimatedAlign(
+                      duration: const Duration(milliseconds: 200),
+                      alignment: value ? Alignment.centerRight : Alignment.centerLeft,
+                      child: Padding(
+                        padding: const EdgeInsets.all(3),
+                        child: Container(
+                          width: 20,
+                          height: 20,
+                          decoration: BoxDecoration(
+                            color: value ? Palette.colorPrimaryCyan : Colors.grey[700],
+                            shape: BoxShape.circle,
+                          ),
+                          child: value
+                              ? const Icon(Icons.check, size: 11, color: Color(0xFF0E0E0E))
+                              : null,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
