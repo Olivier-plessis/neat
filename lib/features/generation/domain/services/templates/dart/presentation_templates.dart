@@ -9,7 +9,6 @@ class PresentationTemplates {
 
   static String featureProvider({
     required String featureName,
-    required String packageName,
     required bool useAnnotations,
     required bool useCubit,
     bool dataList = false,
@@ -21,7 +20,7 @@ class PresentationTemplates {
     if (useAnnotations) {
       if (dataList) {
         return realtime
-            ? _riverpodListStreamNotifier(featureName, packageName)
+            ? _riverpodListStreamNotifier(featureName)
             : _riverpodListNotifier(featureName, includeCrudUi, fields);
       }
       return _riverpodAnnotationTemplate(featureName);
@@ -31,11 +30,14 @@ class PresentationTemplates {
 
   /// Realtime list: the notifier subscribes to the repository's live stream
   /// (Supabase `.stream()`), so the screen updates on every row change.
-  static String _riverpodListStreamNotifier(String featureName, String packageName) {
+  /// Same-feature self-references, so plain relative imports work unchanged
+  /// in both flat and packageSplit layouts (see _riverpodListNotifier's
+  /// equivalent imports just below) — no packageName/corePackageName needed.
+  static String _riverpodListStreamNotifier(String featureName) {
     final p = pascal(featureName);
     return '''import 'package:riverpod_annotation/riverpod_annotation.dart';
-import 'package:$packageName/features/$featureName/data/repositories/${featureName}_repository_providers.dart';
-import 'package:$packageName/features/$featureName/domain/entities/${featureName}_entity.dart';
+import '../../data/repositories/${featureName}_repository_providers.dart';
+import '../../domain/entities/${featureName}_entity.dart';
 
 part '${featureName}_provider.g.dart';
 

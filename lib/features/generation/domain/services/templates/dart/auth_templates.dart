@@ -6,12 +6,23 @@ class AuthTemplates {
   AuthTemplates._();
 
   // ── domain/repositories/i_auth_repository.dart ────────────────────────────
-  static String iAuthRepository({required String packageName, bool oauth = false}) {
+  // corePackageName: Auth is generated once, always at the app level (never
+  // split into its own workspace package — it's a single consumer, not a
+  // shared singleton every feature package needs, unlike theme_mode_controller/
+  // app_logger/i18n). But it still imports Result/Failure/the client-init
+  // providers, which DO move into core when packageSplit is on, so those
+  // specific imports redirect the same way every other core/-boundary
+  // crossing in this file does.
+  static String iAuthRepository({
+    required String packageName,
+    bool oauth = false,
+    String? corePackageName,
+  }) {
     final oauthContract = oauth
         ? '\n  Future<Result<bool>> signInWithGoogle();'
             '\n  Future<Result<bool>> signInWithApple();'
         : '';
-    return '''import 'package:$packageName/core/result/result.dart';
+    return '''import 'package:${corePackageName ?? packageName}/core/result/result.dart';
 
 /// Authentication contract. Implementations map provider errors to [Result].
 abstract interface class IAuthRepository {
@@ -24,11 +35,24 @@ abstract interface class IAuthRepository {
   }
 
   // ── data/repositories/auth_repository_impl.dart ───────────────────────────
+  // corePackageName: see iAuthRepository's doc — same redirect rationale.
+  // authPackageName: set when packageSplit is on — Auth becomes its own
+  // workspace package (packages/<app>_auth/, package-root layout like any
+  // other split feature, depending on <app>_core rather than duplicating
+  // Result/Failure/UseCase the way wesioo's standalone `authentication`
+  // package does). Same-feature self-references become relative imports —
+  // identical technique to Phase 1 Step 2a's conversion for regular features.
   static String authRepositoryImpl({
     required String packageName,
     String backend = 'supabase',
     bool oauth = false,
+    String? corePackageName,
+    String? authPackageName,
   }) {
+    final corePkg = corePackageName ?? packageName;
+    final iAuthRepoImport = authPackageName != null
+        ? "import '../../domain/repositories/i_auth_repository.dart';"
+        : "import 'package:$packageName/features/auth/domain/repositories/i_auth_repository.dart';";
     if (backend == 'firebase') {
       // OAuth via Firebase's built-in provider flow (no extra SDKs). Works on
       // web/iOS/macOS/Android; on mobile it opens an OAuth web flow.
@@ -44,9 +68,9 @@ abstract interface class IAuthRepository {
       _guard(() => _auth.signInWithProvider(AppleAuthProvider()));'''
           : '';
       return '''import 'package:firebase_auth/firebase_auth.dart';
-import 'package:$packageName/core/error/failure.dart';
-import 'package:$packageName/core/result/result.dart';
-import 'package:$packageName/features/auth/domain/repositories/i_auth_repository.dart';
+import 'package:$corePkg/core/error/failure.dart';
+import 'package:$corePkg/core/result/result.dart';
+$iAuthRepoImport
 
 class AuthRepositoryImpl implements IAuthRepository {
   const AuthRepositoryImpl(this._auth);
@@ -82,9 +106,9 @@ class AuthRepositoryImpl implements IAuthRepository {
 ''';
     }
     return '''import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:$packageName/core/error/failure.dart';
-import 'package:$packageName/core/result/result.dart';
-import 'package:$packageName/features/auth/domain/repositories/i_auth_repository.dart';
+import 'package:$corePkg/core/error/failure.dart';
+import 'package:$corePkg/core/result/result.dart';
+$iAuthRepoImport
 
 class AuthRepositoryImpl implements IAuthRepository {
   const AuthRepositoryImpl(this._client);
@@ -121,11 +145,18 @@ class AuthRepositoryImpl implements IAuthRepository {
   }
 
   // ── presentation/providers/auth_provider.dart ─────────────────────────────
-  static String authProvider({required String packageName, String backend = 'supabase'}) {
+  // corePackageName: see iAuthRepository's doc — same redirect rationale
+  // (the client-init provider moves into core when packageSplit is on).
+  static String authProvider({
+    required String packageName,
+    String backend = 'supabase',
+    String? corePackageName,
+  }) {
+    final corePkg = corePackageName ?? packageName;
     if (backend == 'firebase') {
       return '''import 'package:firebase_auth/firebase_auth.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import 'package:$packageName/core/network/firebase_provider.dart';
+import 'package:$corePkg/core/network/firebase_provider.dart';
 
 part 'auth_provider.g.dart';
 
@@ -145,7 +176,7 @@ class AuthController extends _\$AuthController {
     }
     return '''import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:$packageName/core/network/supabase_provider.dart';
+import 'package:$corePkg/core/network/supabase_provider.dart';
 
 part 'auth_provider.g.dart';
 
@@ -171,16 +202,29 @@ class AuthController extends _\$AuthController {
   /// Wires `IAuthRepository` (abstract) to `AuthRepositoryImpl` (concrete).
   /// Lives in `data/` — not `presentation/` — since it's built from a concrete
   /// Data class; presentation only ever reads the abstract-typed provider.
-  static String authRepositoryProviders({required String packageName, String backend = 'supabase'}) {
+  /// corePackageName: see iAuthRepository's doc — same redirect rationale.
+  /// authPackageName: see authRepositoryImpl's doc — same relative-import
+  /// conversion for same-feature self-references.
+  static String authRepositoryProviders({
+    required String packageName,
+    String backend = 'supabase',
+    String? corePackageName,
+    String? authPackageName,
+  }) {
     final isFirebase = backend == 'firebase';
+    final corePkg = corePackageName ?? packageName;
     final providerImport = isFirebase
-        ? "import 'package:$packageName/core/network/firebase_provider.dart';"
-        : "import 'package:$packageName/core/network/supabase_provider.dart';";
+        ? "import 'package:$corePkg/core/network/firebase_provider.dart';"
+        : "import 'package:$corePkg/core/network/supabase_provider.dart';";
     final clientProvider = isFirebase ? 'firebaseAuthProvider' : 'supabaseClientProvider';
+    final selfImports = authPackageName != null
+        ? "import 'auth_repository_impl.dart';\n"
+            "import '../../domain/repositories/i_auth_repository.dart';"
+        : "import 'package:$packageName/features/auth/data/repositories/auth_repository_impl.dart';\n"
+            "import 'package:$packageName/features/auth/domain/repositories/i_auth_repository.dart';";
     return '''import 'package:riverpod_annotation/riverpod_annotation.dart';
 $providerImport
-import 'package:$packageName/features/auth/data/repositories/auth_repository_impl.dart';
-import 'package:$packageName/features/auth/domain/repositories/i_auth_repository.dart';
+$selfImports
 
 part 'auth_repository_providers.g.dart';
 
@@ -191,17 +235,26 @@ IAuthRepository authRepository(Ref ref) =>
   }
 
   // ── core/router/router_notifier.dart (go_router guard) ────────────────────
+  // router_notifier.dart itself always stays app-level (it's the router
+  // guard, not a feature) — its own AppRoutePath import stays pointed at the
+  // app's own copy (an app-internal reference, not a boundary crossing,
+  // exactly like routesManual's own AppRoutePath use). Only the
+  // auth_provider.dart import crosses into the auth package when split.
   static String routerNotifier({
     required String packageName,
     required String homeRoute,
     String backend = 'supabase',
-  }) =>
-      '''import 'package:flutter/widgets.dart';
+    String? authPackageName,
+  }) {
+    final authProviderImport = authPackageName != null
+        ? "import 'package:$authPackageName/presentation/providers/auth_provider.dart';"
+        : "import 'package:$packageName/features/auth/presentation/providers/auth_provider.dart';";
+    return '''import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:${backend == 'firebase' ? 'firebase_auth/firebase_auth.dart' : 'supabase_flutter/supabase_flutter.dart'}';
 import 'package:$packageName/core/constants/app_route_path.dart';
-import 'package:$packageName/features/auth/presentation/providers/auth_provider.dart';
+$authProviderImport
 
 part 'router_notifier.g.dart';
 
@@ -241,9 +294,16 @@ class RouterNotifier extends _\$RouterNotifier implements Listenable {
   void removeListener(VoidCallback listener) => _listener = null;
 }
 ''';
+  }
 
   // ── presentation/screens ──────────────────────────────────────────────────
-  static String loginScreen({required String packageName, bool oauth = false}) => _authForm(
+  static String loginScreen({
+    required String packageName,
+    bool oauth = false,
+    String? corePackageName,
+    String? authPackageName,
+  }) =>
+      _authForm(
         packageName: packageName,
         className: 'LoginScreen',
         title: 'Sign in',
@@ -251,6 +311,8 @@ class RouterNotifier extends _\$RouterNotifier implements Listenable {
         buttonLabel: 'Sign in',
         withPassword: true,
         oauth: oauth,
+        corePackageName: corePackageName,
+        authPackageName: authPackageName,
         footer: '''
             TextButton(
               onPressed: () => context.go(AppRoutePath.signup),
@@ -262,13 +324,20 @@ class RouterNotifier extends _\$RouterNotifier implements Listenable {
             ),''',
       );
 
-  static String signupScreen({required String packageName}) => _authForm(
+  static String signupScreen({
+    required String packageName,
+    String? corePackageName,
+    String? authPackageName,
+  }) =>
+      _authForm(
         packageName: packageName,
         className: 'SignupScreen',
         title: 'Create account',
         action: 'signUp',
         buttonLabel: 'Sign up',
         withPassword: true,
+        corePackageName: corePackageName,
+        authPackageName: authPackageName,
         footer: '''
             TextButton(
               onPressed: () => context.go(AppRoutePath.login),
@@ -276,13 +345,20 @@ class RouterNotifier extends _\$RouterNotifier implements Listenable {
             ),''',
       );
 
-  static String forgotPasswordScreen({required String packageName}) => _authForm(
+  static String forgotPasswordScreen({
+    required String packageName,
+    String? corePackageName,
+    String? authPackageName,
+  }) =>
+      _authForm(
         packageName: packageName,
         className: 'ForgotPasswordScreen',
         title: 'Reset password',
         action: 'sendPasswordReset',
         buttonLabel: 'Send reset link',
         withPassword: false,
+        corePackageName: corePackageName,
+        authPackageName: authPackageName,
         footer: '''
             TextButton(
               onPressed: () => context.go(AppRoutePath.login),
@@ -291,6 +367,9 @@ class RouterNotifier extends _\$RouterNotifier implements Listenable {
       );
 
   /// Shared email(+password) form used by the three auth screens.
+  /// corePackageName/authPackageName: see authRepositoryImpl's doc — same
+  /// redirect/relative-import rationale, applied to AppRoutePath and the
+  /// self-referencing auth_repository_providers.dart import.
   static String _authForm({
     required String packageName,
     required String className,
@@ -300,6 +379,8 @@ class RouterNotifier extends _\$RouterNotifier implements Listenable {
     required bool withPassword,
     required String footer,
     bool oauth = false,
+    String? corePackageName,
+    String? authPackageName,
   }) {
     // OAuth buttons (Google + Apple via Firebase's signInWithProvider). They
     // reuse the form's loading/error state.
@@ -368,12 +449,18 @@ class RouterNotifier extends _\$RouterNotifier implements Listenable {
     final actionCall = withPassword
         ? '$action(email: email.text.trim(), password: password.text)'
         : '$action(email.text.trim())';
+    final appRoutePathImport = authPackageName != null
+        ? "import 'package:${corePackageName ?? packageName}/core/constants/app_route_path.dart';"
+        : "import 'package:$packageName/core/constants/app_route_path.dart';";
+    final authRepoProvidersImport = authPackageName != null
+        ? "import '../../data/repositories/auth_repository_providers.dart';"
+        : "import 'package:$packageName/features/auth/data/repositories/auth_repository_providers.dart';";
     return '''import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
-import 'package:$packageName/core/constants/app_route_path.dart';
-import 'package:$packageName/features/auth/data/repositories/auth_repository_providers.dart';
+$appRoutePathImport
+$authRepoProvidersImport
 
 class $className extends HookConsumerWidget {
   const $className({super.key});
@@ -435,13 +522,27 @@ $pwdController    final loading = useState(false);
   }
 
   // ── presentation/routes — go_router_builder (typed) ───────────────────────
-  static String authRoutesBuilder({required String packageName}) =>
-      '''import 'package:flutter/material.dart';
+  // corePackageName/authPackageName: same redirect/relative-import rationale
+  // as _authForm's doc.
+  static String authRoutesBuilder({
+    required String packageName,
+    String? corePackageName,
+    String? authPackageName,
+  }) {
+    final appRoutePathImport = authPackageName != null
+        ? "import 'package:${corePackageName ?? packageName}/core/constants/app_route_path.dart';"
+        : "import 'package:$packageName/core/constants/app_route_path.dart';";
+    final screenImports = authPackageName != null
+        ? "import '../screens/login_screen.dart';\n"
+            "import '../screens/signup_screen.dart';\n"
+            "import '../screens/forgot_password_screen.dart';"
+        : "import 'package:$packageName/features/auth/presentation/screens/login_screen.dart';\n"
+            "import 'package:$packageName/features/auth/presentation/screens/signup_screen.dart';\n"
+            "import 'package:$packageName/features/auth/presentation/screens/forgot_password_screen.dart';";
+    return '''import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:$packageName/core/constants/app_route_path.dart';
-import 'package:$packageName/features/auth/presentation/screens/login_screen.dart';
-import 'package:$packageName/features/auth/presentation/screens/signup_screen.dart';
-import 'package:$packageName/features/auth/presentation/screens/forgot_password_screen.dart';
+$appRoutePathImport
+$screenImports
 
 part 'auth_routes.g.dart';
 
@@ -466,6 +567,7 @@ class ForgotPasswordRoute extends GoRouteData with \$ForgotPasswordRoute {
   Widget build(BuildContext context, GoRouterState state) => const ForgotPasswordScreen();
 }
 ''';
+  }
 
   /// Plain go_router: three GoRoute entries to insert into the route table.
   static String authRoutesPlainEntries() => '''  GoRoute(

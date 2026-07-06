@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
-import 'package:neat/core/theme/app_theme.dart';
 import 'package:neat/core/utils/ide_launcher.dart';
 import 'package:neat/features/architecture/domain/models/architecture_state.dart';
 import 'package:neat/features/architecture/presentation/providers/architecture_provider.dart';
@@ -16,6 +15,7 @@ import 'package:neat/features/identity/domain/models/identity_state.dart';
 import 'package:neat/features/identity/presentation/providers/identity_provider.dart';
 import 'package:neat/features/identity/presentation/providers/stepper_provider.dart';
 import 'package:neat/features/theme_engine/presentation/providers/theme_engine_provider.dart';
+import 'package:neat_ui/neat_ui.dart';
 
 class LaunchScreen extends HookConsumerWidget {
   const LaunchScreen({super.key});
@@ -66,10 +66,9 @@ class LaunchScreen extends HookConsumerWidget {
         );
         hasFinished.value = true;
         // Surface the freshly generated project in the Hub's recent list.
-        await ref.read(recentProjectsProvider.notifier).register(
-              path: '${identity.projectPath}/${identity.name}',
-              name: identity.name,
-            );
+        await ref
+            .read(recentProjectsProvider.notifier)
+            .register(path: '${identity.projectPath}/${identity.name}', name: identity.name);
       } catch (e) {
         errorMessage.value = e.toString();
         appendLog('[✗] Generation failed: $e');
@@ -93,23 +92,23 @@ class LaunchScreen extends HookConsumerWidget {
     void backToHome() => ref.read(currentStepProvider.notifier).setStep(NeatStep.hub);
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: .start,
       children: [
         const Text(
           'Ready for Launch',
           style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white),
         ),
-        const SizedBox(height: 8),
+        8.gapH,
         Text(
           'Review your configuration before initiating the generation sequence. The process will\nscaffold your complete Flutter architecture.',
           style: TextStyle(color: Colors.grey[400], fontSize: 14, height: 1.5),
         ),
-        const SizedBox(height: 24),
+        24.gapH,
 
         // ── Ligne principale ──────────────────────────────────────────────
         Expanded(
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: .start,
             children: [
               // Panneau config (gauche)
               Expanded(
@@ -121,7 +120,7 @@ class LaunchScreen extends HookConsumerWidget {
                   cicd: cicd,
                 ),
               ),
-              const SizedBox(width: 20),
+              20.gapW,
               // Panneau action (droite)
               Expanded(
                 flex: 4,
@@ -140,33 +139,33 @@ class LaunchScreen extends HookConsumerWidget {
           ),
         ),
 
-        const SizedBox(height: 16),
+        16.gapH,
 
         // ── Terminal output ───────────────────────────────────────────────
         Container(
           height: 200,
           decoration: BoxDecoration(
             color: const Color(0xFF0A0A0C),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: Colors.white10),
+            borderRadius: .circular(10),
+            border: .all(color: Colors.white10),
           ),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: .start,
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const .symmetric(horizontal: 16, vertical: 8),
                 decoration: const BoxDecoration(
                   color: Color(0xFF141416),
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(10)),
+                  borderRadius: .vertical(top: Radius.circular(10)),
                 ),
                 child: Row(
                   children: [
                     _TrafficDot(color: const Color(0xFFFF5F57)),
-                    const SizedBox(width: 6),
+                    6.gapW,
                     _TrafficDot(color: const Color(0xFFFFBD2E)),
-                    const SizedBox(width: 6),
+                    6.gapW,
                     _TrafficDot(color: const Color(0xFF28C840)),
-                    const SizedBox(width: 16),
+                    16.gapW,
 
                     const Text(
                       'System Output',
@@ -183,7 +182,7 @@ class LaunchScreen extends HookConsumerWidget {
                         height: 10,
                         child: CircularProgressIndicator(
                           strokeWidth: 1.5,
-                          color: AppTheme.colorPrimaryCyan,
+                          color: Palette.colorPrimaryCyan,
                         ),
                       ),
                   ],
@@ -192,7 +191,7 @@ class LaunchScreen extends HookConsumerWidget {
               Expanded(
                 child: ListView.builder(
                   controller: scrollController,
-                  padding: const EdgeInsets.all(14),
+                  padding: const .all(14),
                   itemCount: logs.value.length,
                   itemBuilder: (_, i) {
                     final line = logs.value[i];
@@ -220,7 +219,7 @@ class LaunchScreen extends HookConsumerWidget {
   Color _lineColor(String line) {
     if (line.startsWith('[✓')) return const Color(0xFF4CAF50);
     if (line.startsWith('[✗')) return Colors.redAccent;
-    if (line.startsWith('[▶')) return AppTheme.colorPrimaryCyan;
+    if (line.startsWith('[▶')) return Palette.colorPrimaryCyan;
     if (line.startsWith('neat@')) return Colors.grey;
     return const Color(0xFF9ECE6A);
   }
@@ -257,34 +256,34 @@ class _ConfigPanel extends StatelessWidget {
     final cicdTools = cicd.selectedTools.map(_toolLabel).join(' + ');
 
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const .all(24),
       decoration: BoxDecoration(
         color: const Color(0xFF141416),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white10),
+        borderRadius: .circular(12),
+        border: .all(color: Colors.white10),
       ),
       child: SingleChildScrollView(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: .start,
           children: [
             Row(
               children: [
-                const Icon(Icons.tune, color: AppTheme.colorPrimaryCyan, size: 16),
-                const SizedBox(width: 8),
+                const Icon(Icons.tune, color: Palette.colorPrimaryCyan, size: 16),
+                8.gapW,
                 const Text(
                   'System Configuration',
                   style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
                 ),
               ],
             ),
-            const SizedBox(height: 20),
+            20.gapH,
 
             // Identity
             _ConfigSection(
               label: 'PROJECT IDENTITY',
               children: [_IdentityRow(name: identity.name, org: identity.organization)],
             ),
-            const SizedBox(height: 20),
+            20.gapH,
 
             // Platforms
             _ConfigSection(
@@ -299,7 +298,7 @@ class _ConfigPanel extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 20),
+            20.gapH,
 
             // Dependencies
             if (packages.isNotEmpty)
@@ -321,7 +320,7 @@ class _ConfigPanel extends StatelessWidget {
                   ),
                 ],
               ),
-            if (packages.isNotEmpty) const SizedBox(height: 20),
+            if (packages.isNotEmpty) 20.gapH,
 
             // CI/CD
             if (cicd.selectedTools.isNotEmpty)
@@ -333,9 +332,9 @@ class _ConfigPanel extends StatelessWidget {
                       Container(
                         width: 6,
                         height: 6,
-                        margin: const EdgeInsets.only(right: 10),
+                        margin: const .only(right: 10),
                         decoration: const BoxDecoration(
-                          color: AppTheme.colorPrimaryCyan,
+                          color: Palette.colorPrimaryCyan,
                           shape: BoxShape.circle,
                         ),
                       ),
@@ -356,18 +355,18 @@ class _ConfigPanel extends StatelessWidget {
 
             // Validation warning
             if (identity.name.isEmpty || identity.projectPath.isEmpty) ...[
-              const SizedBox(height: 20),
+              20.gapH,
               Container(
-                padding: const EdgeInsets.all(12),
+                padding: const .all(12),
                 decoration: BoxDecoration(
                   color: Colors.orange.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+                  borderRadius: .circular(8),
+                  border: .all(color: Colors.orange.withValues(alpha: 0.3)),
                 ),
                 child: Row(
                   children: [
                     const Icon(Icons.warning_amber_outlined, color: Colors.orange, size: 16),
-                    const SizedBox(width: 8),
+                    8.gapW,
                     Expanded(
                       child: Text(
                         identity.name.isEmpty
@@ -404,13 +403,13 @@ class _ConfigSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: .start,
       children: [
         Text(
           label,
           style: const TextStyle(color: Colors.white38, fontSize: 10, letterSpacing: 1.2),
         ),
-        const SizedBox(height: 10),
+        10.gapH,
         ...children,
       ],
     );
@@ -426,13 +425,13 @@ class _IdentityRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: .start,
+      spacing: 2,
       children: [
         Text(
           name.isEmpty ? '—' : name,
           style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
         ),
-        const SizedBox(height: 2),
         Text(org, style: TextStyle(color: Colors.grey[600], fontSize: 13)),
       ],
     );
@@ -449,15 +448,15 @@ class _Chip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      padding: const .symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         color: dev
             ? const Color(0xFF2D2010)
             : muted
             ? const Color(0xFF1A1A1E)
             : const Color(0xFF18181C),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(
+        borderRadius: .circular(6),
+        border: .all(
           color: dev
               ? const Color(0xFFFFA726).withValues(alpha: 0.4)
               : muted
@@ -507,55 +506,55 @@ class _ActionPanel extends StatelessWidget {
   Future<void> _open(BuildContext context, IdeTarget ide) async {
     final ok = await openInIde(ide, projectPath);
     if (!ok && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${ide.label} not found — is it installed?')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('${ide.label} not found — is it installed?')));
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const .all(24),
       decoration: BoxDecoration(
         color: const Color(0xFF0D0D0F),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white10),
+        borderRadius: .circular(12),
+        border: .all(color: Colors.white10),
       ),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisAlignment: .center,
         children: [
           if (hasFinished) ...[
             const Icon(Icons.check_circle_outline, color: Color(0xFF4CAF50), size: 52),
-            const SizedBox(height: 16),
+            16.gapH,
             const Text(
               'Project Generated!',
               style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 8),
+            8.gapW,
             Text(
               'Add a feature now in the Workshop, or open it in your IDE.',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.grey[600], fontSize: 12),
             ),
-            const SizedBox(height: 24),
+            24.gapH,
             SizedBox(
-              width: double.infinity,
+              width: .infinity,
               child: FilledButton.icon(
                 onPressed: onAddFeature,
                 icon: const Icon(Icons.add, size: 18),
                 label: const Text('Add a feature'),
                 style: FilledButton.styleFrom(
                   minimumSize: const Size(0, 48),
-                  backgroundColor: AppTheme.colorPrimaryCyan,
+                  backgroundColor: Palette.colorPrimaryCyan,
                   foregroundColor: Colors.black,
                   iconColor: Colors.black,
                 ),
               ),
             ),
-            const SizedBox(height: 10),
+            10.gapH,
             SizedBox(
-              width: double.infinity,
+              width: .infinity,
               child: OutlinedButton.icon(
                 onPressed: onBackToHome,
                 icon: const Icon(Icons.home_outlined, size: 16),
@@ -567,7 +566,7 @@ class _ActionPanel extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(height: 20),
+            20.gapH,
             Row(
               children: [
                 Expanded(child: Divider(color: Colors.white.withValues(alpha: 0.08))),
@@ -581,7 +580,7 @@ class _ActionPanel extends StatelessWidget {
                 Expanded(child: Divider(color: Colors.white.withValues(alpha: 0.08))),
               ],
             ),
-            const SizedBox(height: 12),
+            12.gapH,
             Wrap(
               spacing: 8,
               runSpacing: 8,
@@ -606,17 +605,17 @@ class _ActionPanel extends StatelessWidget {
             ),
           ] else if (hasError) ...[
             const Icon(Icons.error_outline, color: Colors.redAccent, size: 52),
-            const SizedBox(height: 16),
+            16.gapH,
             const Text(
               'Generation failed',
               style: TextStyle(color: Colors.redAccent, fontSize: 16, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 8),
+            8.gapH,
             Text(
               'Check the System Output for details.',
               style: TextStyle(color: Colors.grey[600], fontSize: 12),
             ),
-            const SizedBox(height: 20),
+            20.gapH,
             _GenerateButton(
               isGenerating: false,
               canGenerate: canGenerate,
@@ -626,15 +625,15 @@ class _ActionPanel extends StatelessWidget {
           ] else ...[
             const Text(
               'Initialize Matrix',
-              style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+              style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: .bold),
             ),
-            const SizedBox(height: 8),
+            8.gapH,
             Text(
               'Compile configuration and scaffold base architecture.',
-              textAlign: TextAlign.center,
+              textAlign: .center,
               style: TextStyle(color: Colors.grey[600], fontSize: 12),
             ),
-            const SizedBox(height: 28),
+            20.gapH,
             _GenerateButton(
               isGenerating: isGenerating,
               canGenerate: canGenerate,
@@ -663,7 +662,7 @@ class _IdeButton extends StatelessWidget {
       label: Text(label, style: const TextStyle(fontSize: 12)),
       style: OutlinedButton.styleFrom(
         minimumSize: const Size(0, 38),
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+        padding: const .symmetric(horizontal: 12),
         foregroundColor: Colors.white70,
         side: const BorderSide(color: Colors.white24),
       ),
@@ -693,26 +692,26 @@ class _GenerateButton extends StatelessWidget {
         onPressed: (isGenerating || !canGenerate) ? null : onGenerate,
         style: OutlinedButton.styleFrom(
           side: BorderSide(
-            color: canGenerate ? AppTheme.colorPrimaryCyan : Colors.white12,
+            color: canGenerate ? Palette.colorPrimaryCyan : Colors.white12,
             width: 1.5,
           ),
-          foregroundColor: AppTheme.colorPrimaryCyan,
+          foregroundColor: Palette.colorPrimaryCyan,
           disabledForegroundColor: Colors.white24,
         ),
         child: isGenerating
             ? const SizedBox(
                 width: 18,
                 height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.colorPrimaryCyan),
+                child: CircularProgressIndicator(strokeWidth: 2, color: Palette.colorPrimaryCyan),
               )
             : Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisAlignment: .center,
                 children: [
                   const Icon(Icons.power_settings_new, size: 16),
-                  const SizedBox(width: 10),
+                  10.gapW,
                   Text(
                     retry ? 'RETRY' : 'GENERATE PROJECT',
-                    style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.2),
+                    style: const TextStyle(fontWeight: .bold, letterSpacing: 1.2),
                   ),
                 ],
               ),

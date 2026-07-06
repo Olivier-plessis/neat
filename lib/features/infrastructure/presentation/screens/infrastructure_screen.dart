@@ -3,8 +3,6 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
-import 'package:neat/core/theme/app_theme.dart';
-import 'package:neat/core/theme/gap.dart';
 import 'package:neat/features/architecture/domain/models/env_config.dart';
 import 'package:neat/features/architecture/presentation/providers/architecture_provider.dart';
 import 'package:neat/features/dependencies/domain/constants/backend_presets.dart';
@@ -12,6 +10,7 @@ import 'package:neat/features/dependencies/domain/models/pub_package.dart';
 import 'package:neat/features/dependencies/presentation/providers/dependencies_provider.dart';
 import 'package:neat/features/identity/presentation/providers/identity_provider.dart';
 import 'package:neat/features/infrastructure/presentation/providers/infrastructure_tab_provider.dart';
+import 'package:neat_ui/neat_ui.dart';
 
 class InfrastructureScreen extends ConsumerWidget {
   const InfrastructureScreen({super.key});
@@ -102,7 +101,7 @@ class _BackendSelector extends ConsumerWidget {
         Expanded(
           child: _BackendCard(
             icon: Icons.api_outlined,
-            iconColor: AppTheme.colorPrimaryCyan,
+            iconColor: Palette.colorPrimaryCyan,
             title: 'REST API',
             subtitle: 'HTTP client',
             active: active == BackendKind.rest,
@@ -172,7 +171,7 @@ class _BackendCard extends StatelessWidget {
           color: const Color(0xFF131316),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: active ? AppTheme.colorPrimaryCyan : Colors.white10,
+            color: active ? Palette.colorPrimaryCyan : Colors.white10,
             width: active ? 1.5 : 1,
           ),
         ),
@@ -203,12 +202,12 @@ class _BackendCard extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: const [
-                  Icon(Icons.check_circle, color: AppTheme.colorPrimaryCyan, size: 14),
+                  Icon(Icons.check_circle, color: Palette.colorPrimaryCyan, size: 14),
                   SizedBox(width: 6),
                   Text(
                     'SELECTED',
                     style: TextStyle(
-                      color: AppTheme.colorPrimaryCyan,
+                      color: Palette.colorPrimaryCyan,
                       fontSize: 10,
                       fontWeight: FontWeight.bold,
                       letterSpacing: 1,
@@ -306,7 +305,7 @@ class _CompactOptionCard extends StatelessWidget {
           color: const Color(0xFF131316),
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: active ? AppTheme.colorPrimaryCyan : Colors.white10,
+            color: active ? Palette.colorPrimaryCyan : Colors.white10,
             width: active ? 1.5 : 1,
           ),
         ),
@@ -325,7 +324,7 @@ class _CompactOptionCard extends StatelessWidget {
               ),
             ),
             if (active)
-              const Icon(Icons.check_circle, color: AppTheme.colorPrimaryCyan, size: 16)
+              const Icon(Icons.check_circle, color: Palette.colorPrimaryCyan, size: 16)
             else if (disabled)
               Text(
                 'SOON',
@@ -415,7 +414,7 @@ class _BackendConfig extends ConsumerWidget {
                   Expanded(
                     child: _CompactOptionCard(
                       icon: Icons.api_outlined,
-                      iconColor: AppTheme.colorPrimaryCyan,
+                      iconColor: Palette.colorPrimaryCyan,
                       title: 'Dio',
                       active: httpClient == HttpClientKind.dio,
                       onTap: () => packagesNotifier.applyHttpClientPreset(
@@ -472,7 +471,7 @@ class _BackendConfig extends ConsumerWidget {
                   onPressed: notifier.addEnv,
                   icon: const Icon(Icons.add, size: 16),
                   label: const Text('Add environment'),
-                  style: TextButton.styleFrom(foregroundColor: AppTheme.colorPrimaryCyan),
+                  style: TextButton.styleFrom(foregroundColor: Palette.colorPrimaryCyan),
                 ),
             ],
             16.gapH,
@@ -484,9 +483,9 @@ class _BackendConfig extends ConsumerWidget {
               enabled: flavorsAvailable,
               description: flavorsSupported
                   ? (envCount < 2
-                      ? 'Add a 2nd environment to enable native flavors.'
-                      : 'productFlavors + per-flavor app id. OFF → envs run as Dart entry '
-                            'points and a plain `flutter run` works.')
+                        ? 'Add a 2nd environment to enable native flavors.'
+                        : 'productFlavors + per-flavor app id. OFF → envs run as Dart entry '
+                              'points and a plain `flutter run` works.')
                   : 'Native flavors need an Android/iOS target. Environments still '
                         'work as Dart entry points on web/desktop.',
               onChanged: notifier.toggleGenerateFlavors,
@@ -530,7 +529,7 @@ class _NavigationTab extends ConsumerWidget {
                 Expanded(
                   child: _BackendCard(
                     icon: Icons.api_outlined,
-                    iconColor: AppTheme.colorPrimaryCyan,
+                    iconColor: Palette.colorPrimaryCyan,
                     title: 'Go Router',
                     subtitle: '',
                     active: true,
@@ -572,7 +571,7 @@ class _NavigationTab extends ConsumerWidget {
                 Expanded(
                   child: _CompactOptionCard(
                     icon: Icons.edit_road_outlined,
-                    iconColor: AppTheme.colorPrimaryCyan,
+                    iconColor: Palette.colorPrimaryCyan,
                     title: 'Manual',
                     active: routingStyle == RoutingStyle.manual,
                     tooltip: 'Hand-written GoRoute list.',
@@ -629,12 +628,22 @@ void _noop() {}
 
 /// Curated Material icons (kept so the generated `Icon(Icons.<name>)` compiles).
 const _shellIcons = <String, IconData>{
-  'home': Icons.home, 'dashboard': Icons.dashboard, 'person': Icons.person,
-  'settings': Icons.settings, 'search': Icons.search, 'favorite': Icons.favorite,
-  'notifications': Icons.notifications, 'list': Icons.list,
-  'shopping_cart': Icons.shopping_cart, 'explore': Icons.explore,
-  'calendar_today': Icons.calendar_today, 'chat': Icons.chat, 'map': Icons.map,
-  'star': Icons.star, 'folder': Icons.folder, 'account_circle': Icons.account_circle,
+  'home': Icons.home,
+  'dashboard': Icons.dashboard,
+  'person': Icons.person,
+  'settings': Icons.settings,
+  'search': Icons.search,
+  'favorite': Icons.favorite,
+  'notifications': Icons.notifications,
+  'list': Icons.list,
+  'shopping_cart': Icons.shopping_cart,
+  'explore': Icons.explore,
+  'calendar_today': Icons.calendar_today,
+  'chat': Icons.chat,
+  'map': Icons.map,
+  'star': Icons.star,
+  'folder': Icons.folder,
+  'account_circle': Icons.account_circle,
 };
 
 class _ShellTabConfig extends StatefulWidget {
@@ -681,16 +690,18 @@ class _ShellTabConfigState extends State<_ShellTabConfig> {
                 style: const TextStyle(color: Colors.white, fontSize: 13),
                 onChanged: (v) => widget.onIcon(v ?? 'home'),
                 items: _shellIcons.entries
-                    .map((e) => DropdownMenuItem(
-                          value: e.key,
-                          child: Row(
-                            children: [
-                              Icon(e.value, size: 16, color: AppTheme.colorPrimaryCyan),
-                              const SizedBox(width: 8),
-                              Expanded(child: Text(e.key, overflow: TextOverflow.ellipsis)),
-                            ],
-                          ),
-                        ))
+                    .map(
+                      (e) => DropdownMenuItem(
+                        value: e.key,
+                        child: Row(
+                          children: [
+                            Icon(e.value, size: 16, color: Palette.colorPrimaryCyan),
+                            const SizedBox(width: 8),
+                            Expanded(child: Text(e.key, overflow: TextOverflow.ellipsis)),
+                          ],
+                        ),
+                      ),
+                    )
                     .toList(),
               ),
             ),
@@ -746,7 +757,8 @@ class _LocalizationTab extends ConsumerWidget {
           children: [
             _ToggleRow(
               title: 'i18n (slang)',
-              description: 'Type-safe translations with slang: TranslationProvider + '
+              description:
+                  'Type-safe translations with slang: TranslationProvider + '
                   '`context.t`, and a sample language switcher in the AppBar.',
               value: arch.generateI18n,
               onChanged: notifier.toggleGenerateI18n,
@@ -763,7 +775,7 @@ class _LocalizationTab extends ConsumerWidget {
                   Expanded(
                     child: _BackendCard(
                       icon: Icons.language,
-                      iconColor: AppTheme.colorPrimaryCyan,
+                      iconColor: Palette.colorPrimaryCyan,
                       title: 'English',
                       subtitle: '',
                       active: arch.i18nLocales.contains('en'),
@@ -805,7 +817,8 @@ class _LocalizationTab extends ConsumerWidget {
                 title: 'Translations (CSV)',
                 icon: Icons.table_chart_outlined,
                 filePath: arch.i18nCsvPath,
-                emptyHint: 'Optional: a compact CSV (`key,en,fr,…`) to translate in a '
+                emptyHint:
+                    'Optional: a compact CSV (`key,en,fr,…`) to translate in a '
                     'spreadsheet. Replaces the default scaffold above.',
                 onPick: () => _pickCsv(ref),
                 onRemove: () => notifier.setI18nCsvPath(''),
@@ -854,7 +867,7 @@ class _UploadFileCard extends StatelessWidget {
         children: [
           Icon(
             hasFile ? Icons.check_circle_outline : icon,
-            color: hasFile ? AppTheme.colorPrimaryCyan : Colors.grey[500],
+            color: hasFile ? Palette.colorPrimaryCyan : Colors.grey[500],
             size: 20,
           ),
           const SizedBox(width: 14),
@@ -888,8 +901,8 @@ class _UploadFileCard extends StatelessWidget {
           OutlinedButton(
             onPressed: onPick,
             style: OutlinedButton.styleFrom(
-              foregroundColor: AppTheme.colorPrimaryCyan,
-              side: BorderSide(color: AppTheme.colorPrimaryCyan.withValues(alpha: 0.5)),
+              foregroundColor: Palette.colorPrimaryCyan,
+              side: BorderSide(color: Palette.colorPrimaryCyan.withValues(alpha: 0.5)),
             ),
             child: Text(hasFile ? 'Change' : 'Upload'),
           ),
@@ -938,7 +951,7 @@ class _EnvFieldRow extends StatelessWidget {
     ),
     focusedBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(8),
-      borderSide: BorderSide(color: AppTheme.colorPrimaryCyan.withValues(alpha: 0.5)),
+      borderSide: BorderSide(color: Palette.colorPrimaryCyan.withValues(alpha: 0.5)),
     ),
   );
 
@@ -979,10 +992,10 @@ class _EnvFieldRow extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                   decoration: BoxDecoration(
-                    color: isBase ? AppTheme.colorPrimaryCyan.withValues(alpha: 0.12) : null,
+                    color: isBase ? Palette.colorPrimaryCyan.withValues(alpha: 0.12) : null,
                     border: Border.all(
                       color: isBase
-                          ? AppTheme.colorPrimaryCyan.withValues(alpha: 0.5)
+                          ? Palette.colorPrimaryCyan.withValues(alpha: 0.5)
                           : Colors.white12,
                     ),
                     borderRadius: BorderRadius.circular(4),
@@ -990,7 +1003,7 @@ class _EnvFieldRow extends StatelessWidget {
                   child: Text(
                     'BASE',
                     style: TextStyle(
-                      color: isBase ? AppTheme.colorPrimaryCyan : Colors.white24,
+                      color: isBase ? Palette.colorPrimaryCyan : Colors.white24,
                       fontSize: 9,
                       fontWeight: FontWeight.bold,
                     ),
@@ -1067,7 +1080,7 @@ class _ToggleRow extends StatelessWidget {
           Switch(
             value: value,
             onChanged: enabled ? onChanged : null,
-            activeTrackColor: AppTheme.colorPrimaryCyan,
+            activeTrackColor: Palette.colorPrimaryCyan,
           ),
         ],
       ),
@@ -1092,7 +1105,7 @@ class _FirebaseConfigUpload extends StatelessWidget {
           children: [
             Icon(
               hasFile ? Icons.check_circle_outline : Icons.upload_file_outlined,
-              color: hasFile ? AppTheme.colorPrimaryCyan : Colors.grey[500],
+              color: hasFile ? Palette.colorPrimaryCyan : Colors.grey[500],
               size: 20,
             ),
             const SizedBox(width: 12),
@@ -1111,8 +1124,8 @@ class _FirebaseConfigUpload extends StatelessWidget {
             OutlinedButton(
               onPressed: onPick,
               style: OutlinedButton.styleFrom(
-                foregroundColor: AppTheme.colorPrimaryCyan,
-                side: BorderSide(color: AppTheme.colorPrimaryCyan.withValues(alpha: 0.5)),
+                foregroundColor: Palette.colorPrimaryCyan,
+                side: BorderSide(color: Palette.colorPrimaryCyan.withValues(alpha: 0.5)),
               ),
               child: Text(hasFile ? 'Change' : 'Upload'),
             ),
@@ -1150,7 +1163,7 @@ class _ManagedPackagesPanel extends ConsumerWidget {
             padding: const EdgeInsets.all(16),
             child: Row(
               children: [
-                const Icon(Icons.inventory_2_outlined, color: AppTheme.colorPrimaryCyan, size: 16),
+                const Icon(Icons.inventory_2_outlined, color: Palette.colorPrimaryCyan, size: 16),
                 const SizedBox(width: 8),
                 Text(
                   '${packages.length} SELECTED PACKAGES',
@@ -1261,11 +1274,11 @@ class _SheetPackageTileState extends ConsumerState<_SheetPackageTile> {
                                 fillColor: const Color(0xFF2A2A2E),
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(4),
-                                  borderSide: const BorderSide(color: AppTheme.colorPrimaryCyan),
+                                  borderSide: const BorderSide(color: Palette.colorPrimaryCyan),
                                 ),
                                 focusedBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(4),
-                                  borderSide: const BorderSide(color: AppTheme.colorPrimaryCyan),
+                                  borderSide: const BorderSide(color: Palette.colorPrimaryCyan),
                                 ),
                               ),
                               onSubmitted: (_) => _commit(),
@@ -1287,7 +1300,7 @@ class _SheetPackageTileState extends ConsumerState<_SheetPackageTile> {
                               child: Text(
                                 widget.package.version,
                                 style: const TextStyle(
-                                  color: AppTheme.colorPrimaryCyan,
+                                  color: Palette.colorPrimaryCyan,
                                   fontSize: 12,
                                 ),
                               ),
@@ -1305,7 +1318,7 @@ class _SheetPackageTileState extends ConsumerState<_SheetPackageTile> {
                       style: TextStyle(
                         color: widget.package.isDev
                             ? const Color(0xFFFFA726)
-                            : AppTheme.colorPrimaryCyan,
+                            : Palette.colorPrimaryCyan,
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
                       ),

@@ -4,39 +4,29 @@ import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:neat/core/app_info/app_version_provider.dart';
-import 'package:neat/core/theme/app_theme.dart';
 import 'package:neat/features/identity/presentation/screens/main_layout.dart';
+import 'package:neat_ui/neat_ui.dart';
 
 class SplashScreen extends HookConsumerWidget {
   const SplashScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final glowCtrl = useAnimationController(
-      duration: const Duration(milliseconds: 1600),
-    );
-    final contentCtrl = useAnimationController(
-      duration: const Duration(milliseconds: 700),
-    );
-    final pulseCtrl = useAnimationController(
-      duration: const Duration(milliseconds: 2000),
-    );
+    final glowCtrl = useAnimationController(duration: const Duration(milliseconds: 1600));
+    final contentCtrl = useAnimationController(duration: const Duration(milliseconds: 700));
+    final pulseCtrl = useAnimationController(duration: const Duration(milliseconds: 2000));
 
     useEffect(() {
       glowCtrl.forward();
       Future.delayed(const Duration(milliseconds: 500), contentCtrl.forward);
-      Future.delayed(
-        const Duration(milliseconds: 900),
-        () => pulseCtrl.repeat(reverse: true),
-      );
+      Future.delayed(const Duration(milliseconds: 900), () => pulseCtrl.repeat(reverse: true));
 
       final timer = Timer(const Duration(milliseconds: 2800), () {
         Navigator.of(context).pushReplacement(
           PageRouteBuilder<void>(
             transitionDuration: const Duration(milliseconds: 600),
             pageBuilder: (_, _, _) => const MainLayout(),
-            transitionsBuilder: (_, anim, _, child) =>
-                FadeTransition(opacity: anim, child: child),
+            transitionsBuilder: (_, anim, _, child) => FadeTransition(opacity: anim, child: child),
           ),
         );
       });
@@ -45,17 +35,18 @@ class SplashScreen extends HookConsumerWidget {
     }, []);
 
     final glowFade = CurvedAnimation(parent: glowCtrl, curve: Curves.easeOut);
-    final glowScale = Tween<double>(begin: 0.4, end: 1.0).animate(
-      CurvedAnimation(parent: glowCtrl, curve: Curves.easeOutCubic),
-    );
-    final contentFade =
-        CurvedAnimation(parent: contentCtrl, curve: Curves.easeOut);
-    final pulse = Tween<double>(begin: 0.85, end: 1.0).animate(
-      CurvedAnimation(parent: pulseCtrl, curve: Curves.easeInOut),
-    );
+    final glowScale = Tween<double>(
+      begin: 0.4,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: glowCtrl, curve: Curves.easeOutCubic));
+    final contentFade = CurvedAnimation(parent: contentCtrl, curve: Curves.easeOut);
+    final pulse = Tween<double>(
+      begin: 0.85,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: pulseCtrl, curve: Curves.easeInOut));
 
     return Scaffold(
-      backgroundColor: AppTheme.colorNeutralBg,
+      backgroundColor: Palette.colorNeutralBg,
       body: Stack(
         children: [
           // Dot grid background
@@ -84,8 +75,8 @@ class SplashScreen extends HookConsumerWidget {
                                 shape: BoxShape.circle,
                                 gradient: RadialGradient(
                                   colors: [
-                                    AppTheme.colorPrimaryCyan.withValues(alpha: 0.12),
-                                    AppTheme.colorPrimaryCyan.withValues(alpha: 0.04),
+                                    Palette.colorPrimaryCyan.withValues(alpha: 0.12),
+                                    Palette.colorPrimaryCyan.withValues(alpha: 0.04),
                                     Colors.transparent,
                                   ],
                                 ),
@@ -106,8 +97,8 @@ class SplashScreen extends HookConsumerWidget {
                                 shape: BoxShape.circle,
                                 gradient: RadialGradient(
                                   colors: [
-                                    AppTheme.colorPrimaryCyan.withValues(alpha: 0.25),
-                                    AppTheme.colorPrimaryCyan.withValues(alpha: 0.08),
+                                    Palette.colorPrimaryCyan.withValues(alpha: 0.25),
+                                    Palette.colorPrimaryCyan.withValues(alpha: 0.08),
                                     Colors.transparent,
                                   ],
                                 ),
@@ -125,15 +116,12 @@ class SplashScreen extends HookConsumerWidget {
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(22),
                               border: Border.all(
-                                color: AppTheme.colorPrimaryCyan.withValues(alpha: 0.25),
+                                color: Palette.colorPrimaryCyan.withValues(alpha: 0.25),
                               ),
                             ),
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(21),
-                              child: Image.asset(
-                                'assets/images/neat_logo.png',
-                                fit: BoxFit.cover,
-                              ),
+                              child: Image.asset('assets/images/neat_logo.png', fit: BoxFit.cover),
                             ),
                           ),
                         ),
@@ -150,7 +138,7 @@ class SplashScreen extends HookConsumerWidget {
                   child: const Text(
                     'N E A T',
                     style: TextStyle(
-                      color: AppTheme.colorPrimaryCyan,
+                      color: Palette.colorPrimaryCyan,
                       fontSize: 28,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 10,
@@ -170,10 +158,7 @@ class SplashScreen extends HookConsumerWidget {
             child: FadeTransition(
               opacity: contentFade,
               child: Text(
-                ref.watch(appVersionProvider).maybeWhen(
-                      data: (v) => v,
-                      orElse: () => '',
-                    ),
+                ref.watch(appVersionProvider).maybeWhen(data: (v) => v, orElse: () => ''),
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   color: Colors.white24,
@@ -216,11 +201,7 @@ class _DotGridPainter extends CustomPainter {
 
     for (var r = 0; r <= rows; r++) {
       for (var c = 0; c <= cols; c++) {
-        canvas.drawCircle(
-          Offset(c * spacing, r * spacing),
-          radius,
-          paint,
-        );
+        canvas.drawCircle(Offset(c * spacing, r * spacing), radius, paint);
       }
     }
   }

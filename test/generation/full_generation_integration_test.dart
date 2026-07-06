@@ -1729,6 +1729,374 @@ void main() {
   );
 
   test(
+    'packageSplit=true + offline+sync: the split feature\'s SyncService '
+    'crosses into core, and the workspace analyzes cleanly',
+    () async {
+      const projectName = 'neat_pkgsplit_sync_test';
+      final logs = <String>[];
+      final pkgs = <PubPackage>[
+        _dep('hooks_riverpod', '3.3.1'),
+        _dep('flutter_hooks', '0.21.3+1'),
+        _dep('riverpod_annotation', '4.0.2'),
+        _dep('json_annotation', '4.11.0'),
+        _dep('freezed_annotation', '3.1.0'),
+        _dep('dio', '5.9.2'),
+        _dep('go_router', '17.2.3'),
+        _dev('riverpod_generator', '4.0.3'),
+        _dev('riverpod_lint', '3.1.3'),
+        _dev('json_serializable', '6.13.0'),
+        _dev('build_runner', '2.15.0'),
+        _dev('freezed', '3.2.5'),
+      ];
+
+      final identity = IdentityState(
+        name: projectName,
+        organization: 'com.neat.test',
+        projectPath: tempRoot.path,
+        description: 'NEAT packageSplit + offline-sync integration test',
+        targetPlatforms: const ['macos'],
+      );
+      const architecture = ArchitectureState(
+        packageSplit: true,
+        storageStrategy: StorageStrategy.offlineFirstSync,
+      );
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: identity,
+          packages: pkgs,
+          architecture: architecture,
+          cicd: const CicdState(),
+          theme: const ThemeEngineState(approach: ThemeApproach.customM3),
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('Generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+      final coreRoot = '${projectDir.path}/packages/${projectName}_core';
+      final featureRoot = '${projectDir.path}/packages/${projectName}_home';
+      String read(String p) => File(p).readAsStringSync();
+
+      // sync_service.dart lives in core, importing core's own network_info.dart...
+      final coreSync = read('$coreRoot/lib/core/sync/sync_service.dart');
+      expect(coreSync, contains('class SyncService'));
+      expect(
+        coreSync,
+        contains("import 'package:${projectName}_core/core/network/network_info.dart';"),
+      );
+
+      // ...never duplicated in the app.
+      expect(
+        File('${projectDir.path}/lib/core/sync/sync_service.dart').existsSync(),
+        isFalse,
+      );
+
+      // The split feature's repository-providers DI graph crosses into core
+      // for SyncService, never the app.
+      final di = read('$featureRoot/lib/data/repositories/home_repository_providers.dart');
+      expect(di, contains('SyncService homeSync(Ref ref)'));
+      expect(
+        di,
+        contains("import 'package:${projectName}_core/core/sync/sync_service.dart';"),
+      );
+      expect(di, isNot(contains('package:$projectName/')),
+          reason: 'a split feature package must never import from the app');
+
+      // Full CRUD write contract + Outbox-backed write path still generated.
+      final repoImpl =
+          read('$featureRoot/lib/data/repositories/home_repository_impl.dart');
+      expect(repoImpl, contains('enqueueWrite'));
+      expect(repoImpl, contains("operation: 'create'"));
+
+      // The whole workspace analyzes cleanly.
+      final analyze = await Process.run(
+        'flutter',
+        ['analyze', '--no-pub'],
+        workingDirectory: projectDir.path,
+      );
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason: 'flutter analyze reported errors:\n${errorLines.join('\n')}\n\n'
+            '--- full analyze output ---\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
+
+  test(
+    'packageSplit=true + Supabase + auth: Auth becomes its own package too, '
+    "and both it and the split feature cross into core for Supabase's client, "
+    'and the workspace analyzes cleanly',
+    () async {
+      const projectName = 'neat_pkgsplit_supabase_test';
+      final logs = <String>[];
+      final pkgs = <PubPackage>[
+        _dep('hooks_riverpod', '3.3.1'),
+        _dep('flutter_hooks', '0.21.3+1'),
+        _dep('riverpod_annotation', '4.0.2'),
+        _dep('json_annotation', '4.11.0'),
+        _dep('freezed_annotation', '3.1.0'),
+        _dep('supabase_flutter', '2.14.1'),
+        _dep('go_router', '17.2.3'),
+        _dev('riverpod_generator', '4.0.3'),
+        _dev('riverpod_lint', '3.1.3'),
+        _dev('json_serializable', '6.13.0'),
+        _dev('build_runner', '2.15.0'),
+        _dev('freezed', '3.2.5'),
+        _dev('go_router_builder', '4.3.0'), // required by generateAuth
+      ];
+
+      final identity = IdentityState(
+        name: projectName,
+        organization: 'com.neat.test',
+        projectPath: tempRoot.path,
+        description: 'NEAT packageSplit + Supabase + auth integration test',
+        targetPlatforms: const ['macos'],
+      );
+      const architecture = ArchitectureState(packageSplit: true, generateAuth: true);
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: identity,
+          packages: pkgs,
+          architecture: architecture,
+          cicd: const CicdState(),
+          theme: const ThemeEngineState(approach: ThemeApproach.customM3),
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('Generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+      final coreRoot = '${projectDir.path}/packages/${projectName}_core';
+      final featureRoot = '${projectDir.path}/packages/${projectName}_home';
+      final authRoot = '${projectDir.path}/packages/${projectName}_auth';
+      String read(String p) => File(p).readAsStringSync();
+
+      // supabase_provider.dart lives in core...
+      expect(
+        read('$coreRoot/lib/core/network/supabase_provider.dart'),
+        contains('SupabaseClient supabaseClient(Ref ref)'),
+      );
+      // ...never duplicated in the app.
+      expect(
+        File('${projectDir.path}/lib/core/network/supabase_provider.dart').existsSync(),
+        isFalse,
+      );
+
+      // Auth is its own package now (screens included) — nothing left under
+      // lib/features/auth/.
+      expect(File('${projectDir.path}/lib/features/auth').existsSync(), isFalse);
+      final authImpl =
+          read('$authRoot/lib/data/repositories/auth_repository_impl.dart');
+      expect(
+        authImpl,
+        contains("import '../../domain/repositories/i_auth_repository.dart';"),
+        reason: 'same-package self-reference — a plain relative import, like any other split feature',
+      );
+      // ...and its Result/Failure imports redirect to core, same as any
+      // other split feature (not duplicated the way wesioo's standalone
+      // authentication package does).
+      expect(
+        authImpl,
+        contains("import 'package:${projectName}_core/core/error/failure.dart';"),
+      );
+      expect(
+        authImpl,
+        contains("import 'package:${projectName}_core/core/result/result.dart';"),
+      );
+      final authProvider =
+          read('$authRoot/lib/presentation/providers/auth_provider.dart');
+      expect(
+        authProvider,
+        contains("import 'package:${projectName}_core/core/network/supabase_provider.dart';"),
+      );
+      final authPubspec = read('$authRoot/pubspec.yaml');
+      expect(
+        authPubspec,
+        contains('${projectName}_core:\n    path: ../${projectName}_core'),
+      );
+
+      // router_notifier.dart (app-level) crosses into the auth package for
+      // AuthController, never the reverse.
+      final routerNotifier =
+          read('${projectDir.path}/lib/core/router/router_notifier.dart');
+      expect(
+        routerNotifier,
+        contains("import 'package:${projectName}_auth/presentation/providers/auth_provider.dart';"),
+      );
+
+      // The split feature's own repository-providers DI graph crosses into
+      // core for the same client, never the app.
+      final di = read('$featureRoot/lib/data/repositories/home_repository_providers.dart');
+      expect(
+        di,
+        contains("import 'package:${projectName}_core/core/network/supabase_provider.dart';"),
+      );
+      expect(di, isNot(contains('package:$projectName/')),
+          reason: 'a split feature package must never import from the app');
+
+      // The whole workspace analyzes cleanly.
+      final analyze = await Process.run(
+        'flutter',
+        ['analyze', '--no-pub'],
+        workingDirectory: projectDir.path,
+      );
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason: 'flutter analyze reported errors:\n${errorLines.join('\n')}\n\n'
+            '--- full analyze output ---\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
+
+  test(
+    'packageSplit=true + Firebase + auth + realtime + storage: everything '
+    'crosses into core for the client, and the workspace analyzes cleanly',
+    () async {
+      const projectName = 'neat_pkgsplit_firebase_test';
+      final logs = <String>[];
+
+      final config = File('${tempRoot.path}/pkgsplit_firebase_config.json')
+        ..writeAsStringSync('''{
+  "apiKey": "AIzaTestKey123",
+  "appId": "1:1234567890:web:abcdef",
+  "messagingSenderId": "1234567890",
+  "projectId": "neat-demo",
+  "authDomain": "neat-demo.firebaseapp.com",
+  "storageBucket": "neat-demo.appspot.com"
+}''');
+
+      final pkgs = <PubPackage>[
+        _dep('hooks_riverpod', '3.3.1'),
+        _dep('flutter_hooks', '0.21.3+1'),
+        _dep('riverpod_annotation', '4.0.2'),
+        _dep('json_annotation', '4.11.0'),
+        _dep('freezed_annotation', '3.1.0'),
+        _dep('cloud_firestore', '5.6.0'),
+        _dep('go_router', '17.2.3'),
+        _dev('riverpod_generator', '4.0.3'),
+        _dev('riverpod_lint', '3.1.3'),
+        _dev('json_serializable', '6.13.0'),
+        _dev('build_runner', '2.15.0'),
+        _dev('freezed', '3.2.5'),
+        _dev('go_router_builder', '4.3.0'), // required by generateAuth
+      ];
+
+      final identity = IdentityState(
+        name: projectName,
+        organization: 'com.neat.test',
+        projectPath: tempRoot.path,
+        description: 'NEAT packageSplit + Firebase + auth/realtime/storage integration test',
+        targetPlatforms: const ['macos'],
+      );
+      final architecture = ArchitectureState(
+        packageSplit: true,
+        generateAuth: true,
+        generateRealtime: true,
+        generateStorage: true,
+        firebaseConfigPath: config.path,
+      );
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: identity,
+          packages: pkgs,
+          architecture: architecture,
+          cicd: const CicdState(),
+          theme: const ThemeEngineState(approach: ThemeApproach.customM3),
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('Generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+      final coreRoot = '${projectDir.path}/packages/${projectName}_core';
+      final featureRoot = '${projectDir.path}/packages/${projectName}_home';
+      final authRoot = '${projectDir.path}/packages/${projectName}_auth';
+      String read(String p) => File(p).readAsStringSync();
+
+      // firebase_provider.dart lives in core, with auth + storage singletons
+      // (hasAuth/hasStorage threaded through)...
+      final coreFp = read('$coreRoot/lib/core/network/firebase_provider.dart');
+      expect(coreFp, contains('FirebaseFirestore firestore(Ref ref)'));
+      expect(coreFp, contains('FirebaseAuth firebaseAuth(Ref ref)'));
+      expect(coreFp, contains('FirebaseStorage firebaseStorage(Ref ref)'));
+      // ...never duplicated in the app.
+      expect(
+        File('${projectDir.path}/lib/core/network/firebase_provider.dart').existsSync(),
+        isFalse,
+      );
+
+      // Auth is its own package now (screens included), redirecting to core
+      // for Result/Failure/the client.
+      expect(File('${projectDir.path}/lib/features/auth').existsSync(), isFalse);
+      final authImpl = read('$authRoot/lib/data/repositories/auth_repository_impl.dart');
+      expect(authImpl, contains("import 'package:${projectName}_core/core/result/result.dart';"));
+      final authProvider = read('$authRoot/lib/presentation/providers/auth_provider.dart');
+      expect(
+        authProvider,
+        contains("import 'package:${projectName}_core/core/network/firebase_provider.dart';"),
+      );
+
+      // Storage stays app-level too (nothing NEAT generates imports it
+      // cross-package), but its client-provider import redirects to core.
+      final storage = read('${projectDir.path}/lib/core/storage/storage_service.dart');
+      expect(
+        storage,
+        contains("import 'package:${projectName}_core/core/network/firebase_provider.dart';"),
+      );
+
+      // The split feature crosses into core for Firestore + realtime works.
+      final src = read('$featureRoot/lib/data/sources/home_api_source.dart');
+      expect(src, contains('Stream<List<HomeModel>> watchAll()'));
+      final di = read('$featureRoot/lib/data/repositories/home_repository_providers.dart');
+      expect(
+        di,
+        contains("import 'package:${projectName}_core/core/network/firebase_provider.dart';"),
+      );
+      expect(di, isNot(contains('package:$projectName/')),
+          reason: 'a split feature package must never import from the app');
+
+      // The whole workspace analyzes cleanly.
+      final analyze = await Process.run(
+        'flutter',
+        ['analyze', '--no-pub'],
+        workingDirectory: projectDir.path,
+      );
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason: 'flutter analyze reported errors:\n${errorLines.join('\n')}\n\n'
+            '--- full analyze output ---\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
+
+  test(
     'offline-first generates a valid Dart workspace that analyzes cleanly',
     () async {
       const projectName = 'neat_ws_test';
@@ -2544,6 +2912,13 @@ void main() {
       expect(dbDart, contains('class OrdersRows extends Table'));
       expect(dbDart, contains('upsertOrders(OrdersRow row)')); // DAO injected
       expect(dbDart, contains('OrdersRows,')); // added to @DriftDatabase(tables:)
+
+      // Schema version bumped + a migration step added — otherwise a device
+      // that already has the app installed (schemaVersion still 1) would
+      // never get the new table (Drift only runs onCreate on a fresh db).
+      expect(dbDart, contains('int get schemaVersion => 2;'));
+      expect(dbDart, contains('MigrationStrategy get migration'));
+      expect(dbDart, contains('if (from < 2) await m.createTable(ordersRows);'));
 
       // The whole offline workspace still analyzes cleanly.
       final analyze = await Process.run(

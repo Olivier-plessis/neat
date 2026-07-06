@@ -3,14 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:neat/core/contract/neat_contract.dart';
-import 'package:neat/core/theme/app_theme.dart';
-import 'package:neat/core/theme/gap.dart';
 import 'package:neat/features/architecture/presentation/widgets/entity_fields_editor.dart';
 import 'package:neat/features/feature_gen/domain/models/feature_gen_options.dart';
 import 'package:neat/features/feature_gen/presentation/providers/workshop_controller.dart';
 import 'package:neat/features/generation/domain/models/field_spec.dart';
 import 'package:neat/features/generation/domain/services/json_entity_inferencer.dart';
 import 'package:neat/features/identity/presentation/providers/stepper_provider.dart';
+import 'package:neat_ui/neat_ui.dart';
 
 /// Workshop mode: open an existing NEAT project (via its `.neat.json`) and
 /// generate a new feature. The project stack is fixed by the contract; the
@@ -43,9 +42,9 @@ class FeatureGenScreen extends HookConsumerWidget {
                     decoration: BoxDecoration(
                       color: const Color(0xFF111416),
                       borderRadius: .circular(10),
-                      border: .all(color: AppTheme.colorPrimaryCyan.withValues(alpha: 0.4)),
+                      border: .all(color: Palette.colorPrimaryCyan.withValues(alpha: 0.4)),
                     ),
-                    child: const Icon(Icons.bolt, color: AppTheme.colorPrimaryCyan, size: 22),
+                    child: const Icon(Icons.bolt, color: Palette.colorPrimaryCyan, size: 22),
                   ),
                 ),
 
@@ -121,7 +120,7 @@ class _OpenProjectPanel extends StatelessWidget {
             icon: const Icon(Icons.folder_open, size: 18),
             label: const Text('Open Existing Project'),
             style: FilledButton.styleFrom(
-              backgroundColor: AppTheme.colorPrimaryCyan,
+              backgroundColor: Palette.colorPrimaryCyan,
               foregroundColor: const Color(0xFF0E0E0E),
               padding: const .symmetric(horizontal: 20, vertical: 14),
             ),
@@ -199,7 +198,7 @@ class _Workshop extends HookWidget {
         // Project header.
         Row(
           children: [
-            const Icon(Icons.folder_special_outlined, size: 16, color: AppTheme.colorPrimaryCyan),
+            const Icon(Icons.folder_special_outlined, size: 16, color: Palette.colorPrimaryCyan),
             8.gapW,
             Expanded(
               child: Text(
@@ -232,7 +231,7 @@ class _Workshop extends HookWidget {
                       },
                 icon: const Icon(Icons.translate, size: 14),
                 label: const Text('Import i18n', style: TextStyle(fontSize: 12)),
-                style: TextButton.styleFrom(foregroundColor: AppTheme.colorPrimaryCyan),
+                style: TextButton.styleFrom(foregroundColor: Palette.colorPrimaryCyan),
               ),
             ],
             12.gapW,
@@ -481,7 +480,7 @@ class _Workshop extends HookWidget {
                             : const Icon(Icons.auto_awesome, size: 16),
                         label: Text(state.isGenerating ? 'Generating…' : 'Generate Feature'),
                         style: FilledButton.styleFrom(
-                          backgroundColor: AppTheme.colorPrimaryCyan,
+                          backgroundColor: Palette.colorPrimaryCyan,
                           foregroundColor: const Color(0xFF0E0E0E),
                           padding: const .symmetric(vertical: 16),
                         ),
@@ -515,7 +514,7 @@ class _Workshop extends HookWidget {
     ),
     focusedBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(8),
-      borderSide: const BorderSide(color: AppTheme.colorPrimaryCyan),
+      borderSide: const BorderSide(color: Palette.colorPrimaryCyan),
     ),
   );
 
@@ -660,7 +659,7 @@ class _ShellBranchFields extends StatelessWidget {
                         value: i,
                         child: Row(
                           children: [
-                            Icon(_iconData[i], size: 16, color: AppTheme.colorPrimaryCyan),
+                            Icon(_iconData[i], size: 16, color: Palette.colorPrimaryCyan),
                             8.gapW,
                             Expanded(child: Text(i, overflow: TextOverflow.ellipsis)),
                           ],
@@ -700,7 +699,7 @@ class _ShellBranchFields extends StatelessWidget {
     ),
     focusedBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(8),
-      borderSide: const BorderSide(color: AppTheme.colorPrimaryCyan),
+      borderSide: const BorderSide(color: Palette.colorPrimaryCyan),
     ),
   );
 }
@@ -737,7 +736,7 @@ class _ParentSelector extends StatelessWidget {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: AppTheme.colorPrimaryCyan),
+          borderSide: const BorderSide(color: Palette.colorPrimaryCyan),
         ),
       ),
       child: DropdownButtonHideUnderline(
@@ -772,7 +771,7 @@ class _RoutingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cyan = AppTheme.colorPrimaryCyan;
+    final cyan = Palette.colorPrimaryCyan;
     return Opacity(
       opacity: comingSoon ? 0.45 : 1,
       child: InkWell(
@@ -877,7 +876,7 @@ class _LayerToggle extends StatelessWidget {
           Switch(
             value: value,
             onChanged: enabled ? onChanged : null,
-            activeThumbColor: AppTheme.colorPrimaryCyan,
+            activeThumbColor: Palette.colorPrimaryCyan,
           ),
         ],
       ),
@@ -961,7 +960,7 @@ class _BlueprintTree extends StatelessWidget {
                           style: TextStyle(
                             color: l.startsWith('lib/')
                                 ? Colors.white
-                                : AppTheme.colorPrimaryCyan.withValues(alpha: 0.85),
+                                : Palette.colorPrimaryCyan.withValues(alpha: 0.85),
                             fontSize: 12.5,
                             fontFamily: 'monospace',
                             height: 1.2,
@@ -1031,7 +1030,7 @@ class _SectionTitle extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(icon, size: 16, color: AppTheme.colorPrimaryCyan),
+        Icon(icon, size: 16, color: Palette.colorPrimaryCyan),
         8.gapW,
         Text(
           label,
@@ -1052,14 +1051,14 @@ class _Badge extends StatelessWidget {
     return Container(
       padding: const .symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: AppTheme.colorPrimaryCyan.withValues(alpha: 0.1),
+        color: Palette.colorPrimaryCyan.withValues(alpha: 0.1),
         borderRadius: .circular(6),
-        border: .all(color: AppTheme.colorPrimaryCyan.withValues(alpha: 0.3)),
+        border: .all(color: Palette.colorPrimaryCyan.withValues(alpha: 0.3)),
       ),
       child: Text(
         label,
         style: const TextStyle(
-          color: AppTheme.colorPrimaryCyan,
+          color: Palette.colorPrimaryCyan,
           fontSize: 11,
           fontWeight: FontWeight.w600,
         ),

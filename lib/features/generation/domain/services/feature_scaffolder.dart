@@ -246,7 +246,6 @@ class FeatureScaffolder {
         '$presentationBase/providers/${featureName}_provider.dart',
         PresentationTemplates.featureProvider(
           featureName: featureName,
-          packageName: packageName,
           useAnnotations: useAnnotations,
           useCubit: false,
           dataList: dataList,

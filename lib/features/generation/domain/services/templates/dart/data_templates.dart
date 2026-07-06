@@ -755,8 +755,10 @@ class ${p}LocalSource {
     imports.writeln(switch (httpClient) {
       'chopper' =>
         "import 'package:${corePackageName ?? packageName}/core/network/chopper_client_provider.dart';",
-      'supabase' => "import 'package:$packageName/core/network/supabase_provider.dart';",
-      'firebase' => "import 'package:$packageName/core/network/firebase_provider.dart';",
+      'supabase' =>
+        "import 'package:${corePackageName ?? packageName}/core/network/supabase_provider.dart';",
+      'firebase' =>
+        "import 'package:${corePackageName ?? packageName}/core/network/firebase_provider.dart';",
       _ => "import 'package:${corePackageName ?? packageName}/core/network/dio_provider.dart';",
     });
     if (registersChopperDecoder) {
@@ -764,7 +766,8 @@ class ${p}LocalSource {
           "import 'package:$corePackageName/core/network/chopper_model_converter.dart';");
     }
     if (hasSync) {
-      imports.writeln("import 'package:$packageName/core/sync/sync_service.dart';");
+      imports.writeln(
+          "import 'package:${corePackageName ?? packageName}/core/sync/sync_service.dart';");
     }
     imports
       ..writeln("import '../../domain/repositories/i_${featureName}_repository.dart';")

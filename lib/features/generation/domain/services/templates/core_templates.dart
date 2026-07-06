@@ -953,16 +953,22 @@ and review `firestore.rules` before shipping.
   /// A thin wrapper over the project's object storage + a provider. Both
   /// backends expose the same contract: [upload] returns a ready-to-use URL,
   /// plus [download] / [remove]. So the sample widget stays backend-agnostic.
+  // corePackageName: storage_service.dart itself always stays app-level
+  // (nothing NEAT generates imports it cross-package), but the client-init
+  // provider it reads (supabaseClientProvider/firebaseStorageProvider) moves
+  // into core when packageSplit is on, so this one import still redirects.
   static String storageService({
     required String packageName,
     required bool useAnnotations,
     String backend = 'supabase',
+    String? corePackageName,
   }) {
     final isFirebase = backend == 'firebase';
     final pkgImport = isFirebase
         ? "import 'package:firebase_storage/firebase_storage.dart';"
         : "import 'package:supabase_flutter/supabase_flutter.dart';";
-    final providerImport = "import 'package:$packageName/core/network/${isFirebase ? 'firebase' : 'supabase'}_provider.dart';";
+    final providerImport =
+        "import 'package:${corePackageName ?? packageName}/core/network/${isFirebase ? 'firebase' : 'supabase'}_provider.dart';";
     final construct = isFirebase
         ? 'StorageService(ref.watch(firebaseStorageProvider))'
         : 'StorageService(ref.watch(supabaseClientProvider))';

@@ -42,7 +42,7 @@ class ProjectLoader {
       final packagesDir = Directory('$projectPath/packages');
       if (!packagesDir.existsSync()) return const [];
       final prefix = '${contract.projectName}_';
-      const nonFeatureSuffixes = ['core', 'local_storage', 'ui'];
+      const nonFeatureSuffixes = ['core', 'local_storage', 'ui', 'auth'];
       return packagesDir
           .listSync()
           .whereType<Directory>()

@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
-import 'package:neat/core/theme/app_theme.dart';
 import 'package:neat/features/cicd/domain/models/cicd_state.dart';
 import 'package:neat/features/cicd/domain/usecases/generate_yaml_usecase.dart';
 import 'package:neat/features/cicd/presentation/providers/cicd_provider.dart';
+import 'package:neat_ui/neat_ui.dart';
 
 class CicdScreen extends HookConsumerWidget {
   const CicdScreen({super.key});
@@ -46,94 +46,94 @@ class CicdScreen extends HookConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _SectionHeader(label: 'CI Runners'),
+                      SectionHeader(fontSize: 15, label: 'CI Runners'),
                       const SizedBox(height: 12),
                       IntrinsicHeight(
-                       child: Row(
-                        children: [
-                          Expanded(
-                            child: _ToolCard(
-                              icon: Icons.hub_outlined,
-                              title: 'GitHub Actions',
-                              description: 'Workflows YAML dans `.github/workflows/`.',
-                              tags: const ['ubuntu-latest', 'macos-latest'],
-                              badge: 'CI',
-                              badgeColor: const Color(0xFF2E7D32),
-                              isSelected: state.isSelected(CiTool.githubActions),
-                              onTap: () => notifier.toggleTool(CiTool.githubActions),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: _ToolCard(
+                                icon: Icons.hub_outlined,
+                                title: 'GitHub Actions',
+                                description: 'Workflows YAML dans `.github/workflows/`.',
+                                tags: const ['ubuntu-latest', 'macos-latest'],
+                                badge: 'CI',
+                                badgeColor: const Color(0xFF2E7D32),
+                                isSelected: state.isSelected(CiTool.githubActions),
+                                onTap: () => notifier.toggleTool(CiTool.githubActions),
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _ToolCard(
-                              icon: Icons.view_quilt_outlined,
-                              title: 'GitLab CI',
-                              description: 'Configuration `.gitlab-ci.yml` avec runners dédiés.',
-                              tags: const ['flutter-docker', 'shared-runner'],
-                              badge: 'CI',
-                              badgeColor: const Color(0xFF2E7D32),
-                              isSelected: state.isSelected(CiTool.gitlabCi),
-                              onTap: () => notifier.toggleTool(CiTool.gitlabCi),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _ToolCard(
+                                icon: Icons.view_quilt_outlined,
+                                title: 'GitLab CI',
+                                description: 'Configuration `.gitlab-ci.yml` avec runners dédiés.',
+                                tags: const ['flutter-docker', 'shared-runner'],
+                                badge: 'CI',
+                                badgeColor: const Color(0xFF2E7D32),
+                                isSelected: state.isSelected(CiTool.gitlabCi),
+                                onTap: () => notifier.toggleTool(CiTool.gitlabCi),
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _ToolCard(
-                              icon: Icons.auto_fix_high_outlined,
-                              title: 'Codemagic',
-                              description: 'CI/CD mobile-first, `codemagic.yaml` tout-en-un.',
-                              tags: const ['mac-mini-m1', 'linux'],
-                              badge: 'CI/CD',
-                              badgeColor: const Color(0xFF1565C0),
-                              isSelected: state.isSelected(CiTool.codemagic),
-                              onTap: () => notifier.toggleTool(CiTool.codemagic),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _ToolCard(
+                                icon: Icons.auto_fix_high_outlined,
+                                title: 'Codemagic',
+                                description: 'CI/CD mobile-first, `codemagic.yaml` tout-en-un.',
+                                tags: const ['mac-mini-m1', 'linux'],
+                                badge: 'CI/CD',
+                                badgeColor: const Color(0xFF1565C0),
+                                isSelected: state.isSelected(CiTool.codemagic),
+                                onTap: () => notifier.toggleTool(CiTool.codemagic),
+                              ),
                             ),
-                          ),
-                        ],
-                       ),
+                          ],
+                        ),
                       ),
 
                       const SizedBox(height: 24),
-                      _SectionHeader(label: 'CD & Delivery'),
+                      SectionHeader(fontSize: 15, label: 'CD & Delivery'),
                       const SizedBox(height: 12),
                       IntrinsicHeight(
-                       child: Row(
-                        children: [
-                          Expanded(
-                            child: _ToolCard(
-                              icon: Icons.rocket_launch_outlined,
-                              title: 'Fastlane',
-                              description:
-                                  'Automatise la signature et la publication sur App Store & Play Store.',
-                              tags: const ['App Store', 'Play Store'],
-                              badge: 'CD',
-                              badgeColor: const Color(0xFF6A1B9A),
-                              isSelected: state.isSelected(CiTool.fastlane),
-                              onTap: () => notifier.toggleTool(CiTool.fastlane),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: _ToolCard(
+                                icon: Icons.rocket_launch_outlined,
+                                title: 'Fastlane',
+                                description:
+                                    'Automatise la signature et la publication sur App Store & Play Store.',
+                                tags: const ['App Store', 'Play Store'],
+                                badge: 'CD',
+                                badgeColor: const Color(0xFF6A1B9A),
+                                isSelected: state.isSelected(CiTool.fastlane),
+                                onTap: () => notifier.toggleTool(CiTool.fastlane),
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _ToolCard(
-                              icon: Icons.system_update_outlined,
-                              title: 'Shorebird',
-                              description:
-                                  'Déploiement OTA (over-the-air) sans passer par les stores.',
-                              tags: const ['OTA', 'CodePush'],
-                              badge: 'OTA',
-                              badgeColor: const Color(0xFFB71C1C),
-                              isSelected: state.isSelected(CiTool.shorebird),
-                              onTap: () => notifier.toggleTool(CiTool.shorebird),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _ToolCard(
+                                icon: Icons.system_update_outlined,
+                                title: 'Shorebird',
+                                description:
+                                    'Déploiement OTA (over-the-air) sans passer par les stores.',
+                                tags: const ['OTA', 'CodePush'],
+                                badge: 'OTA',
+                                badgeColor: const Color(0xFFB71C1C),
+                                isSelected: state.isSelected(CiTool.shorebird),
+                                onTap: () => notifier.toggleTool(CiTool.shorebird),
+                              ),
                             ),
-                          ),
-                          const Expanded(child: SizedBox()),
-                        ],
-                       ),
+                            const Expanded(child: SizedBox()),
+                          ],
+                        ),
                       ),
 
                       if (state.hasCiRunner) ...[
                         const SizedBox(height: 24),
-                        _SectionHeader(label: 'Pipeline Stages'),
+                        SectionHeader(fontSize: 15, label: 'Pipeline Stages'),
                         const SizedBox(height: 12),
                         DecoratedBox(
                           decoration: BoxDecoration(
@@ -200,7 +200,7 @@ class CicdScreen extends HookConsumerWidget {
                           width: 4,
                           height: 16,
                           decoration: BoxDecoration(
-                            color: AppTheme.colorPrimaryCyan,
+                            color: Palette.colorPrimaryCyan,
                             borderRadius: BorderRadius.circular(2),
                           ),
                         ),
@@ -268,14 +268,14 @@ class CicdScreen extends HookConsumerWidget {
                                     top: Radius.circular(6),
                                   ),
                                   border: Border.all(
-                                    color: selected ? AppTheme.colorPrimaryCyan : Colors.white10,
+                                    color: selected ? Palette.colorPrimaryCyan : Colors.white10,
                                     width: selected ? 1.5 : 1,
                                   ),
                                 ),
                                 child: Text(
                                   files[i].filename.split('/').last,
                                   style: TextStyle(
-                                    color: selected ? AppTheme.colorPrimaryCyan : Colors.grey[600],
+                                    color: selected ? Palette.colorPrimaryCyan : Colors.grey[600],
                                     fontSize: 11,
                                     fontFamily: 'monospace',
                                   ),
@@ -325,35 +325,6 @@ class CicdScreen extends HookConsumerWidget {
   }
 }
 
-// ── Section header ────────────────────────────────────────────────────────────
-
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 4,
-          height: 16,
-          decoration: BoxDecoration(
-            color: AppTheme.colorPrimaryCyan,
-            borderRadius: BorderRadius.circular(2),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Text(
-          label,
-          style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
-        ),
-      ],
-    );
-  }
-}
-
 // ── Tool card (multi-select) ──────────────────────────────────────────────────
 
 class _ToolCard extends StatelessWidget {
@@ -388,7 +359,7 @@ class _ToolCard extends StatelessWidget {
           color: isSelected ? const Color(0xFF111A1A) : const Color(0xFF18181C),
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: isSelected ? AppTheme.colorPrimaryCyan : Colors.white10,
+            color: isSelected ? Palette.colorPrimaryCyan : Colors.white10,
             width: isSelected ? 1.5 : 1,
           ),
         ),
@@ -399,7 +370,7 @@ class _ToolCard extends StatelessWidget {
               children: [
                 Icon(
                   icon,
-                  color: isSelected ? AppTheme.colorPrimaryCyan : Colors.grey[600],
+                  color: isSelected ? Palette.colorPrimaryCyan : Colors.grey[600],
                   size: 18,
                 ),
                 const Spacer(),
@@ -422,9 +393,9 @@ class _ToolCard extends StatelessWidget {
                   height: 16,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: isSelected ? AppTheme.colorPrimaryCyan : Colors.transparent,
+                    color: isSelected ? Palette.colorPrimaryCyan : Colors.transparent,
                     border: Border.all(
-                      color: isSelected ? AppTheme.colorPrimaryCyan : Colors.white24,
+                      color: isSelected ? Palette.colorPrimaryCyan : Colors.white24,
                       width: 1.5,
                     ),
                   ),
@@ -528,10 +499,10 @@ class _StageTile extends StatelessWidget {
               width: 44,
               height: 26,
               decoration: BoxDecoration(
-                color: value ? AppTheme.colorPrimaryCyan.withValues(alpha: 0.15) : Colors.white10,
+                color: value ? Palette.colorPrimaryCyan.withValues(alpha: 0.15) : Colors.white10,
                 borderRadius: BorderRadius.circular(13),
                 border: Border.all(
-                  color: value ? AppTheme.colorPrimaryCyan : Colors.white12,
+                  color: value ? Palette.colorPrimaryCyan : Colors.white12,
                   width: 1.5,
                 ),
               ),
@@ -547,7 +518,7 @@ class _StageTile extends StatelessWidget {
                         width: 18,
                         height: 18,
                         decoration: BoxDecoration(
-                          color: value ? AppTheme.colorPrimaryCyan : Colors.grey[700],
+                          color: value ? Palette.colorPrimaryCyan : Colors.grey[700],
                           shape: BoxShape.circle,
                         ),
                         child: value

@@ -193,6 +193,19 @@ class AppDatabase extends _\$AppDatabase {
   @override
   int get schemaVersion => 1;
 
+  // A table added later (Workshop feature-gen) bumps schemaVersion and
+  // inserts its own `if (from < N) await m.createTable(...)` step here —
+  // otherwise a device that already has the app installed keeps its old
+  // on-disk schema forever (Drift only runs onCreate on a brand-new database
+  // file, never onUpgrade, unless the version actually changes).
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+        onCreate: (m) => m.createAll(),
+        onUpgrade: (m, from, to) async {
+          // neat:migrations
+        },
+      );
+
 ${includeFirstTable ? featureDao(featureName) : ''}$outboxMethods
 
   // neat:daos — feature DAOs are inserted above this line.

@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:neat/core/app_info/app_version_provider.dart';
-import 'package:neat/core/theme/app_theme.dart';
-import 'package:neat/core/theme/gap.dart';
 import 'package:neat/features/architecture/presentation/providers/architecture_provider.dart';
 import 'package:neat/features/architecture/presentation/screens/architecture_screen.dart';
 import 'package:neat/features/cicd/presentation/screens/cicd_screen.dart';
@@ -21,6 +19,7 @@ import 'package:neat/features/infrastructure/presentation/screens/infrastructure
 import 'package:neat/features/theme_engine/domain/models/theme_engine_state.dart';
 import 'package:neat/features/theme_engine/presentation/providers/theme_engine_provider.dart';
 import 'package:neat/features/theme_engine/presentation/screens/theme_engine_screen.dart';
+import 'package:neat_ui/neat_ui.dart';
 
 class MainLayout extends ConsumerWidget {
   const MainLayout({super.key});
@@ -40,53 +39,51 @@ class MainLayout extends ConsumerWidget {
           // ── Sidebar ───────────────────────────────────────────────────────
           Container(
             width: 240,
-            color: Theme.of(context).colorScheme.surface,
+            color: context.neatColors.mainDark,
             child: Column(
               children: [
                 // Logo + version (click → back to the Hub)
                 InkWell(
                   onTap: () => ref.read(currentStepProvider.notifier).setStep(NeatStep.hub),
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 28, 20, 24),
+                    padding: const .fromLTRB(20, 28, 20, 24),
                     child: Row(
                       children: [
                         Container(
                           width: 40,
                           height: 40,
                           decoration: BoxDecoration(
-                            color: const Color(0xFF111416),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: AppTheme.colorPrimaryCyan.withValues(alpha: 0.4),
-                            ),
+                            color: context.neatColors.mainDark,
+                            borderRadius: .circular(10),
+                            border: .all(color: Palette.colorPrimaryCyan.withValues(alpha: 0.4)),
                           ),
-                          child: const Icon(Icons.bolt, color: AppTheme.colorPrimaryCyan, size: 22),
+                          child: const Icon(Icons.bolt, color: Palette.colorPrimaryCyan, size: 22),
                         ),
                         12.gapW,
                         Column(
                           crossAxisAlignment: .start,
                           children: [
-                            const Text(
+                            Text(
                               'NEAT',
                               style: TextStyle(
-                                color: AppTheme.colorPrimaryCyan,
+                                color: context.neatColors.colorPrimaryCyan,
                                 fontSize: 20,
                                 fontWeight: .bold,
                                 letterSpacing: 2,
                               ),
                             ),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                              padding: const .symmetric(horizontal: 6, vertical: 1),
                               decoration: BoxDecoration(
-                                border: Border.all(color: Colors.white12),
-                                borderRadius: BorderRadius.circular(3),
+                                border: .all(color: context.neatColors.surface10),
+                                borderRadius: .circular(3),
                               ),
                               child: Text(
                                 ref
                                     .watch(appVersionProvider)
                                     .maybeWhen(data: (v) => v.toUpperCase(), orElse: () => '…'),
-                                style: const TextStyle(
-                                  color: Colors.white38,
+                                style: TextStyle(
+                                  color: context.neatColors.mainFont,
                                   fontSize: 9,
                                   letterSpacing: 0.8,
                                 ),
@@ -99,8 +96,8 @@ class MainLayout extends ConsumerWidget {
                   ),
                 ),
 
-                const Divider(color: Colors.white10, height: 1),
-                const SizedBox(height: 16),
+                Divider(color: context.neatColors.mainFont, height: 1),
+                16.gapH,
 
                 // Wizard steps (featureGen / Workshop is reached from the Hub).
                 _buildItem(ref, NeatStep.identity, 'IDENTITY', Icons.fingerprint_outlined),
@@ -125,34 +122,31 @@ class MainLayout extends ConsumerWidget {
                 // Progress bar
                 if (currentStep.isWizardStep)
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
+                    padding: const .fromLTRB(20, 0, 20, 28),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment: .start,
+                      spacing: 8,
                       children: [
                         Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          mainAxisAlignment: .spaceBetween,
                           children: [
-                            const Text(
+                            Text(
                               'PROGRESS',
-                              style: TextStyle(
-                                color: Colors.white38,
-                                fontSize: 10,
-                                letterSpacing: 1.2,
-                              ),
+                              style: context.textTheme.labelMedium!.copyWith(letterSpacing: 1.2),
                             ),
                             Text(
                               '${currentStep.wizardIndex + 1}/${NeatStepX.wizardTotal}',
-                              style: const TextStyle(color: Colors.white38, fontSize: 10),
+                              style: context.textTheme.labelMedium,
                             ),
                           ],
                         ),
-                        const SizedBox(height: 8),
+
                         ClipRRect(
-                          borderRadius: BorderRadius.circular(4),
+                          borderRadius: .circular(4),
                           child: LinearProgressIndicator(
                             value: (currentStep.wizardIndex + 1) / NeatStepX.wizardTotal,
-                            backgroundColor: Colors.white10,
-                            valueColor: const AlwaysStoppedAnimation(AppTheme.colorPrimaryCyan),
+                            backgroundColor: context.neatColors.surface10,
+                            valueColor: const AlwaysStoppedAnimation(Palette.colorPrimaryCyan),
                             minHeight: 4,
                           ),
                         ),
@@ -163,7 +157,7 @@ class MainLayout extends ConsumerWidget {
             ),
           ),
 
-          Container(width: 1, color: Colors.white10),
+          Container(width: 1, color: context.neatColors.surface10),
 
           // ── Contenu central ───────────────────────────────────────────────
           Expanded(
@@ -172,7 +166,7 @@ class MainLayout extends ConsumerWidget {
                 // Screen content
                 Expanded(
                   child: Container(
-                    padding: const EdgeInsets.fromLTRB(40, 40, 40, 0),
+                    padding: const .fromLTRB(40, 40, 40, 0),
                     child: AnimatedSwitcher(
                       duration: const Duration(milliseconds: 200),
                       child: _screenFor(currentStep),
@@ -198,16 +192,14 @@ class MainLayout extends ConsumerWidget {
       onTap: reachable ? () => ref.read(currentStepProvider.notifier).setStep(step) : null,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        margin: const .symmetric(horizontal: 12, vertical: 2),
+        padding: const .symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: isSelected
-              ? AppTheme.colorPrimaryCyan.withValues(alpha: 0.08)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
+          color: isSelected ? Palette.colorPrimaryCyan.withValues(alpha: 0.08) : Colors.transparent,
+          borderRadius: .circular(8),
+          border: .all(
             color: isSelected
-                ? AppTheme.colorPrimaryCyan.withValues(alpha: 0.3)
+                ? Palette.colorPrimaryCyan.withValues(alpha: 0.3)
                 : Colors.transparent,
           ),
         ),
@@ -216,7 +208,7 @@ class MainLayout extends ConsumerWidget {
             Icon(
               icon,
               color: isSelected
-                  ? AppTheme.colorPrimaryCyan
+                  ? Palette.colorPrimaryCyan
                   : reachable
                   ? Colors.grey[600]
                   : Colors.grey[800],
@@ -259,18 +251,16 @@ class MainLayout extends ConsumerWidget {
       onTap: () => ref.read(currentInfrastructureTabProvider.notifier).setTab(tab),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        margin: const EdgeInsets.fromLTRB(28, 1, 12, 1),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        margin: const .fromLTRB(28, 1, 12, 1),
+        padding: const .symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected
-              ? AppTheme.colorPrimaryCyan.withValues(alpha: 0.06)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(6),
+          color: isSelected ? Palette.colorPrimaryCyan.withValues(alpha: 0.06) : Colors.transparent,
+          borderRadius: .circular(6),
         ),
         child: Text(
           label,
           style: TextStyle(
-            color: isSelected ? AppTheme.colorPrimaryCyan : Colors.grey[600],
+            color: isSelected ? Palette.colorPrimaryCyan : Colors.grey[600],
             fontSize: 11,
             fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
             letterSpacing: 0.6,
@@ -305,19 +295,6 @@ class _WorkshopMode extends ConsumerWidget {
     return Scaffold(
       body: Column(
         children: [
-          // Padding(
-          //   padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-          //   child: Row(
-          //     children: [
-          //       TextButton.icon(
-          //         onPressed: () => ref.read(currentStepProvider.notifier).setStep(NeatStep.hub),
-          //         icon: const Icon(Icons.arrow_back, size: 16),
-          //         label: const Text('Neat-home'),
-          //         style: TextButton.styleFrom(foregroundColor: Colors.white54),
-          //       ),
-          //     ],
-          //   ),
-          // ),
           const Expanded(
             child: Padding(padding: EdgeInsets.fromLTRB(40, 16, 40, 0), child: FeatureGenScreen()),
           ),
@@ -402,7 +379,7 @@ class _NavBar extends ConsumerWidget {
     final showNext = next != null || (infraTab != null && infraTabIndex < _infraTabs.length - 1);
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(40, 16, 40, 24),
+      padding: const .fromLTRB(40, 16, 40, 24),
       decoration: const BoxDecoration(
         border: Border(top: BorderSide(color: Colors.white10)),
       ),
@@ -419,7 +396,7 @@ class _NavBar extends ConsumerWidget {
               style: OutlinedButton.styleFrom(minimumSize: const Size(120, 48)),
             )
           else
-            const SizedBox(width: 120),
+            120.gapW,
 
           // Next / Launch button (hidden on the very last step)
           if (showNext)
@@ -429,7 +406,7 @@ class _NavBar extends ConsumerWidget {
               label: Text(step.nextLabel),
               style: FilledButton.styleFrom(
                 minimumSize: const Size(160, 48),
-                backgroundColor: AppTheme.colorPrimaryCyan,
+                backgroundColor: Palette.colorPrimaryCyan,
                 foregroundColor: Colors.black,
                 disabledBackgroundColor: Colors.white12,
                 disabledForegroundColor: Colors.white24,
