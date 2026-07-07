@@ -10,13 +10,11 @@ class PresentationTemplates {
   static String featureProvider({
     required String featureName,
     required bool useAnnotations,
-    required bool useCubit,
     bool dataList = false,
     bool realtime = false,
     bool includeCrudUi = false,
     List<FieldSpec> fields = FieldSpec.idName,
   }) {
-    if (useCubit) return _cubitTemplate(featureName);
     if (useAnnotations) {
       if (dataList) {
         return realtime
@@ -158,25 +156,6 @@ final ${camel(featureName)}Provider =
 class ${p}Notifier extends Notifier<AsyncValue<void>> {
   @override
   AsyncValue<void> build() => const AsyncData(null);
-}
-''';
-  }
-
-  static String _cubitTemplate(String featureName) {
-    final p = pascal(featureName);
-    return '''import 'package:flutter_bloc/flutter_bloc.dart';
-
-class ${p}Cubit extends Cubit<${p}State> {
-  ${p}Cubit() : super(${p}Initial());
-}
-
-abstract class ${p}State {}
-class ${p}Initial extends ${p}State {}
-class ${p}Loading extends ${p}State {}
-class ${p}Loaded extends ${p}State {}
-class ${p}Error extends ${p}State {
-  ${p}Error(this.message);
-  final String message;
 }
 ''';
   }

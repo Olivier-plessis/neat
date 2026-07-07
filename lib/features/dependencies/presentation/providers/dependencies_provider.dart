@@ -86,12 +86,24 @@ class SelectedPackages extends _$SelectedPackages {
   /// Switches the backend: strips all backend-specific packages, then adds the
   /// chosen backend's base preset (keeping any non-backend packages the user
   /// already picked). The manifest remains the source of truth for generation.
+  ///
+  /// [preset] (restPreset/supabasePreset/etc.) still carries Riverpod by
+  /// default for backward compatibility, but if the user already switched to
+  /// Bloc via [applyStateManagementPreset], that choice must survive a backend
+  /// switch — so any state-management package in [preset] is skipped whenever
+  /// the current manifest already has *some* state management selected
+  /// (regardless of which family), mirroring how backend switching never
+  /// touches [RoutingStyle] either.
   void applyBackendPreset(List<PubPackage> preset) {
     final stripped =
         state.where((p) => !backendMarkerPackages.contains(p.name)).toList();
+    final hasStateManagement =
+        stripped.any((p) => stateManagementMarkerPackages.contains(p.name));
     final existing = {for (final p in stripped) p.name};
-    final toAdd =
-        preset.where((p) => !existing.contains(p.name) && !isUnsupportedPackage(p.name));
+    final toAdd = preset.where((p) =>
+        !existing.contains(p.name) &&
+        !isUnsupportedPackage(p.name) &&
+        !(hasStateManagement && stateManagementMarkerPackages.contains(p.name)));
     state = [...stripped, ...toAdd];
   }
 
@@ -100,6 +112,18 @@ class SelectedPackages extends _$SelectedPackages {
   /// (infrastructure_screen.dart's client picker, only shown for
   /// `BackendKind.rest`).
   void applyHttpClientPreset(List<PubPackage> preset) => applyBackendPreset(preset);
+
+  /// Switches state management (Riverpod/Bloc) — independent of the backend/
+  /// HTTP client choice, the same strip-then-add mechanism scoped to
+  /// [stateManagementMarkerPackages] only (mirrors [applyBackendPreset]).
+  void applyStateManagementPreset(List<PubPackage> preset) {
+    final stripped =
+        state.where((p) => !stateManagementMarkerPackages.contains(p.name)).toList();
+    final existing = {for (final p in stripped) p.name};
+    final toAdd =
+        preset.where((p) => !existing.contains(p.name) && !isUnsupportedPackage(p.name));
+    state = [...stripped, ...toAdd];
+  }
 
   /// Switches routing style: adds/removes go_router_builder — a plain add/
   /// remove rather than a strip-then-add preset swap, since it just layers on

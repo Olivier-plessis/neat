@@ -3,74 +3,74 @@ part of 'constant.dart';
 extension PaddingExt on Widget {
   Widget paddedH(double value) {
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: value),
+      padding: .symmetric(horizontal: value),
       child: this,
     );
   }
 
   Widget paddedV(double value) {
     return Padding(
-      padding: EdgeInsets.symmetric(vertical: value),
+      padding: .symmetric(vertical: value),
       child: this,
     );
   }
 
   Widget paddedHV(double horizontal, double vertical) {
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: horizontal, vertical: vertical),
+      padding: .symmetric(horizontal: horizontal, vertical: vertical),
       child: this,
     );
   }
 
   Widget paddedL(double value) {
     return Padding(
-      padding: EdgeInsets.only(left: value),
+      padding: .only(left: value),
       child: this,
     );
   }
 
   Widget paddedR(double value) {
     return Padding(
-      padding: EdgeInsets.only(right: value),
+      padding: .only(right: value),
       child: this,
     );
   }
 
   Widget paddedLR(double left, double right) {
     return Padding(
-      padding: EdgeInsets.only(left: left, right: right),
+      padding: .only(left: left, right: right),
       child: this,
     );
   }
 
   Widget paddedT(double value) {
     return Padding(
-      padding: EdgeInsets.only(top: value),
+      padding: .only(top: value),
       child: this,
     );
   }
 
   Widget paddedB(double value) {
     return Padding(
-      padding: EdgeInsets.only(bottom: value),
+      padding: .only(bottom: value),
       child: this,
     );
   }
 
   Widget paddedTB(double top, double bottom) {
     return Padding(
-      padding: EdgeInsets.only(top: top, bottom: bottom),
+      padding: .only(top: top, bottom: bottom),
       child: this,
     );
   }
 
   Widget paddedAll(double value) {
-    return Padding(padding: EdgeInsets.all(value), child: this);
+    return Padding(padding: .all(value), child: this);
   }
 
   Widget paddedLRTB({double left = 0, double right = 0, double top = 0, double bottom = 0}) {
     return Padding(
-      padding: EdgeInsets.only(left: left, right: right, top: top, bottom: bottom),
+      padding: .only(left: left, right: right, top: top, bottom: bottom),
       child: this,
     );
   }

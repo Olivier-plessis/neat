@@ -611,10 +611,11 @@ T unwrapChopperResponse<T>(Response<T> response) {
     bool hasRiverpod = true,
   }) {
     final isDioLike = httpClient == 'dio';
-    // ChopperApiException lives in chopper_model_converter.dart, itself only
-    // generated alongside the (Riverpod-wired) chopper client — see
-    // launch_generation_usecase.dart's `httpClient == 'chopper' && hasRiverpod`.
-    final isChopper = httpClient == 'chopper' && hasRiverpod;
+    // ChopperApiException lives in chopper_model_converter.dart, which is
+    // plain Dart generated for every chopper project regardless of state
+    // management (see launch_generation_usecase.dart) — hasRiverpod plays no
+    // part here; kept as a param only for the other call sites' symmetry.
+    final isChopper = httpClient == 'chopper';
     final isSupabase = httpClient == 'supabase';
     final isFirebase = httpClient == 'firebase';
 

@@ -12,6 +12,7 @@ import 'package:neat/features/theme_engine/domain/models/theme_engine_state.dart
 import 'package:neat/features/theme_engine/domain/services/color_extractor_service.dart';
 import 'package:neat/features/theme_engine/domain/services/theme_templates.dart';
 import 'package:neat/features/theme_engine/presentation/providers/theme_engine_provider.dart';
+import 'package:neat/features/theme_engine/presentation/widgets/entry_point.dart';
 import 'package:neat_ui/neat_ui.dart';
 
 // ── Root screen ───────────────────────────────────────────────────────────────
@@ -27,151 +28,27 @@ class ThemeEngineScreen extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Header
-        const Text(
-          'Design System Architect',
-          style: TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold),
-        ),
+        Text('Design System Architect', style: context.textTheme.headlineLarge),
         const SizedBox(height: 8),
-        const Text(
+        Text(
           'Generate a professional Material 3 design system for your Flutter application.\n'
           'Adjust parameters in real-time and preview the visual output.',
-          style: TextStyle(color: Colors.white54, fontSize: 14, height: 1.5),
+          style: context.textTheme.bodyLarge,
         ),
         const SizedBox(height: 32),
 
         Expanded(
-          child: approach == ThemeApproach.none ? const _EntryPoint() : const _TabbedEditor(),
+          child: approach == ThemeApproach.none
+              ? EntryPoint(
+                  onTapCustom: () =>
+                      ref.read(themeEngineProvider.notifier).setApproach(ThemeApproach.customM3),
+                  onTapFlex: () => ref
+                      .read(themeEngineProvider.notifier)
+                      .setApproach(ThemeApproach.flexColorScheme),
+                )
+              : const _TabbedEditor(),
         ),
       ],
-    );
-  }
-}
-
-// ── Entry point — approach selection ─────────────────────────────────────────
-
-class _EntryPoint extends ConsumerWidget {
-  const _EntryPoint();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 680, maxHeight: 350),
-        child: Row(
-          children: [
-            Expanded(
-              child: _ApproachCard(
-                icon: Icons.palette_outlined,
-                title: 'Custom your scheme',
-                description:
-                    'Build a fully custom Material 3 design system.\nConfigure colors, typography, shapes and more.',
-                onTap: () =>
-                    ref.read(themeEngineProvider.notifier).setApproach(ThemeApproach.customM3),
-              ),
-            ),
-            const SizedBox(width: 24),
-            Expanded(
-              child: _ApproachCard(
-                icon: Icons.auto_awesome_outlined,
-                title: 'Flex Color Scheme',
-                description:
-                    'Use FlexColorScheme for advanced surface\nblending and powerful tonal schemes.',
-                onTap: () {
-                  // Dep is added lazily when the user presses Next
-                  ref.read(themeEngineProvider.notifier).setApproach(ThemeApproach.flexColorScheme);
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ApproachCard extends StatefulWidget {
-  const _ApproachCard({
-    required this.icon,
-    required this.title,
-    required this.description,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String title;
-  final String description;
-  final VoidCallback onTap;
-
-  @override
-  State<_ApproachCard> createState() => _ApproachCardState();
-}
-
-class _ApproachCardState extends State<_ApproachCard> {
-  bool _hovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.all(28),
-        decoration: BoxDecoration(
-          color: _hovered
-              ? Palette.colorPrimaryCyan.withValues(alpha: 0.06)
-              : const Color(0xFF111316),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: _hovered
-                ? Palette.colorPrimaryCyan.withValues(alpha: 0.5)
-                : Colors.white.withValues(alpha: 0.08),
-            width: _hovered ? 1.5 : 1,
-          ),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const SizedBox(height: 8),
-            Icon(
-              widget.icon,
-              size: 40,
-              color: _hovered ? Palette.colorPrimaryCyan : Colors.white38,
-            ),
-            const SizedBox(height: 20),
-            Text(
-              widget.title,
-              style: TextStyle(
-                color: _hovered ? Colors.white : Colors.white70,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 10),
-            Text(
-              widget.description,
-              style: const TextStyle(color: Colors.white38, fontSize: 13, height: 1.5),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
-            OutlinedButton(
-              onPressed: widget.onTap,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: _hovered ? Palette.colorPrimaryCyan : Colors.white54,
-                side: BorderSide(color: _hovered ? Palette.colorPrimaryCyan : Colors.white24),
-                minimumSize: const Size(140, 42),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              child: const Text(
-                'STARTED',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1.2),
-              ),
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
     );
   }
 }
@@ -425,7 +302,12 @@ class _ColorsTabState extends ConsumerState<_ColorsTab> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // ── Palette Generator ────────────────────────────────────────────
-          SectionHeader(iconSize: 16, fontSize: 14, icon: Icons.palette_outlined, label: 'Palette Generator'),
+          SectionHeader(
+            iconSize: 16,
+            fontSize: 14,
+            icon: Icons.palette_outlined,
+            label: 'Palette Generator',
+          ),
           const SizedBox(height: 16),
 
           Row(
@@ -571,7 +453,12 @@ class _ColorsTabState extends ConsumerState<_ColorsTab> {
           24.gapH,
 
           // ── Generated color swatches ─────────────────────────────────────
-          SectionHeader(iconSize: 16, fontSize: 14, icon: Icons.grid_view_outlined, label: 'Generated Palette'),
+          SectionHeader(
+            iconSize: 16,
+            fontSize: 14,
+            icon: Icons.grid_view_outlined,
+            label: 'Generated Palette',
+          ),
           16.gapH,
 
           // Row 1: primary, primaryContainer, secondary, surfaceHigh
@@ -629,7 +516,12 @@ class _ColorsTabState extends ConsumerState<_ColorsTab> {
           24.gapH,
 
           // ── Semantic colors (palette tokens used by AppButton & theme) ───
-          SectionHeader(iconSize: 16, fontSize: 14, icon: Icons.bookmark_outline, label: 'Semantic Colors'),
+          SectionHeader(
+            iconSize: 16,
+            fontSize: 14,
+            icon: Icons.bookmark_outline,
+            label: 'Semantic Colors',
+          ),
           12.gapH,
           Row(
             spacing: 10,
@@ -1086,7 +978,12 @@ class _ButtonsShapesTab extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // ── Global Shape Geometry ────────────────────────────────────────
-          SectionHeader(iconSize: 16, fontSize: 14, icon: Icons.rounded_corner_outlined, label: 'Global Shape Geometry'),
+          SectionHeader(
+            iconSize: 16,
+            fontSize: 14,
+            icon: Icons.rounded_corner_outlined,
+            label: 'Global Shape Geometry',
+          ),
           const SizedBox(height: 16),
 
           Container(
@@ -1147,7 +1044,12 @@ class _ButtonsShapesTab extends ConsumerWidget {
           const SizedBox(height: 24),
 
           // ── Button Theme Customizer ──────────────────────────────────────
-          SectionHeader(iconSize: 16, fontSize: 14, icon: Icons.smart_button_outlined, label: 'Button Theme Customizer'),
+          SectionHeader(
+            iconSize: 16,
+            fontSize: 14,
+            icon: Icons.smart_button_outlined,
+            label: 'Button Theme Customizer',
+          ),
           const SizedBox(height: 16),
 
           _ButtonConfigCard(
@@ -1192,7 +1094,12 @@ class _ButtonsShapesTab extends ConsumerWidget {
           const SizedBox(height: 24),
 
           // ── Component Library (opt-in) ───────────────────────────────────
-          SectionHeader(iconSize: 16, fontSize: 14, icon: Icons.widgets_outlined, label: 'Component Library'),
+          SectionHeader(
+            iconSize: 16,
+            fontSize: 14,
+            icon: Icons.widgets_outlined,
+            label: 'Component Library',
+          ),
           const SizedBox(height: 16),
           for (final c in AppComponent.values)
             Padding(
@@ -1223,7 +1130,12 @@ class _ButtonsShapesTab extends ConsumerWidget {
           ),
 
           const SizedBox(height: 24),
-          SectionHeader(iconSize: 16, fontSize: 14, icon: Icons.image_outlined, label: 'Branding (App Icon & Splash)'),
+          SectionHeader(
+            iconSize: 16,
+            fontSize: 14,
+            icon: Icons.image_outlined,
+            label: 'Branding (App Icon & Splash)',
+          ),
           const SizedBox(height: 16),
           _BrandingCard(
             logoPath: state.logoPath,
@@ -1916,7 +1828,12 @@ class _FlexColorSchemeTabState extends ConsumerState<_FlexColorSchemeTab> {
           const SizedBox(height: 16),
 
           // ── Code editor ──────────────────────────────────────────────────
-          SectionHeader(iconSize: 16, fontSize: 14, icon: Icons.code_outlined, label: 'Import Configuration'),
+          SectionHeader(
+            iconSize: 16,
+            fontSize: 14,
+            icon: Icons.code_outlined,
+            label: 'Import Configuration',
+          ),
           const SizedBox(height: 16),
 
           DecoratedBox(
@@ -2034,7 +1951,12 @@ class _FlexColorSchemeTabState extends ConsumerState<_FlexColorSchemeTab> {
           const SizedBox(height: 24),
 
           // ── Scheme Definition ────────────────────────────────────────────
-          SectionHeader(iconSize: 16, fontSize: 14, icon: Icons.tune_outlined, label: 'Scheme Definition'),
+          SectionHeader(
+            iconSize: 16,
+            fontSize: 14,
+            icon: Icons.tune_outlined,
+            label: 'Scheme Definition',
+          ),
           const SizedBox(height: 16),
 
           Row(
@@ -2195,7 +2117,12 @@ class _FlexColorSchemeTabState extends ConsumerState<_FlexColorSchemeTab> {
           const SizedBox(height: 24),
 
           // Packaging — available in FlexColorScheme too (not just Custom M3).
-          SectionHeader(iconSize: 16, fontSize: 14, icon: Icons.widgets_outlined, label: 'Packaging'),
+          SectionHeader(
+            iconSize: 16,
+            fontSize: 14,
+            icon: Icons.widgets_outlined,
+            label: 'Packaging',
+          ),
           const SizedBox(height: 12),
           _SimpleToggleCard(
             icon: Icons.widgets_outlined,
@@ -2208,7 +2135,12 @@ class _FlexColorSchemeTabState extends ConsumerState<_FlexColorSchemeTab> {
           ),
 
           const SizedBox(height: 24),
-          SectionHeader(iconSize: 16, fontSize: 14, icon: Icons.image_outlined, label: 'Branding (App Icon & Splash)'),
+          SectionHeader(
+            iconSize: 16,
+            fontSize: 14,
+            icon: Icons.image_outlined,
+            label: 'Branding (App Icon & Splash)',
+          ),
           const SizedBox(height: 16),
           _BrandingCard(
             logoPath: state.logoPath,
@@ -2603,7 +2535,6 @@ class _Clickable extends StatelessWidget {
     );
   }
 }
-
 
 /// Reusable styled slider
 class _NeatSlider extends StatelessWidget {

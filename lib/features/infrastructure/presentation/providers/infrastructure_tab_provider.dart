@@ -7,12 +7,12 @@ part 'infrastructure_tab_provider.g.dart';
 /// Infrastructure still counts as a single step (see main_layout.dart's
 /// PROGRESS bar); this only decides which panel is shown and which sidenav
 /// sub-item is highlighted.
-enum InfrastructureTab { backend, navigation, localization }
+enum InfrastructureTab { management, backend, navigation, localization }
 
 @Riverpod(keepAlive: true)
 class CurrentInfrastructureTab extends _$CurrentInfrastructureTab {
   @override
-  InfrastructureTab build() => InfrastructureTab.backend;
+  InfrastructureTab build() => InfrastructureTab.management;
 
   void setTab(InfrastructureTab tab) => state = tab;
 }

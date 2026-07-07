@@ -57,13 +57,16 @@ void main() {
       expect(out, contains('static Failure _handleChopperError(ChopperApiException error)'));
     });
 
-    test('chopper without riverpod: no ChopperApiException (converter file not generated)', () {
+    test('chopper without riverpod (Bloc/Cubit): still maps ChopperApiException '
+        '— chopper_model_converter.dart is plain Dart, generated regardless of '
+        'state management (real bug, found via a real generated project)', () {
       final out = CoreTemplates.networkErrorHandler(
         packageName: pkg,
         httpClient: 'chopper',
         hasRiverpod: false,
       );
-      expect(out, isNot(contains('ChopperApiException')));
+      expect(out, contains('if (error is ChopperApiException) return _handleChopperError(error);'));
+      expect(out, contains('static Failure _handleChopperError(ChopperApiException error)'));
     });
 
     test('supabase: maps AuthException + PostgrestException', () {
@@ -129,7 +132,12 @@ void main() {
       );
       expect(out, contains('final result = await _repository.getAll();'));
       expect(out, contains('return result.getOrThrow();'));
-      expect(out, contains("import 'package:demo/core/result/result.dart';"));
+      // No Result import needed here: getOrThrow() is a plain instance method
+      // (not an extension) on the sealed Result<T> class, resolvable via the
+      // inferred type without importing result.dart directly — a real
+      // unused_import warning was found across every offline-first
+      // integration test until this was removed (see ROADMAP.md).
+      expect(out, isNot(contains('core/result/result.dart')));
     });
   });
 

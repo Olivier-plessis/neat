@@ -5,23 +5,12 @@ import 'package:neat/features/dependencies/domain/models/pub_package.dart';
 /// truth the generator reads (backend is inferred from the resulting packages).
 enum BackendKind { rest, supabase, firebase }
 
-/// Shared core every backend ships with (state mgmt, codegen, routing, env).
-const _corePackages = <PubPackage>[
-  PubPackage(
-    name: 'hooks_riverpod',
-    version: '3.3.1',
-    description: 'Flutter hooks + Riverpod state management.',
-  ),
-  PubPackage(
-    name: 'flutter_hooks',
-    version: '0.21.3+1',
-    description: 'React-style hooks for Flutter widgets.',
-  ),
-  PubPackage(
-    name: 'riverpod_annotation',
-    version: '4.0.2',
-    description: 'Annotations for code-generated Riverpod providers.',
-  ),
+/// Packages every backend ships with **regardless of state management**
+/// (model codegen, routing, env) — state management itself is a separate,
+/// independently-swappable axis (see [StateManagementKind]) so switching
+/// backend never clobbers a Riverpod/Bloc choice, the same way it never
+/// touches [RoutingStyle].
+const _sharedCore = <PubPackage>[
   PubPackage(
     name: 'json_annotation',
     version: '4.11.0',
@@ -35,18 +24,11 @@ const _corePackages = <PubPackage>[
   PubPackage(name: 'go_router', version: '17.2.3', description: 'Declarative routing for Flutter.'),
   PubPackage(name: 'envied', version: '1.3.5', description: 'Declarative env for Flutter.'),
   PubPackage(
-    name: 'riverpod_generator',
-    version: '4.0.3',
-    description: 'Code generator for Riverpod providers.',
-    isDev: true,
-  ),
-  PubPackage(
     name: 'envied_generator',
     version: '1.3.5',
     description: 'Code generator for envied.',
     isDev: true,
   ),
-  PubPackage(name: 'riverpod_lint', version: '3.1.3', description: 'Lint rules for Riverpod.', isDev: true),
   PubPackage(
     name: 'json_serializable',
     version: '6.13.0',
@@ -66,6 +48,46 @@ const _corePackages = <PubPackage>[
     isDev: true,
   ),
 ];
+
+/// Riverpod state management — NEAT's default (see [StateManagementKind]).
+const _riverpodPreset = <PubPackage>[
+  PubPackage(
+    name: 'hooks_riverpod',
+    version: '3.3.1',
+    description: 'Flutter hooks + Riverpod state management.',
+  ),
+  PubPackage(
+    name: 'flutter_hooks',
+    version: '0.21.3+1',
+    description: 'React-style hooks for Flutter widgets.',
+  ),
+  PubPackage(
+    name: 'riverpod_annotation',
+    version: '4.0.2',
+    description: 'Annotations for code-generated Riverpod providers.',
+  ),
+  PubPackage(
+    name: 'riverpod_generator',
+    version: '4.0.3',
+    description: 'Code generator for Riverpod providers.',
+    isDev: true,
+  ),
+  PubPackage(name: 'riverpod_lint', version: '3.1.3', description: 'Lint rules for Riverpod.', isDev: true),
+];
+
+/// Bloc/Cubit state management (see [StateManagementKind]).
+const _blocPreset = <PubPackage>[
+  PubPackage(
+    name: 'flutter_bloc',
+    version: '9.1.1',
+    description: 'Bloc/Cubit state management for Flutter.',
+  ),
+];
+
+/// Backward-compat composition (shared + Riverpod) — seeds [restPreset] et al.
+/// so a fresh project defaults to Riverpod, same packages as before this axis
+/// was split out.
+const _corePackages = <PubPackage>[..._sharedCore, ..._riverpodPreset];
 
 /// Opt-in typed routing (see [RoutingStyle]) — not bundled in [_corePackages]
 /// so "manual go_router" is a real, reachable default instead of something
@@ -168,3 +190,33 @@ enum RoutingStyle { manual, typed }
 /// Infers the active routing style from the manifest.
 RoutingStyle routingStyleOf(List<PubPackage> packages) =>
     packages.any((p) => p.name == 'go_router_builder') ? RoutingStyle.typed : RoutingStyle.manual;
+
+/// State management — independent of [BackendKind]/[HttpClientKind]: picking
+/// one swaps just this slice of the manifest (see
+/// [SelectedPackages.applyStateManagementPreset]), leaving the backend/HTTP
+/// client choice untouched, the same way [RoutingStyle] is independent too.
+enum StateManagementKind { riverpod, bloc }
+
+List<PubPackage> presetForStateManagement(StateManagementKind kind) => switch (kind) {
+      StateManagementKind.riverpod => _riverpodPreset,
+      StateManagementKind.bloc => _blocPreset,
+    };
+
+/// State-management package names — stripped before applying a new state
+/// management preset (mirrors [backendMarkerPackages]), and consulted by
+/// [SelectedPackages.applyBackendPreset] so switching backend never re-adds
+/// Riverpod on top of an existing Bloc choice (or vice versa).
+const stateManagementMarkerPackages = <String>{
+  'hooks_riverpod',
+  'flutter_hooks',
+  'riverpod_annotation',
+  'riverpod_generator',
+  'riverpod_lint',
+  'flutter_bloc',
+  'bloc',
+};
+
+/// Infers the active state management from the manifest. Defaults to
+/// Riverpod (NEAT's default) when no bloc-family package is present.
+StateManagementKind stateManagementOf(List<PubPackage> packages) =>
+    packages.any((p) => p.name.contains('bloc')) ? StateManagementKind.bloc : StateManagementKind.riverpod;

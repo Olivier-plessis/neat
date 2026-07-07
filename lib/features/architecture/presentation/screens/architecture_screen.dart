@@ -94,11 +94,12 @@ class ArchitectureScreen extends ConsumerWidget {
                     children: [
                       SectionHeader(icon: Icons.bookmark_added_outlined, label: 'First Feature'),
                       const SizedBox(height: 12),
-                      _ToggleTile(
+                      ToggleTile(
                         title: 'Generate example feature',
-                        description: hasRiverpod && !state.useRiverpodAnnotations
-                            ? 'FakeStore Products — with manual NotifierProvider (no @riverpod '
-                                  'annotations) this is a placeholder page + Notifier stub, not the '
+                        description: (hasRiverpod && !state.useRiverpodAnnotations) || hasBloc
+                            ? 'FakeStore Products — with ${hasBloc ? (state.useCubit ? 'Cubit' : 'Bloc') : 'manual NotifierProvider'} '
+                                  '(no @riverpod annotations) this is a placeholder page + '
+                                  '${hasBloc ? (state.useCubit ? 'Cubit' : 'Bloc') : 'Notifier'} stub, not the '
                                   'full-CRUD example: the usecase-level DI graph is annotation-only. '
                                   'Off → the app ships with zero features either way.'
                             : 'FakeStore Products: a full-CRUD worked example against a public '
@@ -167,7 +168,7 @@ class ArchitectureScreen extends ConsumerWidget {
                         label: 'Clean Architecture Layers',
                       ),
                       const SizedBox(height: 12),
-                      _ToggleTile(
+                      ToggleTile(
                         title: 'Include Data Mappers',
                         description: 'Generate dedicated DTO to Domain Entity mappers.',
                         value: state.includeMappers,
@@ -175,22 +176,13 @@ class ArchitectureScreen extends ConsumerWidget {
                       ),
                       const SizedBox(height: 8),
                       if (hasRiverpod)
-                        _ToggleTile(
+                        ToggleTile(
                           title: 'Use @riverpod annotation syntax',
                           description: state.useRiverpodAnnotations
                               ? 'Génère `@riverpod class MyNotifier extends _\$MyNotifier` (code-gen via build_runner).'
                               : 'Génère `class MyNotifier extends Notifier<T>` + `NotifierProvider` à la main — pas de build_runner pour l\'état, mais pas de liste/CRUD witness (voir ROADMAP.md).',
                           value: state.useRiverpodAnnotations,
                           onChanged: notifier.toggleRiverpodAnnotations,
-                        ),
-                      if (hasRiverpod && hasBloc) const SizedBox(height: 8),
-                      if (hasBloc)
-                        _ToggleTile(
-                          title: 'Use Cubit instead of full BLoC',
-                          description:
-                              'Génère des `Cubit<State>` (sans Events) plutôt que des `Bloc<Event, State>` complets.',
-                          value: state.useCubit,
-                          onChanged: notifier.toggleCubit,
                         ),
 
                       const SizedBox(height: 28),
@@ -233,7 +225,7 @@ class ArchitectureScreen extends ConsumerWidget {
                       const SizedBox(height: 28),
                       SectionHeader(icon: Icons.dns_outlined, label: 'Modular Monorepo'),
                       const SizedBox(height: 12),
-                      _ToggleTile(
+                      ToggleTile(
                         title: 'Split first feature into its own package',
                         description: canPackageSplit
                             ? 'Team workflow: the first feature moves into its own workspace '
@@ -243,7 +235,8 @@ class ArchitectureScreen extends ConsumerWidget {
                                   'UseCase/networking) — never on the app itself, so multiple devs '
                                   'can own separate features without touching a shared lib/.'
                             : 'Requires: a first feature, dio/chopper/Supabase/Firebase, and '
-                                  'Riverpod annotations. See ROADMAP.md §6a.',
+                                  'Riverpod with @riverpod annotations — not yet available for '
+                                  'manual Notifier or Bloc/Cubit projects. See ROADMAP.md §6a.',
                         value: canPackageSplit && state.packageSplit,
                         disabled: !canPackageSplit,
                         onChanged: notifier.togglePackageSplit,
@@ -260,7 +253,7 @@ class ArchitectureScreen extends ConsumerWidget {
                           const SizedBox(height: 28),
                           SectionHeader(icon: Icons.space_dashboard_outlined, label: 'Navigation'),
                           const SizedBox(height: 12),
-                          _ToggleTile(
+                          ToggleTile(
                             title: 'Generate Auth ($backendLabel)',
                             description:
                                 'Feature auth complète : écrans login/signup/forgot, AuthController, '
@@ -270,7 +263,7 @@ class ArchitectureScreen extends ConsumerWidget {
                           ),
                           if (state.generateAuth && hasFirebase) ...[
                             const SizedBox(height: 12),
-                            _ToggleTile(
+                            ToggleTile(
                               title: 'OAuth (Google + Apple)',
                               description:
                                   'Boutons Google/Apple sur l\'écran login via '
@@ -293,7 +286,7 @@ class ArchitectureScreen extends ConsumerWidget {
                         // Backend credentials (URLs / keys / Firebase config) live
                         // on the Dependencies screen now.
                         if (state.useRiverpodAnnotations)
-                          _ToggleTile(
+                          ToggleTile(
                             title: 'Realtime list',
                             description: hasFirebase
                                 ? 'La liste de la 1ʳᵉ feature devient live : un StreamNotifier '
@@ -305,7 +298,7 @@ class ArchitectureScreen extends ConsumerWidget {
                             onChanged: notifier.toggleGenerateRealtime,
                           ),
                         if (state.useRiverpodAnnotations) const SizedBox(height: 12),
-                        _ToggleTile(
+                        ToggleTile(
                           title: 'Storage',
                           description:
                               'StorageService (upload/download/remove) + provider + un widget '
@@ -326,7 +319,7 @@ class ArchitectureScreen extends ConsumerWidget {
                         label: 'Testing Architecture',
                       ),
                       const SizedBox(height: 12),
-                      _ToggleTile(
+                      ToggleTile(
                         title: 'Mirror Structure in /test',
                         description:
                             'Automatically create matching directory structures for unit and widget tests.',
@@ -594,102 +587,6 @@ class _PatternCard extends StatelessWidget {
     );
 
     return disabled ? Opacity(opacity: 0.45, child: card) : card;
-  }
-}
-
-// ── Toggle tile ───────────────────────────────────────────────────────────────
-
-class _ToggleTile extends StatelessWidget {
-  const _ToggleTile({
-    required this.title,
-    required this.description,
-    required this.value,
-    required this.onChanged,
-    this.disabled = false,
-  });
-
-  final String title;
-  final String description;
-  final bool value;
-  final ValueChanged<bool> onChanged;
-
-  /// Locked: shown but not toggleable (feature pinned / not yet validated).
-  final bool disabled;
-
-  @override
-  Widget build(BuildContext context) {
-    return Opacity(
-      opacity: disabled ? 0.55 : 1,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-        decoration: BoxDecoration(
-          color: const Color(0xFF18181C),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.white10),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(description, style: TextStyle(color: Colors.grey[500], fontSize: 12)),
-                ],
-              ),
-            ),
-            const SizedBox(width: 16),
-            GestureDetector(
-              onTap: disabled ? null : () => onChanged(!value),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                width: 48,
-                height: 28,
-                decoration: BoxDecoration(
-                  color: value ? Palette.colorPrimaryCyan.withValues(alpha: 0.15) : Colors.white10,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: value ? Palette.colorPrimaryCyan : Colors.white12,
-                    width: 1.5,
-                  ),
-                ),
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    AnimatedAlign(
-                      duration: const Duration(milliseconds: 200),
-                      alignment: value ? Alignment.centerRight : Alignment.centerLeft,
-                      child: Padding(
-                        padding: const EdgeInsets.all(3),
-                        child: Container(
-                          width: 20,
-                          height: 20,
-                          decoration: BoxDecoration(
-                            color: value ? Palette.colorPrimaryCyan : Colors.grey[700],
-                            shape: BoxShape.circle,
-                          ),
-                          child: value
-                              ? const Icon(Icons.check, size: 11, color: Color(0xFF0E0E0E))
-                              : null,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }
 

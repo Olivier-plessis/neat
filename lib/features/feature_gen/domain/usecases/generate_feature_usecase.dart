@@ -117,7 +117,7 @@ class GenerateFeatureUsecase {
       mirrorTestStructure: c.mirrorTestStructure,
       hasRiverpod: hasRiverpod,
       hasBloc: hasBloc,
-      useCubit: false, // BLoC/Cubit is gated; riverpod is the validated path.
+      useCubit: c.useCubit && hasBloc,
       useAnnotations: useAnnotations,
       hasGoRouter: hasGoRouter,
       hasGoRouterBuilder: hasGoRouterBuilder,

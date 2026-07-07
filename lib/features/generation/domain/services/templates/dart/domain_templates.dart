@@ -138,9 +138,11 @@ $writeContract$watchContract
     return result.getOrThrow();
   }'''
         : '=> _repository.getAll();';
-    final resultImport =
-        offlineFirst ? "import 'package:$corePkg/core/result/result.dart';\n" : '';
-    return '''${resultImport}import 'package:$corePkg/core/usecases/use_case.dart';
+    // No Result import needed: getOrThrow() is a plain instance method on the
+    // sealed Result<T> class (not an extension), and the repository's return
+    // type is already resolvable via i_<feature>_repository.dart below, which
+    // imports result.dart itself — importing it again here is unused.
+    return '''import 'package:$corePkg/core/usecases/use_case.dart';
 import '../entities/${featureName}_entity.dart';
 import '../repositories/i_${featureName}_repository.dart';
 

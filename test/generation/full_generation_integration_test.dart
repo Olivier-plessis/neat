@@ -406,6 +406,283 @@ void main() {
   );
 
   test(
+    'Bloc (useCubit: false): full Bloc with Events/States generated, '
+    'flutter_bloc auto-injected, analyzes cleanly',
+    () async {
+      const projectName = 'neat_bloc_test';
+      final logs = <String>[];
+
+      // 'bloc' alone (not flutter_bloc) — proves the auto-injection safety net.
+      final blocPackages = <PubPackage>[
+        _dep('bloc', '9.0.1'),
+        _dep('dio', '5.9.2'),
+        _dep('go_router', '17.2.3'),
+      ];
+
+      final identity = IdentityState(
+        name: projectName,
+        organization: 'com.neat.test',
+        projectPath: tempRoot.path,
+        description: 'NEAT Bloc integration test',
+        targetPlatforms: const ['macos'],
+      );
+
+      const architecture = ArchitectureState(firstFeatureName: 'user_profile');
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: identity,
+          packages: blocPackages,
+          architecture: architecture,
+          cicd: const CicdState(),
+          theme: const ThemeEngineState(approach: ThemeApproach.customM3),
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('Bloc generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+
+      // flutter_bloc auto-injected even though only 'bloc' was selected.
+      expect(
+        File('${projectDir.path}/pubspec.yaml').readAsStringSync(),
+        contains('flutter_bloc:'),
+      );
+
+      // Full Bloc: bloc/event/state files, not cubit.
+      final blocFile = File(
+        '${projectDir.path}/lib/features/user_profile/presentation/bloc/user_profile_bloc.dart',
+      ).readAsStringSync();
+      expect(blocFile, contains('class UserProfileBloc extends Bloc<UserProfileEvent, UserProfileState>'));
+      final eventFile = File(
+        '${projectDir.path}/lib/features/user_profile/presentation/bloc/user_profile_event.dart',
+      ).readAsStringSync();
+      expect(eventFile, contains('final class UserProfileLoadRequested extends UserProfileEvent'));
+      expect(
+        Directory('${projectDir.path}/lib/features/user_profile/presentation/cubit').existsSync(),
+        isFalse,
+        reason: 'useCubit is off — no cubit/ folder should exist',
+      );
+
+      // Theme toggle: BrightnessBloc, not BrightnessCubit.
+      final appDart = File('${projectDir.path}/lib/app.dart').readAsStringSync();
+      expect(appDart, contains('BrightnessBloc'));
+      expect(appDart, isNot(contains('BrightnessCubit')));
+      expect(
+        File('${projectDir.path}/lib/core/theme/brightness_theme/brightness_bloc.dart').existsSync(),
+        isTrue,
+      );
+
+      // .neat.json carries the contract Workshop feature-gen will later read.
+      final contract = jsonDecode(
+        File('${projectDir.path}/.neat.json').readAsStringSync(),
+      ) as Map<String, dynamic>;
+      expect(contract['stateManagement'], 'bloc');
+      expect(contract['useCubit'], isFalse);
+
+      final analyze = await Process.run(
+        'flutter',
+        ['analyze', '--no-pub'],
+        workingDirectory: projectDir.path,
+      );
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      expect(
+        RegExp(r'(\d+ issues? found|No issues found)').hasMatch(out),
+        isTrue,
+        reason: 'flutter analyze did not run as expected:\n$out',
+      );
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason: 'Bloc workspace analyze reported issues:\n${errorLines.join('\n')}\n\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
+
+  test(
+    'Bloc + chopper: chopper_model_converter.dart is generated regardless of '
+    'state management (real bug reported from a real generated project — '
+    'the repository_impl.dart it wires into is written for every stack, but '
+    'the converter file itself used to be gated on hasRiverpod)',
+    () async {
+      const projectName = 'neat_bloc_chopper_test';
+      final logs = <String>[];
+
+      final blocPackages = <PubPackage>[
+        _dep('flutter_bloc', '9.1.1'),
+        _dep('chopper', '8.6.0'),
+        _dep('go_router', '17.2.3'),
+        _dev('chopper_generator', '8.6.2'),
+        _dev('build_runner', '2.15.0'),
+      ];
+
+      final identity = IdentityState(
+        name: projectName,
+        organization: 'com.neat.test',
+        projectPath: tempRoot.path,
+        description: 'NEAT Bloc + chopper integration test',
+        targetPlatforms: const ['macos'],
+      );
+
+      const architecture = ArchitectureState(firstFeatureName: 'product');
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: identity,
+          packages: blocPackages,
+          architecture: architecture,
+          cicd: const CicdState(),
+          theme: const ThemeEngineState(approach: ThemeApproach.customM3),
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('Bloc + chopper generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+
+      // The file the repository_impl.dart actually imports for
+      // unwrapChopperResponse/ModelJsonConverter — must exist regardless of
+      // state management, unlike chopper_client_provider.dart (a Riverpod
+      // provider, correctly still Riverpod-only since nothing else needs it
+      // in Bloc/Cubit stub mode).
+      final converter = File(
+        '${projectDir.path}/lib/core/network/chopper_model_converter.dart',
+      );
+      expect(converter.existsSync(), isTrue,
+          reason: 'repository_impl.dart imports this regardless of state management');
+      expect(converter.readAsStringSync(), contains('class ModelJsonConverter'));
+      expect(
+        File('${projectDir.path}/lib/core/network/chopper_client_provider.dart').existsSync(),
+        isFalse,
+        reason:
+            'a Riverpod provider — correctly absent when nothing in Bloc/Cubit stub mode consumes it',
+      );
+
+      final repoImpl = File(
+        '${projectDir.path}/lib/features/product/data/repositories/product_repository_impl.dart',
+      ).readAsStringSync();
+      expect(repoImpl, contains('unwrapChopperResponse'));
+
+      // NetworkErrorHandler (UseCase.call()'s only catch site) must map
+      // ChopperApiException too, in Bloc/Cubit projects just like Riverpod
+      // ones — same root cause as the missing converter file above.
+      final errorHandler = File(
+        '${projectDir.path}/lib/core/network/network_error_handler.dart',
+      ).readAsStringSync();
+      expect(errorHandler, contains('ChopperApiException'));
+
+      final analyze = await Process.run(
+        'flutter',
+        ['analyze', '--no-pub'],
+        workingDirectory: projectDir.path,
+      );
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason: 'Bloc + chopper workspace analyze reported issues:\n${errorLines.join('\n')}\n\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
+
+  test(
+    'Cubit (useCubit: true): Cubit (no Events) generated, analyzes cleanly',
+    () async {
+      const projectName = 'neat_cubit_test';
+      final logs = <String>[];
+
+      final cubitPackages = <PubPackage>[
+        _dep('flutter_bloc', '9.1.1'),
+        _dep('dio', '5.9.2'),
+        _dep('go_router', '17.2.3'),
+      ];
+
+      final identity = IdentityState(
+        name: projectName,
+        organization: 'com.neat.test',
+        projectPath: tempRoot.path,
+        description: 'NEAT Cubit integration test',
+        targetPlatforms: const ['macos'],
+      );
+
+      const architecture = ArchitectureState(firstFeatureName: 'user_profile', useCubit: true);
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: identity,
+          packages: cubitPackages,
+          architecture: architecture,
+          cicd: const CicdState(),
+          theme: const ThemeEngineState(approach: ThemeApproach.customM3),
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('Cubit generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+
+      final cubitFile = File(
+        '${projectDir.path}/lib/features/user_profile/presentation/cubit/user_profile_cubit.dart',
+      ).readAsStringSync();
+      expect(cubitFile, contains('class UserProfileCubit extends Cubit<UserProfileState>'));
+      expect(
+        Directory('${projectDir.path}/lib/features/user_profile/presentation/bloc').existsSync(),
+        isFalse,
+        reason: 'useCubit is on — no bloc/ folder should exist',
+      );
+
+      final appDart = File('${projectDir.path}/lib/app.dart').readAsStringSync();
+      expect(appDart, contains('BrightnessCubit'));
+      expect(appDart, isNot(contains('BrightnessBloc')));
+
+      final contract = jsonDecode(
+        File('${projectDir.path}/.neat.json').readAsStringSync(),
+      ) as Map<String, dynamic>;
+      expect(contract['stateManagement'], 'bloc');
+      expect(contract['useCubit'], isTrue);
+
+      // AGENTS.md correctly names the Cubit path, not Bloc.
+      final agentsMd = File('${projectDir.path}/AGENTS.md').readAsStringSync();
+      expect(agentsMd, contains('Cubit (no Events)'));
+
+      final analyze = await Process.run(
+        'flutter',
+        ['analyze', '--no-pub'],
+        workingDirectory: projectDir.path,
+      );
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      expect(
+        RegExp(r'(\d+ issues? found|No issues found)').hasMatch(out),
+        isTrue,
+        reason: 'flutter analyze did not run as expected:\n$out',
+      );
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason: 'Cubit workspace analyze reported issues:\n${errorLines.join('\n')}\n\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
+
+  test(
     'Example feature preset (FakeStore Products): absolute apiPath override '
     'reaches the real API regardless of the project\'s own base URL',
     () async {
@@ -2936,6 +3213,81 @@ abstract final class Palette {
         errorLines,
         isEmpty,
         reason: 'feature-gen project analyze reported issues:\n${errorLines.join('\n')}\n\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
+
+  test(
+    'feature generation on a Cubit project: the Workshop reads useCubit from '
+    'the contract, not a hardcoded false — the 2nd feature is a Cubit too',
+    () async {
+      const projectName = 'neat_featgen_cubit';
+      final logs = <String>[];
+
+      final pkgs = <PubPackage>[
+        _dep('flutter_bloc', '9.1.1'),
+        _dep('dio', '5.9.2'),
+        _dep('go_router', '17.2.3'),
+      ];
+
+      final identity = IdentityState(
+        name: projectName,
+        organization: 'com.neat.test',
+        projectPath: tempRoot.path,
+        description: 'NEAT Cubit feature-gen integration test',
+        targetPlatforms: const ['macos'],
+      );
+      const architecture = ArchitectureState(useCubit: true);
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: identity,
+          packages: pkgs,
+          architecture: architecture,
+          cicd: const CicdState(),
+          theme: const ThemeEngineState(approach: ThemeApproach.customM3),
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('Base Cubit generation threw:\n$e');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+      final project = await const ProjectLoader().load(projectDir.path);
+      expect(project!.contract.useCubit, isTrue);
+
+      await const GenerateFeatureUsecase().execute(
+        project: project,
+        options: const FeatureGenOptions(name: 'orders'),
+        onLog: logs.add,
+      );
+
+      expect(
+        File('${projectDir.path}/lib/features/orders/presentation/cubit/orders_cubit.dart')
+            .existsSync(),
+        isTrue,
+        reason: 'the 2nd feature must match the project\'s Cubit choice, not default to full Bloc',
+      );
+      expect(
+        Directory('${projectDir.path}/lib/features/orders/presentation/bloc').existsSync(),
+        isFalse,
+      );
+
+      final analyze = await Process.run(
+        'flutter',
+        ['analyze', '--no-pub'],
+        workingDirectory: projectDir.path,
+      );
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason: 'Cubit feature-gen project analyze reported issues:\n${errorLines.join('\n')}\n\n$out',
       );
     },
     timeout: const Timeout(Duration(minutes: 12)),

@@ -12,6 +12,7 @@ class AgentsMdTemplate {
   static String generate(NeatContract c) {
     final featureFirst = c.architecture == 'feature_first';
     final hasRiverpod = c.stateManagement == 'riverpod';
+    final hasBloc = c.stateManagement == 'bloc';
     final useAnnotations = c.useRiverpodAnnotations && hasRiverpod;
     final builder = c.navigation == 'go_router_builder';
     final hasGoRouter = c.navigation == 'go_router' || builder;
@@ -37,6 +38,9 @@ class AgentsMdTemplate {
     b.writeln('| Architecture | ${featureFirst ? 'Feature-first Clean Architecture' : 'Layer-first Clean Architecture'} |');
     if (hasRiverpod) {
       b.writeln('| State management | Riverpod ${useAnnotations ? '(annotations + codegen)' : '(manual Notifier)'} |');
+    }
+    if (hasBloc) {
+      b.writeln('| State management | ${c.useCubit ? 'Cubit (no Events)' : 'Bloc (Events + States)'} |');
     }
     if (hasGoRouter) b.writeln('| Navigation | ${builder ? 'go_router_builder (typed routes)' : 'go_router'} |');
     if (c.useNavigationShell) b.writeln('| Navigation shell | Bottom `NavigationBar` (app boots into the shell) |');
@@ -101,6 +105,20 @@ class AgentsMdTemplate {
             '`lib/core/providers/infrastructure_providers.dart` — **reference them, never redeclare** '
             '(one Drift connection app-wide).');
       }
+      b.writeln();
+    }
+    if (hasBloc) {
+      final kind = c.useCubit ? 'Cubit' : 'Bloc';
+      b.writeln('## State management ($kind)\n');
+      b.writeln('- Each feature has its own `$kind` under `presentation/${c.useCubit ? 'cubit' : 'bloc'}/`'
+          '${c.useCubit ? '' : ' (with a matching `Event` + `State`)'}, wrapped by a `BlocProvider` in its page.');
+      b.writeln('- **This is a stub, not wired to a usecase yet**: `load()` has a `// TODO: load data` '
+          'placeholder — there is no repository-/usecase-level DI graph for $kind the way the Riverpod '
+          'path has (`<feature>_repository_providers.dart` / `<feature>_usecase_providers.dart`). Wire '
+          'the usecase call yourself inside `load()`${c.useCubit ? '' : '/`_onLoadRequested`'} and emit a '
+          'state carrying the loaded data.');
+      b.writeln('- Theme mode is a separate `BrightnessCubit`/`BrightnessBloc` '
+          '(`lib/core/theme/brightness_theme/`), provided once at the app root — do not nest another.');
       b.writeln();
     }
 
