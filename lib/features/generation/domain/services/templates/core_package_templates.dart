@@ -17,7 +17,7 @@ class CorePackageTemplates {
   ///
   /// [corePackageName] is the workspace member name, e.g. `myapp_core`.
   /// `resolution: workspace` is required for every member of a Dart workspace.
-  /// [httpClient] drives the network client dep: dio for dio/retrofit,
+  /// [httpClient] drives the network client dep: dio for dio,
   /// chopper (+ its generator, for `ModelJsonConverter`'s registry file —
   /// the converter itself needs no codegen, but keeping chopper's own dev
   /// tooling alongside it matches how every other package ships it) for

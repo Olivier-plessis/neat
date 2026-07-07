@@ -278,7 +278,6 @@ class _CompactOptionCard extends StatelessWidget {
     required this.title,
     required this.active,
     required this.onTap,
-    this.disabled = false,
     this.tooltip,
   });
 
@@ -287,16 +286,15 @@ class _CompactOptionCard extends StatelessWidget {
   final String title;
   final bool active;
   final VoidCallback onTap;
-  final bool disabled;
 
-  /// Extra context (e.g. what the option does, or why it's disabled) shown on
-  /// hover instead of taking up permanent vertical space.
+  /// Extra context (e.g. what the option does) shown on hover instead of
+  /// taking up permanent vertical space.
   final String? tooltip;
 
   @override
   Widget build(BuildContext context) {
     final card = InkWell(
-      onTap: disabled ? null : onTap,
+      onTap: onTap,
       borderRadius: BorderRadius.circular(10),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
@@ -324,24 +322,13 @@ class _CompactOptionCard extends StatelessWidget {
               ),
             ),
             if (active)
-              const Icon(Icons.check_circle, color: Palette.colorPrimaryCyan, size: 16)
-            else if (disabled)
-              Text(
-                'SOON',
-                style: TextStyle(
-                  color: Colors.grey[700],
-                  fontSize: 9,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 0.8,
-                ),
-              ),
+              const Icon(Icons.check_circle, color: Palette.colorPrimaryCyan, size: 16),
           ],
         ),
       ),
     );
 
-    final withOpacity = disabled ? Opacity(opacity: 0.5, child: card) : card;
-    return tooltip == null ? withOpacity : Tooltip(message: tooltip!, child: withOpacity);
+    return tooltip == null ? card : Tooltip(message: tooltip!, child: card);
   }
 }
 
@@ -420,18 +407,6 @@ class _BackendConfig extends ConsumerWidget {
                       onTap: () => packagesNotifier.applyHttpClientPreset(
                         presetForHttpClient(HttpClientKind.dio),
                       ),
-                    ),
-                  ),
-                  Expanded(
-                    child: _CompactOptionCard(
-                      icon: Icons.bolt,
-                      iconColor: const Color(0xFF3ECF8E),
-                      title: 'Retrofit',
-                      active: false,
-                      disabled: true,
-                      tooltip:
-                          'Not selectable yet — its API-source path has no generation-harness coverage.',
-                      onTap: () {},
                     ),
                   ),
                 ],

@@ -318,6 +318,94 @@ void main() {
   );
 
   test(
+    'manual Riverpod (useRiverpodAnnotations: false): Notifier/NotifierProvider '
+    'generated, not the legacy StateNotifier/StateNotifierProvider, analyzes cleanly',
+    () async {
+      const projectName = 'neat_manual_riverpod_test';
+      final logs = <String>[];
+
+      // No riverpod_annotation/riverpod_generator — manual mode needs neither.
+      final manualPackages = <PubPackage>[
+        _dep('hooks_riverpod', '3.3.1'),
+        _dep('flutter_hooks', '0.21.3+1'),
+        _dep('dio', '5.9.2'),
+        _dep('go_router', '17.2.3'),
+      ];
+
+      final identity = IdentityState(
+        name: projectName,
+        organization: 'com.neat.test',
+        projectPath: tempRoot.path,
+        description: 'NEAT manual-Riverpod integration test',
+        targetPlatforms: const ['macos'],
+      );
+
+      const architecture = ArchitectureState(
+        firstFeatureName: 'user_profile',
+        useRiverpodAnnotations: false,
+      );
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: identity,
+          packages: manualPackages,
+          architecture: architecture,
+          cicd: const CicdState(),
+          theme: const ThemeEngineState(approach: ThemeApproach.customM3),
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('Manual-Riverpod generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+
+      // The feature's provider uses the modern Notifier API.
+      final provider = File(
+        '${projectDir.path}/lib/features/user_profile/presentation/providers/'
+        'user_profile_provider.dart',
+      ).readAsStringSync();
+      expect(provider, contains('NotifierProvider<UserProfileNotifier, AsyncValue<void>>'));
+      expect(provider, contains('class UserProfileNotifier extends Notifier<AsyncValue<void>>'));
+      expect(provider, isNot(contains('StateNotifier')));
+
+      // theme_mode_controller.dart (also manual when annotations are off).
+      final themeController = File(
+        '${projectDir.path}/lib/core/theme/theme_mode_controller.dart',
+      ).readAsStringSync();
+      expect(themeController, contains('NotifierProvider<ThemeModeController, ThemeMode>'));
+      expect(themeController, contains('class ThemeModeController extends Notifier<ThemeMode>'));
+      expect(themeController, isNot(contains('StateNotifier')));
+
+      // No riverpod_generator codegen is needed for state itself (no `part` in
+      // either file above), but the workspace as a whole still must analyze
+      // cleanly end to end.
+      final analyze = await Process.run(
+        'flutter',
+        ['analyze', '--no-pub'],
+        workingDirectory: projectDir.path,
+      );
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      expect(
+        RegExp(r'(\d+ issues? found|No issues found)').hasMatch(out),
+        isTrue,
+        reason: 'flutter analyze did not run as expected:\n$out',
+      );
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason: 'manual-Riverpod workspace analyze reported issues:\n'
+            '${errorLines.join('\n')}\n\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
+
+  test(
     'Example feature preset (FakeStore Products): absolute apiPath override '
     'reaches the real API regardless of the project\'s own base URL',
     () async {
@@ -2610,6 +2698,130 @@ void main() {
   );
 
   test(
+    'FlexColorScheme playground paste: a full file with an unrelated wrapper '
+    'class/field shape still extracts AppTheme.light/.dark correctly',
+    () async {
+      const projectName = 'neat_flex_paste_test';
+      final logs = <String>[];
+
+      final flexPackages = <PubPackage>[
+        _dep('hooks_riverpod', '3.3.1'),
+        _dep('flutter_hooks', '0.21.3+1'),
+        _dep('riverpod_annotation', '4.0.2'),
+        _dep('flex_color_scheme', '8.4.0'),
+        _dev('riverpod_generator', '4.0.3'),
+        _dev('build_runner', '2.15.0'),
+      ];
+
+      final identity = IdentityState(
+        name: projectName,
+        organization: 'com.neat.test',
+        projectPath: tempRoot.path,
+        description: 'NEAT FlexColorScheme playground-paste integration test',
+        targetPlatforms: const ['macos'],
+      );
+
+      const architecture = ArchitectureState(firstFeatureName: 'user_profile');
+
+      // A realistic playground paste: a full file, its own (irrelevant) import
+      // list, and a wrapper class/field naming that has nothing to do with
+      // NEAT's own `AppTheme.light`/`.dark` contract — proving extraction is
+      // shape-agnostic (only the FlexThemeData.light(...)/.dark(...) call
+      // expressions themselves are pulled out; everything else is ignored).
+      const pastedCode = '''
+import 'package:flex_color_scheme/flex_color_scheme.dart';
+import 'package:flutter/material.dart';
+
+abstract final class Palette {
+  static ThemeData light = FlexThemeData.light(
+    scheme: FlexScheme.mandyRed,
+    subThemesData: const FlexSubThemesData(
+      interactionEffects: true,
+      blendOnLevel: 20,
+    ),
+    visualDensity: FlexColorScheme.comfortablePlatformDensity,
+    useMaterial3: true,
+  );
+
+  static ThemeData dark = FlexThemeData.dark(
+    scheme: FlexScheme.mandyRed,
+    subThemesData: const FlexSubThemesData(
+      interactionEffects: true,
+      blendOnLevel: 30,
+    ),
+    visualDensity: FlexColorScheme.comfortablePlatformDensity,
+    useMaterial3: true,
+  );
+}
+''';
+
+      const theme = ThemeEngineState(
+        approach: ThemeApproach.flexColorScheme,
+        flexColorSchemeCode: pastedCode,
+        extractUiPackage: false,
+      );
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: identity,
+          packages: flexPackages,
+          architecture: architecture,
+          cicd: const CicdState(),
+          theme: theme,
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('Flex playground-paste generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+      final themeSrc =
+          File('${projectDir.path}/lib/core/theme/app_theme.dart').readAsStringSync();
+
+      // NEAT's own AppTheme class shape, not the pasted wrapper's — this is
+      // what app.dart actually references (AppTheme.light / AppTheme.dark).
+      expect(themeSrc, contains('class AppTheme {'));
+      expect(themeSrc, isNot(contains('class Palette')));
+      expect(themeSrc, contains('static ThemeData get light =>'));
+      expect(themeSrc, contains('static ThemeData get dark =>'));
+
+      // Both extracted calls carry NEAT's own extension + text theme wiring.
+      expect(themeSrc, contains('FlexThemeData.light('));
+      expect(themeSrc, contains('FlexThemeData.dark('));
+      expect(themeSrc, contains('scheme: FlexScheme.mandyRed'));
+      expect(
+        'AppColors.light'.allMatches(themeSrc).length,
+        greaterThanOrEqualTo(2),
+        reason: 'both light and dark configs should carry the AppColors extension',
+      );
+
+      // The whole workspace analyzes without errors or warnings.
+      final analyze = await Process.run(
+        'flutter',
+        ['analyze', '--no-pub'],
+        workingDirectory: projectDir.path,
+      );
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      expect(
+        RegExp(r'(\d+ issues? found|No issues found)').hasMatch(out),
+        isTrue,
+        reason: 'flutter analyze did not run as expected:\n$out',
+      );
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason: 'flex playground-paste workspace analyze reported issues:\n'
+            '${errorLines.join('\n')}\n\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
+
+  test(
     'feature generation adds a 2nd feature to an existing project, cleanly',
     () async {
       const projectName = 'neat_featgen_test';
@@ -2847,6 +3059,189 @@ void main() {
         errorLines,
         isEmpty,
         reason: 'chopper feature-gen project analyze reported issues:\n${errorLines.join('\n')}\n\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
+
+  test(
+    'feature generation (chopper) with Domain UseCase off never wires a '
+    'register<Feature>ChopperDecoders() call that was never generated',
+    () async {
+      const projectName = 'neat_featgen_chopper_no_usecase';
+      final logs = <String>[];
+
+      final pkgs = <PubPackage>[
+        _dep('hooks_riverpod', '3.3.1'),
+        _dep('flutter_hooks', '0.21.3+1'),
+        _dep('riverpod_annotation', '4.0.2'),
+        _dep('chopper', '8.6.0'),
+        _dep('go_router', '17.2.3'),
+        _dev('riverpod_generator', '4.0.3'),
+        _dev('build_runner', '2.15.0'),
+        _dev('chopper_generator', '8.6.2'),
+      ];
+
+      final identity = IdentityState(
+        name: projectName,
+        organization: 'com.neat.test',
+        projectPath: tempRoot.path,
+        description: 'NEAT chopper feature-gen (no Domain UseCase) integration test',
+        targetPlatforms: const ['macos'],
+      );
+      const architecture = ArchitectureState(); // firstFeatureName defaults to 'home'
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: identity,
+          packages: pkgs,
+          architecture: architecture,
+          cicd: const CicdState(),
+          theme: const ThemeEngineState(approach: ThemeApproach.customM3),
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('Base chopper generation threw:\n$e');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+      final project = await const ProjectLoader().load(projectDir.path);
+
+      // Remote Data Source stays on (so the ApiSource/RepositoryImpl/Model
+      // still get generated), but Domain UseCase is off — the exact real-world
+      // combo that shipped a broken bootstrap.dart before this fix: it wires
+      // a register<Feature>ChopperDecoders() call unconditionally on
+      // `httpClient == 'chopper'` alone, but that function only exists inside
+      // <feature>_repository_providers.dart, which FeatureScaffolder only
+      // writes when `useAnnotations && hasHttpClient && includeUseCases` are
+      // ALL true (see feature_scaffolder.dart).
+      await const GenerateFeatureUsecase().execute(
+        project: project!,
+        options: const FeatureGenOptions(name: 'orders', includeUseCase: false),
+        onLog: logs.add,
+      );
+
+      // The file that would define registerOrdersChopperDecoders() was never
+      // written...
+      expect(
+        File(
+          '${projectDir.path}/lib/features/orders/data/repositories/orders_repository_providers.dart',
+        ).existsSync(),
+        isFalse,
+      );
+      // ...so bootstrap.dart must not import or call it. (The non-split
+      // witness feature never calls a register function at all — its decoder
+      // is anchor-inserted straight into chopper_model_converter.dart — so
+      // there's nothing else to assert stays present here.)
+      final bootstrap = File('${projectDir.path}/lib/core/bootstrap.dart').readAsStringSync();
+      expect(bootstrap, isNot(contains('orders_repository_providers.dart')));
+      expect(bootstrap, isNot(contains('registerOrdersChopperDecoders')));
+
+      // The whole project still analyzes without errors or warnings.
+      final analyze = await Process.run(
+        'flutter',
+        ['analyze', '--no-pub'],
+        workingDirectory: projectDir.path,
+      );
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason: 'chopper (no Domain UseCase) feature-gen project analyze reported issues:\n'
+            '${errorLines.join('\n')}\n\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
+
+  test(
+    'feature generation with zero data sources: pure entity + presentation, '
+    'no data/ layer at all',
+    () async {
+      const projectName = 'neat_featgen_no_datasource';
+      final logs = <String>[];
+
+      final pkgs = <PubPackage>[
+        _dep('hooks_riverpod', '3.3.1'),
+        _dep('flutter_hooks', '0.21.3+1'),
+        _dep('riverpod_annotation', '4.0.2'),
+        _dep('chopper', '8.6.0'),
+        _dep('go_router', '17.2.3'),
+        _dev('riverpod_generator', '4.0.3'),
+        _dev('build_runner', '2.15.0'),
+        _dev('chopper_generator', '8.6.2'),
+      ];
+
+      final identity = IdentityState(
+        name: projectName,
+        organization: 'com.neat.test',
+        projectPath: tempRoot.path,
+        description: 'NEAT zero-data-source feature-gen integration test',
+        targetPlatforms: const ['macos'],
+      );
+      const architecture = ArchitectureState(); // firstFeatureName defaults to 'home'
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: identity,
+          packages: pkgs,
+          architecture: architecture,
+          cicd: const CicdState(),
+          theme: const ThemeEngineState(approach: ThemeApproach.customM3),
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('Base generation threw:\n$e');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+      final project = await const ProjectLoader().load(projectDir.path);
+
+      // Remote, Local, and Domain UseCase all off — previously blocked by
+      // FeatureGenOptions.hasAnyDataSource; now allowed as a deliberate
+      // "pure entity + presentation, no data layer" feature.
+      await const GenerateFeatureUsecase().execute(
+        project: project!,
+        options: const FeatureGenOptions(
+          name: 'settings',
+          includeRemoteDataSource: false,
+          includeLocalDataSource: false,
+          includeUseCase: false,
+        ),
+        onLog: logs.add,
+      );
+
+      final f = '${projectDir.path}/lib/features/settings';
+      // No data/ layer at all — no model, no repository (impl or interface),
+      // no sources, no usecases.
+      expect(Directory('$f/data').existsSync(), isFalse);
+      expect(File('$f/domain/repositories/i_settings_repository.dart').existsSync(), isFalse);
+      expect(Directory('$f/domain/usecases').existsSync(), isFalse);
+      // But the entity + presentation layer are still generated.
+      expect(File('$f/domain/entities/settings_entity.dart').existsSync(), isTrue);
+      expect(File('$f/presentation/pages/settings_page.dart').existsSync(), isTrue);
+      expect(File('$f/presentation/providers/settings_provider.dart').existsSync(), isTrue);
+
+      // The whole project still analyzes without errors or warnings.
+      final analyze = await Process.run(
+        'flutter',
+        ['analyze', '--no-pub'],
+        workingDirectory: projectDir.path,
+      );
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason: 'zero-data-source feature-gen project analyze reported issues:\n'
+            '${errorLines.join('\n')}\n\n$out',
       );
     },
     timeout: const Timeout(Duration(minutes: 12)),

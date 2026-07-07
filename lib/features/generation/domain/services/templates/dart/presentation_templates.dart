@@ -152,12 +152,12 @@ class ${p}Notifier extends _\$${p}Notifier {
     final p = pascal(featureName);
     return '''import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-final ${camel(featureName)}Provider = StateNotifierProvider<${p}Notifier, AsyncValue<void>>(
-  (ref) => ${p}Notifier(),
-);
+final ${camel(featureName)}Provider =
+    NotifierProvider<${p}Notifier, AsyncValue<void>>(${p}Notifier.new);
 
-class ${p}Notifier extends StateNotifier<AsyncValue<void>> {
-  ${p}Notifier() : super(const AsyncData(null));
+class ${p}Notifier extends Notifier<AsyncValue<void>> {
+  @override
+  AsyncValue<void> build() => const AsyncData(null);
 }
 ''';
   }

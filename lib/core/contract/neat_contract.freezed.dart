@@ -18,7 +18,7 @@ mixin _$NeatContract {
  String get projectName;/// feature_first | layer_first
  String get architecture;/// riverpod | bloc | none
  String get stateManagement;/// go_router_builder | go_router | none
- String get navigation;/// chopper | dio | retrofit | none
+ String get navigation;/// chopper | dio | supabase | firebase | none
  String get httpClient;/// none | customM3 | flexColorScheme
  String get themeApproach;/// remoteOnly | offlineFirstRead | offlineFirstSync
  String get storageStrategy; int get schemaVersion; bool get useRiverpodAnnotations; bool get extractUiPackage; bool get useScreenUtil; bool get hasEnvied; bool get hasFreezed; bool get hasJsonSerializable; bool get includeMappers; bool get mirrorTestStructure; bool get generateWidgetbook; bool get useNavigationShell; bool get generateAuth; bool get generateRealtime; bool get generateStorage; bool get generateOAuth; bool get generateI18n; List<String> get components;/// Modular Monorepo (see ROADMAP.md §6a): every feature lives in its own
@@ -256,7 +256,7 @@ class _NeatContract implements NeatContract {
 @override final  String stateManagement;
 /// go_router_builder | go_router | none
 @override final  String navigation;
-/// chopper | dio | retrofit | none
+/// chopper | dio | supabase | firebase | none
 @override final  String httpClient;
 /// none | customM3 | flexColorScheme
 @override final  String themeApproach;

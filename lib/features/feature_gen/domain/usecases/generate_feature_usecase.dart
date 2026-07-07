@@ -179,8 +179,16 @@ class GenerateFeatureUsecase {
 
     // Chopper's built-in JsonConverter can't call a custom Model's fromJson —
     // register this feature's Model in the shared decoder registry (only
-    // relevant when the new feature actually has a chopper remote source).
-    if (httpClient == 'chopper') {
+    // relevant when the new feature actually generated a
+    // <feature>_repository_providers.dart with a register<Feature>
+    // ChopperDecoders() to call). That file is only written when
+    // `useAnnotations && hasHttpClient && includeUseCases` — see
+    // FeatureScaffolder.writeFeature's own gate — so this condition must
+    // mirror it exactly. `effHasHttp` alone isn't enough: a real project
+    // (Remote Data Source ON, Domain UseCase OFF) still skips the file, but
+    // bootstrap.dart was wired to import/call a function that was never
+    // generated, breaking the build.
+    if (httpClient == 'chopper' && useAnnotations && effHasHttp && options.includeUseCase) {
       if (packageSplit) {
         // The split feature already generated its own register<Feature>
         // ChopperDecoders() (see DataTemplates.featureRepositoryProviders) —

@@ -4,7 +4,7 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:neat/features/feature_gen/presentation/providers/workshop_controller.dart';
 import 'package:neat/features/hub/domain/models/recent_project.dart';
 import 'package:neat/features/hub/presentation/providers/recent_projects_provider.dart';
-import 'package:neat/features/identity/presentation/providers/stepper_provider.dart';
+import 'package:neat/features/shell/presentation/providers/stepper_provider.dart';
 import 'package:neat_ui/neat_ui.dart';
 
 /// The landing screen: create a fresh project (→ wizard) or open an existing

@@ -436,35 +436,6 @@ class ${p}RepositoryImpl implements I${p}Repository {
     // HTTP client is needed to target a different host.
     final base = apiPath ?? '/${featureName}s';
 
-    if (httpClient == 'retrofit') {
-      return '''import 'package:dio/dio.dart';
-import 'package:retrofit/retrofit.dart';
-import '../models/${featureName}_model.dart';
-
-part '${featureName}_api_source.g.dart';
-
-@RestApi()
-abstract class ${p}ApiSource {
-  factory ${p}ApiSource(Dio dio, {String baseUrl}) = _${p}ApiSource;
-
-  @GET('$base')
-  Future<List<${p}Model>> getAll();
-
-  @GET('$base/{id}')
-  Future<${p}Model> getById(@Path('id') String id);
-
-  @POST('$base')
-  Future<${p}Model> add(@Body() ${p}Model body);
-
-  @PUT('$base/{id}')
-  Future<${p}Model> update(@Path('id') String id, @Body() ${p}Model body);
-
-  @DELETE('$base/{id}')
-  Future<void> delete(@Path('id') String id);
-}
-''';
-    }
-
     if (httpClient == 'chopper') {
       return '''import 'package:chopper/chopper.dart';
 import '../models/${featureName}_model.dart';
@@ -825,7 +796,7 @@ SyncService ${c}Sync(Ref ref) {
         case 'delete':
           await api.delete(data['id'] as String);
       }
-      return true;
+      return ReplaySyncResult.success;
     },
   )..start();
   ref.onDispose(service.dispose);
