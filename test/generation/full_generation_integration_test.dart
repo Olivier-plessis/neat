@@ -1566,6 +1566,137 @@ void main() {
   );
 
   test(
+    'packageSplit=true + go_router_builder + child route (§6a Phase 3): the '
+    'Workshop adds a feature nested under an existing split feature — a '
+    'genuine cross-feature-package dependency (parent package -> child '
+    'package), previously rejected outright, now wired with a path: '
+    'dependency + the parent package\'s own build_runner re-run',
+    () async {
+      const projectName = 'neat_pkgsplit_childroute_builder_test';
+      final logs = <String>[];
+      final builderPackages = <PubPackage>[
+        _dep('hooks_riverpod', '3.3.1'),
+        _dep('flutter_hooks', '0.21.3+1'),
+        _dep('riverpod_annotation', '4.0.2'),
+        _dep('json_annotation', '4.11.0'),
+        _dep('freezed_annotation', '3.1.0'),
+        _dep('dio', '5.9.2'),
+        _dep('go_router', '17.2.3'),
+        _dev('go_router_builder', '4.3.0'),
+        _dev('riverpod_generator', '4.0.3'),
+        _dev('riverpod_lint', '3.1.3'),
+        _dev('json_serializable', '6.13.0'),
+        _dev('build_runner', '2.15.0'),
+        _dev('freezed', '3.2.5'),
+      ];
+
+      final identity = IdentityState(
+        name: projectName,
+        organization: 'com.neat.test',
+        projectPath: tempRoot.path,
+        description: 'NEAT packageSplit + go_router_builder + child route integration test',
+        targetPlatforms: const ['macos'],
+      );
+      const architecture = ArchitectureState(packageSplit: true); // splits 'home'
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: identity,
+          packages: builderPackages,
+          architecture: architecture,
+          cicd: const CicdState(),
+          theme: const ThemeEngineState(approach: ThemeApproach.customM3),
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('Base generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+      final project = await const ProjectLoader().load(projectDir.path);
+      expect(project!.contract.packageSplit, isTrue);
+
+      // Add "reviews" as a child of "home" — the case that used to throw.
+      await const GenerateFeatureUsecase().execute(
+        project: project,
+        options: const FeatureGenOptions(
+          name: 'reviews',
+          routing: FeatureRouting.child,
+          parentFeature: 'home',
+        ),
+        onLog: logs.add,
+      );
+
+      String read(String p) => File(p).readAsStringSync();
+      final homeRoot = '${projectDir.path}/packages/${projectName}_home';
+      final reviewsRoot = '${projectDir.path}/packages/${projectName}_reviews';
+
+      // The parent package's own routes file crosses into the child package
+      // directly — the one legitimate feature-to-feature import (a one-way
+      // edge matching the nesting the user explicitly asked for).
+      final parentRoutes = read('$homeRoot/lib/presentation/routes/home_routes.dart');
+      expect(
+        parentRoutes,
+        contains("import 'package:${projectName}_reviews/presentation/pages/reviews_page.dart';"),
+      );
+      expect(parentRoutes, contains("TypedGoRoute<ReviewsRoute>(path: 'reviews')"));
+      expect(parentRoutes, contains(r'class ReviewsRoute extends GoRouteData with $ReviewsRoute'));
+
+      // The parent package's pubspec declares the new path: dependency.
+      final parentPubspec = read('$homeRoot/pubspec.yaml');
+      expect(
+        parentPubspec,
+        contains('${projectName}_reviews:\n    path: ../${projectName}_reviews'),
+      );
+
+      // The parent package's own build_runner pass re-ran: $ReviewsRoute
+      // (the mixin the nested class needs) must exist in the regenerated file.
+      expect(
+        read('$homeRoot/lib/presentation/routes/home_routes.g.dart'),
+        contains(r'mixin $ReviewsRoute'),
+      );
+
+      // AppRoutePath gained the nested '/home/reviews' constant, both in the
+      // app's own copy and core's mirrored copy.
+      expect(
+        read('${projectDir.path}/lib/core/constants/app_route_path.dart'),
+        contains("static const String reviews = '/home/reviews';"),
+      );
+      expect(
+        read('${projectDir.path}/packages/${projectName}_core/lib/core/constants/app_route_path.dart'),
+        contains("static const String reviews = '/home/reviews';"),
+      );
+
+      // The child package itself is a normal split feature otherwise.
+      expect(File('$reviewsRoot/lib/presentation/pages/reviews_page.dart').existsSync(), isTrue);
+
+      // The whole (now 4-package) workspace analyzes cleanly.
+      final analyze = await Process.run(
+        'flutter',
+        ['analyze', '--no-pub'],
+        workingDirectory: projectDir.path,
+      );
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      expect(
+        RegExp(r'(\d+ issues? found|No issues found)').hasMatch(out),
+        isTrue,
+        reason: 'flutter analyze did not run as expected:\n$out',
+      );
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason: 'flutter analyze reported errors:\n${errorLines.join('\n')}\n\n'
+            '--- full analyze output ---\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
+
+  test(
     'packageSplit=true + offline-first: the split feature shares core\'s '
     'Drift db + connectivity, and the workspace analyzes cleanly',
     () async {
@@ -1844,20 +1975,31 @@ void main() {
         throwsA(isA<Exception>()),
       );
 
-      // Child routes are rejected under packageSplit (would need a path: dep
-      // from the parent package onto the child — a real cross-feature-package
-      // dependency, out of scope until Phase 3 — see ROADMAP.md §6a).
-      expect(
-        () => const GenerateFeatureUsecase().execute(
-          project: reloaded,
-          options: const FeatureGenOptions(
-            name: 'reviews',
-            routing: FeatureRouting.child,
-            parentFeature: 'home',
-          ),
-          onLog: logs.add,
+      // §6a Phase 3: child routes under packageSplit now work for plain
+      // go_router — nesting happens inside the app's own shared routes.dart
+      // (which already depends on every feature package for their top-level
+      // routes), so no new cross-feature-package dependency is needed here.
+      await const GenerateFeatureUsecase().execute(
+        project: reloaded,
+        options: const FeatureGenOptions(
+          name: 'reviews',
+          routing: FeatureRouting.child,
+          parentFeature: 'home',
         ),
-        throwsA(isA<Exception>()),
+        onLog: logs.add,
+      );
+      final routesAfterChild =
+          read('${projectDir.path}/lib/core/router/routes.dart');
+      expect(
+        routesAfterChild,
+        contains("import 'package:${projectName}_reviews/presentation/pages/reviews_page.dart';"),
+      );
+      expect(routesAfterChild, isNot(contains('features/reviews/')));
+      expect(routesAfterChild, contains("path: 'reviews',"));
+      expect(routesAfterChild, contains('// neat:children:home'));
+      expect(
+        read('${projectDir.path}/lib/core/constants/app_route_path.dart'),
+        contains("static const String reviews = '/home/reviews';"),
       );
 
       // The whole (now 3-package) workspace analyzes cleanly.

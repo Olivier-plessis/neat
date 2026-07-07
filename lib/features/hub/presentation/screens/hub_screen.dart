@@ -47,17 +47,18 @@ class HubScreen extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: .start,
                       children: [
-                        const SizedBox(height: 24),
+                        24.gapH,
                         const Center(child: _Header()),
-                        const SizedBox(height: 40),
+                        40.gapH,
                         // IntrinsicHeight bounds the Row's height inside the
                         // scroll view, so the two cards can stretch to equal height.
                         IntrinsicHeight(
                           child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            crossAxisAlignment: .stretch,
+                            spacing: 24,
                             children: [
                               Expanded(
-                                child: _ActionCard(
+                                child: ApproachCard(
                                   icon: Icons.rocket_launch_outlined,
                                   accent: true,
                                   title: 'Create New Project',
@@ -68,9 +69,9 @@ class HubScreen extends ConsumerWidget {
                                       ref.read(currentStepProvider.notifier).startNewProject(),
                                 ),
                               ),
-                              const SizedBox(width: 24),
+
                               Expanded(
-                                child: _ActionCard(
+                                child: ApproachCard(
                                   icon: Icons.folder_open_outlined,
                                   accent: false,
                                   title: 'Open Existing Project',
@@ -82,11 +83,11 @@ class HubScreen extends ConsumerWidget {
                             ],
                           ),
                         ),
-                        const SizedBox(height: 48),
+                        48.gapH,
                         Row(
+                          spacing: 8,
                           children: [
                             const Icon(Icons.history, size: 18, color: Palette.colorPrimaryCyan),
-                            const SizedBox(width: 8),
                             const Text(
                               'Recent Projects',
                               style: TextStyle(
@@ -97,14 +98,14 @@ class HubScreen extends ConsumerWidget {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 16),
+                        16.gapH,
                         switch (recents) {
                           AsyncData(:final value) when value.isEmpty => const _EmptyRecents(),
                           AsyncData(:final value) => Column(
                             children: [
                               for (final p in value)
                                 Padding(
-                                  padding: const EdgeInsets.only(bottom: 10),
+                                  padding: const .only(bottom: 10),
                                   child: _RecentTile(
                                     project: p,
                                     onTap: () => _open(context, ref, p.path),
@@ -115,12 +116,9 @@ class HubScreen extends ConsumerWidget {
                             ],
                           ),
                           AsyncError() => const _EmptyRecents(),
-                          _ => const Padding(
-                            padding: EdgeInsets.all(24),
-                            child: Center(child: CircularProgressIndicator()),
-                          ),
+                          _ => Center(child: CircularProgressIndicator()).paddedAll(24),
                         },
-                        const SizedBox(height: 24),
+                        24.gapH,
                       ],
                     ),
                   ),
@@ -140,107 +138,26 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
+      spacing: 12,
       children: [
         RichText(
-          text: const TextSpan(
-            style: TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: Colors.white),
+          text: TextSpan(
+            style: context.textTheme.displayMedium!.copyWith(color: context.neatColors.surface),
             children: [
               TextSpan(text: 'Welcome to '),
               TextSpan(
                 text: 'NEAT',
-                style: TextStyle(color: Palette.colorPrimaryCyan),
+                style: TextStyle(color: context.neatColors.colorPrimaryCyan),
               ),
             ],
           ),
         ),
-        const SizedBox(height: 12),
         Text(
           'The high-performance architect for Flutter applications.\nStart fresh or resume your current build.',
           textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.grey[400], fontSize: 14, height: 1.5),
+          style: context.textTheme.bodyLarge,
         ),
       ],
-    );
-  }
-}
-
-class _ActionCard extends StatelessWidget {
-  const _ActionCard({
-    required this.icon,
-    required this.accent,
-    required this.title,
-    required this.subtitle,
-    required this.button,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final bool accent;
-  final String title;
-  final String subtitle;
-  final String button;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 36),
-        decoration: BoxDecoration(
-          color: const Color(0xFF131316),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white10),
-        ),
-        child: Column(
-          children: [
-            Container(
-              width: 64,
-              height: 64,
-              decoration: BoxDecoration(
-                color: accent
-                    ? Palette.colorPrimaryCyan.withValues(alpha: 0.12)
-                    : Colors.white.withValues(alpha: 0.04),
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: accent ? Palette.colorPrimaryCyan.withValues(alpha: 0.4) : Colors.white12,
-                ),
-              ),
-              child: Icon(
-                icon,
-                color: accent ? Palette.colorPrimaryCyan : Colors.white70,
-                size: 26,
-              ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              title,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              subtitle,
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey[500], fontSize: 13, height: 1.4),
-            ),
-            const SizedBox(height: 24),
-            OutlinedButton(
-              onPressed: onTap,
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size(160, 44),
-                foregroundColor: accent ? Palette.colorPrimaryCyan : Colors.white,
-                side: BorderSide(color: accent ? Palette.colorPrimaryCyan : Colors.white24),
-              ),
-              child: Text(button.toUpperCase(), style: const TextStyle(letterSpacing: 0.8)),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
@@ -256,60 +173,52 @@ class _RecentTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: .circular(10),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        padding: const .symmetric(horizontal: 18, vertical: 16),
         decoration: BoxDecoration(
-          color: const Color(0xFF131316),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.white10),
+          color: context.neatColors.colorSurfaceCard,
+          borderRadius: .circular(10),
+          border: .all(color: context.neatColors.surface10),
         ),
         child: Row(
+          spacing: 12,
           children: [
             Container(
               width: 38,
               height: 38,
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.04),
-                borderRadius: BorderRadius.circular(8),
+                color: context.neatColors.surface.withValues(alpha: 0.04),
+                borderRadius: .circular(8),
               ),
               child: const Icon(Icons.terminal, size: 18, color: Colors.white60),
             ),
-            const SizedBox(width: 14),
+
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     project.name,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
+                    style: context.textTheme.titleMedium!.copyWith(
+                      color: context.neatColors.surface,
                     ),
                   ),
-                  const SizedBox(height: 2),
+                  2.gapH,
                   Text(
                     project.path,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: Colors.grey[600],
-                      fontSize: 12,
-                      fontFamily: 'monospace',
-                    ),
+                    style: context.textTheme.titleSmall,
                   ),
                 ],
               ),
             ),
-            const SizedBox(width: 12),
+
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text(
-                  'LAST OPENED',
-                  style: TextStyle(color: Colors.grey[700], fontSize: 9, letterSpacing: 1),
-                ),
-                const SizedBox(height: 2),
+                Text('LAST OPENED', style: context.textTheme.bodySmall!),
+                2.gapH,
                 Text(
                   _relativeTime(project.lastOpened),
                   style: TextStyle(color: Colors.grey[400], fontSize: 12),
@@ -334,12 +243,12 @@ class _EmptyRecents extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 32),
+      width: .infinity,
+      padding: const .symmetric(vertical: 32),
       decoration: BoxDecoration(
-        color: const Color(0xFF131316),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white10),
+        color: context.neatColors.colorSurfaceCard,
+        borderRadius: .circular(10),
+        border: .all(color: Colors.white10),
       ),
       child: Center(
         child: Text(

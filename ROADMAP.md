@@ -828,13 +828,51 @@ Harness-proven: `pubspec_builder_test.dart` gained two cases (override present
       > app has zero i18n files of its own, and the split feature's page/
       > bootstrap.dart/app.dart all cross into core, never the app — `flutter
 >     analyze` 0/0. Full suite still green.
-> - **Phase 3 — cross-feature contracts**: two features that need to reference
-    > each other (the actual reason for a `shared_contracts`-equivalent package) —
-    > deferred until Phase 1/2 are solid, since it's a genuinely separate design
-    > question (what belongs in the shared package, and when).
+> - ✅ **Phase 3 — child routes (the concrete cross-feature case) — done,
+>   narrower than originally framed**. The plan going in was a new
+>   `shared_contracts` package for "two features that reference each other's
+>   types." Implementing the one concrete, already-blocked use case (a
+>   Workshop child route nested under an existing split feature — previously
+>   `GenerateFeatureUsecase` threw a clear rejection) turned out **not** to
+>   need a third package type at all:
+>   - **Plain go_router**: the child's `GoRoute` nests inside the parent's
+>     *within the app's own shared `routes.dart`* — the app already depends
+>     on every feature package for their top-level routes, so this needed
+>     zero new dependencies, just redirecting the child's page import to its
+>     own package (`wireChildIntoRoutes` gained an optional
+>     `childPackageName`, mirroring `_wireRoutes`' existing `featurePackageName
+>     ?? packageName` pattern for non-child features).
+>   - **go_router_builder**: genuinely the harder case — the nested
+>     `TypedGoRoute<ChildRoute>` + `ChildRoute` class live inside the
+>     **parent package's own** `<parent>_routes.dart`, so the parent really
+>     does need to import the child page directly. Solved with a plain
+>     one-way `path:` dependency (parent → child) via a new
+>     `_addPathDependencyToPackage` — not a cycle (the child never depends
+>     back), so nothing a `shared_contracts` package would have done
+>     differently. Also needed: the *parent* package's own `build_runner`
+>     pass has to re-run after this edit (a new `$ChildRoute` mixin the
+>     parent's edited routes file now references) — previously feature-gen
+>     only ever re-ran build_runner for the *new* feature's own package.
+>   `AppRoutePath`'s nested `'/parent/child'` constant gained the same
+>   dual-write (app's own copy + core's mirrored copy) every other
+>   packageSplit wiring point already has.
+>   **The broader "arbitrary shared_contracts for any two features to share
+>   an entity" case stays deferred** (see Backlog) — genuinely still an open
+>   design question (what belongs in the shared package, when does NEAT
+>   generate one, how does the Workshop route a reference into it), and nothing
+>   about the child-route fix above resolves it; child routes just didn't
+>   turn out to need it.
+>   Harness-proven: new unit tests for both `wireChildIntoRoutes`/
+>   `wireChildIntoTypedRoutes`' packageSplit branch; the existing Step 2b
+>   integration test's "child routes are rejected" assertion flipped to assert
+>   the now-working wiring instead; a new dedicated integration test adds a
+>   go_router_builder child feature to an existing split project and asserts
+>   the parent's `path:` dependency, its regenerated `$ChildRoute` mixin, the
+>   dual-write `AppRoutePath` constant, and 0/0 analyze across the resulting
+>   4-package workspace. Full suite green.
 > - Everything else (Supabase/Firebase, auth, i18n, realtime, flavors, CRUD-UI,
-    > layer-first) stays **out of scope** until its own phase — don't combine an
-    > unproven structural change with unrelated unproven combos.
+>   layer-first) stays **out of scope** until its own phase — don't combine an
+>   unproven structural change with unrelated unproven combos.
 
 ### 7. JSON-driven feature generation — big bet, high value
 
@@ -1081,6 +1119,20 @@ bloc/cubit were gated too — both unlocked instead, see § below.)
   analyze. Full suite green.
 
 ## Backlog — not yet scheduled
+
+- **`shared_contracts`-equivalent package for arbitrary cross-feature entity
+  sharing — still deferred**. Narrower than it sounds after §6a Phase 3:
+  child routes (the one concrete case NEAT had UI/Workshop support for) got
+  solved without a new package type (see §6a Phase 3 above — a plain one-way
+  `path:` dependency covers it). What's still genuinely open: feature A's
+  domain/presentation needing feature B's **entity** (or another domain type)
+  directly, with no natural parent/child hierarchy to justify a one-way
+  dependency either way. Real open questions: what goes in the shared
+  package (just entities, or interfaces too?), when does NEAT generate one
+  (proactively for every packageSplit project, or lazily on first need?),
+  and how would the Workshop even surface "this feature needs that feature's
+  type" as a choice? No concrete, currently-blocked use case to anchor a
+  design pass on (unlike child routes) — revisit if one shows up.
 
 - **Modular Monorepo (packageSplit) for manual Riverpod / Bloc-Cubit — not
   planned unless real demand shows up**. `canPackageSplit` requires
