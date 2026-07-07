@@ -19,11 +19,13 @@ class InfrastructureScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final tab = ref.watch(currentInfrastructureTabProvider);
     final title = switch (tab) {
+      InfrastructureTab.management => 'State management',
       InfrastructureTab.backend => 'Project Infrastructure',
       InfrastructureTab.navigation => 'Navigation',
       InfrastructureTab.localization => 'Localization',
     };
     final subtitle = switch (tab) {
+      InfrastructureTab.management => 'Choose a state management system.',
       InfrastructureTab.backend =>
         'Pick a backend to seed your stack — its preset packages appear on the right.',
       InfrastructureTab.navigation => 'Pick a navigation engine and how routes are declared.',
@@ -33,32 +35,61 @@ class InfrastructureScreen extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          title,
-          style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white),
-        ),
-        const SizedBox(height: 8),
-        Text(subtitle, style: TextStyle(color: Colors.grey[400], fontSize: 14)),
-        const SizedBox(height: 24),
+        Text(title, style: context.textTheme.headlineLarge),
+        8.gapH,
+        Text(subtitle, style: context.textTheme.bodyLarge),
+        24.gapH,
 
         Expanded(
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: .start,
+            spacing: 26,
             children: [
               Expanded(
                 flex: 6,
                 child: switch (tab) {
+                  InfrastructureTab.management => const _ManagementTab(),
                   InfrastructureTab.backend => const _BackendTab(),
                   InfrastructureTab.navigation => const _NavigationTab(),
                   InfrastructureTab.localization => const _LocalizationTab(),
                 },
               ),
-              const SizedBox(width: 20),
               const Expanded(flex: 4, child: _ManagedPackagesPanel()),
             ],
           ),
         ),
-        const SizedBox(height: 20),
+        20.gapH,
+      ],
+    );
+  }
+}
+
+class _ManagementTab extends ConsumerWidget {
+  const _ManagementTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isBloc =
+        ref.watch(selectedPackagesProvider.select(stateManagementOf)) == StateManagementKind.bloc;
+    final architecture = ref.watch(architectureProvider);
+    final architectureNotifier = ref.read(architectureProvider.notifier);
+
+    return Column(
+      crossAxisAlignment: .start,
+      children: [
+        const _SectionLabel('State management', icon: Icons.hub_outlined),
+        12.gapH,
+        const _StateManagementSelector(),
+        if (isBloc) ...[
+          16.gapH,
+          ToggleTile(
+            title: 'Use Cubit instead of full BLoC',
+            description:
+                'Génère des `Cubit<State>` (sans Events) plutôt que des `Bloc<Event, State>` complets.',
+            value: architecture.useCubit,
+            onChanged: architectureNotifier.toggleCubit,
+          ),
+        ],
       ],
     );
   }
@@ -79,6 +110,47 @@ class _BackendTab extends StatelessWidget {
         const _BackendSelector(),
         24.gapH,
         const Expanded(child: _BackendConfig()),
+      ],
+    );
+  }
+}
+
+// ── State management selector ──────────────────────────────────────────────
+
+class _StateManagementSelector extends ConsumerWidget {
+  const _StateManagementSelector();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final active = ref.watch(selectedPackagesProvider.select(stateManagementOf));
+    final notifier = ref.read(selectedPackagesProvider.notifier);
+
+    void pick(StateManagementKind kind) =>
+        notifier.applyStateManagementPreset(presetForStateManagement(kind));
+
+    return Row(
+      children: [
+        Expanded(
+          child: _BackendCard(
+            icon: Icons.water_drop_outlined,
+            iconColor: Palette.colorPrimaryCyan,
+            title: 'Riverpod',
+            subtitle: 'Annotations or manual Notifier',
+            active: active == StateManagementKind.riverpod,
+            onTap: () => pick(StateManagementKind.riverpod),
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: _BackendCard(
+            icon: Icons.call_split,
+            iconColor: const Color(0xFFFFA000),
+            title: 'Bloc / Cubit',
+            subtitle: 'Events + States, or Cubit',
+            active: active == StateManagementKind.bloc,
+            onTap: () => pick(StateManagementKind.bloc),
+          ),
+        ),
       ],
     );
   }
@@ -143,9 +215,8 @@ class _BackendCard extends StatelessWidget {
     required this.subtitle,
     required this.active,
     required this.onTap,
-    this.fontSize = 16,
     this.disabled = false,
-  });
+  }) : fontSize = 16;
 
   final IconData icon;
   final Color iconColor;
@@ -321,8 +392,7 @@ class _CompactOptionCard extends StatelessWidget {
                 ),
               ),
             ),
-            if (active)
-              const Icon(Icons.check_circle, color: Palette.colorPrimaryCyan, size: 16),
+            if (active) const Icon(Icons.check_circle, color: Palette.colorPrimaryCyan, size: 16),
           ],
         ),
       ),

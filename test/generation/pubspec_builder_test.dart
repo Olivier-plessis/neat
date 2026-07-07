@@ -171,6 +171,27 @@ void main() {
       expect(occurrences, 1);
     });
 
+    test('flutter_bloc injected when only the plain bloc package was selected', () {
+      final out = LaunchGenerationUsecase.buildPubspecContent(_basePubspec, [
+        pkg('bloc', '9.0.1'),
+      ]);
+      expect(parseDeps(out).deps.containsKey('flutter_bloc'), isTrue);
+    });
+
+    test('flutter_bloc not duplicated when explicitly selected', () {
+      final out = LaunchGenerationUsecase.buildPubspecContent(_basePubspec, [
+        pkg('flutter_bloc', '9.1.1'),
+      ]);
+      final occurrences =
+          RegExp(r'^\s{2}flutter_bloc:', multiLine: true).allMatches(out).length;
+      expect(occurrences, 1);
+    });
+
+    test('no flutter_bloc injected when no bloc-family package is present', () {
+      final out = LaunchGenerationUsecase.buildPubspecContent(_basePubspec, const []);
+      expect(parseDeps(out).deps.containsKey('flutter_bloc'), isFalse);
+    });
+
     test('widgetbook injected only when withWidgetbook=true', () {
       final off = LaunchGenerationUsecase.buildPubspecContent(_basePubspec, const []);
       expect(parseDeps(off).devDeps.containsKey('widgetbook'), isFalse);

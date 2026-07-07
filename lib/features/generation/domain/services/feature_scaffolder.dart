@@ -262,7 +262,6 @@ class FeatureScaffolder {
         PresentationTemplates.featureProvider(
           featureName: featureName,
           useAnnotations: useAnnotations,
-          useCubit: false,
           dataList: dataList,
           realtime: liveList,
           includeCrudUi: includeCrudUi,

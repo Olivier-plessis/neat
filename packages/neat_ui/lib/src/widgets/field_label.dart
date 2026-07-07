@@ -1,6 +1,4 @@
-import 'package:flutter/material.dart';
-
-import '../theme/app_theme_extension.dart';
+part of 'widgets.dart';
 
 /// A caps, bold, letter-spaced label placed above a form field (e.g.
 /// "PROJECT NAME" above its `TextField`). Unifies a pattern that had drifted

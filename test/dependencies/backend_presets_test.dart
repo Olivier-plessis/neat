@@ -147,4 +147,65 @@ void main() {
           reason: 'routing style is orthogonal to the HTTP client preset swap');
     });
   });
+
+  group('stateManagementOf', () {
+    PubPackage pkg(String n) => PubPackage(name: n, version: '1.0.0', description: '');
+
+    test('detects bloc, else defaults to riverpod', () {
+      expect(stateManagementOf([pkg('flutter_bloc')]), StateManagementKind.bloc);
+      expect(stateManagementOf([pkg('bloc')]), StateManagementKind.bloc);
+      expect(stateManagementOf([pkg('hooks_riverpod')]), StateManagementKind.riverpod);
+      expect(stateManagementOf([]), StateManagementKind.riverpod);
+    });
+  });
+
+  group('applyStateManagementPreset (Infrastructure screen\'s state management picker)', () {
+    late ProviderContainer container;
+    SelectedPackages notifier() => container.read(selectedPackagesProvider.notifier);
+    List<String> names() =>
+        container.read(selectedPackagesProvider).map((p) => p.name).toList();
+
+    setUp(() => container = ProviderContainer());
+    tearDown(() => container.dispose());
+
+    test('defaults to Riverpod out of the box', () {
+      expect(stateManagementOf(container.read(selectedPackagesProvider)), StateManagementKind.riverpod);
+    });
+
+    test('switching to Bloc strips every Riverpod package, adds flutter_bloc', () {
+      notifier().applyStateManagementPreset(presetForStateManagement(StateManagementKind.bloc));
+      expect(names(), contains('flutter_bloc'));
+      expect(names(), isNot(contains('hooks_riverpod')));
+      expect(names(), isNot(contains('flutter_hooks')));
+      expect(names(), isNot(contains('riverpod_annotation')));
+      expect(names(), isNot(contains('riverpod_generator')));
+      expect(names(), isNot(contains('riverpod_lint')));
+      expect(names(), contains('go_router'), reason: 'shared core stays untouched');
+      expect(names(), contains('chopper'), reason: 'backend choice stays untouched');
+    });
+
+    test('switching back to Riverpod strips flutter_bloc', () {
+      notifier().applyStateManagementPreset(presetForStateManagement(StateManagementKind.bloc));
+      notifier().applyStateManagementPreset(presetForStateManagement(StateManagementKind.riverpod));
+      expect(names(), contains('hooks_riverpod'));
+      expect(names(), isNot(contains('flutter_bloc')));
+    });
+
+    test('switching backend after choosing Bloc does not resurrect Riverpod', () {
+      notifier().applyStateManagementPreset(presetForStateManagement(StateManagementKind.bloc));
+      notifier().applyBackendPreset(presetFor(BackendKind.supabase));
+      expect(names(), contains('flutter_bloc'), reason: 'Bloc choice must survive a backend switch');
+      expect(names(), isNot(contains('hooks_riverpod')),
+          reason: 'backend switch must not silently re-add Riverpod alongside Bloc');
+      expect(names(), contains('supabase_flutter'));
+    });
+
+    test('switching HTTP client after choosing Bloc does not resurrect Riverpod', () {
+      notifier().applyStateManagementPreset(presetForStateManagement(StateManagementKind.bloc));
+      notifier().applyHttpClientPreset(presetForHttpClient(HttpClientKind.dio));
+      expect(names(), contains('flutter_bloc'));
+      expect(names(), isNot(contains('hooks_riverpod')));
+      expect(names(), contains('dio'));
+    });
+  });
 }

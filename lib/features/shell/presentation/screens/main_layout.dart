@@ -109,9 +109,15 @@ class MainLayout extends ConsumerWidget {
                   Icons.extension_outlined,
                 ),
                 if (currentStep == NeatStep.infrastructure) ...[
-                  _buildSubItem(ref, InfrastructureTab.backend, 'BACKEND'),
-                  _buildSubItem(ref, InfrastructureTab.navigation, 'NAVIGATION'),
-                  _buildSubItem(ref, InfrastructureTab.localization, 'LOCALIZATION'),
+                  Column(
+                    crossAxisAlignment: .start,
+                    children: [
+                      _buildSubItem(ref, InfrastructureTab.management, 'STATE MANAGEMENT'),
+                      _buildSubItem(ref, InfrastructureTab.backend, 'BACKEND'),
+                      _buildSubItem(ref, InfrastructureTab.navigation, 'NAVIGATION'),
+                      _buildSubItem(ref, InfrastructureTab.localization, 'LOCALIZATION'),
+                    ],
+                  ),
                 ],
                 _buildItem(ref, NeatStep.packages, 'DEPENDENCIES', Icons.extension_outlined),
                 _buildItem(ref, NeatStep.architecture, 'ARCHITECTURE', Icons.account_tree_outlined),
@@ -311,7 +317,8 @@ class _NavBar extends ConsumerWidget {
 
   final NeatStep step;
 
-  static const _infraTabs = [
+  static final _infraTabs = [
+    InfrastructureTab.management,
     InfrastructureTab.backend,
     InfrastructureTab.navigation,
     InfrastructureTab.localization,

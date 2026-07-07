@@ -35,6 +35,11 @@ abstract class NeatContract with _$NeatContract {
     required String storageStrategy,
     @Default(1) int schemaVersion,
     @Default(true) bool useRiverpodAnnotations,
+
+    /// Only meaningful when [stateManagement] is `bloc`: Cubit (no Events)
+    /// instead of full Bloc. Read by the Workshop's feature generator so a
+    /// feature added later matches the project's existing choice.
+    @Default(false) bool useCubit,
     @Default(false) bool extractUiPackage,
     @Default(false) bool useScreenUtil,
     @Default(false) bool hasEnvied,

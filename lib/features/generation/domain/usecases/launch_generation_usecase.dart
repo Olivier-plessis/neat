@@ -430,6 +430,7 @@ class LaunchGenerationUsecase {
           ? 'bloc'
           : 'none',
       useRiverpodAnnotations: useAnnotations,
+      useCubit: useCubit,
       navigation: hasGoRouterBuilder
           ? 'go_router_builder'
           : hasGoRouter
@@ -742,7 +743,16 @@ class LaunchGenerationUsecase {
     // (and is self-registered into) corePackageName instead (see
     // DataTemplates.featureRepositoryProviders/AppTemplates.bootstrap), so
     // the app never reads its own copy either way.
-    if (httpClient == 'chopper' && hasRiverpod && corePackageName == null) {
+    //
+    // chopper_model_converter.dart is plain Dart (no Riverpod import at all)
+    // and is imported directly by every chopper repository_impl.dart
+    // (`unwrapChopperResponse`) regardless of state management — so unlike
+    // chopper_client_provider.dart (a Riverpod provider, only ever consumed
+    // by the Riverpod-only <feature>_repository_providers.dart DI graph),
+    // it must not be gated on hasRiverpod. Bloc/Cubit stub-mode repositories
+    // still need it to compile even though nothing wires a ChopperClient into
+    // them yet.
+    if (httpClient == 'chopper' && corePackageName == null) {
       await _write(
         '$lib/core/network/chopper_model_converter.dart',
         CoreTemplates.chopperModelConverter(
@@ -750,6 +760,8 @@ class LaunchGenerationUsecase {
           featureName: architecture.generateFirstFeature ? featureName : null,
         ),
       );
+    }
+    if (httpClient == 'chopper' && hasRiverpod && corePackageName == null) {
       await _write(
         '$lib/core/network/chopper_client_provider.dart',
         CoreTemplates.chopperClientProvider(
@@ -2111,6 +2123,16 @@ dev_dependencies:
     // Auto-inject it when missing so the generated code compiles out of the box.
     if (hasGoRouterBuilder && !hasGoRouterExplicit) {
       deps.write('  go_router: ^17.2.3\n');
+    }
+
+    // Generated Cubit/Bloc code always imports package:flutter_bloc — inject
+    // it when the user picked a bloc-family package that isn't flutter_bloc
+    // itself (e.g. the plain, Flutter-less `bloc` package from a pub.dev
+    // search) so the project still compiles.
+    final hasBlocFamily = uniquePackages.any((p) => p.name.contains('bloc'));
+    final hasFlutterBlocExplicit = uniquePackages.any((p) => p.name == 'flutter_bloc');
+    if (hasBlocFamily && !hasFlutterBlocExplicit) {
+      deps.write('  flutter_bloc: ^9.1.1\n');
     }
 
     // The generated typography uses google_fonts to apply the chosen font
