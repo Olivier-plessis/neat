@@ -60,8 +60,7 @@ void main() {
   group('httpClientOf', () {
     PubPackage pkg(String n) => PubPackage(name: n, version: '1.0.0', description: '');
 
-    test('detects retrofit, dio, else defaults to chopper', () {
-      expect(httpClientOf([pkg('retrofit'), pkg('dio')]), HttpClientKind.retrofit);
+    test('detects dio, else defaults to chopper', () {
       expect(httpClientOf([pkg('dio')]), HttpClientKind.dio);
       expect(httpClientOf([pkg('chopper')]), HttpClientKind.chopper);
       expect(httpClientOf([]), HttpClientKind.chopper);
@@ -92,16 +91,6 @@ void main() {
       notifier().applyHttpClientPreset(presetForHttpClient(HttpClientKind.chopper));
       expect(names(), contains('chopper'));
       expect(names(), isNot(contains('dio')));
-    });
-
-    test('retrofit is filtered out — not yet selectable (isUnsupportedPackage)', () {
-      notifier().applyHttpClientPreset(presetForHttpClient(HttpClientKind.retrofit));
-      expect(names(), isNot(contains('retrofit')),
-          reason: 'the UI must keep the Retrofit card disabled instead of relying on this');
-      expect(names(), isNot(contains('retrofit_generator')));
-      // dio (retrofit's own transport) still lands, since it isn't itself
-      // unsupported — only the retrofit/retrofit_generator pair is filtered.
-      expect(names(), contains('dio'));
     });
   });
 

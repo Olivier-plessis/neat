@@ -2780,6 +2780,10 @@ class _FontSelector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Autocomplete<String>(
+      // Autocomplete only reads initialValue when its internal state is first
+      // created — without this key, an external change to [value] (the
+      // typography Reset button) would never reach the visible text field.
+      key: ValueKey(value),
       initialValue: TextEditingValue(text: value),
       optionsBuilder: (t) {
         final q = t.text.trim().toLowerCase();

@@ -55,8 +55,8 @@ class FeatureScaffolder {
     // relative path or an absolute URL — an absolute URL overrides the
     // client's configured base URL entirely (e.g. the FakeStore example
     // feature always targets fakestoreapi.com regardless of the project's
-    // own API Base URL). REST clients only (dio/chopper/retrofit); ignored
-    // for supabase/firebase, which address a table/collection, not a path.
+    // own API Base URL). REST clients only (dio/chopper); ignored for
+    // supabase/firebase, which address a table/collection, not a path.
     String? apiPath,
     // Adds a tap-for-detail (+ delete) sheet and an "add" (create) sheet to
     // the riverpod list page. Off by default — deliberately not exposed as a
@@ -77,10 +77,19 @@ class FeatureScaffolder {
     // The offline 3-source repository requires BOTH a remote and a local source.
     final offlineFirst = localIsDrift && hasHttpClient && includeLocalSource;
     // Only write the local source when the repository will actually reference
-    // it: the offline-first 3-source repo, or the fully local (no remote)
-    // stub. A remote-only repository (hasHttpClient && !offlineFirst) never
-    // takes a local source param — writing the file there is dead code.
-    final writeLocal = offlineFirst || !hasHttpClient;
+    // it: the offline-first 3-source repo, or a genuinely local-only feature
+    // (no remote, Local Data Source explicitly on). Previously this was
+    // `offlineFirst || !hasHttpClient`, which forced a local source into
+    // existence any time Remote was off — even when Local was *also*
+    // explicitly off, making that toggle meaningless in practice (found via
+    // a real Workshop combo: Remote off + Local off still generated a
+    // `_local_source.dart` nothing referenced).
+    final writeLocal = offlineFirst || (!hasHttpClient && includeLocalSource);
+    // No data source at all (both toggles off) → this is a pure
+    // entity+presentation feature: skip domain/repositories, domain/usecases,
+    // and the whole data/ layer entirely, since there'd be nothing behind
+    // them to implement or call.
+    final hasAnyDataSource = hasHttpClient || includeLocalSource;
     // A real list screen (provider fetches via the usecase → Skeletonizer) needs
     // the DI graph, which exists only with annotations + a remote source + usecases.
     final dataList = useAnnotations && hasHttpClient && includeUseCases;
@@ -115,21 +124,24 @@ class FeatureScaffolder {
       DomainTemplates.featureEntity(featureName: featureName, hasFreezed: hasFreezed, fields: fields),
     );
 
-    // domain/repositories
-    await _write(
-      '$domainBase/repositories/i_${featureName}_repository.dart',
-      DomainTemplates.featureIRepository(
-        featureName: featureName,
-        packageName: packageName,
-        hasHttpClient: hasHttpClient,
-        offlineFirst: offlineFirst,
-        realtime: liveList,
-        corePackageName: corePackageName,
-      ),
-    );
+    // domain/repositories — skipped entirely with no data source: an
+    // interface with no implementation behind it would be dead code.
+    if (hasAnyDataSource) {
+      await _write(
+        '$domainBase/repositories/i_${featureName}_repository.dart',
+        DomainTemplates.featureIRepository(
+          featureName: featureName,
+          packageName: packageName,
+          hasHttpClient: hasHttpClient,
+          offlineFirst: offlineFirst,
+          realtime: liveList,
+          corePackageName: corePackageName,
+        ),
+      );
+    }
 
-    // domain/usecases
-    if (includeUseCases) {
+    // domain/usecases — same reasoning: a usecase needs a repository to call.
+    if (includeUseCases && hasAnyDataSource) {
       await _write(
         '$domainBase/usecases/get_${featureName}_usecase.dart',
         DomainTemplates.featureGetUsecase(
@@ -151,33 +163,36 @@ class FeatureScaffolder {
       }
     }
 
-    // data/models
-    await _write(
-      '$dataBase/models/${featureName}_model.dart',
-      DataTemplates.featureModel(
-        featureName: featureName,
-        hasFreezed: hasFreezed,
-        hasJsonSerializable: hasJsonSerializable,
-        fields: fields,
-      ),
-    );
+    // data/models — no repository means nothing (de)serializes JSON, so
+    // there's nothing for a Model to do.
+    if (hasAnyDataSource) {
+      await _write(
+        '$dataBase/models/${featureName}_model.dart',
+        DataTemplates.featureModel(
+          featureName: featureName,
+          hasFreezed: hasFreezed,
+          hasJsonSerializable: hasJsonSerializable,
+          fields: fields,
+        ),
+      );
 
-    // data/repositories
-    await _write(
-      '$dataBase/repositories/${featureName}_repository_impl.dart',
-      DataTemplates.featureRepositoryImpl(
-        featureName: featureName,
-        packageName: packageName,
-        hasHttpClient: hasHttpClient,
-        httpClient: httpClient,
-        offlineFirst: offlineFirst,
-        hasSync: hasSync,
-        realtime: liveList,
-        fields: fields,
-        apiPath: apiPath,
-        corePackageName: corePackageName,
-      ),
-    );
+      // data/repositories
+      await _write(
+        '$dataBase/repositories/${featureName}_repository_impl.dart',
+        DataTemplates.featureRepositoryImpl(
+          featureName: featureName,
+          packageName: packageName,
+          hasHttpClient: hasHttpClient,
+          httpClient: httpClient,
+          offlineFirst: offlineFirst,
+          hasSync: hasSync,
+          realtime: liveList,
+          fields: fields,
+          apiPath: apiPath,
+          corePackageName: corePackageName,
+        ),
+      );
+    }
     // The repository-level DI graph (ApiSource/LocalSource/Repository/Sync
     // providers) lives in data/ — never presentation/ — since it only ever
     // touches concrete Data types. Only emit it when there's a usecase graph

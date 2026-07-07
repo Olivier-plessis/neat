@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:neat/core/app_info/app_version_provider.dart';
-import 'package:neat/features/identity/presentation/screens/main_layout.dart';
+import 'package:neat/features/shell/presentation/screens/main_layout.dart';
 import 'package:neat_ui/neat_ui.dart';
 
 class SplashScreen extends HookConsumerWidget {
@@ -55,13 +55,13 @@ class SplashScreen extends HookConsumerWidget {
           // Centered logo + text
           Center(
             child: Column(
-              mainAxisSize: MainAxisSize.min,
+              mainAxisSize: .min,
               children: [
                 AnimatedBuilder(
                   animation: Listenable.merge([glowCtrl, pulseCtrl]),
                   builder: (context, _) {
                     return Stack(
-                      alignment: Alignment.center,
+                      alignment: .center,
                       children: [
                         // Outer soft glow — pulsing
                         Opacity(
@@ -72,11 +72,11 @@ class SplashScreen extends HookConsumerWidget {
                               width: 220,
                               height: 220,
                               decoration: BoxDecoration(
-                                shape: BoxShape.circle,
+                                shape: .circle,
                                 gradient: RadialGradient(
                                   colors: [
-                                    Palette.colorPrimaryCyan.withValues(alpha: 0.12),
-                                    Palette.colorPrimaryCyan.withValues(alpha: 0.04),
+                                    context.neatColors.colorPrimaryCyan.withValues(alpha: 0.12),
+                                    context.neatColors.colorPrimaryCyan.withValues(alpha: 0.04),
                                     Colors.transparent,
                                   ],
                                 ),
@@ -94,11 +94,11 @@ class SplashScreen extends HookConsumerWidget {
                               width: 160,
                               height: 160,
                               decoration: BoxDecoration(
-                                shape: BoxShape.circle,
+                                shape: .circle,
                                 gradient: RadialGradient(
                                   colors: [
-                                    Palette.colorPrimaryCyan.withValues(alpha: 0.25),
-                                    Palette.colorPrimaryCyan.withValues(alpha: 0.08),
+                                    context.neatColors.colorPrimaryCyan.withValues(alpha: 0.25),
+                                    context.neatColors.colorPrimaryCyan.withValues(alpha: 0.08),
                                     Colors.transparent,
                                   ],
                                 ),
@@ -114,13 +114,13 @@ class SplashScreen extends HookConsumerWidget {
                             width: 110,
                             height: 110,
                             decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(22),
-                              border: Border.all(
-                                color: Palette.colorPrimaryCyan.withValues(alpha: 0.25),
+                              borderRadius: .circular(22),
+                              border: .all(
+                                color: context.neatColors.colorPrimaryCyan.withValues(alpha: 0.25),
                               ),
                             ),
                             child: ClipRRect(
-                              borderRadius: BorderRadius.circular(21),
+                              borderRadius: .circular(21),
                               child: Image.asset('assets/images/neat_logo.png', fit: BoxFit.cover),
                             ),
                           ),
@@ -130,19 +130,16 @@ class SplashScreen extends HookConsumerWidget {
                   },
                 ),
 
-                const SizedBox(height: 28),
+                28.gapH,
 
                 // NEAT wordmark
                 FadeTransition(
                   opacity: contentFade,
-                  child: const Text(
+                  child: Text(
                     'N E A T',
-                    style: TextStyle(
+                    style: context.textTheme.headlineLarge!.copyWith(
                       color: Palette.colorPrimaryCyan,
-                      fontSize: 28,
-                      fontWeight: FontWeight.w700,
                       letterSpacing: 10,
-                      fontFamily: 'Inter',
                     ),
                   ),
                 ),
@@ -160,12 +157,7 @@ class SplashScreen extends HookConsumerWidget {
               child: Text(
                 ref.watch(appVersionProvider).maybeWhen(data: (v) => v, orElse: () => ''),
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Colors.white24,
-                  fontSize: 11,
-                  letterSpacing: 3,
-                  fontFamily: 'Inter',
-                ),
+                style: context.textTheme.bodySmall,
               ),
             ),
           ),
@@ -190,7 +182,7 @@ class _DotGridPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.045)
+      ..color = Colors.white.withValues(alpha: 0.095)
       ..style = PaintingStyle.fill;
 
     const spacing = 24.0;

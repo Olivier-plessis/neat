@@ -232,6 +232,24 @@ void main() {
       final deps = parseDeps(out).deps;
       expect((deps['my_app_local_storage'] as YamlMap)['path'], 'packages/my_app_local_storage');
       expect(deps.containsKey('connectivity_plus'), isTrue);
+
+      // drift_dev 2.34.0's query analyzer calls a DartPlaceholder.when() method
+      // sqlparser removed in 0.44.6 — pinned below it workspace-wide (a pub
+      // workspace resolves one version of everything) until drift_dev's own
+      // constraint moves past the break. See ROADMAP.md.
+      final overrides = (doc['dependency_overrides'] as YamlMap?);
+      expect(overrides, isNotNull, reason: 'offline-first must pin sqlparser below 0.44.6');
+      expect(overrides!['sqlparser'], '>=0.44.0 <0.44.6');
+    });
+
+    test('no offline-first (addConnectivity=false) → no sqlparser override', () {
+      final out = LaunchGenerationUsecase.buildPubspecContent(
+        _basePubspec,
+        const [],
+        pathPackages: ['my_app_ui'],
+      );
+      final doc = loadYaml(out) as YamlMap;
+      expect(doc['dependency_overrides'], isNull);
     });
 
     test('multiple path packages + extra members (widgetbook)', () {

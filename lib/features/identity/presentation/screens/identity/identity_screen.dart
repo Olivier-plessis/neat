@@ -50,7 +50,7 @@ class IdentityScreen extends HookConsumerWidget {
                   child: Column(
                     crossAxisAlignment: .start,
                     children: [
-                      SectionHeader(label: 'General Details & Name'),
+                      SectionHeader(label: 'General Name & Details'),
                       16.gapH,
 
                       const FieldLabel('PROJECT NAME'),

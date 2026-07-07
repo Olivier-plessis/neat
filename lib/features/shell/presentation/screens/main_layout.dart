@@ -11,11 +11,11 @@ import 'package:neat/features/feature_gen/presentation/screens/feature_gen_scree
 import 'package:neat/features/hub/presentation/screens/hub_screen.dart';
 import 'package:neat/features/identity/domain/models/identity_state.dart';
 import 'package:neat/features/identity/presentation/providers/identity_provider.dart';
-import 'package:neat/features/identity/presentation/providers/stepper_provider.dart';
 import 'package:neat/features/identity/presentation/screens/identity/identity_screen.dart';
-import 'package:neat/features/identity/presentation/screens/launch_screen.dart';
 import 'package:neat/features/infrastructure/presentation/providers/infrastructure_tab_provider.dart';
 import 'package:neat/features/infrastructure/presentation/screens/infrastructure_screen.dart';
+import 'package:neat/features/shell/presentation/providers/stepper_provider.dart';
+import 'package:neat/features/shell/presentation/screens/launch_screen.dart';
 import 'package:neat/features/theme_engine/domain/models/theme_engine_state.dart';
 import 'package:neat/features/theme_engine/presentation/providers/theme_engine_provider.dart';
 import 'package:neat/features/theme_engine/presentation/screens/theme_engine_screen.dart';
@@ -385,7 +385,7 @@ class _NavBar extends ConsumerWidget {
       ),
 
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        mainAxisAlignment: .spaceBetween,
         children: [
           // Back button (hidden on the very first step/sub-tab)
           if (showBack)

@@ -112,25 +112,6 @@ const dioPreset = <PubPackage>[
   PubPackage(name: 'dio', version: '5.9.2', description: 'Powerful HTTP client for Dart.'),
 ];
 
-/// Retrofit: core + Dio (its underlying transport) + the Retrofit generator.
-/// Not yet selectable (see [isUnsupportedPackage]) — its API-source path has
-/// no generation-harness coverage — but kept ready for when it does.
-const retrofitPreset = <PubPackage>[
-  ..._corePackages,
-  PubPackage(name: 'dio', version: '5.9.2', description: 'Powerful HTTP client for Dart.'),
-  PubPackage(
-    name: 'retrofit',
-    version: '4.7.0',
-    description: 'Type-safe HTTP client generator built on Dio.',
-  ),
-  PubPackage(
-    name: 'retrofit_generator',
-    version: '9.7.0',
-    description: 'Code generator for Retrofit.',
-    isDev: true,
-  ),
-];
-
 /// Backend-specific package names — stripped before applying a new preset so
 /// switching backends is clean (non-backend packages are kept).
 const backendMarkerPackages = <String>{
@@ -142,8 +123,6 @@ const backendMarkerPackages = <String>{
   'chopper',
   'chopper_generator',
   'dio',
-  'retrofit',
-  'retrofit_generator',
 };
 
 List<PubPackage> presetFor(BackendKind kind) => switch (kind) {
@@ -164,19 +143,17 @@ BackendKind backendOf(List<PubPackage> packages) {
 /// [BackendKind.rest]; picking one swaps the client package the same way
 /// [applyBackendPreset]-family calls swap the backend (strip the marker
 /// packages, add the new preset — see dependencies_provider.dart).
-enum HttpClientKind { chopper, dio, retrofit }
+enum HttpClientKind { chopper, dio }
 
 List<PubPackage> presetForHttpClient(HttpClientKind kind) => switch (kind) {
       HttpClientKind.chopper => restPreset,
       HttpClientKind.dio => dioPreset,
-      HttpClientKind.retrofit => retrofitPreset,
     };
 
 /// Infers the active REST client from the manifest. Defaults to chopper
-/// (restPreset's own default) when neither dio nor retrofit is present.
+/// (restPreset's own default) when dio isn't present.
 HttpClientKind httpClientOf(List<PubPackage> packages) {
   final names = packages.map((p) => p.name).toSet();
-  if (names.contains('retrofit')) return HttpClientKind.retrofit;
   if (names.contains('dio')) return HttpClientKind.dio;
   return HttpClientKind.chopper;
 }

@@ -25,7 +25,7 @@ abstract class NeatContract with _$NeatContract {
     /// go_router_builder | go_router | none
     required String navigation,
 
-    /// chopper | dio | retrofit | none
+    /// chopper | dio | supabase | firebase | none
     required String httpClient,
 
     /// none | customM3 | flexColorScheme

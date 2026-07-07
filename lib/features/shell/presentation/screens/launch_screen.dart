@@ -13,7 +13,7 @@ import 'package:neat/features/generation/domain/usecases/launch_generation_useca
 import 'package:neat/features/hub/presentation/providers/recent_projects_provider.dart';
 import 'package:neat/features/identity/domain/models/identity_state.dart';
 import 'package:neat/features/identity/presentation/providers/identity_provider.dart';
-import 'package:neat/features/identity/presentation/providers/stepper_provider.dart';
+import 'package:neat/features/shell/presentation/providers/stepper_provider.dart';
 import 'package:neat/features/theme_engine/presentation/providers/theme_engine_provider.dart';
 import 'package:neat_ui/neat_ui.dart';
 

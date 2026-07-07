@@ -1258,61 +1258,43 @@ $textThemeEntries
 
   /// Generates [app_theme.dart] for the FlexColorScheme approach.
   ///
-  /// [customCode] can be:
-  /// - **Full file** (starts with `import`): the entire code from the
-  ///   FlexColorScheme playground — used almost verbatim, NEAT only injects
-  ///   the [AppColors] extension import.
-  /// - **Partial config**: just a `FlexThemeData.light(...)` call — embedded
-  ///   in NEAT's template.
-  /// - **null / empty**: a sensible Material Baseline default is generated.
+  /// [customCode] is whatever the user pasted from the FlexColorScheme
+  /// playground — a bare `FlexThemeData.light(...)` call, a `theme:`/
+  /// `darkTheme:` snippet, or a full file with imports and a wrapper class.
+  /// Only the `FlexThemeData.light(...)`/`.dark(...)` (or the older
+  /// `FlexColorScheme.light(...).toTheme` equivalent) call **expressions**
+  /// are extracted via paren-matching — everything else (imports, wrapper
+  /// class/field names, comments) is ignored, so paste shape never matters
+  /// and `AppTheme.light`/`.dark` (what `app.dart` actually references) are
+  /// always defined correctly. A `dark` config is optional — light is
+  /// derived from it when absent. `null` / empty yields a Material Baseline
+  /// default.
   static String appThemeFlexColorScheme({
     required String packageName,
     String? customCode,
     Map<TextStyleKey, TextStyleConfig> textStyles = kM3Defaults,
   }) {
     final code = customCode?.trim() ?? '';
-    final isFullFile = code.startsWith('import');
-
-    // ── Full file pasted from playground ─────────────────────────────────────
-    if (isFullFile) {
-      // Inject NEAT's extensions import right after the last import line.
-      const extensionsImport = "import 'app_theme_extensions.dart';";
-      final neatImport = "import 'package:$packageName/core/theme/constant/constant.dart';";
-
-      // Find insertion point: after the last `import` line
-      final lines = code.split('\n');
-      final lastImportIdx = lines.lastIndexWhere((l) => l.trimLeft().startsWith('import'));
-      final insertAt = lastImportIdx + 1;
-
-      final injected = [
-        ...lines.sublist(0, insertAt),
-        neatImport,
-        extensionsImport,
-        ...lines.sublist(insertAt),
-      ].join('\n');
-
-      // Inject AppColors extension into both FlexThemeData.light and .dark calls
-      // using paren-counting to find the exact closing ) of each call.
-      final withExtensions = _injectFlexExtensions(injected);
-
-      return withExtensions;
-    }
-
-    // ── Partial config or default ─────────────────────────────────────────────
     final textThemeEntries = textStyles.keys
         .map((k) => '    ${k.name}: StyleTheme.${k.name},')
         .join('\n');
 
-    final bodyConfig = code.isNotEmpty
-        ? '  static ThemeData get light => ($code).toTheme.copyWith(\n'
+    final light = _extractFlexCall(code, 'light');
+    final dark = _extractFlexCall(code, 'dark');
+
+    final bodyConfig = light != null
+        ? '  static ThemeData get light => ${_themeExpr(light)}.copyWith(\n'
               '    textTheme: _textTheme,\n'
               '    extensions: const [AppColors.light],\n'
               '    scaffoldBackgroundColor: Palette.background,\n'
               '  );\n\n'
-              '  // Derive dark from light or paste your dark config here\n'
-              '  static ThemeData get dark => light.copyWith(\n'
-              '    extensions: const [AppColors.light],\n'
-              '  );'
+              '${dark != null ? '  static ThemeData get dark => ${_themeExpr(dark)}.copyWith(\n'
+                  '    textTheme: _textTheme,\n'
+                  '    extensions: const [AppColors.light],\n'
+                  '  );' : '  // Only a light config was pasted — dark is derived from it.\n'
+                  '  static ThemeData get dark => light.copyWith(\n'
+                  '    extensions: const [AppColors.light],\n'
+                  '  );'}'
         : '  static ThemeData get light => FlexThemeData.light(\n'
               '    scheme: FlexScheme.materialBaseline,\n'
               '    subThemesData: const FlexSubThemesData(\n'
@@ -1394,12 +1376,11 @@ class ThemeModeController extends _\$ThemeModeController {
 import 'package:flutter/material.dart';
 
 final themeModeControllerProvider =
-    StateNotifierProvider<ThemeModeController, ThemeMode>(
-  (ref) => ThemeModeController(),
-);
+    NotifierProvider<ThemeModeController, ThemeMode>(ThemeModeController.new);
 
-class ThemeModeController extends StateNotifier<ThemeMode> {
-  ThemeModeController() : super(ThemeMode.light);
+class ThemeModeController extends Notifier<ThemeMode> {
+  @override
+  ThemeMode build() => ThemeMode.light;
 
   void toggle() => state = state == ThemeMode.light ? ThemeMode.dark : ThemeMode.light;
   void setLight() => state = ThemeMode.light;
@@ -1524,56 +1505,27 @@ final class BrightnessDark extends BrightnessState {
     return -1;
   }
 
-  /// Injects `extensions: const [AppColors.light]` into every
-  /// `FlexThemeData.light(...)` and `FlexThemeData.dark(...)` call found in
-  /// [code].
-  ///
-  /// - If the call is already followed by `.copyWith(`, the extension is
-  ///   injected at the top of that existing copyWith block.
-  /// - Otherwise a new `.copyWith(extensions: const [AppColors.light])` is
-  ///   appended right after the closing `)` of the FlexThemeData call.
-  ///
-  /// Returns [code] unchanged if it already references `AppColors`.
-  static String _injectFlexExtensions(String code) {
-    if (code.contains('AppColors')) return code;
-
-    var result = code;
-    for (final variant in ['FlexThemeData.light(', 'FlexThemeData.dark(']) {
-      var searchFrom = 0;
-      while (true) {
-        final callIdx = result.indexOf(variant, searchFrom);
-        if (callIdx == -1) break;
-
-        // Index of the opening `(` of this FlexThemeData call.
-        final openParen = callIdx + variant.length - 1;
-        final closeParen = _findMatchingParen(result, openParen);
-        if (closeParen == -1) {
-          searchFrom = callIdx + 1;
-          continue;
-        }
-
-        // Look at what immediately follows the closing paren (skip whitespace).
-        final afterCloseRaw = result.substring(closeParen + 1);
-        final afterClose = afterCloseRaw.trimLeft();
-
-        if (afterClose.startsWith('.copyWith(')) {
-          // Existing .copyWith — inject inside it at the very beginning.
-          final cwStart = result.indexOf('.copyWith(', closeParen + 1);
-          final cwOpenParen = cwStart + '.copyWith('.length - 1;
-          const inject = '\n    extensions: const [AppColors.light],';
-          result =
-              result.substring(0, cwOpenParen + 1) + inject + result.substring(cwOpenParen + 1);
-          searchFrom = cwOpenParen + inject.length + 1;
-        } else {
-          // No .copyWith — add one right after the closing paren.
-          const inject = '.copyWith(\n    extensions: const [AppColors.light],\n  )';
-          result = result.substring(0, closeParen + 1) + inject + result.substring(closeParen + 1);
-          searchFrom = closeParen + inject.length + 1;
-        }
-      }
+  /// A `FlexThemeData.light(...)` / `.dark(...)` call expression pulled out of
+  /// a pasted blob, plus whether it needs `.toTheme` appended (the older
+  /// `FlexColorScheme.light(...)` API returns a config object, not a
+  /// [ThemeData], unlike `FlexThemeData.light(...)`).
+  static ({String expr, bool needsToTheme})? _extractFlexCall(String code, String variant) {
+    for (final prefix in ['FlexThemeData.$variant(', 'FlexColorScheme.$variant(']) {
+      final callIdx = code.indexOf(prefix);
+      if (callIdx == -1) continue;
+      final openParen = callIdx + prefix.length - 1;
+      final closeParen = _findMatchingParen(code, openParen);
+      if (closeParen == -1) continue;
+      return (
+        expr: code.substring(callIdx, closeParen + 1),
+        needsToTheme: prefix.startsWith('FlexColorScheme'),
+      );
     }
-    return result;
+    return null;
   }
+
+  static String _themeExpr(({String expr, bool needsToTheme}) call) =>
+      call.needsToTheme ? '(${call.expr}).toTheme' : call.expr;
 
   // ── Private hex helpers ───────────────────────────────────────────────────
 

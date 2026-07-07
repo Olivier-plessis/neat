@@ -246,6 +246,91 @@ foundation everything else is configured through.
   integration test now also asserts `schemaVersion => 2`, the `migration`
   getter, and the exact `onUpgrade` step, still analyzing 0/0. Full suite green.
 
+### 5f. Workshop per-feature layer toggles — two real bugs (found via a real project)
+- **Bug 1 — chopper registration wired for a file that was never generated**.
+  `GenerateFeatureUsecase`'s chopper-decoder wiring only checked
+  `httpClient == 'chopper'` (the *project's* stack) before importing/calling
+  `register<Feature>ChopperDecoders()` in `bootstrap.dart`. But that function
+  only exists inside `<feature>_repository_providers.dart`, which
+  `FeatureScaffolder` only writes when `useAnnotations && hasHttpClient &&
+  includeUseCases` are **all** true (see 5c). A real generated project
+  (Remote Data Source on, **Domain UseCase off**) hit exactly this gap:
+  `bootstrap.dart` imported and called a function that was never generated —
+  `Error: Method not found: 'registerXChopperDecoders'`. Fixed by mirroring
+  the exact same condition at the call site
+  (`httpClient == 'chopper' && useAnnotations && effHasHttp &&
+  options.includeUseCase`). The affected real project's `bootstrap.dart` was
+  hand-repaired to unblock it immediately.
+- **Bug 2 — "Local Data Source" was silently ignored whenever Remote was
+  off**. `FeatureScaffolder`'s `writeLocal = offlineFirst || !hasHttpClient`
+  forced a `_local_source.dart` into existence any time there was no remote
+  client, **regardless of the Local Data Source toggle's own value** — so
+  turning both Remote *and* Local off in the Workshop still generated an
+  unused local source file (and the "Blueprint Overview" preview showed it
+  too, via the same `|| !remote` logic). Fixed by making `writeLocal` respect
+  `includeLocalSource` uniformly: `offlineFirst || (!hasHttpClient &&
+  includeLocalSource)`.
+- **Scope decision, made deliberately (not just a bug fix)**: fixing bug 2
+  exposed a real product question — should a feature with **zero** data
+  sources (Remote off, Local off) even be generatable? Previously
+  `FeatureGenOptions.hasAnyDataSource` blocked submission entirely
+  ("Pick at least one data source"). Decided **yes** — a pure
+  entity + presentation feature (no `data/` layer, no `domain/repositories`
+  interface, no usecases — nothing to implement or call without any backing
+  store) is a legitimate use case (e.g. a settings/about screen wired up by
+  hand later). `FeatureScaffolder` now gates `domain/repositories`,
+  `domain/usecases`, `data/models`, and `data/repositories_impl` on a new
+  `hasAnyDataSource = hasHttpClient || includeLocalSource` check; the
+  Workshop's `canGenerate` no longer requires it, and the blocking orange
+  warning became an informational grey note. The presentation layer needed
+  **no changes** — `dataList` already naturally evaluates to `false` in this
+  combo, so the page/provider templates already fell back to their plain
+  placeholder shape.
+- Harness-proven: a new integration test generates a feature with Remote/
+  Local/Domain UseCase all off, asserts no `data/` directory and no
+  `domain/repositories`/`domain/usecases` exist, but `domain/entities` and
+  the full `presentation/` layer do, and `flutter analyze` 0/0. A second new
+  test covers bug 1 specifically (Domain UseCase off, Remote on): asserts
+  `bootstrap.dart` never references the ungenerated file, analyze 0/0. Full
+  suite green, including every pre-existing packageSplit/chopper/Step 2b
+  test (this touches the same call site chopper registration threads
+  through).
+
+### 5g. Offline-first build_runner failure — a real (external, upstream) bug
+
+Reported from a real generated project (`flex_app`: packageSplit + offlineFirstSync
++ FlexColorScheme + chopper + go_router_builder + i18n): `database.g.dart` never
+generated, cascading into dozens of "Type 'X' not found" kernel errors across
+every package that touches Drift (`_local_storage`, `_core`'s `SyncService`, the
+witness feature's local source) — none of it related to the actual Dart source,
+which analyzed fine once the missing generated file was produced by hand.
+
+Root cause traced to `dart run build_runner build` itself failing to compile:
+`drift_dev 2.34.0`'s query analyzer calls `DartPlaceholder.when(...)`, a method
+`sqlparser` **removed** in `0.44.6` — published under a `^0.44.0`-compatible
+version bump, so pub resolves it without any conflict; the break only surfaces
+at drift_dev's own codegen time. Not fixable by bumping `drift_dev` either:
+`2.34.1`/`2.34.2` "fix" it by bumping their own `analyzer` constraint to
+`^13.0.0`, which then conflicts with `go_router_builder 4.3.0`'s `<13.0.0` cap
+— so every currently-published drift_dev version is broken in some way for a
+packageSplit + offline + typed-routing project.
+
+**Fix**: `LaunchGenerationUsecase.buildPubspecContent` now writes a
+`dependency_overrides: sqlparser: ">=0.44.0 <0.44.6"` block at the workspace
+root whenever offline-first is on (same `addConnectivity` signal that already
+adds `connectivity_plus`) — a pub workspace resolves one version of every
+package for the whole tree, so the override has to live at the root, not in
+`packages/<app>_local_storage`'s own pubspec. Revisit/remove once drift_dev
+ships a release that supports sqlparser ≥0.44.6 **and** keeps an
+analyzer constraint go_router_builder 4.3.0 can satisfy.
+
+Harness-proven: `pubspec_builder_test.dart` gained two cases (override present
++ pinned to the exact range when `addConnectivity: true`; absent otherwise).
+The real `flex_app` project was hand-patched with the same override, verified
+`dart run build_runner build` + `flutter analyze` clean across the whole
+workspace (1 unrelated pre-existing unused-import warning aside). Full suite
+green.
+
 ### 6. Multiple architectures — later, with caution
 - The harness makes **every** architecture a ~3× maintenance cost (each must be proven).
   **Clean done deeply > 3 architectures done shallowly.** If adding one, MVVM at most;
@@ -663,12 +748,19 @@ foundation everything else is configured through.
 >     Full suite (including every pre-existing non-split Supabase/Firebase
 >     test, which stays on the unsplit `lib/features/auth/` path unchanged)
 >     still green.
-> - **Phase 2, remaining** — retrofit (untested with packageSplit — likely
->   close to working already, since its ApiSource already falls into the same
->   dio-provider branch and its model import was already made relative, but
->   not verified — and separately, not yet selectable in the wizard at all
->   regardless of packageSplit, since its generation path has no harness
->   coverage — see `isUnsupportedPackage`).
+> - ✅ **Retrofit dropped entirely** — it was never selectable in the wizard
+>   (`isUnsupportedPackage`) and its API-source template had zero
+>   generation-harness coverage, so "Phase 2, remaining — retrofit" above was
+>   never going to close. Removed rather than left gated: the `retrofit`
+>   preset/enum value/template branch, `hasRetrofit`/`isRestClient`/
+>   `isDioBased`/`isDioLike` derivations, the disabled "Retrofit" card on the
+>   Infrastructure screen, and every doc-comment mention across the generator.
+>   `isUnsupportedPackage` still blocks `retrofit`/`retrofit_generator` by name
+>   (a pub.dev search shouldn't look like a dead end), and
+>   `dev_packages_whitelist.dart` still lists `retrofit_generator` alongside
+>   every other never-implemented generator (hive_generator, auto_route_generator,
+>   etc.) — both deliberately untouched for consistency. Chopper remains the
+>   one annotation-driven REST client; dio the one plain one. Full suite green.
 > - ✅ **i18n scoping — resolved: no per-package split, but a real bug fixed**.
 >   Raised by comparing against `maxit-front-flutter` (a real multi-dev Melos
 >   monorepo) — its `packages/feature/<name>/` each ship their own `l10n.yaml`
@@ -819,7 +911,62 @@ Keep **Riverpod (annotations + manual Notifier/NotifierProvider) + Bloc/Cubit** 
 GetX / Provider / MobX are considered dated and are out of scope.
 
 ## Known gated paths (visible in UI, not yet enabled)
-Layer-first · manual Riverpod (needs StateNotifier→Notifier fix) · retrofit · bloc/cubit.
+Layer-first · bloc/cubit.
+(retrofit was gated too — dropped entirely instead; manual Riverpod was gated
+too — unlocked instead, see § below.)
+
+- ✅ **Manual Riverpod (no @riverpod annotations) — unlocked**. The gate was
+  real: `_riverpodManualTemplate` (the feature provider) and
+  `themeModeControllerRiverpodManual` both generated `StateNotifier`/
+  `StateNotifierProvider`, which `flutter_riverpod` 3.x moved out of its main
+  barrel into `package:riverpod/legacy.dart` — the generated code simply
+  wouldn't compile. Migrated both to the modern `Notifier`/`NotifierProvider`
+  API (no legacy import, no deprecation). The "Use @riverpod annotation
+  syntax" toggle in Architecture (previously locked ON) now actually toggles
+  `useRiverpodAnnotations` — `toggleRiverpodAnnotations` already existed on
+  the notifier, only the UI lock and the templates were blocking it. One real
+  scope boundary stays, by design, not a bug: manual mode's usecase-level DI
+  graph is annotation-only (`dataList = useAnnotations && hasHttpClient &&
+  includeUseCases`), so the FakeStore Products witness feature degrades to a
+  placeholder page + Notifier stub in manual mode rather than the full-CRUD
+  example — the "Generate example feature" toggle's description now says so
+  conditionally instead of overpromising. Harness-proven: a new integration
+  test generates a manual-Riverpod project (no riverpod_annotation/
+  riverpod_generator in the manifest) and asserts both generated files use
+  `Notifier`/`NotifierProvider` with zero `StateNotifier` references, 0/0
+  analyze. Full suite green.
 
 ## Deferred refinements
-Outbox exponential backoff & conflict resolution · FlexColorScheme Playground import.
+- ✅ **Outbox exponential backoff & conflict resolution — done**.
+  `OutboxEntries` gained `nextRetryAt` (backoff deadline) and `hasConflict`
+  (set aside from ordinary retries) columns. `SyncService.flush()` skips
+  entries whose backoff hasn't elapsed, computes 5s/10s/20s.../5min-capped
+  delays via `_backoffFor`, and self-reschedules a `Timer` for the earliest
+  pending retry — recovery no longer depends solely on a connectivity flap.
+  `OutboxReplay` now returns a `ReplaySyncResult` (`success`/`retry`/
+  `conflict`) instead of `bool`: a `conflict` result parks the entry via
+  `AppDatabase.markConflict` (surfaced through `SyncService.conflictedWrites`,
+  resolved via `AppDatabase.resolveConflict`) rather than looping it through
+  ordinary retries — the generator supplies the plumbing, not a guessed merge
+  policy, since only the app author's backend knows what a conflict means for
+  them. `docs/OFFLINE.md`'s generated guide documents both. Full suite green.
+- ✅ **FlexColorScheme Playground import — done, and a real bug fixed**.
+  `appThemeFlexColorScheme` used to have two divergent, untested paste-shape
+  heuristics: a "full file" branch (`code.startsWith('import')`) that spliced
+  the user's pasted code in **as the entire file** — meaning it only worked if
+  the paste happened to define a class named exactly `AppTheme` with
+  `light`/`dark` matching what `app.dart` references, which the feature's own
+  in-UI hint text example (a `Palette` class) would have violated, breaking
+  generation — and a "partial" branch that wrongly assumed `.toTheme` was
+  needed (that's `FlexColorScheme.light(...).toTheme`'s contract, not
+  `FlexThemeData.light(...)`, which already returns `ThemeData`). Neither path
+  had integration coverage. Replaced both with one paren-matching extraction
+  (reusing the existing `_findMatchingParen`): pull the
+  `FlexThemeData.light(...)`/`.dark(...)` (or `FlexColorScheme.x(...).toTheme`)
+  call **expressions** out of whatever the user pasted — imports, wrapper
+  class/field names, comments — and slot them into NEAT's own always-correct
+  `AppTheme` class; `dark` is optional and derived from `light` when absent.
+  Harness-proven: a new integration test pastes a full file using an unrelated
+  wrapper class/field shape and asserts `AppTheme.light`/`.dark` are still
+  generated correctly with the `AppColors` extension wired into both, 0/0
+  analyze. Full suite green.
