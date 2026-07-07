@@ -44,9 +44,6 @@ class ArchitectureScreen extends ConsumerWidget {
     final hasChopper = ref.watch(
       selectedPackagesProvider.select((list) => list.any((p) => p.name == 'chopper')),
     );
-    final hasRetrofit = ref.watch(
-      selectedPackagesProvider.select((list) => list.any((p) => p.name == 'retrofit')),
-    );
     // packageSplit combo (see ROADMAP.md §6a): dio/chopper/supabase/firebase,
     // any storage strategy (remote-only, offline-first read, or offline-first
     // + sync/Outbox), Riverpod annotations, manual or typed (go_router_builder)
@@ -55,15 +52,13 @@ class ArchitectureScreen extends ConsumerWidget {
     // launch_generation_usecase.dart's packageSplitSupported — the generator
     // re-derives this independently rather than trusting the raw flag, so
     // keeping the toggle disabled outside this combo is a UX courtesy, not
-    // the only safety net. retrofit remains untested (no harness coverage at
-    // all yet, regardless of packageSplit).
+    // the only safety net.
     final canPackageSplit =
         state.generateFirstFeature &&
         hasRiverpod &&
         state.useRiverpodAnnotations &&
         hasGoRouter &&
-        (hasDio || hasChopper || hasBackend) &&
-        !hasRetrofit;
+        (hasDio || hasChopper || hasBackend);
     final tree = const GenerateTreeUsecase().execute(
       state,
       hasRiverpod: hasRiverpod,
@@ -101,11 +96,15 @@ class ArchitectureScreen extends ConsumerWidget {
                       const SizedBox(height: 12),
                       _ToggleTile(
                         title: 'Generate example feature',
-                        description:
-                            'FakeStore Products: a full-CRUD worked example against a public '
-                            'API, so a fresh project runs and shows real data. Off → the app '
-                            'ships with zero features (a placeholder welcome screen). Add your '
-                            'own entity later from the Workshop.',
+                        description: hasRiverpod && !state.useRiverpodAnnotations
+                            ? 'FakeStore Products — with manual NotifierProvider (no @riverpod '
+                                  'annotations) this is a placeholder page + Notifier stub, not the '
+                                  'full-CRUD example: the usecase-level DI graph is annotation-only. '
+                                  'Off → the app ships with zero features either way.'
+                            : 'FakeStore Products: a full-CRUD worked example against a public '
+                                  'API, so a fresh project runs and shows real data. Off → the app '
+                                  'ships with zero features (a placeholder welcome screen). Add your '
+                                  'own entity later from the Workshop.',
                         value: state.generateFirstFeature,
                         onChanged: notifier.setGenerateFirstFeature,
                       ),
@@ -178,12 +177,11 @@ class ArchitectureScreen extends ConsumerWidget {
                       if (hasRiverpod)
                         _ToggleTile(
                           title: 'Use @riverpod annotation syntax',
-                          description:
-                              'Génère `@riverpod class MyNotifier extends _\$MyNotifier`. Le mode manuel NotifierProvider arrive bientôt — verrouillé sur generator.',
-                          value: true,
-                          // Locked ON: the manual NotifierProvider path isn't validated yet.
-                          disabled: true,
-                          onChanged: (_) {},
+                          description: state.useRiverpodAnnotations
+                              ? 'Génère `@riverpod class MyNotifier extends _\$MyNotifier` (code-gen via build_runner).'
+                              : 'Génère `class MyNotifier extends Notifier<T>` + `NotifierProvider` à la main — pas de build_runner pour l\'état, mais pas de liste/CRUD witness (voir ROADMAP.md).',
+                          value: state.useRiverpodAnnotations,
+                          onChanged: notifier.toggleRiverpodAnnotations,
                         ),
                       if (hasRiverpod && hasBloc) const SizedBox(height: 8),
                       if (hasBloc)
@@ -225,7 +223,7 @@ class ArchitectureScreen extends ConsumerWidget {
                       const SizedBox(height: 8),
                       Text(switch (state.storageStrategy) {
                         StorageStrategy.remoteOnly =>
-                          'Source distante uniquement (Dio/Retrofit standard).',
+                          'Source distante uniquement (Dio/Chopper standard).',
                         StorageStrategy.offlineFirstRead =>
                           'Workspace + package Drift `_local_storage` : lecture local-first avec fallback cache.',
                         StorageStrategy.offlineFirstSync =>
@@ -244,8 +242,8 @@ class ArchitectureScreen extends ConsumerWidget {
                                   'depending only on a shared <app>_core package (Result/Failure/'
                                   'UseCase/networking) — never on the app itself, so multiple devs '
                                   'can own separate features without touching a shared lib/.'
-                            : 'Requires: a first feature, dio/chopper/Supabase/Firebase (no '
-                                  'retrofit yet), and Riverpod annotations. See ROADMAP.md §6a.',
+                            : 'Requires: a first feature, dio/chopper/Supabase/Firebase, and '
+                                  'Riverpod annotations. See ROADMAP.md §6a.',
                         value: canPackageSplit && state.packageSplit,
                         disabled: !canPackageSplit,
                         onChanged: notifier.togglePackageSplit,

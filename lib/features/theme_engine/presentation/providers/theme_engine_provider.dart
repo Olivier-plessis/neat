@@ -71,7 +71,14 @@ class ThemeEngine extends _$ThemeEngine {
     state = state.copyWith(textStyles: {...state.textStyles, key: kM3Defaults[key]!});
   }
 
-  void resetTextStyles() => state = state.copyWith(textStyles: kM3Defaults);
+  /// Resets the whole typography section — the per-style map AND the font
+  /// family / base size fields sitting next to the Reset button (defaults
+  /// mirror ThemeEngineState's @Default values, which copyWith can't reach).
+  void resetTextStyles() => state = state.copyWith(
+    textStyles: kM3Defaults,
+    fontFamily: 'Inter',
+    baseFontSize: 16.0,
+  );
 
   // Buttons
   void setElevatedButton(ButtonConfig c) => state = state.copyWith(elevatedButton: c);

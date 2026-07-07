@@ -33,7 +33,7 @@ abstract class FeatureGenOptions with _$FeatureGenOptions {
     /// Overrides the REST resource path (default: `/<name>s`). Either a
     /// relative path or an absolute URL — an absolute URL overrides the
     /// project's API Base URL entirely. Empty → the default pluralised path.
-    /// REST clients only (dio/chopper/retrofit).
+    /// REST clients only (dio/chopper).
     @Default('') String apiPath,
   }) = _FeatureGenOptions;
 

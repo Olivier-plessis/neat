@@ -20,11 +20,10 @@ mixin _$ArchitectureState {
 /// (`packages/<feature>/`) instead of a folder under `lib/features/` —
 /// real package boundaries for a team where each dev owns a feature.
 /// Requires a shared `<app>_core` package (Result/Failure/UseCase/
-/// networking), gated to dio or chopper + remote-only or offline-first
-/// (no sync/Outbox yet) + Riverpod annotations (manual or typed/
-/// go_router_builder routing both work) until Phase 2 widens support
-/// further (supabase/firebase/retrofit clients, offline+sync — see
-/// ROADMAP.md §6a).
+/// networking), gated to dio/chopper/supabase/firebase + Riverpod
+/// annotations (manual or typed/go_router_builder routing, any storage
+/// strategy, and auth/realtime/storage all work — Auth stays app-level
+/// even when split — see ROADMAP.md §6a).
  bool get packageSplit;/// Opt-in: scaffold a first feature at all (mirrors `flutter create`'s
 /// counter app — a real worked example so a fresh project runs and shows
 /// data). Off → the app ships with zero features, just a placeholder
@@ -42,7 +41,7 @@ mixin _$ArchitectureState {
  List<String> get firstFeatureFieldWarnings;/// Overrides the first feature's REST resource path (default:
 /// `/<firstFeatureName>s`). Either a relative path or an absolute URL — an
 /// absolute URL overrides the project's API Base URL entirely. Empty →
-/// the default pluralised path. REST clients only (dio/chopper/retrofit).
+/// the default pluralised path. REST clients only (dio/chopper).
  String get firstFeatureApiPath;/// Data persistence strategy. [StorageStrategy.offlineFirst] switches the
 /// generated project to a workspace with a Drift local-storage package.
  StorageStrategy get storageStrategy;/// When true (and go_router is in the stack), the app boots into a bottom
@@ -313,11 +312,10 @@ class _ArchitectureState extends ArchitectureState {
 /// (`packages/<feature>/`) instead of a folder under `lib/features/` —
 /// real package boundaries for a team where each dev owns a feature.
 /// Requires a shared `<app>_core` package (Result/Failure/UseCase/
-/// networking), gated to dio or chopper + remote-only or offline-first
-/// (no sync/Outbox yet) + Riverpod annotations (manual or typed/
-/// go_router_builder routing both work) until Phase 2 widens support
-/// further (supabase/firebase/retrofit clients, offline+sync — see
-/// ROADMAP.md §6a).
+/// networking), gated to dio/chopper/supabase/firebase + Riverpod
+/// annotations (manual or typed/go_router_builder routing, any storage
+/// strategy, and auth/realtime/storage all work — Auth stays app-level
+/// even when split — see ROADMAP.md §6a).
 @override@JsonKey() final  bool packageSplit;
 /// Opt-in: scaffold a first feature at all (mirrors `flutter create`'s
 /// counter app — a real worked example so a fresh project runs and shows
@@ -358,7 +356,7 @@ class _ArchitectureState extends ArchitectureState {
 /// Overrides the first feature's REST resource path (default:
 /// `/<firstFeatureName>s`). Either a relative path or an absolute URL — an
 /// absolute URL overrides the project's API Base URL entirely. Empty →
-/// the default pluralised path. REST clients only (dio/chopper/retrofit).
+/// the default pluralised path. REST clients only (dio/chopper).
 @override@JsonKey() final  String firstFeatureApiPath;
 /// Data persistence strategy. [StorageStrategy.offlineFirst] switches the
 /// generated project to a workspace with a Drift local-storage package.

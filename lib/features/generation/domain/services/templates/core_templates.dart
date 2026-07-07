@@ -355,7 +355,7 @@ class LoggerInterceptor implements Interceptor {
 ''';
     }
 
-    // Dio (dio / retrofit)
+    // Dio
     return '''import 'package:dio/dio.dart';
 import 'package:$packageName/core/utils/app_logger.dart';
 
@@ -411,7 +411,7 @@ class LoggerInterceptor extends Interceptor {
 ''';
   }
 
-  // ── core/network/dio_provider.dart (dio / retrofit) ───────────────────────
+  // ── core/network/dio_provider.dart ────────────────────────────────────────
 
   static String dioProvider({
     required String packageName,
@@ -429,7 +429,7 @@ ${envImport}import 'package:$packageName/core/observers/logger_interceptor.dart'
 
 part 'dio_provider.g.dart';
 
-/// Configured Dio instance. Inject it into your retrofit/dio API sources.
+/// Configured Dio instance. Inject it into your dio API sources.
 @Riverpod(keepAlive: true)
 Dio dio(Ref ref) {
   final dio = Dio(BaseOptions(baseUrl: $baseUrl));
@@ -445,7 +445,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 ${envImport}import 'package:$packageName/core/observers/logger_interceptor.dart';
 
-/// Configured Dio instance. Inject it into your retrofit/dio API sources.
+/// Configured Dio instance. Inject it into your dio API sources.
 final dioProvider = Provider<Dio>((ref) {
   final dio = Dio(BaseOptions(baseUrl: $baseUrl));
   if (kDebugMode) {
@@ -610,7 +610,7 @@ T unwrapChopperResponse<T>(Response<T> response) {
     required String httpClient,
     bool hasRiverpod = true,
   }) {
-    final isDioLike = httpClient == 'dio' || httpClient == 'retrofit';
+    final isDioLike = httpClient == 'dio';
     // ChopperApiException lives in chopper_model_converter.dart, itself only
     // generated alongside the (Riverpod-wired) chopper client — see
     // launch_generation_usecase.dart's `httpClient == 'chopper' && hasRiverpod`.
@@ -1146,18 +1146,34 @@ class _AvatarUploadFieldState extends ConsumerState<AvatarUploadField> {
 import 'package:$localStoragePackage/$localStoragePackage.dart';
 import 'package:$packageName/core/network/network_info.dart';
 
-/// How a single queued write is pushed to the backend. Return true on success
-/// (the entry is then removed), false to keep it for a later retry.
+/// Outcome of attempting to push one queued write to the backend.
+enum ReplaySyncResult {
+  /// The write succeeded — the entry is removed from the queue.
+  success,
+
+  /// A transient failure (network, 5xx, timeout) — retried later with
+  /// exponential backoff.
+  retry,
+
+  /// The backend rejected the write because the resource changed since it was
+  /// queued (e.g. a 409, or a newer `updatedAt`). Parked separately from
+  /// ordinary retries until the app resolves it via [AppDatabase.resolveConflict]
+  /// — a generic sync engine can't safely guess a merge policy on your behalf.
+  conflict,
+}
+
+/// How a single queued write is pushed to the backend.
 ///
 /// Wire this to your HTTP client, e.g.:
 /// ```dart
 /// SyncService(db, network, (e) async {
 ///   final res = await dio.request(e.endpoint,
 ///       data: e.payload, options: Options(method: 'POST'));
-///   return res.statusCode == 200 || res.statusCode == 201;
+///   if (res.statusCode == 409) return ReplaySyncResult.conflict;
+///   return ReplaySyncResult.success;
 /// });
 /// ```
-typedef OutboxReplay = Future<bool> Function(OutboxEntry entry);
+typedef OutboxReplay = Future<ReplaySyncResult> Function(OutboxEntry entry);
 
 /// Drains the Outbox queue when connectivity returns.
 class SyncService {
@@ -1172,6 +1188,7 @@ class SyncService {
   static const int maxRetries = 5;
 
   StreamSubscription<bool>? _sub;
+  Timer? _retryTimer;
 
   /// Start listening for connectivity; flush automatically when back online.
   void start() {
@@ -1180,29 +1197,68 @@ class SyncService {
     });
   }
 
-  /// Replay every pending write, oldest first. Successful ones are removed;
-  /// failures bump their retry counter; entries past [maxRetries] are skipped.
+  /// Exponential backoff before a failed write is retried: 5s, 10s, 20s,
+  /// 40s... capped at 5 minutes so a long outage doesn't wedge a write for hours.
+  static Duration _backoffFor(int retryCount) =>
+      Duration(seconds: (5 * (1 << retryCount)).clamp(5, 300));
+
+  /// Replay every due write, oldest first (an entry whose backoff hasn't
+  /// elapsed yet, or that's flagged as conflicting, is skipped this round).
+  /// Successful ones are removed; transient failures bump their retry counter
+  /// and schedule the next backoff; conflicts are parked separately. If
+  /// anything is still owed a retry, a timer re-flushes once the earliest one
+  /// is due, so recovery doesn't depend on another connectivity flap.
   Future<void> flush() async {
     if (!await _network.isConnected) return;
+    _retryTimer?.cancel();
+    final now = DateTime.now();
+    Duration? nextWait;
+
+    void scheduleRetry(Duration wait) {
+      if (nextWait == null || wait < nextWait!) nextWait = wait;
+    }
+
     for (final entry in await _db.pendingOutbox()) {
       if (entry.retryCount >= maxRetries) continue; // parked — give up
+      final due = entry.nextRetryAt;
+      if (due != null && due.isAfter(now)) {
+        scheduleRetry(due.difference(now));
+        continue;
+      }
       try {
-        if (await _replay(entry)) {
-          await _db.deleteOutbox(entry.id);
-        } else {
-          await _db.incrementRetry(entry.id);
+        switch (await _replay(entry)) {
+          case ReplaySyncResult.success:
+            await _db.deleteOutbox(entry.id);
+          case ReplaySyncResult.retry:
+            final backoff = _backoffFor(entry.retryCount + 1);
+            await _db.incrementRetry(entry.id, nextRetryAt: now.add(backoff));
+            scheduleRetry(backoff);
+          case ReplaySyncResult.conflict:
+            await _db.markConflict(entry.id);
         }
       } catch (_) {
-        await _db.incrementRetry(entry.id);
+        final backoff = _backoffFor(entry.retryCount + 1);
+        await _db.incrementRetry(entry.id, nextRetryAt: now.add(backoff));
+        scheduleRetry(backoff);
       }
     }
+
+    if (nextWait != null) _retryTimer = Timer(nextWait!, flush);
   }
 
   /// Writes that exhausted their retries — surface these to the user / a report.
   Future<List<OutboxEntry>> failedWrites() async =>
       (await _db.pendingOutbox()).where((e) => e.retryCount >= maxRetries).toList();
 
-  Future<void> dispose() async => _sub?.cancel();
+  /// Writes flagged as conflicting — surface these for the app to resolve
+  /// (see [AppDatabase.resolveConflict]); distinct from [failedWrites], which
+  /// is exhausted retries rather than a detected conflict.
+  Future<List<OutboxEntry>> conflictedWrites() => _db.conflictedOutbox();
+
+  Future<void> dispose() async {
+    _retryTimer?.cancel();
+    await _sub?.cancel();
+  }
 }
 ''';
 
@@ -1251,11 +1307,17 @@ ref.watch(${c}SyncProvider);
 ```
 
 - Successful replays are removed from the queue.
-- Failing ones bump `retryCount`; after `SyncService.maxRetries` attempts they
-  are **parked** (kept for inspection via `SyncService.failedWrites()`, never
+- Failing ones back off exponentially (5s, 10s, 20s... capped at 5 minutes)
+  and bump `retryCount`; after `SyncService.maxRetries` attempts they are
+  **parked** (kept for inspection via `SyncService.failedWrites()`, never
   retried in a loop).
-- ⚠️ No conflict resolution / exponential backoff out of the box — add your own
-  policy in the replay callback (`core/sync/sync_service.dart`) if needed.'''
+- A replay that returns `ReplaySyncResult.conflict` (e.g. the backend answered
+  409) is set aside from ordinary retries — inspect it via
+  `SyncService.conflictedWrites()` and resolve it with
+  `AppDatabase.resolveConflict(id, retry: ...)`. Detecting *what* counts as a
+  conflict for your backend is up to the replay callback
+  (`core/sync/sync_service.dart`) — a generic engine can't guess your merge
+  policy.'''
         : '';
 
     return '''# Offline-first
@@ -1339,7 +1401,7 @@ into the core dio/chopper client provider. The API source's per-resource path
   row↔model mapping in `${p}LocalSource`.
 - **New feature**: mirror the `$featureName` data layer + add its providers.
 '''
-        '${hasSync ? '\n- **Replay policy**: customise retries/backoff/conflicts in `SyncService`.\n' : '\n'}';
+        '${hasSync ? '\n- **Replay policy**: `SyncService` already backs off exponentially and parks conflicts — wire your backend\'s own conflict detection (e.g. a 409 check) into the replay callback.\n' : '\n'}';
   }
 
   // ── core/error/failure.dart ───────────────────────────────────────────────

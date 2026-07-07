@@ -24,7 +24,7 @@ mixin _$FeatureGenOptions {
  List<String> get fieldWarnings;/// Overrides the REST resource path (default: `/<name>s`). Either a
 /// relative path or an absolute URL — an absolute URL overrides the
 /// project's API Base URL entirely. Empty → the default pluralised path.
-/// REST clients only (dio/chopper/retrofit).
+/// REST clients only (dio/chopper).
  String get apiPath;
 /// Create a copy of FeatureGenOptions
 /// with the given fields replaced by the non-null parameter values.
@@ -269,7 +269,7 @@ class _FeatureGenOptions extends FeatureGenOptions {
 /// Overrides the REST resource path (default: `/<name>s`). Either a
 /// relative path or an absolute URL — an absolute URL overrides the
 /// project's API Base URL entirely. Empty → the default pluralised path.
-/// REST clients only (dio/chopper/retrofit).
+/// REST clients only (dio/chopper).
 @override@JsonKey() final  String apiPath;
 
 /// Create a copy of FeatureGenOptions

@@ -57,8 +57,7 @@ abstract class ArchitectureState with _$ArchitectureState {
     /// networking), gated to dio/chopper/supabase/firebase + Riverpod
     /// annotations (manual or typed/go_router_builder routing, any storage
     /// strategy, and auth/realtime/storage all work — Auth stays app-level
-    /// even when split) until Phase 2 widens support further (retrofit — see
-    /// ROADMAP.md §6a).
+    /// even when split — see ROADMAP.md §6a).
     @Default(false) bool packageSplit,
 
     /// Opt-in: scaffold a first feature at all (mirrors `flutter create`'s
@@ -88,7 +87,7 @@ abstract class ArchitectureState with _$ArchitectureState {
     /// Overrides the first feature's REST resource path (default:
     /// `/<firstFeatureName>s`). Either a relative path or an absolute URL — an
     /// absolute URL overrides the project's API Base URL entirely. Empty →
-    /// the default pluralised path. REST clients only (dio/chopper/retrofit).
+    /// the default pluralised path. REST clients only (dio/chopper).
     @Default('') String firstFeatureApiPath,
 
     /// Data persistence strategy. [StorageStrategy.offlineFirst] switches the

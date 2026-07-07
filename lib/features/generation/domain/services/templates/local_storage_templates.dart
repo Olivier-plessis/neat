@@ -132,6 +132,13 @@ class OutboxEntries extends Table {
   TextColumn get payload => text().nullable()();
   IntColumn get retryCount => integer().withDefault(const Constant(0))();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+
+  /// When the next retry is due (exponential backoff). Null means "due now".
+  DateTimeColumn get nextRetryAt => dateTime().nullable()();
+
+  /// Set by SyncService when the backend reports a conflict (e.g. a 409) —
+  /// excluded from ordinary retries until resolved via [AppDatabase.resolveConflict].
+  BoolColumn get hasConflict => boolean().withDefault(const Constant(false))();
 }'''
         : '';
 
@@ -152,23 +159,55 @@ class OutboxEntries extends Table {
         payload: Value(payload),
       ));
 
-  /// Pending writes, oldest first.
-  Future<List<OutboxEntry>> pendingOutbox() =>
-      (select(outboxEntries)..orderBy([(t) => OrderingTerm.asc(t.createdAt)])).get();
+  /// Pending writes that aren't flagged as conflicting, oldest first.
+  Future<List<OutboxEntry>> pendingOutbox() => (select(outboxEntries)
+        ..where((t) => t.hasConflict.equals(false))
+        ..orderBy([(t) => OrderingTerm.asc(t.createdAt)]))
+      .get();
 
-  /// Watch the pending queue reactively.
-  Stream<List<OutboxEntry>> watchPendingOutbox() => select(outboxEntries).watch();
+  /// Watch the pending queue reactively (excludes conflicted entries).
+  Stream<List<OutboxEntry>> watchPendingOutbox() =>
+      (select(outboxEntries)..where((t) => t.hasConflict.equals(false))).watch();
 
   Future<void> deleteOutbox(int id) =>
       (delete(outboxEntries)..where((t) => t.id.equals(id))).go();
 
-  Future<void> incrementRetry(int id) async {
+  /// Bumps the retry counter and persists the next-attempt time (the backoff
+  /// delay itself is computed by SyncService, not here).
+  Future<void> incrementRetry(int id, {DateTime? nextRetryAt}) async {
     final row =
         await (select(outboxEntries)..where((t) => t.id.equals(id))).getSingleOrNull();
     if (row == null) return;
-    await (update(outboxEntries)..where((t) => t.id.equals(id)))
-        .write(OutboxEntriesCompanion(retryCount: Value(row.retryCount + 1)));
-  }'''
+    await (update(outboxEntries)..where((t) => t.id.equals(id))).write(
+      OutboxEntriesCompanion(
+        retryCount: Value(row.retryCount + 1),
+        nextRetryAt: Value(nextRetryAt),
+      ),
+    );
+  }
+
+  /// Flags an entry as conflicting — excluded from [pendingOutbox] until
+  /// resolved.
+  Future<void> markConflict(int id) =>
+      (update(outboxEntries)..where((t) => t.id.equals(id)))
+          .write(const OutboxEntriesCompanion(hasConflict: Value(true)));
+
+  /// Conflicting writes awaiting app-level resolution.
+  Future<List<OutboxEntry>> conflictedOutbox() =>
+      (select(outboxEntries)..where((t) => t.hasConflict.equals(true))).get();
+
+  /// Resolves a conflicted entry: [retry] re-queues it (clears the flag,
+  /// resets the backoff) for another attempt; otherwise it's discarded (e.g.
+  /// the app chose to keep the server's version).
+  Future<void> resolveConflict(int id, {required bool retry}) => retry
+      ? (update(outboxEntries)..where((t) => t.id.equals(id))).write(
+          const OutboxEntriesCompanion(
+            hasConflict: Value(false),
+            retryCount: Value(0),
+            nextRetryAt: Value(null),
+          ),
+        )
+      : deleteOutbox(id);'''
         : '';
 
     final featureTableBlock = includeFirstTable ? featureTable(featureName, fields: fields) : '';

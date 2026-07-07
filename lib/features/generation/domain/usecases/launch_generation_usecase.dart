@@ -103,20 +103,17 @@ class LaunchGenerationUsecase {
     final hasNativeFlavors = hasEntryPoints && architecture.generateFlavors && flavorsSupported;
     final hasFreezed = packages.any((p) => p.name == 'freezed');
     final hasJsonSerializable = packages.any((p) => p.name == 'json_serializable');
-    final hasRetrofit = packages.any((p) => p.name == 'retrofit');
     final hasChopper = packages.any((p) => p.name == 'chopper');
     final hasDio = packages.any((p) => p.name == 'dio');
     // Supabase / Firebase are *backends* (SDKs) that play the same role as a
     // REST client: they back the feature's remote source. They take precedence.
     final hasSupabase = packages.any((p) => p.name == 'supabase_flutter');
     final hasFirebase = packages.any((p) => p.name == 'cloud_firestore');
-    final hasHttpClient = hasRetrofit || hasChopper || hasDio || hasSupabase || hasFirebase;
+    final hasHttpClient = hasChopper || hasDio || hasSupabase || hasFirebase;
     final httpClient = hasFirebase
         ? 'firebase'
         : hasSupabase
         ? 'supabase'
-        : hasRetrofit
-        ? 'retrofit'
         : hasChopper
         ? 'chopper'
         : hasDio
@@ -188,8 +185,7 @@ class LaunchGenerationUsecase {
     // the combo before acting on it. dio/chopper/supabase/firebase, manual or
     // typed (go_router_builder) routing, remote-only/offline-first-read/
     // offline-first-sync, auth/realtime/storage all supported (see
-    // ROADMAP.md §6a) — retrofit remains untested (no harness coverage at
-    // all yet, regardless of packageSplit).
+    // ROADMAP.md §6a).
     final packageSplitSupported =
         architecture.packageSplit &&
         (httpClient == 'dio' ||
@@ -719,14 +715,14 @@ class LaunchGenerationUsecase {
     // chopper_client_provider.dart below, both skipped in the app when split
     // (features import the core package's copies instead) — so this would be
     // dead code too.
-    final isRestClient = httpClient == 'dio' || httpClient == 'chopper' || httpClient == 'retrofit';
+    final isRestClient = httpClient == 'dio' || httpClient == 'chopper';
     if (isRestClient && corePackageName == null) {
       await _write(
         '$lib/core/observers/logger_interceptor.dart',
         CoreTemplates.loggerInterceptor(packageName: packageName, httpClient: httpClient),
       );
     }
-    final isDioBased = httpClient == 'dio' || httpClient == 'retrofit';
+    final isDioBased = httpClient == 'dio';
     // packageSplit: dead code — every feature's dio_provider.dart import
     // already redirects to corePackageName (see DataTemplates.
     // featureRepositoryProviders), and nothing in the app itself reads
@@ -1883,7 +1879,7 @@ dev_dependencies:
   /// (`CoreTemplates`/`CoreDartTemplates`), just pointed at [corePackageName]
   /// instead of the app's own package name — same content, different home.
   /// [httpClient] drives NetworkErrorHandler + which client provider ships
-  /// (dio for dio/retrofit, chopper's client + its witness-free decoder
+  /// (dio for dio, chopper's client + its witness-free decoder
   /// registry for chopper). No envied (`AppEnv` needs an interface/
   /// implementation split to be shareable, deferred to a later phase).
   Future<void> _writeCorePackage(
@@ -1938,7 +1934,7 @@ dev_dependencies:
       '$root/lib/core/network/network_error_handler.dart',
       CoreTemplates.networkErrorHandler(packageName: corePackageName, httpClient: httpClient),
     );
-    final isDioBased = httpClient == 'dio' || httpClient == 'retrofit';
+    final isDioBased = httpClient == 'dio';
     if (isDioBased) {
       await _write(
         '$root/lib/core/network/dio_provider.dart',
@@ -2224,6 +2220,18 @@ dev_dependencies:
     if (members.isNotEmpty) {
       final block = members.map((m) => '  - $m').join('\n');
       content = '${content.trimRight()}\n\nworkspace:\n$block\n';
+    }
+
+    // drift_dev 2.34.0's query analyzer calls a `DartPlaceholder.when()` method
+    // that sqlparser removed in 0.44.6 (a breaking change published under a
+    // compatible `^0.44.0` constraint, so pub picks it up without a conflict —
+    // the build just fails at codegen time). Override stays workspace-wide
+    // here (a pub workspace resolves one version of everything) until
+    // drift_dev bumps its own sqlparser constraint past the break.
+    if (addConnectivity) {
+      content = '${content.trimRight()}\n\n'
+          'dependency_overrides:\n'
+          '  sqlparser: ">=0.44.0 <0.44.6"\n';
     }
 
     return content;

@@ -8,7 +8,7 @@ import 'package:neat/features/feature_gen/domain/models/feature_gen_options.dart
 import 'package:neat/features/feature_gen/presentation/providers/workshop_controller.dart';
 import 'package:neat/features/generation/domain/models/field_spec.dart';
 import 'package:neat/features/generation/domain/services/json_entity_inferencer.dart';
-import 'package:neat/features/identity/presentation/providers/stepper_provider.dart';
+import 'package:neat/features/shell/presentation/providers/stepper_provider.dart';
 import 'package:neat_ui/neat_ui.dart';
 
 /// Workshop mode: open an existing NEAT project (via its `.neat.json`) and
@@ -186,7 +186,6 @@ class _Workshop extends HookWidget {
     final canGenerate =
         nameCtrl.text.isNotEmpty &&
         nameError == null &&
-        opts.hasAnyDataSource &&
         !parentMissing &&
         !state.isGenerating;
 
@@ -311,7 +310,7 @@ class _Workshop extends HookWidget {
                           enabled: projectHasHttp && !state.isGenerating,
                           onChanged: (v) => set(opts.copyWith(includeRemoteDataSource: v)),
                         ),
-                        if (projectHasHttp && opts.hasAnyDataSource) ...[
+                        if (projectHasHttp && opts.includeRemoteDataSource) ...[
                           10.gapH,
                           TextField(
                             controller: apiPathCtrl,
@@ -357,8 +356,9 @@ class _Workshop extends HookWidget {
                         if (!opts.hasAnyDataSource) ...[
                           8.gapH,
                           Text(
-                            'Pick at least one data source.',
-                            style: TextStyle(color: Colors.orangeAccent[100], fontSize: 12),
+                            'No data source selected — a pure entity + '
+                            'presentation feature (no data/ layer at all).',
+                            style: TextStyle(color: Colors.grey[500], fontSize: 12),
                           ),
                         ],
                         24.gapH,
@@ -897,19 +897,28 @@ class _BlueprintTree extends StatelessWidget {
   Widget build(BuildContext context) {
     final name = options.name.isEmpty ? 'feature_name' : options.name;
     final remote = hasHttp && options.includeRemoteDataSource;
-    final local = options.includeLocalDataSource || !remote;
+    // Mirrors FeatureScaffolder's writeLocal exactly: a local source is only
+    // written for the offline-first 3-source repo (remote + a project that
+    // actually ships Drift), or a genuinely local-only feature (no remote,
+    // Local Data Source explicitly on) — never forced on just because remote
+    // is off (that made the toggle meaningless — see ROADMAP.md).
+    final localIsDrift = contract.storageStrategy != 'remoteOnly';
+    final local = options.includeLocalDataSource && (!remote || localIsDrift);
+    final hasAnyDataSource = remote || local;
     final lines = <String>[
       'lib/features/$name/',
-      '├── data/',
-      '│   ├── sources/',
-      if (remote) '│   │   ├── ${name}_api_source.dart',
-      if (local) '│   │   └── ${name}_local_source.dart',
-      '│   ├── models/',
-      '│   └── repositories/',
+      if (hasAnyDataSource) ...[
+        '├── data/',
+        '│   ├── sources/',
+        if (remote) '│   │   ├── ${name}_api_source.dart',
+        if (local) '│   │   └── ${name}_local_source.dart',
+        '│   ├── models/',
+        '│   └── repositories/',
+      ],
       '├── domain/',
       '│   ├── entities/',
-      '│   ├── repositories/',
-      if (options.includeUseCase) '│   └── usecases/',
+      if (hasAnyDataSource) '│   ├── repositories/',
+      if (options.includeUseCase && hasAnyDataSource) '│   └── usecases/',
       '└── presentation/',
       '    ├── pages/',
       '    ├── providers/',
