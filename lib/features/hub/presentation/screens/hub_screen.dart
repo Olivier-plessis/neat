@@ -35,9 +35,9 @@ class HubScreen extends ConsumerWidget {
 
     return Scaffold(
       body: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+        padding: const .fromLTRB(24, 20, 24, 24),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: .start,
           children: [
             Expanded(
               child: Center(
@@ -45,7 +45,7 @@ class HubScreen extends ConsumerWidget {
                   constraints: const BoxConstraints(maxWidth: 900),
                   child: SingleChildScrollView(
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment: .start,
                       children: [
                         const SizedBox(height: 24),
                         const Center(child: _Header()),

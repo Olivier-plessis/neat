@@ -6,9 +6,11 @@
 /// - retrofit / retrofit_generator: dropped (see ROADMAP.md) — it never had
 ///   generation-harness coverage and overlapped entirely with chopper, which
 ///   does.
-/// - the bloc family: the BLoC/Cubit state generation isn't covered yet
-///   (riverpod is the validated path).
+///
+/// The bloc family (`flutter_bloc`/`bloc`) used to be blocked here too —
+/// unblocked instead (see ROADMAP.md): Cubit/Bloc generation is real now,
+/// same "selectable, generator-supported" bar as chopper/dio.
 bool isUnsupportedPackage(String name) {
   const exact = {'retrofit', 'retrofit_generator'};
-  return exact.contains(name) || name.contains('bloc');
+  return exact.contains(name);
 }

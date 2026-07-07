@@ -1,7 +1,4 @@
-import 'package:flutter/material.dart';
-import 'package:neat_ui/src/constant/constant.dart';
-
-import '../theme/app_theme_extension.dart';
+part of 'widgets.dart';
 
 /// A section title used across NEAT's wizard screens: an accent marker
 /// (an icon, or a colored bar when [icon] is omitted) followed by a bold
@@ -31,7 +28,7 @@ class SectionHeader extends StatelessWidget {
             : Container(
                 width: 4,
                 height: 16,
-                decoration: BoxDecoration(color: accent, borderRadius: BorderRadius.circular(2)),
+                decoration: BoxDecoration(color: accent, borderRadius: .circular(2)),
               ),
         8.gapW,
         Text(label, style: context.textTheme.headlineMedium),

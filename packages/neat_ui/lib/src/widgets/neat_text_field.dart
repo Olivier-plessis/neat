@@ -1,6 +1,4 @@
-import 'package:flutter/material.dart';
-
-import '../theme/app_theme_extension.dart';
+part of 'widgets.dart';
 
 /// A [TextField] pre-styled with NEAT's design system: typed text renders in
 /// [NeatColors.surface] rather than the theme's default `textTheme.bodyLarge`

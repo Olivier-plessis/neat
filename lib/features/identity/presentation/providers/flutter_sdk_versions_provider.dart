@@ -9,9 +9,7 @@ class FlutterSdkVersions extends _$FlutterSdkVersions {
   Future<List<String>> build() async {
     final useCase = ref.read(fetchStableFlutterVersionsUseCaseProvider);
     final result = await useCase();
-    // Le repository garantit un fallback : result est toujours un succès.
-    // getOrThrow() est donc sans risque, et met le provider en erreur uniquement
-    // si un bug inattendu survient (pratique pour le debug).
+
     return result.getOrThrow();
   }
 }

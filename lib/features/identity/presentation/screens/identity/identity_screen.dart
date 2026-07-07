@@ -64,7 +64,7 @@ class IdentityScreen extends HookConsumerWidget {
                         ),
                       ),
 
-                      24.gapH,
+                      32.gapH,
 
                       const FieldLabel('PROJECT DESCRIPTION'),
                       8.gapH,
@@ -74,7 +74,7 @@ class IdentityScreen extends HookConsumerWidget {
                         decoration: const InputDecoration(hintText: 'my flutter app description'),
                       ),
 
-                      24.gapH,
+                      32.gapH,
 
                       const FieldLabel('ORGANIZATION'),
                       8.gapH,
@@ -87,7 +87,7 @@ class IdentityScreen extends HookConsumerWidget {
                         ),
                       ),
 
-                      24.gapH,
+                      32.gapH,
 
                       const FieldLabel('PROJECT LOCATION'),
                       8.gapH,
@@ -186,39 +186,36 @@ class IdentityScreen extends HookConsumerWidget {
   ) {
     final isChecked = targetPlatforms.contains(key);
     final accent = context.neatColors.colorPrimaryCyan;
-    return Padding(
-      padding: const .symmetric(vertical: 6),
-      child: InkWell(
-        onTap: () => notifier.togglePlatform(key),
-        borderRadius: .circular(8),
-        child: Container(
-          padding: const .symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color: context.neatColors.dark,
-            borderRadius: .circular(8),
-            border: .all(color: isChecked ? accent : context.neatColors.surface10),
-          ),
-          child: Row(
-            spacing: 12,
-            children: [
-              Icon(
-                isChecked ? Icons.check_box : Icons.check_box_outline_blank,
-                color: isChecked ? accent : Colors.grey,
-              ),
-              Flexible(
-                child: Text(
-                  label,
-                  style: context.textTheme.bodyLarge!.copyWith(
-                    color: isChecked ? context.neatColors.surface : Colors.grey[400],
-                    fontWeight: isChecked ? FontWeight.bold : FontWeight.normal,
-                  ),
+    return InkWell(
+      onTap: () => notifier.togglePlatform(key),
+      borderRadius: .circular(8),
+      child: Container(
+        padding: const .symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: context.neatColors.dark,
+          borderRadius: .circular(8),
+          border: .all(color: isChecked ? accent : context.neatColors.surface10),
+        ),
+        child: Row(
+          spacing: 12,
+          children: [
+            Icon(
+              isChecked ? Icons.check_box : Icons.check_box_outline_blank,
+              color: isChecked ? accent : Colors.grey,
+            ),
+            Flexible(
+              child: Text(
+                label,
+                style: context.textTheme.bodyLarge!.copyWith(
+                  color: isChecked ? context.neatColors.surface : Colors.grey[400],
+                  fontWeight: isChecked ? FontWeight.bold : FontWeight.normal,
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
-    );
+    ).paddedV(6);
   }
 }
 
@@ -256,11 +253,11 @@ class _FlutterVersionDropdown extends ConsumerWidget {
     final effectiveValue = versions.contains(selectedVersion) ? selectedVersion : versions.first;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const .symmetric(horizontal: 16),
       decoration: BoxDecoration(
         color: context.neatColors.mainDark,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: context.neatColors.surface10),
+        borderRadius: .circular(8),
+        border: .all(color: context.neatColors.surface10),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
