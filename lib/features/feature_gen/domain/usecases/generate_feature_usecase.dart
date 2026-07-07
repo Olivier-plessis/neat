@@ -75,18 +75,18 @@ class GenerateFeatureUsecase {
     // A shell branch joins the app's StatefulShellRoute (bottom NavigationBar).
     final asShell = hasGoRouter && options.routing == FeatureRouting.shell;
 
-    // A child route means the parent package would need a path: dependency on
-    // the new feature package — a real cross-feature-package dependency,
-    // exactly the kind of thing Phase 3 (shared_contracts) is meant to solve.
-    // Not yet supported: reject clearly instead of generating a broken import.
-    if (packageSplit && asChild) {
-      throw Exception(
-        'Child routes aren\'t supported yet for packageSplit projects — nesting '
-        'under "${options.parentFeature}" would need a path: dependency from '
-        'that feature package onto "$featureName" (see ROADMAP.md §6a). Use a '
-        'top-level or shell route instead.',
-      );
-    }
+    // packageSplit + child route (§6a Phase 3): plain go_router nests the
+    // child's GoRoute inside the parent's *within the app's own shared
+    // routes.dart* — the app already depends on every feature package for
+    // their own top-level routes, so no new cross-feature dependency is
+    // needed there, just the right import path (see _wireChildRoute below).
+    // go_router_builder is the genuinely cross-feature case: the nested
+    // TypedGoRoute lives inside the *parent package's own*
+    // `<parent>_routes.dart`, so the parent needs a real `path:` dependency
+    // onto the child package (see _wireChildRouteBuilder/
+    // _addPathDependencyToPackage) — a one-way edge (child never depends back
+    // on parent), so no cycle, unlike arbitrary two-way feature coupling.
+    final parentPackageName = packageSplit ? '${c.projectName}_${options.parentFeature}' : null;
 
     // packages/<pkg>_<feature>/pubspec.yaml + wiring into the root workspace —
     // same shape as the wizard's own first split feature (see
@@ -147,9 +147,23 @@ class GenerateFeatureUsecase {
         onLog('[▶] Wiring "$featureName" as a child of "${options.parentFeature}"...');
         if (hasGoRouterBuilder) {
           await _wireChildRouteBuilder(
-              project.path, c.projectName, featureName, options.parentFeature);
+            project.path,
+            c.projectName,
+            featureName,
+            options.parentFeature,
+            childPackageName: featurePackageName,
+            parentPackageName: parentPackageName,
+            corePackageName: corePackageName,
+          );
         } else {
-          await _wireChildRoute(project.path, c.projectName, featureName, options.parentFeature);
+          await _wireChildRoute(
+            project.path,
+            c.projectName,
+            featureName,
+            options.parentFeature,
+            childPackageName: featurePackageName,
+            corePackageName: corePackageName,
+          );
         }
       } else if (asShell) {
         onLog('[▶] Wiring "$featureName" as a shell branch...');
@@ -232,6 +246,15 @@ class GenerateFeatureUsecase {
     if (packageSplit) {
       onLog('[▶] Running build_runner in packages/$featurePackageName...');
       await _runBuildRunner(dart, '${project.path}/packages/$featurePackageName', onLog);
+    }
+    // packageSplit + child route + go_router_builder: the *parent* package's
+    // own <parent>_routes.dart was just edited too (a new nested
+    // TypedGoRoute<ChildRoute> + ChildRoute class needing a generated
+    // `$ChildRoute` mixin) — its build_runner pass has to re-run, or the
+    // parent package won't compile.
+    if (packageSplit && asChild && hasGoRouterBuilder) {
+      onLog('[▶] Running build_runner in packages/$parentPackageName...');
+      await _runBuildRunner(dart, '${project.path}/packages/$parentPackageName', onLog);
     }
     await _dartFormat(dart, project.path, onLog);
     onLog('[✓✓] Feature "$featureName" added.');
@@ -434,23 +457,35 @@ class GenerateFeatureUsecase {
   /// as `/parent/child`. Ensures the parent carries a `// neat:children:<parent>`
   /// anchor (adding a `routes: [...]` clause if it has none yet) so subsequent
   /// children stack cleanly.
+  ///
+  /// packageSplit (§6a Phase 3): the nesting happens inside the **app's own**
+  /// `routes.dart` — the app already depends on every feature package for
+  /// their top-level routes, so [childPackageName] only changes the child
+  /// page's import path, never adds a dependency. [corePackageName] redirects
+  /// the `AppRoutePath` constant the same way every other split-feature
+  /// wiring point already does.
   Future<void> _wireChildRoute(
     String projectPath,
     String packageName,
     String featureName,
-    String parentFeature,
-  ) async {
+    String parentFeature, {
+    String? childPackageName,
+    String? corePackageName,
+  }) async {
     final camel = _camel(featureName);
 
     // 1. AppRoutePath: the full navigable path '/parent/child'.
-    final routePath = File('$projectPath/lib/core/constants/app_route_path.dart');
-    if (routePath.existsSync()) {
-      final s = _insertBefore(
-        await routePath.readAsString(),
-        '// neat:routes',
-        "  static const String $camel = '/$parentFeature/$featureName';",
+    await _addRouteConstant(
+      '$projectPath/lib/core/constants/app_route_path.dart',
+      camel,
+      '/$parentFeature/$featureName',
+    );
+    if (corePackageName != null) {
+      await _addRouteConstant(
+        '$projectPath/packages/$corePackageName/lib/core/constants/app_route_path.dart',
+        camel,
+        '/$parentFeature/$featureName',
       );
-      await routePath.writeAsString(s);
     }
 
     // 2. routes.dart: nest the child under the parent (pure transformation).
@@ -461,6 +496,7 @@ class GenerateFeatureUsecase {
       packageName: packageName,
       featureName: featureName,
       parentFeature: parentFeature,
+      childPackageName: childPackageName,
     );
     await routes.writeAsString(s);
   }
@@ -469,37 +505,58 @@ class GenerateFeatureUsecase {
   /// tree. The child becomes a `TypedGoRoute<ChildRoute>` in the parent's
   /// `@TypedGoRoute(routes: [...])` and its `ChildRoute` class is appended to the
   /// parent's routes file (the builder then generates the `\$ChildRoute` mixin).
+  ///
+  /// packageSplit (§6a Phase 3): unlike the plain go_router variant above, the
+  /// nesting happens inside the **parent package's own** `<parent>_routes.dart`
+  /// — a genuine cross-feature-package import, so [parentPackageName] (when
+  /// set) also gets a `path:` dependency added onto [childPackageName] (a
+  /// one-way edge: the child never depends back on the parent, so this can't
+  /// introduce a cycle).
   Future<void> _wireChildRouteBuilder(
     String projectPath,
     String packageName,
     String featureName,
-    String parentFeature,
-  ) async {
+    String parentFeature, {
+    String? childPackageName,
+    String? parentPackageName,
+    String? corePackageName,
+  }) async {
     final camel = _camel(featureName);
 
     // 1. AppRoutePath: the full navigable path '/parent/child'.
-    final routePath = File('$projectPath/lib/core/constants/app_route_path.dart');
-    if (routePath.existsSync()) {
-      final s = _insertBefore(
-        await routePath.readAsString(),
-        '// neat:routes',
-        "  static const String $camel = '/$parentFeature/$featureName';",
+    await _addRouteConstant(
+      '$projectPath/lib/core/constants/app_route_path.dart',
+      camel,
+      '/$parentFeature/$featureName',
+    );
+    if (corePackageName != null) {
+      await _addRouteConstant(
+        '$projectPath/packages/$corePackageName/lib/core/constants/app_route_path.dart',
+        camel,
+        '/$parentFeature/$featureName',
       );
-      await routePath.writeAsString(s);
     }
 
     // 2. parent's typed routes file: inject the nested typed route + child class.
-    final parentRoutes = File(
-      '$projectPath/lib/features/$parentFeature/presentation/routes/${parentFeature}_routes.dart',
-    );
+    final parentRoutesPath = parentPackageName != null
+        ? '$projectPath/packages/$parentPackageName/lib/presentation/routes/${parentFeature}_routes.dart'
+        : '$projectPath/lib/features/$parentFeature/presentation/routes/${parentFeature}_routes.dart';
+    final parentRoutes = File(parentRoutesPath);
     if (!parentRoutes.existsSync()) return;
     final s = wireChildIntoTypedRoutes(
       parentRoutesSource: await parentRoutes.readAsString(),
       packageName: packageName,
       childFeature: featureName,
       parentFeature: parentFeature,
+      childPackageName: childPackageName,
     );
     await parentRoutes.writeAsString(s);
+
+    // 3. The parent package now imports the child package directly — declare
+    // the dependency, or `dart pub get` never resolves it.
+    if (parentPackageName != null && childPackageName != null) {
+      await _addPathDependencyToPackage(projectPath, parentPackageName, childPackageName);
+    }
   }
 
   /// Pure transformation of a parent's `<parent>_routes.dart` (go_router_builder):
@@ -512,6 +569,11 @@ class GenerateFeatureUsecase {
     required String packageName,
     required String childFeature,
     required String parentFeature,
+    // packageSplit: the child's own package — the parent package needs a
+    // real path: dependency on it (see _wireChildRouteBuilder), since this
+    // import crosses a genuine feature-package boundary, unlike the plain
+    // go_router variant (nested inside the app's own shared routes.dart).
+    String? childPackageName,
   }) {
     final childPascal = _pascal(childFeature);
     final parentPascal = _pascal(parentFeature);
@@ -519,8 +581,10 @@ class GenerateFeatureUsecase {
     var s = parentRoutesSource;
 
     // 1. Import the child page (just before the part directive).
+    final childPkg = childPackageName ?? packageName;
+    final childPathPrefix = childPackageName != null ? '' : 'features/$childFeature/';
     final childImport =
-        "import 'package:$packageName/features/$childFeature/presentation/pages/"
+        "import 'package:$childPkg/${childPathPrefix}presentation/pages/"
         "${childFeature}_page.dart';";
     if (!s.contains(childImport)) {
       s = _insertBefore(s, "part '", childImport);
@@ -749,15 +813,21 @@ class GenerateFeatureUsecase {
     required String packageName,
     required String featureName,
     required String parentFeature,
+    // packageSplit: the child's own package — the app already depends on it
+    // (every feature gets a top-level path: dependency), so this only
+    // changes the import path, same as _wireRoutes' non-child case.
+    String? childPackageName,
   }) {
     final pascal = _pascal(featureName);
     final parentCamel = _camel(parentFeature);
     var s = routesSource;
 
+    final pkg = childPackageName ?? packageName;
+    final pathPrefix = childPackageName != null ? '' : 'features/$featureName/';
     s = _insertBefore(
       s,
       '// neat:route-imports',
-      "import 'package:$packageName/features/$featureName/presentation/pages/"
+      "import 'package:$pkg/${pathPrefix}presentation/pages/"
           "${featureName}_page.dart';",
     );
 
@@ -842,6 +912,29 @@ class GenerateFeatureUsecase {
     s = s.replaceFirst(
       'dependencies:\n  flutter:\n    sdk: flutter',
       'dependencies:\n  flutter:\n    sdk: flutter\n  $dependencyName:\n    path: packages/$dependencyName\n',
+    );
+    await pubspec.writeAsString(s);
+  }
+
+  /// Adds a sibling `path:` dependency from another workspace **feature**
+  /// package (not the root) onto [dependencyName] — the packageSplit child-
+  /// route case (§6a Phase 3): [packageDir]'s own `<parent>_routes.dart` now
+  /// imports the child feature package's page directly, a genuine one-way
+  /// cross-feature-package dependency (the child never depends back). No-op
+  /// if [packageDir]'s pubspec doesn't exist (e.g. an unknown parent — same
+  /// safe-no-op behavior as the routes-file transformation itself). Idempotent.
+  Future<void> _addPathDependencyToPackage(
+    String projectPath,
+    String packageDir,
+    String dependencyName,
+  ) async {
+    final pubspec = File('$projectPath/packages/$packageDir/pubspec.yaml');
+    if (!pubspec.existsSync()) return;
+    var s = await pubspec.readAsString();
+    if (s.contains('  $dependencyName:\n    path: ../$dependencyName')) return;
+    s = s.replaceFirst(
+      'dependencies:\n  flutter:\n    sdk: flutter',
+      'dependencies:\n  flutter:\n    sdk: flutter\n  $dependencyName:\n    path: ../$dependencyName\n',
     );
     await pubspec.writeAsString(s);
   }

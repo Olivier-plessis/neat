@@ -78,6 +78,24 @@ final List<RouteBase> appRoutes = [
     expect(out, isNot(contains("path: 'settings',")));
   });
 
+  test(
+    'packageSplit (§6a Phase 3): child import points at its own package, not '
+    'features/<name>/ — the app already depends on every feature package for '
+    'their own top-level routes, so no new dependency is needed here',
+    () {
+      final out = GenerateFeatureUsecase.wireChildIntoRoutes(
+        routesSource: routesWithParent(),
+        packageName: 'demo',
+        featureName: 'settings',
+        parentFeature: 'dashboard',
+        childPackageName: 'demo_settings',
+      );
+      expect(out, contains("import 'package:demo_settings/presentation/pages/settings_page.dart';"));
+      expect(out, isNot(contains('features/settings/')));
+      expect(out, contains("path: 'settings',"));
+    },
+  );
+
   // ── go_router_builder (typed routes) ────────────────────────────────────────
 
   // A parent's `<parent>_routes.dart` exactly as NEAT generates it (builder).
@@ -141,4 +159,24 @@ class DashboardsRoute extends GoRouteData with \$DashboardsRoute {
     expect(second, contains(r'class SettingsRoute extends GoRouteData'));
     expect(second, contains(r'class ProfileRoute extends GoRouteData'));
   });
+
+  test(
+    'packageSplit (§6a Phase 3): typed child import points at its own '
+    'package — this one IS a genuine cross-feature-package import (the '
+    'parent package\'s own routes file), so the caller must also add a '
+    'path: dependency (see _wireChildRouteBuilder / '
+    '_addPathDependencyToPackage, not exercised by this pure transformation)',
+    () {
+      final out = GenerateFeatureUsecase.wireChildIntoTypedRoutes(
+        parentRoutesSource: typedParentRoutes(),
+        packageName: 'demo',
+        childFeature: 'settings',
+        parentFeature: 'dashboards',
+        childPackageName: 'demo_settings',
+      );
+      expect(out, contains("import 'package:demo_settings/presentation/pages/settings_page.dart';"));
+      expect(out, isNot(contains('features/settings/')));
+      expect(out, contains("TypedGoRoute<SettingsRoute>(path: 'settings')"));
+    },
+  );
 }
