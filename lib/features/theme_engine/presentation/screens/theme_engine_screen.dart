@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:neat/features/dependencies/presentation/providers/dependencies_provider.dart';
@@ -12,6 +11,7 @@ import 'package:neat/features/theme_engine/domain/models/theme_engine_state.dart
 import 'package:neat/features/theme_engine/domain/services/color_extractor_service.dart';
 import 'package:neat/features/theme_engine/domain/services/theme_templates.dart';
 import 'package:neat/features/theme_engine/presentation/providers/theme_engine_provider.dart';
+import 'package:neat/features/theme_engine/presentation/providers/theme_engine_tab_provider.dart';
 import 'package:neat/features/theme_engine/presentation/widgets/entry_point.dart';
 import 'package:neat_ui/neat_ui.dart';
 
@@ -23,241 +23,91 @@ class ThemeEngineScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final approach = ref.watch(themeEngineProvider.select((s) => s.approach));
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Header
-        Text('Design System Architect', style: context.textTheme.headlineLarge),
-        const SizedBox(height: 8),
-        Text(
-          'Generate a professional Material 3 design system for your Flutter application.\n'
-          'Adjust parameters in real-time and preview the visual output.',
-          style: context.textTheme.bodyLarge,
-        ),
-        const SizedBox(height: 32),
-
-        Expanded(
-          child: approach == ThemeApproach.none
-              ? EntryPoint(
-                  onTapCustom: () =>
-                      ref.read(themeEngineProvider.notifier).setApproach(ThemeApproach.customM3),
-                  onTapFlex: () => ref
-                      .read(themeEngineProvider.notifier)
-                      .setApproach(ThemeApproach.flexColorScheme),
-                )
-              : const _TabbedEditor(),
-        ),
-      ],
-    );
-  }
-}
-
-// ── Tabbed editor ─────────────────────────────────────────────────────────────
-
-// Only the 3 Custom M3 tabs — Flex has its own dedicated view
-const _kTabLabels = ['COLORS', 'TYPOGRAPHY', 'BUTTONS & SHAPES'];
-
-class _TabbedEditor extends HookConsumerWidget {
-  const _TabbedEditor();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final approach = ref.watch(themeEngineProvider.select((s) => s.approach));
-    final activeTab = useState(0); // only relevant for customM3
-
-    final isFlex = approach == ThemeApproach.flexColorScheme;
+    final tab = ref.watch(currentThemeEngineTabProvider);
     final notifier = ref.read(themeEngineProvider.notifier);
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // ── Left: header + content ──────────────────────────────────────────
-        Expanded(
-          flex: 3,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ── Navigation header ─────────────────────────────────────────
-              if (isFlex) ...[
-                // FlexColorScheme mode: no tabs, just action buttons
-                Row(
-                  children: [
-                    // Active badge
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: Palette.colorPrimaryCyan.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: Palette.colorPrimaryCyan.withValues(alpha: 0.35)),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 6,
-                            height: 6,
-                            decoration: const BoxDecoration(
-                              color: Palette.colorPrimaryCyan,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 7),
-                          const Text(
-                            'FLEX COLOR SCHEME',
-                            style: TextStyle(
-                              color: Palette.colorPrimaryCyan,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 0.8,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Spacer(),
-                    // Switch to Custom M3
-                    OutlinedButton.icon(
-                      onPressed: () {
-                        notifier.setApproach(ThemeApproach.customM3);
-                        // Remove flex dep since user switches away
-                        ref.read(selectedPackagesProvider.notifier).remove('flex_color_scheme');
-                      },
-                      icon: const Icon(Icons.tune, size: 14),
-                      label: const Text('Use Custom M3', style: TextStyle(fontSize: 12)),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.white54,
-                        side: const BorderSide(color: Colors.white24),
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    // Change approach (back to entry point)
-                    TextButton.icon(
-                      onPressed: () {
-                        notifier.resetApproach();
-                        ref.read(selectedPackagesProvider.notifier).remove('flex_color_scheme');
-                      },
-                      icon: const Icon(Icons.arrow_back, size: 14),
-                      label: const Text('Change approach', style: TextStyle(fontSize: 12)),
-                      style: TextButton.styleFrom(foregroundColor: Colors.white60),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 1),
-                const Divider(color: Colors.white10, height: 1),
-                const SizedBox(height: 20),
+    final title = switch (approach) {
+      ThemeApproach.none => 'Design System Architect',
+      ThemeApproach.flexColorScheme => switch (tab) {
+        ThemeEngineTab.colors => 'Flex Color Scheme',
+        ThemeEngineTab.icons => 'Icons',
+        ThemeEngineTab.typography => throw UnimplementedError(),
+        ThemeEngineTab.buttonsShapes => throw UnimplementedError(),
+      },
+      ThemeApproach.customM3 => switch (tab) {
+        ThemeEngineTab.colors => 'Colors',
+        ThemeEngineTab.typography => 'Typography',
+        ThemeEngineTab.buttonsShapes => 'Buttons & Shapes',
+        ThemeEngineTab.icons => 'Icons',
+      },
+    };
+    final subtitle = switch (approach) {
+      ThemeApproach.none =>
+        'Generate a professional Material 3 design system for your Flutter application.\n'
+            'Adjust parameters in real-time and preview the visual output.',
+      ThemeApproach.flexColorScheme =>
+        'Paste a FlexColorScheme playground export, or tune the scheme directly.',
+      ThemeApproach.customM3 =>
+        'Adjust parameters in real-time and preview the visual output on the right.',
+    };
 
-                // FlexColorScheme content directly
-                const Expanded(child: _FlexColorSchemeTab()),
-              ] else ...[
-                // Custom M3 mode: full tab bar
-                Row(
-                  children: [
-                    Expanded(
-                      child: _CustomTabBar(
-                        activeIndex: activeTab.value,
-                        onTabSelected: (i) => activeTab.value = i,
-                      ),
-                    ),
-                    _Clickable(
-                      onTap: notifier.resetApproach,
-                      child: const Padding(
-                        padding: EdgeInsets.only(left: 16, bottom: 2),
-                        child: Text(
-                          '← Change approach',
-                          style: TextStyle(
-                            color: Colors.white60,
-                            fontSize: 11,
-                            decoration: TextDecoration.underline,
-                            decorationColor: Colors.white24,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 1),
-                const Divider(color: Colors.white10, height: 1),
-                const SizedBox(height: 20),
+    final editor = switch (approach) {
+      ThemeApproach.flexColorScheme => switch (tab) {
+        ThemeEngineTab.colors => const _FlexColorSchemeTab(),
+        ThemeEngineTab.icons => const _SplashIconTab(),
+        ThemeEngineTab.typography => const SizedBox.shrink(),
+        ThemeEngineTab.buttonsShapes => const SizedBox.shrink(),
+      },
+      ThemeApproach.customM3 => switch (tab) {
+        ThemeEngineTab.colors => const _ColorsTab(),
+        ThemeEngineTab.typography => const _TypographyTab(),
+        ThemeEngineTab.buttonsShapes => const _ButtonsShapesTab(),
+        ThemeEngineTab.icons => const _SplashIconTab(),
+      },
+      ThemeApproach.none => const SizedBox.shrink(), // unreachable — see child below
+    };
 
-                Expanded(
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 220),
-                    switchInCurve: Curves.easeOut,
-                    switchOutCurve: Curves.easeIn,
-                    transitionBuilder: (child, anim) => FadeTransition(
-                      opacity: anim,
-                      child: SlideTransition(
-                        position: Tween<Offset>(
-                          begin: const Offset(0, 0.015),
-                          end: Offset.zero,
-                        ).animate(anim),
-                        child: child,
+    return ScreenForScaffold(
+      title: title,
+      subtitle: subtitle,
+      child: approach == ThemeApproach.none
+          ? EntryPoint(
+              onTapCustom: () => notifier.setApproach(ThemeApproach.customM3),
+              onTapFlex: () => notifier.setApproach(ThemeApproach.flexColorScheme),
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _Clickable(
+                  onTap: () {
+                    notifier.resetApproach();
+                    ref.read(selectedPackagesProvider.notifier).remove('flex_color_scheme');
+                  },
+                  child: const Padding(
+                    padding: EdgeInsets.only(bottom: 16),
+                    child: Text(
+                      '← Change approach',
+                      style: TextStyle(
+                        color: Colors.white60,
+                        fontSize: 11,
+                        decoration: TextDecoration.underline,
+                        decorationColor: Colors.white24,
                       ),
-                    ),
-                    child: KeyedSubtree(
-                      key: ValueKey(activeTab.value),
-                      child: switch (activeTab.value) {
-                        0 => const _ColorsTab(),
-                        1 => const _TypographyTab(),
-                        _ => const _ButtonsShapesTab(),
-                      },
                     ),
                   ),
                 ),
-              ],
-            ],
-          ),
-        ),
-
-        const SizedBox(width: 28),
-
-        // ── Right: live preview ─────────────────────────────────────────────
-        const SizedBox(width: 272, child: _LivePreview()),
-      ],
-    );
-  }
-}
-
-class _CustomTabBar extends StatelessWidget {
-  const _CustomTabBar({required this.activeIndex, required this.onTabSelected});
-
-  final int activeIndex;
-  final ValueChanged<int> onTabSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: List.generate(_kTabLabels.length, (i) {
-        final isActive = i == activeIndex;
-        return _Clickable(
-          onTap: () => onTabSelected(i),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            margin: const EdgeInsets.only(right: 4),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              border: Border(
-                bottom: BorderSide(
-                  color: isActive ? Palette.colorPrimaryCyan : Colors.transparent,
-                  width: 2,
+                Expanded(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(flex: 3, child: editor),
+                      const SizedBox(width: 28),
+                      const SizedBox(width: 272, child: _LivePreview()),
+                    ],
+                  ),
                 ),
-              ),
+              ],
             ),
-            child: Text(
-              _kTabLabels[i],
-              style: TextStyle(
-                color: isActive ? Palette.colorPrimaryCyan : Colors.white38,
-                fontSize: 11,
-                fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-                letterSpacing: 0.8,
-              ),
-            ),
-          ),
-        );
-      }),
     );
   }
 }
@@ -476,7 +326,15 @@ class _ColorsTabState extends ConsumerState<_ColorsTab> {
                 ),
               ),
               Expanded(
-                child: _SwatchTile(label: 'primaryContainer', color: scheme.primaryContainer),
+                child: _EditableSwatchTile(
+                  label: 'primaryContainer',
+                  color: scheme.primaryContainer,
+                  currentOverride: state.primaryContainerOverride,
+                  onColorChanged: (c) =>
+                      ref.read(themeEngineProvider.notifier).setPrimaryContainerOverride(c),
+                  onReset: () =>
+                      ref.read(themeEngineProvider.notifier).setPrimaryContainerOverride(null),
+                ),
               ),
               Expanded(
                 child: _EditableSwatchTile(
@@ -489,7 +347,16 @@ class _ColorsTabState extends ConsumerState<_ColorsTab> {
                 ),
               ),
               Expanded(
-                child: _SwatchTile(label: 'surfaceHigh', color: scheme.surfaceContainerHighest),
+                child: _EditableSwatchTile(
+                  label: 'surfaceHigh',
+                  color: scheme.surfaceContainerHighest,
+                  currentOverride: state.surfaceContainerHighestOverride,
+                  onColorChanged: (c) =>
+                      ref.read(themeEngineProvider.notifier).setSurfaceContainerHighestOverride(c),
+                  onReset: () => ref
+                      .read(themeEngineProvider.notifier)
+                      .setSurfaceContainerHighestOverride(null),
+                ),
               ),
             ],
           ),
@@ -499,16 +366,46 @@ class _ColorsTabState extends ConsumerState<_ColorsTab> {
             spacing: 10,
             children: [
               Expanded(
-                child: _SwatchTile(label: 'onPrimary', color: scheme.onPrimary),
+                child: _EditableSwatchTile(
+                  label: 'onPrimary',
+                  color: scheme.onPrimary,
+                  currentOverride: state.onPrimaryOverride,
+                  onColorChanged: (c) =>
+                      ref.read(themeEngineProvider.notifier).setOnPrimaryOverride(c),
+                  onReset: () => ref.read(themeEngineProvider.notifier).setOnPrimaryOverride(null),
+                ),
               ),
               Expanded(
-                child: _SwatchTile(label: 'onPrimaryContainer', color: scheme.onPrimaryContainer),
+                child: _EditableSwatchTile(
+                  label: 'onPrimaryContainer',
+                  color: scheme.onPrimaryContainer,
+                  currentOverride: state.onPrimaryContainerOverride,
+                  onColorChanged: (c) =>
+                      ref.read(themeEngineProvider.notifier).setOnPrimaryContainerOverride(c),
+                  onReset: () =>
+                      ref.read(themeEngineProvider.notifier).setOnPrimaryContainerOverride(null),
+                ),
               ),
               Expanded(
-                child: _SwatchTile(label: 'onSecondary', color: scheme.onSecondary),
+                child: _EditableSwatchTile(
+                  label: 'onSecondary',
+                  color: scheme.onSecondary,
+                  currentOverride: state.onSecondaryOverride,
+                  onColorChanged: (c) =>
+                      ref.read(themeEngineProvider.notifier).setOnSecondaryOverride(c),
+                  onReset: () =>
+                      ref.read(themeEngineProvider.notifier).setOnSecondaryOverride(null),
+                ),
               ),
               Expanded(
-                child: _SwatchTile(label: 'outline', color: scheme.outline),
+                child: _EditableSwatchTile(
+                  label: 'outline',
+                  color: scheme.outline,
+                  currentOverride: state.outlineOverride,
+                  onColorChanged: (c) =>
+                      ref.read(themeEngineProvider.notifier).setOutlineOverride(c),
+                  onReset: () => ref.read(themeEngineProvider.notifier).setOutlineOverride(null),
+                ),
               ),
             ],
           ),
@@ -627,42 +524,6 @@ class _EditableSwatchTile extends StatelessWidget {
               child: Icon(Icons.edit, size: 10, color: onColor.withValues(alpha: 0.5)),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SwatchTile extends StatelessWidget {
-  const _SwatchTile({required this.label, required this.color});
-
-  final String label;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    final onColor = ThemeData.estimateBrightnessForColor(color) == Brightness.dark
-        ? Colors.white
-        : Colors.black;
-    return Container(
-      height: 64,
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white12),
-      ),
-      child: Align(
-        alignment: Alignment.bottomLeft,
-        child: Padding(
-          padding: const EdgeInsets.all(8),
-          child: Text(
-            label,
-            style: TextStyle(
-              color: onColor.withValues(alpha: 0.8),
-              fontSize: 10,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
         ),
       ),
     );
@@ -1093,32 +954,54 @@ class _ButtonsShapesTab extends ConsumerWidget {
 
           const SizedBox(height: 24),
 
-          // ── Component Library (opt-in) ───────────────────────────────────
-          SectionHeader(
-            iconSize: 16,
-            fontSize: 14,
-            icon: Icons.widgets_outlined,
-            label: 'Component Library',
-          ),
-          const SizedBox(height: 16),
-          for (final c in AppComponent.values)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: _ComponentToggleCard(
-                component: c,
-                enabled: state.components.contains(c),
-                onChanged: (on) => notifier.toggleComponent(c, on),
-              ),
+          const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+}
+
+// ── TAB 4: Splash Icon ───────────────────────────────────────────────────
+
+class _SplashIconTab extends ConsumerWidget {
+  const _SplashIconTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(themeEngineProvider);
+    final notifier = ref.read(themeEngineProvider.notifier);
+
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (state.approach == ThemeApproach.customM3) ...[
+            // ── Component Library (opt-in) ───────────────────────────────────
+            SectionHeader(
+              iconSize: 16,
+              fontSize: 14,
+              icon: Icons.widgets_outlined,
+              label: 'Component Library',
             ),
+            const SizedBox(height: 16),
+            for (final c in AppComponent.values)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _ComponentToggleCard(
+                  component: c,
+                  enabled: state.components.contains(c),
+                  onChanged: (on) => notifier.toggleComponent(c, on),
+                ),
+              ),
 
-          const SizedBox(height: 6),
-          _WidgetbookToggleCard(
-            enabled: state.generateWidgetbook,
-            hasComponents: state.components.isNotEmpty,
-            onChanged: notifier.setGenerateWidgetbook,
-          ),
-
-          const SizedBox(height: 6),
+            const SizedBox(height: 16),
+            _WidgetbookToggleCard(
+              enabled: state.generateWidgetbook,
+              hasComponents: state.components.isNotEmpty,
+              onChanged: notifier.setGenerateWidgetbook,
+            ),
+          ],
+          const SizedBox(height: 16),
           _SimpleToggleCard(
             icon: Icons.widgets_outlined,
             title: 'Extract UI into a package',
@@ -1791,21 +1674,8 @@ class _FlexColorSchemeTabState extends ConsumerState<_FlexColorSchemeTab> {
     await Process.run('open', ['https://rydmike.com/flexcolorscheme/themesplayground-latest/']);
   }
 
-  void _applyCode() {
-    final code = _codeCtrl.text.trim();
-    ref.read(themeEngineProvider.notifier).setFlexColorSchemeCode(code.isEmpty ? null : code);
-    ref.read(themeEngineProvider.notifier).setApproach(ThemeApproach.flexColorScheme);
-    neatSnack(
-      context,
-      code.isEmpty ? 'Code cleared — using default scheme' : 'FlexColorScheme code applied',
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(themeEngineProvider);
-    final notifier = ref.read(themeEngineProvider.notifier);
-
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1863,23 +1733,6 @@ class _FlexColorSchemeTabState extends ConsumerState<_FlexColorSchemeTab> {
                           fontWeight: FontWeight.bold,
                           letterSpacing: 1.0,
                         ),
-                      ),
-                      const Spacer(),
-                      OutlinedButton(
-                        onPressed: _applyCode,
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Palette.colorPrimaryCyan,
-                          side: const BorderSide(color: Palette.colorPrimaryCyan),
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                          minimumSize: Size.zero,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                          textStyle: const TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 0.8,
-                          ),
-                        ),
-                        child: const Text('APPLY CODE'),
                       ),
                     ],
                   ),
@@ -1950,211 +1803,44 @@ class _FlexColorSchemeTabState extends ConsumerState<_FlexColorSchemeTab> {
 
           const SizedBox(height: 24),
 
-          // ── Scheme Definition ────────────────────────────────────────────
-          SectionHeader(
-            iconSize: 16,
-            fontSize: 14,
-            icon: Icons.tune_outlined,
-            label: 'Scheme Definition',
-          ),
-          const SizedBox(height: 16),
-
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Color tokens
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF111316),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.white10),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: const [
-                          Icon(Icons.circle_outlined, size: 12, color: Colors.white38),
-                          SizedBox(width: 6),
-                          Text(
-                            'COLOR TOKENS',
-                            style: TextStyle(
-                              color: Colors.white38,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1.0,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 14),
-
-                      // Primary base
-                      Row(
-                        children: [
-                          SizedBox(
-                            width: 80,
-                            child: Text(
-                              'Primary\nBase',
-                              style: TextStyle(color: Colors.white54, fontSize: 11),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: _ColorHexField(
-                              color: state.seedColor,
-                              onColorChanged: (c) {
-                                notifier.setSeedColor(c);
-                                notifier.clearColorOverrides();
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-
-                      // Secondary base (read-only swatch)
-                      Row(
-                        children: [
-                          SizedBox(
-                            width: 80,
-                            child: Text(
-                              'Secondary\nBase',
-                              style: TextStyle(color: Colors.white54, fontSize: 11),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Container(
-                              height: 44,
-                              decoration: BoxDecoration(
-                                color: state.lightScheme.secondary,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: Colors.white12),
-                              ),
-                              alignment: Alignment.centerLeft,
-                              padding: const EdgeInsets.symmetric(horizontal: 12),
-                              child: Text(
-                                '#${state.lightScheme.secondary.toARGB32().toRadixString(16).substring(2).toUpperCase()}',
-                                style: TextStyle(
-                                  color:
-                                      ThemeData.estimateBrightnessForColor(
-                                            state.lightScheme.secondary,
-                                          ) ==
-                                          Brightness.dark
-                                      ? Colors.white70
-                                      : Colors.black54,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(width: 16),
-
-              // Surface blending
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF111316),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.white10),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: const [
-                          Icon(Icons.blur_on_outlined, size: 12, color: Colors.white38),
-                          SizedBox(width: 6),
-                          Text(
-                            'SURFACE BLENDING',
-                            style: TextStyle(
-                              color: Colors.white38,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1.0,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 14),
-                      _NeatSlider(
-                        label: 'Blend Level',
-                        value: state.surfaceBlendLevel,
-                        min: 0,
-                        max: 40,
-                        unit: '%',
-                        decimals: 0,
-                        onChanged: notifier.setSurfaceBlendLevel,
-                      ),
-                      const SizedBox(height: 12),
-                      _NeatSlider(
-                        label: 'On Surface Blend',
-                        value: state.onSurfaceBlendLevel,
-                        min: 0,
-                        max: 40,
-                        unit: '%',
-                        decimals: 0,
-                        onChanged: notifier.setOnSurfaceBlendLevel,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 24),
-
           // Packaging — available in FlexColorScheme too (not just Custom M3).
-          SectionHeader(
-            iconSize: 16,
-            fontSize: 14,
-            icon: Icons.widgets_outlined,
-            label: 'Packaging',
-          ),
-          const SizedBox(height: 12),
-          _SimpleToggleCard(
-            icon: Icons.widgets_outlined,
-            title: 'Extract UI into a package',
-            description:
-                'Move theme, tokens & components into a `<app>_ui` workspace package. '
-                'The app and Widgetbook depend on it — clean decoupling.',
-            enabled: state.extractUiPackage,
-            onChanged: notifier.setExtractUiPackage,
-          ),
-
-          const SizedBox(height: 24),
-          SectionHeader(
-            iconSize: 16,
-            fontSize: 14,
-            icon: Icons.image_outlined,
-            label: 'Branding (App Icon & Splash)',
-          ),
-          const SizedBox(height: 16),
-          _BrandingCard(
-            logoPath: state.logoPath,
-            onPick: () async {
-              final result = await FilePicker.pickFiles(
-                type: FileType.custom,
-                allowedExtensions: const ['png'],
-              );
-              final path = result?.files.single.path;
-              if (path != null) notifier.setLogoPath(path);
-            },
-            onRemove: () => notifier.setLogoPath(''),
-          ),
-
+          // SectionHeader(
+          //   iconSize: 16,
+          //   fontSize: 14,
+          //   icon: Icons.widgets_outlined,
+          //   label: 'Packaging',
+          // ),
+          // const SizedBox(height: 12),
+          // _SimpleToggleCard(
+          //   icon: Icons.widgets_outlined,
+          //   title: 'Extract UI into a package',
+          //   description:
+          //       'Move theme, tokens & components into a `<app>_ui` workspace package. '
+          //       'The app and Widgetbook depend on it — clean decoupling.',
+          //   enabled: state.extractUiPackage,
+          //   onChanged: notifier.setExtractUiPackage,
+          // ),
+          //
+          // const SizedBox(height: 24),
+          // SectionHeader(
+          //   iconSize: 16,
+          //   fontSize: 14,
+          //   icon: Icons.image_outlined,
+          //   label: 'Branding (App Icon & Splash)',
+          // ),
+          // const SizedBox(height: 16),
+          // _BrandingCard(
+          //   logoPath: state.logoPath,
+          //   onPick: () async {
+          //     final result = await FilePicker.pickFiles(
+          //       type: FileType.custom,
+          //       allowedExtensions: const ['png'],
+          //     );
+          //     final path = result?.files.single.path;
+          //     if (path != null) notifier.setLogoPath(path);
+          //   },
+          //   onRemove: () => notifier.setLogoPath(''),
+          // ),
           const SizedBox(height: 24),
         ],
       ),
@@ -2223,8 +1909,8 @@ class _LivePreview extends ConsumerWidget {
           ]
         : <BoxShadow>[];
 
-    final filledRadius = state.effectiveRadius(state.filledButton);
-    final outlinedRadius = state.effectiveRadius(state.outlinedButton);
+    final filledRadius = state.filledButtonRadius;
+    final outlinedRadius = state.outlinedButtonRadius;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2469,7 +2155,7 @@ class _LivePreview extends ConsumerWidget {
                 height: 36,
                 decoration: BoxDecoration(
                   color: isDark ? const Color(0xFF1A1A1E) : Colors.white,
-                  borderRadius: BorderRadius.circular(state.effectiveRadius(state.outlinedButton)),
+                  borderRadius: BorderRadius.circular(outlinedRadius),
                   border: Border.all(color: isDark ? Colors.white24 : const Color(0xFFD1D5DB)),
                 ),
                 padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -2900,11 +2586,12 @@ class _ColorHexFieldState extends State<_ColorHexField> {
 
   String _toHex(Color c) {
     final v = c.toARGB32();
-    return '#${v.toRadixString(16).substring(2).toUpperCase()}';
+    return '0x${v.toRadixString(16).padLeft(8, '0').toUpperCase()}';
   }
 
   void _submit() {
-    var text = _ctrl.text.trim().replaceAll('#', '');
+    var text = _ctrl.text.trim();
+    if (text.toLowerCase().startsWith('0x')) text = text.substring(2);
     if (text.length == 6) text = 'FF$text';
     final v = int.tryParse(text, radix: 16);
     if (v != null) widget.onColorChanged(Color(v | 0xFF000000));
@@ -2940,8 +2627,8 @@ class _ColorHexFieldState extends State<_ColorHexField> {
                 style: const TextStyle(color: Colors.white, fontSize: 14),
                 decoration: const InputDecoration(border: InputBorder.none, isDense: true),
                 inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'[#0-9a-fA-F]')),
-                  LengthLimitingTextInputFormatter(7),
+                  FilteringTextInputFormatter.allow(RegExp(r'[0-9a-fA-Fx]')),
+                  LengthLimitingTextInputFormatter(10),
                 ],
                 onSubmitted: (_) => _submit(),
                 onTapOutside: (_) {
@@ -3029,11 +2716,12 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
 
   String _toHex(Color c) {
     final v = c.toARGB32();
-    return '#${v.toRadixString(16).substring(2).toUpperCase()}';
+    return '0x${v.toRadixString(16).padLeft(8, '0').toUpperCase()}';
   }
 
   void _submitHex() {
-    var text = _hexCtrl.text.trim().replaceAll('#', '');
+    var text = _hexCtrl.text.trim();
+    if (text.toLowerCase().startsWith('0x')) text = text.substring(2);
     if (text.length == 6) text = 'FF$text';
     final v = int.tryParse(text, radix: 16);
     if (v != null) setState(() => _current = Color(v | 0xFF000000));
@@ -3079,8 +2767,8 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
                       style: const TextStyle(color: Colors.white, fontSize: 13),
                       decoration: const InputDecoration(border: InputBorder.none, isDense: true),
                       inputFormatters: [
-                        FilteringTextInputFormatter.allow(RegExp(r'[#0-9a-fA-F]')),
-                        LengthLimitingTextInputFormatter(7),
+                        FilteringTextInputFormatter.allow(RegExp(r'[0-9a-fA-Fx]')),
+                        LengthLimitingTextInputFormatter(10),
                       ],
                       onSubmitted: (_) => _submitHex(),
                       onTapOutside: (_) => _submitHex(),

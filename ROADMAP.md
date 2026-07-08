@@ -924,6 +924,88 @@ Harness-proven: `pubspec_builder_test.dart` gained two cases (override present
 >   workspace. The real project that surfaced this was hand-patched directly
 >   (same immediate-unblock precedent as every other real-bug fix this
 >   session) alongside the generator fix.
+> - ✅ **Shell page registry + sub-routes under a shell branch** — done,
+>   two real gaps found via a real packageSplit + go_router_builder + shell
+>   project (two branches, no way to add a third-level route under either).
+>   - **Sub-routes under a shell branch (the actual blocker)**: the
+>     Workshop's child-route wiring assumed `parentFeature` always owned a
+>     standalone `<parent>_routes.dart` — a shell branch's route lives inside
+>     `app_shell_route.dart`/`routes.dart` instead, so this **silently
+>     no-op'd** for the typed case (the file it looked for never existed —
+>     the child got generated but never wired into any route, no error) and
+>     **corrupted the file at the wrong location** for the plain case
+>     (`_addChildrenAnchorToParent`'s `\n  ),` proximity match found an
+>     unrelated closing paren, since a shell branch's `GoRoute` sits 3 levels
+>     deeper than the flat top-level case it was written for). Fixed by
+>     making every shell branch template (`appShellRouteBuilder`/
+>     `shellBranchBuilder`/`shellRouteEntryPlain`/`shellBranchPlain`)
+>     **proactively** carry a nested `routes: [ // neat:typed-children:<f> ]`
+>     (typed) / `// neat:children:<f>` (plain) clause from the moment the
+>     branch is created — reusing the exact same anchor names (and the same
+>     `wireChildIntoTypedRoutes`/`wireChildIntoRoutes`-adjacent transform
+>     shape) the top-level child-route mechanism already established, just
+>     new sibling entry points (`wireChildIntoTypedShell`/
+>     `wireChildIntoPlainShell`) since a shell host needs a different
+>     detection/self-heal strategy. Detecting "is this parent a shell
+>     branch" is now a simple, 100% reliable anchor-presence check — no more
+>     fragile indentation/proximity guessing.
+>   - **Self-heal for existing (pre-fix) shell branches**: a legacy flat
+>     branch (no anchor at all — e.g. a project generated before this fix)
+>     gets its nested `routes: [...]` clause retrofitted the first time a
+>     child is nested under it, via a **corrected balanced-paren scan**
+>     (walks from the owning `GoRoute(`/`TypedGoRoute<...>(` to its own
+>     matching close, replacing the old proximity-match bug rather than
+>     reusing it) — and only that specific branch; sibling branches stay
+>     untouched (narrow fix, matching how `_addChildrenAnchorToParent`
+>     already self-heals lazily per-parent, not eagerly for everything).
+>   - **Shell page registry (decoupling, not strictly required by the
+>     dependency-direction rules)**: `app_shell_route.dart`/`routes.dart`
+>     live in the app, which can always import any feature package directly
+>     (app→feature, never the cycle packageSplit forbids) — so this wasn't
+>     fixing a correctness bug the way the sub-routes gap was. Built anyway,
+>     by explicit choice, mirroring `maxit-front-flutter`'s own pattern of
+>     keeping a shell-owning file from hard-importing every branch's page.
+>     Mirrors `chopperModelDecoders`' exact shape: a new
+>     `core/router/shell_page_registry.dart` (`shellPageBuilders`, a plain
+>     `Map<String, ShellPageBuilder>` + `lookupShellPage`), each shell-branch
+>     (or shell-branch-child) feature gets a small new
+>     `<f>_shell_registration.dart` (`register<Feature>ShellPage()`), and
+>     `bootstrap()` calls every registered one before `runApp` via new
+>     `// neat:shell-register-imports`/`-calls` anchors — same "self-register,
+>     call from bootstrap" shape `_registerChopperDecoderSplit` already uses,
+>     down to a new `CorePackageTemplates.pubspec` `useShell` param (the
+>     registry needs `go_router` for `GoRouterState`, which a bare `core`
+>     package never depended on before). Only active when packageSplit is on
+>     — non-split shell branches have no cross-package coupling to solve, so
+>     they keep direct imports, byte-identical to before.
+>   - **Composition**: a child nested under a shell branch is, once the
+>     registry exists, structurally identical to a top-level branch (both
+>     are pages an app-owned file references) — so it also registers itself
+>     and reads the registry, never a direct import, regardless of whether
+>     its *parent* branch predates the registry (a real project — a legacy
+>     branch stays on direct import; only the new child uses the registry —
+>     confirmed correct: mixed direct-import/registry state is already
+>     normal here, same as chopper's own two registration mechanisms).
+>   - **Real bug, found running the fix against a copy of the actual project
+>     that motivated this**: the self-heal path (Workshop adds a child under
+>     an *existing* pre-registry shell branch) created the registration
+>     wiring in `bootstrap.dart` but never created
+>     `shell_page_registry.dart` itself (that only ever happened at wizard
+>     time or when a *new* branch was added) — and, once created, its
+>     `go_router` import had no matching pubspec dependency (`core`'s
+>     pubspec never needed `go_router` before). Both fixed:
+>     `_registerShellPageSplit` now creates the registry file (and adds the
+>     `go_router` dependency) the first time it's needed, not just wires
+>     `bootstrap.dart`.
+>   - Harness-proven: new unit tests for the registry (packageSplit vs.
+>     direct-import template output) and sub-routes (nest under a fresh
+>     anchored branch, self-heal a legacy branch then nest, a corruption-
+>     regression case reproducing the exact old bug), new integration tests
+>     (packageSplit + go_router_builder AND plain go_router, 2 shell branches
+>     + 1 nested child, asserting the registry/registration files/bootstrap
+>     wiring/pubspec deps and `flutter analyze` 0/0), and the fix re-run
+>     directly against a copy of the real project that surfaced it end to
+>     end. Full suite green.
 
 ### 7. JSON-driven feature generation — big bet, high value
 

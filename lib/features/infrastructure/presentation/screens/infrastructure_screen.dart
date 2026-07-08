@@ -31,35 +31,25 @@ class InfrastructureScreen extends ConsumerWidget {
       InfrastructureTab.navigation => 'Pick a navigation engine and how routes are declared.',
       InfrastructureTab.localization => 'Pick which languages your app ships with.',
     };
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title, style: context.textTheme.headlineLarge),
-        8.gapH,
-        Text(subtitle, style: context.textTheme.bodyLarge),
-        24.gapH,
-
-        Expanded(
-          child: Row(
-            crossAxisAlignment: .start,
-            spacing: 26,
-            children: [
-              Expanded(
-                flex: 6,
-                child: switch (tab) {
-                  InfrastructureTab.management => const _ManagementTab(),
-                  InfrastructureTab.backend => const _BackendTab(),
-                  InfrastructureTab.navigation => const _NavigationTab(),
-                  InfrastructureTab.localization => const _LocalizationTab(),
-                },
-              ),
-              const Expanded(flex: 4, child: _ManagedPackagesPanel()),
-            ],
+    return ScreenForScaffold(
+      title: title,
+      subtitle: subtitle,
+      child: Row(
+        crossAxisAlignment: .start,
+        spacing: 26,
+        children: [
+          Expanded(
+            flex: 6,
+            child: switch (tab) {
+              InfrastructureTab.management => const _ManagementTab(),
+              InfrastructureTab.backend => const _BackendTab(),
+              InfrastructureTab.navigation => const _NavigationTab(),
+              InfrastructureTab.localization => const _LocalizationTab(),
+            },
           ),
-        ),
-        20.gapH,
-      ],
+          const Expanded(flex: 4, child: _ManagedPackagesPanel()),
+        ],
+      ),
     );
   }
 }
@@ -71,6 +61,10 @@ class _ManagementTab extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isBloc =
         ref.watch(selectedPackagesProvider.select(stateManagementOf)) == StateManagementKind.bloc;
+    final isRiverpod =
+        ref.watch(selectedPackagesProvider.select(stateManagementOf)) ==
+        StateManagementKind.riverpod;
+
     final architecture = ref.watch(architectureProvider);
     final architectureNotifier = ref.read(architectureProvider.notifier);
 
@@ -80,6 +74,18 @@ class _ManagementTab extends ConsumerWidget {
         const _SectionLabel('State management', icon: Icons.hub_outlined),
         12.gapH,
         const _StateManagementSelector(),
+        if (isRiverpod) ...[
+          16.gapH,
+          ToggleTile(
+            title: 'Use @riverpod annotation syntax',
+            description: architecture.useRiverpodAnnotations
+                ? 'Génère `@riverpod class MyNotifier extends _\$MyNotifier` (code-gen via build_runner).'
+                : 'Génère `class MyNotifier extends Notifier<T>` + `NotifierProvider` à la main — pas de build_runner pour l\'état, mais pas de liste/CRUD witness (voir ROADMAP.md).',
+            value: architecture.useRiverpodAnnotations,
+            onChanged: architectureNotifier.toggleRiverpodAnnotations,
+          ),
+        ],
+
         if (isBloc) ...[
           16.gapH,
           ToggleTile(
@@ -554,114 +560,105 @@ class _NavigationTab extends ConsumerWidget {
     final arch = ref.watch(architectureProvider);
     final notifier = ref.read(architectureProvider.notifier);
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: const Color(0xFF131316),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white10),
-      ),
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const _SectionLabel('Navigation provider', icon: Icons.alt_route_outlined),
-            12.gapH,
-            const Row(
-              spacing: 16,
-              children: [
-                Expanded(
-                  child: _BackendCard(
-                    icon: Icons.api_outlined,
-                    iconColor: Palette.colorPrimaryCyan,
-                    title: 'Go Router',
-                    subtitle: '',
-                    active: true,
-                    onTap: _noop,
-                  ),
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _SectionLabel('Navigation provider', icon: Icons.alt_route_outlined),
+          12.gapH,
+          const Row(
+            spacing: 16,
+            children: [
+              Expanded(
+                child: _BackendCard(
+                  icon: Icons.api_outlined,
+                  iconColor: Palette.colorPrimaryCyan,
+                  title: 'Go Router',
+                  subtitle: '',
+                  active: true,
+                  onTap: _noop,
                 ),
-                Expanded(
-                  child: _BackendCard(
-                    icon: Icons.bolt,
-                    iconColor: Color(0xFF3ECF8E),
-                    title: 'Auto Route',
-                    subtitle: '',
-                    active: false,
-                    disabled: true,
-                    onTap: _noop,
-                  ),
+              ),
+              Expanded(
+                child: _BackendCard(
+                  icon: Icons.bolt,
+                  iconColor: Color(0xFF3ECF8E),
+                  title: 'Auto Route',
+                  subtitle: '',
+                  active: false,
+                  disabled: true,
+                  onTap: _noop,
                 ),
-                Expanded(
-                  child: _BackendCard(
-                    icon: Icons.local_fire_department,
-                    iconColor: Color(0xFFFFA000),
-                    title: 'Navigator',
-                    subtitle: '',
-                    active: false,
-                    disabled: true,
-                    onTap: _noop,
-                  ),
+              ),
+              Expanded(
+                child: _BackendCard(
+                  icon: Icons.local_fire_department,
+                  iconColor: Color(0xFFFFA000),
+                  title: 'Navigator',
+                  subtitle: '',
+                  active: false,
+                  disabled: true,
+                  onTap: _noop,
                 ),
-              ],
-            ),
-            24.gapH,
-            const Divider(color: Colors.white10, height: 1),
-            24.gapH,
-            const _SectionLabel('Routing style', icon: Icons.route_outlined),
-            10.gapH,
-            Row(
-              spacing: 10,
-              children: [
-                Expanded(
-                  child: _CompactOptionCard(
-                    icon: Icons.edit_road_outlined,
-                    iconColor: Palette.colorPrimaryCyan,
-                    title: 'Manual',
-                    active: routingStyle == RoutingStyle.manual,
-                    tooltip: 'Hand-written GoRoute list.',
-                    onTap: () => packagesNotifier.setRoutingStyle(RoutingStyle.manual),
-                  ),
-                ),
-                Expanded(
-                  child: _CompactOptionCard(
-                    icon: Icons.route_outlined,
-                    iconColor: const Color(0xFF3ECF8E),
-                    title: 'Typed',
-                    active: routingStyle == RoutingStyle.typed,
-                    tooltip: 'go_router_builder codegen.',
-                    onTap: () => packagesNotifier.setRoutingStyle(RoutingStyle.typed),
-                  ),
-                ),
-              ],
-            ),
-            24.gapH,
-            const Divider(color: Colors.white10, height: 1),
-            24.gapH,
-            const _SectionLabel('Navigation shell', icon: Icons.space_dashboard_outlined),
-            12.gapH,
-            _ToggleRow(
-              title: 'Bottom navigation shell',
-              description: arch.generateFirstFeature
-                  ? 'The app boots into a StatefulShellRoute: the 1st feature becomes the '
-                        '1st tab of a NavigationBar. Shell Branches added later become tabs.'
-                  : 'Requires a first feature — enable "Generate example feature" on the '
-                        'Architecture step.',
-              value: arch.generateFirstFeature && arch.useNavigationShell,
-              enabled: arch.generateFirstFeature,
-              onChanged: notifier.toggleNavigationShell,
-            ),
-            if (arch.useNavigationShell) ...[
-              12.gapH,
-              _ShellTabConfig(
-                icon: arch.shellIcon,
-                labelHint: arch.effectiveShellLabel,
-                onIcon: notifier.setShellIcon,
-                onLabel: notifier.setShellLabel,
               ),
             ],
+          ),
+          24.gapH,
+          const Divider(color: Colors.white10, height: 1),
+          24.gapH,
+          const _SectionLabel('Routing style', icon: Icons.route_outlined),
+          10.gapH,
+          Row(
+            spacing: 10,
+            children: [
+              Expanded(
+                child: _CompactOptionCard(
+                  icon: Icons.edit_road_outlined,
+                  iconColor: Palette.colorPrimaryCyan,
+                  title: 'Manual',
+                  active: routingStyle == RoutingStyle.manual,
+                  tooltip: 'Hand-written GoRoute list.',
+                  onTap: () => packagesNotifier.setRoutingStyle(RoutingStyle.manual),
+                ),
+              ),
+              Expanded(
+                child: _CompactOptionCard(
+                  icon: Icons.route_outlined,
+                  iconColor: const Color(0xFF3ECF8E),
+                  title: 'Typed',
+                  active: routingStyle == RoutingStyle.typed,
+                  tooltip: 'go_router_builder codegen.',
+                  onTap: () => packagesNotifier.setRoutingStyle(RoutingStyle.typed),
+                ),
+              ),
+            ],
+          ),
+          24.gapH,
+          const Divider(color: Colors.white10, height: 1),
+          24.gapH,
+          const _SectionLabel('Navigation shell', icon: Icons.space_dashboard_outlined),
+          12.gapH,
+          _ToggleRow(
+            title: 'Bottom navigation shell',
+            description: arch.generateFirstFeature
+                ? 'The app boots into a StatefulShellRoute: the 1st feature becomes the '
+                      '1st tab of a NavigationBar. Shell Branches added later become tabs.'
+                : 'Requires a first feature — enable "Generate example feature" on the '
+                      'Architecture step.',
+            value: arch.generateFirstFeature && arch.useNavigationShell,
+            enabled: arch.generateFirstFeature,
+            onChanged: notifier.toggleNavigationShell,
+          ),
+          if (arch.useNavigationShell) ...[
+            24.gapH,
+            _ShellTabConfig(
+              icon: arch.shellIcon,
+              labelHint: arch.effectiveShellLabel,
+              onIcon: notifier.setShellIcon,
+              onLabel: notifier.setShellLabel,
+            ),
           ],
-        ),
+        ],
       ),
     );
   }
@@ -731,7 +728,7 @@ class _ShellTabConfigState extends State<_ShellTabConfig> {
               child: DropdownButton<String>(
                 value: icon,
                 isExpanded: true,
-                dropdownColor: const Color(0xFF18181C),
+                dropdownColor: context.neatColors.colorSurfaceCard,
                 style: const TextStyle(color: Colors.white, fontSize: 13),
                 onChanged: (v) => widget.onIcon(v ?? 'home'),
                 items: _shellIcons.entries

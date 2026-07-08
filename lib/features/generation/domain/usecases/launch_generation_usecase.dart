@@ -84,6 +84,14 @@ class LaunchGenerationUsecase {
     // go_router_builder requires go_router — treat it as selected even if the
     // user didn't explicitly add go_router as a standalone package.
     final hasGoRouter = packages.any((p) => p.name == 'go_router') || hasGoRouterBuilder;
+    // Bottom-nav shell from launch: the first feature becomes the shell's
+    // first branch (so it isn't also a plain top-level route). A shell needs
+    // a first branch, so it's unavailable with no first feature. Hoisted
+    // here (was computed later, right before _writeRouter's call) since
+    // _writeCorePackage and the bootstrap() call site both need it too, and
+    // both run earlier than _writeRouter.
+    final useShell =
+        architecture.useNavigationShell && hasGoRouter && architecture.generateFirstFeature;
     final hasFlexColorScheme = packages.any((p) => p.name == 'flex_color_scheme');
     final hasEnvied = packages.any((p) => p.name == 'envied');
     // Native build flavors are opt-in (off → plain `flutter run` works) and only
@@ -276,6 +284,8 @@ class LaunchGenerationUsecase {
         hasAuth: hasAuth,
         hasStorage: hasStorage,
         hasEnvied: hasEnvied,
+        useShell: useShell,
+        featurePackageName: featurePackageName,
       );
       onLog('[✓] packages/$corePackageName created.');
     }
@@ -534,6 +544,15 @@ class LaunchGenerationUsecase {
     String? authPackageName,
   }) async {
     final lib = '${projectDir.path}/lib';
+    // Bottom-nav shell from launch: the first feature becomes the shell's
+    // first branch (so it isn't also a plain top-level route). A shell needs
+    // a first branch, so it's unavailable with no first feature. Mirrors
+    // execute()'s own copy (needed there too, for _writeCorePackage's
+    // shell_page_registry.dart write) — this method has its own local scope,
+    // so it's recomputed here from the same params rather than threaded
+    // through as yet another argument.
+    final useShell =
+        architecture.useNavigationShell && hasGoRouter && architecture.generateFirstFeature;
 
     // A user-uploaded compact CSV replaces the default JSON scaffold. With a CSV
     // we don't know the translation keys, so the sample page consumption
@@ -588,6 +607,8 @@ class LaunchGenerationUsecase {
         hasI18n: hasI18n,
         chopperRegisterFeaturePackage: httpClient == 'chopper' ? featurePackageName : null,
         chopperRegisterFeatureName: httpClient == 'chopper' ? featureName : null,
+        shellRegisterFeaturePackage: useShell && featurePackageName != null ? featurePackageName : null,
+        shellRegisterFeatureName: useShell && featurePackageName != null ? featureName : null,
         corePackageName: corePackageName,
         bridgesApiBaseUrl:
             hasEnvied && corePackageName != null && (httpClient == 'dio' || httpClient == 'chopper'),
@@ -910,12 +931,6 @@ class LaunchGenerationUsecase {
       corePackageName: corePackageName,
     );
 
-    // Bottom-nav shell from launch: the first feature becomes the shell's
-    // first branch (so it isn't also a plain top-level route). A shell needs
-    // a first branch, so it's unavailable with no first feature.
-    final useShell =
-        architecture.useNavigationShell && hasGoRouter && architecture.generateFirstFeature;
-
     // ── core/router ───────────────────────────────────────────────────────
     if (hasGoRouter) {
       await _writeRouter(
@@ -930,6 +945,7 @@ class LaunchGenerationUsecase {
         hasAuth: hasAuth,
         hasFirstFeature: architecture.generateFirstFeature,
         featurePackageName: featurePackageName,
+        corePackageName: corePackageName,
       );
     }
 
@@ -1600,6 +1616,10 @@ dev_dependencies:
     // Set when packageSplit is on: routesManual's feature-page import must
     // cross into the split feature package instead of lib/features/<name>/.
     String? featurePackageName,
+    // Set when packageSplit is on: threaded to the shell templates so the
+    // first branch's page (when useShell) reads core's shell page registry
+    // instead of being imported directly (see CoreTemplates.shellPageRegistry).
+    String? corePackageName,
   }) async {
     final r = '$lib/core/router';
 
@@ -1652,6 +1672,7 @@ dev_dependencies:
             packageName: packageName,
             featureName: featureName,
             featurePackageName: featurePackageName,
+            corePackageName: corePackageName,
           ),
         );
         await _write(
@@ -1665,6 +1686,7 @@ dev_dependencies:
             packageName: packageName,
             featureName: featureName,
             featurePackageName: featurePackageName,
+            corePackageName: corePackageName,
           ),
         );
       }
@@ -1745,6 +1767,10 @@ dev_dependencies:
       includeCrudUi: architecture.firstFeatureApiPath == 'https://fakestoreapi.com/products',
       packageSplit: packageSplit,
       corePackageName: corePackageName,
+      // The wizard's first feature only ever becomes a shell branch, never a
+      // child of one (that combination only exists via the Workshop) — so
+      // needsShellRegistration is exactly isShellBranch here.
+      needsShellRegistration: isShellBranch,
     );
   }
 
@@ -1936,6 +1962,14 @@ dev_dependencies:
     bool hasAuth = false,
     bool hasStorage = false,
     bool hasEnvied = false,
+    // Set when the project boots into a navigation shell (see ROADMAP.md
+    // §6a): the core package also gets the shell page registry
+    // (shellPageBuilders), seeded with the first branch as a witness
+    // (mirrors chopperModelConverter's own witness — see
+    // CoreTemplates.shellPageRegistry's doc). [featurePackageName] is the
+    // first branch's own split package, used for the witness import.
+    bool useShell = false,
+    String? featurePackageName,
   }) async {
     final root = '${projectDir.path}/packages/$corePackageName';
     await _write(
@@ -1947,6 +1981,7 @@ dev_dependencies:
         hasI18n: hasI18n,
         hasAuth: hasAuth,
         hasStorage: hasStorage,
+        useShell: useShell,
       ),
     );
     await _write('$root/lib/core/error/failure.dart', CoreTemplates.failure());
@@ -1967,6 +2002,18 @@ dev_dependencies:
     // method's doc comment.
     if (hasEnvied && (isDioBased || httpClient == 'chopper')) {
       await _write('$root/lib/core/network/api_config.dart', CoreTemplates.apiConfig());
+    }
+    // Shell page registry (see this method's doc comment) — seeded with the
+    // first branch (the wizard's own first feature) as a witness.
+    if (useShell) {
+      await _write(
+        '$root/lib/core/router/shell_page_registry.dart',
+        CoreTemplates.shellPageRegistry(
+          packageName: corePackageName,
+          featurePackageName: featurePackageName,
+          featureName: featureName,
+        ),
+      );
     }
     if (isDioBased) {
       await _write(
