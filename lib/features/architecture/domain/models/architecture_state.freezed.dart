@@ -19,7 +19,7 @@ mixin _$ArchitectureState {
  bool get useCubit; bool get mirrorTestStructure;/// Opt-in: extract every feature into its own Dart workspace package
 /// (`packages/<feature>/`) instead of a folder under `lib/features/` —
 /// real package boundaries for a team where each dev owns a feature.
-/// Requires a shared `<app>_core` package (Result/Failure/UseCase/
+/// Requires a shared `core` package (Result/Failure/UseCase/
 /// networking), gated to dio/chopper/supabase/firebase + Riverpod
 /// annotations (manual or typed/go_router_builder routing, any storage
 /// strategy, and auth/realtime/storage all work — Auth stays app-level
@@ -311,7 +311,7 @@ class _ArchitectureState extends ArchitectureState {
 /// Opt-in: extract every feature into its own Dart workspace package
 /// (`packages/<feature>/`) instead of a folder under `lib/features/` —
 /// real package boundaries for a team where each dev owns a feature.
-/// Requires a shared `<app>_core` package (Result/Failure/UseCase/
+/// Requires a shared `core` package (Result/Failure/UseCase/
 /// networking), gated to dio/chopper/supabase/firebase + Riverpod
 /// annotations (manual or typed/go_router_builder routing, any storage
 /// strategy, and auth/realtime/storage all work — Auth stays app-level

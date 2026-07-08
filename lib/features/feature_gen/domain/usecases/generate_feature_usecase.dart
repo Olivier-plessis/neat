@@ -132,6 +132,18 @@ class GenerateFeatureUsecase {
       await _addPathDependency(project.path, featurePackageName);
     }
 
+    // A child's parent may itself be a shell branch (its route lives inside
+    // app_shell_route.dart/routes.dart, not a standalone <parent>_routes.dart
+    // — see "Child route wiring — nested under a shell branch"). Detected
+    // once here, before FeatureScaffolder.writeFeature (which needs it for
+    // needsShellRegistration below) and reused at the routing-dispatch point
+    // further down, rather than recomputed there.
+    final parentIsShellBranch = asChild
+        ? (hasGoRouterBuilder
+            ? await _isShellBranchTyped(project.path, options.parentFeature)
+            : await _isShellBranchPlain(project.path, options.parentFeature))
+        : false;
+
     onLog('[▶] Generating feature "$featureName" (matching the project stack)...');
     await const FeatureScaffolder().writeFeature(
       lib: packageSplit ? '${project.path}/packages/$featurePackageName/lib' : lib,
@@ -161,6 +173,7 @@ class GenerateFeatureUsecase {
       corePackageName: corePackageName,
       useCustomEndpoints: options.useCustomEndpoints,
       endpoints: options.endpoints,
+      needsShellRegistration: asShell || (asChild && parentIsShellBranch),
     );
     onLog('[✓] Feature files written.');
 
@@ -169,7 +182,30 @@ class GenerateFeatureUsecase {
       // Self-heal: projects generated before the anchor system lack the
       // `// neat:` markers, so insertion would silently no-op. Add them first.
       await _ensureRoutingAnchors(project.path);
-      if (asChild) {
+      if (asChild && parentIsShellBranch) {
+        onLog(
+          '[▶] Wiring "$featureName" as a child of shell branch "${options.parentFeature}"...',
+        );
+        if (hasGoRouterBuilder) {
+          await _wireChildIntoShellBuilder(
+            project.path,
+            c.projectName,
+            featureName,
+            options.parentFeature,
+            childPackageName: featurePackageName,
+            corePackageName: corePackageName,
+          );
+        } else {
+          await _wireChildIntoShellPlain(
+            project.path,
+            c.projectName,
+            featureName,
+            options.parentFeature,
+            childPackageName: featurePackageName,
+            corePackageName: corePackageName,
+          );
+        }
+      } else if (asChild) {
         onLog('[▶] Wiring "$featureName" as a child of "${options.parentFeature}"...');
         if (hasGoRouterBuilder) {
           await _wireChildRouteBuilder(
@@ -388,6 +424,79 @@ class GenerateFeatureUsecase {
       '      register${p}ChopperDecoders();',
     );
     await file.writeAsString(s);
+  }
+
+  /// packageSplit variant of shell-branch (or shell-branch-child, see
+  /// `_wireChildIntoShellBuilder`/`_wireChildIntoShellPlain`) registration:
+  /// the feature already generated its own `register<Feature>ShellPage()`
+  /// (see `FeatureScaffolder`'s `needsShellRegistration` write) — this wires
+  /// `bootstrap.dart`'s call-site, and (real bug, found via a real project:
+  /// nexus predates this feature entirely, so nothing had ever created its
+  /// registry file — a child added under its *existing* "product" shell
+  /// branch would reference a registry that doesn't exist) ensures
+  /// `packages/<core>/lib/core/router/shell_page_registry.dart` exists
+  /// first, creating it (no witness — an arbitrary existing branch would be
+  /// a false signal) if this project predates shell page registration.
+  /// Mirrors [_registerChopperDecoderSplit] closely, with one difference:
+  /// this self-heals its own two `bootstrap.dart` anchors when missing —
+  /// unlike chopper's registration, which silently no-ops on a missing
+  /// anchor (an accepted, pre-existing limitation for anchors that predate
+  /// that method). These anchors are new, so there's no legacy anchor-less
+  /// population to intentionally match.
+  Future<void> _registerShellPageSplit(
+    String projectPath,
+    String featurePackageName,
+    String featureName,
+    String corePackageName,
+  ) async {
+    final registry = File('$projectPath/packages/$corePackageName/lib/core/router/shell_page_registry.dart');
+    if (!registry.existsSync()) {
+      await registry.create(recursive: true);
+      await registry.writeAsString(CoreTemplates.shellPageRegistry(packageName: corePackageName));
+      // The registry needs go_router (GoRouterState) — a legacy project's
+      // core package never declared it (only feature packages did), since
+      // nothing in core referenced go_router before this file existed.
+      await _addGoRouterDependency(projectPath, corePackageName);
+    }
+
+    final file = File('$projectPath/lib/core/bootstrap.dart');
+    if (!file.existsSync()) return;
+    final p = _pascal(featureName);
+    var s = healBootstrapShellAnchors(await file.readAsString());
+    s = _insertBefore(
+      s,
+      '// neat:shell-register-imports',
+      "import 'package:$featurePackageName/presentation/routes/${featureName}_shell_registration.dart';",
+    );
+    s = _insertBefore(
+      s,
+      '// neat:shell-register-calls',
+      '      register${p}ShellPage();',
+    );
+    await file.writeAsString(s);
+  }
+
+  /// Adds `bootstrap.dart`'s `// neat:shell-register-imports`/`-calls`
+  /// anchors when missing (a project generated before shell page
+  /// registration existed). Idempotent. Mirrors [healRoutesAnchors]'s own
+  /// technique for its import anchor.
+  @visibleForTesting
+  static String healBootstrapShellAnchors(String content) {
+    var s = content;
+    if (!s.contains('// neat:shell-register-imports')) {
+      final imports = RegExp(r'^import .*;$', multiLine: true).allMatches(s).toList();
+      if (imports.isNotEmpty) {
+        final end = imports.last.end;
+        s = '${s.substring(0, end)}\n// neat:shell-register-imports${s.substring(end)}';
+      }
+    }
+    if (!s.contains('// neat:shell-register-calls') && s.contains('registerErrorHandler();')) {
+      s = s.replaceFirst(
+        'registerErrorHandler();',
+        '// neat:shell-register-calls\n      registerErrorHandler();',
+      );
+    }
+    return s;
   }
 
   // ── Drift table injection (inserts at the // neat: anchors) ────────────────
@@ -694,6 +803,281 @@ class GenerateFeatureUsecase {
     return s;
   }
 
+  // ── Child route wiring — nested under a shell branch ────────────────────────
+  //
+  // A shell branch's own route lives inside app_shell_route.dart/routes.dart
+  // (see "Shell branch wiring" below), not a standalone <parent>_routes.dart
+  // — so wireChildIntoTypedRoutes/wireChildIntoRoutes above (which assume a
+  // normal top-level parent) silently no-op or corrupt the file for a shell
+  // branch parent. Real bug, found while designing this feature: the typed
+  // case silently no-ops (parentRoutes.existsSync() is false — the file was
+  // never written), the plain case corrupts the file at the wrong location
+  // (_addChildrenAnchorToParent's `\n  ),` proximity match finds an
+  // unrelated closing paren, since a shell branch's GoRoute is nested 3
+  // levels deeper than the flat top-level case it was written for).
+
+  /// True if [parentFeature] is an existing shell branch (go_router_builder):
+  /// its route lives inside `app_shell_route.dart`'s tree, not a standalone
+  /// `<parent>_routes.dart`. Recognizes both the proactive children anchor
+  /// (branches created after this feature shipped) and the legacy flat form
+  /// (a project generated before it — see [healShellBranchTyped]), so the
+  /// caller can self-heal instead of misdispatching to the top-level-parent
+  /// wiring.
+  Future<bool> _isShellBranchTyped(String projectPath, String parentFeature) async {
+    final file = File('$projectPath/lib/core/router/app_shell_route.dart');
+    if (!file.existsSync()) return false;
+    final s = await file.readAsString();
+    if (s.contains('// neat:typed-children:$parentFeature')) return true;
+    final p = _pascal(parentFeature);
+    final c = _camel(parentFeature);
+    return s.contains('TypedGoRoute<${p}Route>(path: AppRoutePath.$c)');
+  }
+
+  /// Plain go_router equivalent of [_isShellBranchTyped]. The legacy flat
+  /// form check is anchored to `StatefulShellBranch(` so it can't false-
+  /// positive on an unrelated top-level `GoRoute` that happens to share
+  /// nothing with a shell branch at all.
+  Future<bool> _isShellBranchPlain(String projectPath, String parentFeature) async {
+    final file = File('$projectPath/lib/core/router/routes.dart');
+    if (!file.existsSync()) return false;
+    final s = await file.readAsString();
+    if (s.contains('// neat:children:$parentFeature')) return true;
+    final c = _camel(parentFeature);
+    final legacy = RegExp(
+      'StatefulShellBranch\\(\\s*routes:\\s*\\[\\s*GoRoute\\(\\s*path:\\s*AppRoutePath\\.$c,',
+    );
+    return legacy.hasMatch(s);
+  }
+
+  /// Rewrites [parentFeature]'s legacy flat `TypedGoRoute<...>(path: ...)`
+  /// (a project generated before the proactive children anchor existed)
+  /// into the nested, anchored form, so a child can be inserted at
+  /// `// neat:typed-children:<parent>` afterward. No-op if the anchor
+  /// already exists (nothing to heal) or the legacy flat form isn't found
+  /// (not this parent's shape — the caller's own insertion then no-ops too).
+  @visibleForTesting
+  static String healShellBranchTyped(String shellSource, String parentFeature) {
+    if (shellSource.contains('// neat:typed-children:$parentFeature')) return shellSource;
+    final p = _pascal(parentFeature);
+    final c = _camel(parentFeature);
+    final flat = 'TypedGoRoute<${p}Route>(path: AppRoutePath.$c)';
+    if (!shellSource.contains(flat)) return shellSource;
+    final nested = 'TypedGoRoute<${p}Route>(\n'
+        '          path: AppRoutePath.$c,\n'
+        '          routes: [\n'
+        '            // neat:typed-children:$parentFeature\n'
+        '          ],\n'
+        '        )';
+    return shellSource.replaceFirst(flat, nested);
+  }
+
+  /// Plain go_router equivalent of [healShellBranchTyped]. Uses a balanced-
+  /// paren scan to find the parent's own `GoRoute(...)` closing paren,
+  /// rather than the proximity/indentation match `_addChildrenAnchorToParent`
+  /// uses for the non-shell top-level case — that match assumes the parent's
+  /// close is at a fixed 2-space indent, which is only true for a flat
+  /// top-level route; a shell branch's `GoRoute` is nested 3 levels deeper
+  /// (the actual bug this method exists to avoid repeating).
+  @visibleForTesting
+  static String healShellBranchPlain(String routesSource, String parentFeature) {
+    if (routesSource.contains('// neat:children:$parentFeature')) return routesSource;
+    final c = _camel(parentFeature);
+    final marker = 'path: AppRoutePath.$c,';
+    final mIdx = routesSource.indexOf(marker);
+    if (mIdx < 0) return routesSource;
+    final goRouteIdx = routesSource.lastIndexOf('GoRoute(', mIdx);
+    if (goRouteIdx < 0) return routesSource;
+    var depth = 0;
+    var closeIdx = -1;
+    for (var i = goRouteIdx; i < routesSource.length; i++) {
+      if (routesSource[i] == '(') depth++;
+      if (routesSource[i] == ')') {
+        depth--;
+        if (depth == 0) {
+          closeIdx = i;
+          break;
+        }
+      }
+    }
+    if (closeIdx < 0) return routesSource;
+    const insertion = '  routes: [\n    // neat:children:PARENT\n  ],\n';
+    return routesSource.substring(0, closeIdx) +
+        insertion.replaceFirst('PARENT', parentFeature) +
+        routesSource.substring(closeIdx);
+  }
+
+  /// Wires [featureName] as a child nested under [parentFeature] when the
+  /// parent is a shell branch (go_router_builder) — see
+  /// [wireChildIntoTypedShell]'s doc for the transform. [childPackageName]/
+  /// [corePackageName]: packageSplit — the child registers itself into
+  /// core's shell page registry the same way a top-level branch does (see
+  /// `_wireShellBranch`), since it's referenced from the same app-owned
+  /// `app_shell_route.dart`.
+  Future<void> _wireChildIntoShellBuilder(
+    String projectPath,
+    String packageName,
+    String featureName,
+    String parentFeature, {
+    String? childPackageName,
+    String? corePackageName,
+  }) async {
+    final camel = _camel(featureName);
+    await _addRouteConstant(
+      '$projectPath/lib/core/constants/app_route_path.dart',
+      camel,
+      '/$parentFeature/$featureName',
+    );
+    if (corePackageName != null) {
+      await _addRouteConstant(
+        '$projectPath/packages/$corePackageName/lib/core/constants/app_route_path.dart',
+        camel,
+        '/$parentFeature/$featureName',
+      );
+    }
+
+    final shellFile = File('$projectPath/lib/core/router/app_shell_route.dart');
+    if (!shellFile.existsSync()) return;
+    final s = wireChildIntoTypedShell(
+      shellSource: await shellFile.readAsString(),
+      packageName: packageName,
+      parentFeature: parentFeature,
+      childFeature: featureName,
+      childPackageName: childPackageName,
+      corePackageName: corePackageName,
+    );
+    await shellFile.writeAsString(s);
+
+    if (childPackageName != null && corePackageName != null) {
+      await _registerShellPageSplit(projectPath, childPackageName, featureName, corePackageName);
+    }
+  }
+
+  /// Plain go_router equivalent of [_wireChildIntoShellBuilder].
+  Future<void> _wireChildIntoShellPlain(
+    String projectPath,
+    String packageName,
+    String featureName,
+    String parentFeature, {
+    String? childPackageName,
+    String? corePackageName,
+  }) async {
+    final camel = _camel(featureName);
+    await _addRouteConstant(
+      '$projectPath/lib/core/constants/app_route_path.dart',
+      camel,
+      '/$parentFeature/$featureName',
+    );
+    if (corePackageName != null) {
+      await _addRouteConstant(
+        '$projectPath/packages/$corePackageName/lib/core/constants/app_route_path.dart',
+        camel,
+        '/$parentFeature/$featureName',
+      );
+    }
+
+    final routes = File('$projectPath/lib/core/router/routes.dart');
+    if (!routes.existsSync()) return;
+    final s = wireChildIntoPlainShell(
+      routesSource: await routes.readAsString(),
+      packageName: packageName,
+      parentFeature: parentFeature,
+      childFeature: featureName,
+      childPackageName: childPackageName,
+      corePackageName: corePackageName,
+    );
+    await routes.writeAsString(s);
+
+    if (childPackageName != null && corePackageName != null) {
+      await _registerShellPageSplit(projectPath, childPackageName, featureName, corePackageName);
+    }
+  }
+
+  /// Pure transformation nesting [childFeature] under [parentFeature]'s
+  /// shell-branch route in `app_shell_route.dart`. Self-heals a legacy flat
+  /// parent first (see [healShellBranchTyped]), then inserts the child's
+  /// `TypedGoRoute` at `// neat:typed-children:<parent>` and appends its
+  /// route class near the shared `// neat:shell-classes` anchor (reused as-
+  /// is — already a flat class-accumulation point for every branch, works
+  /// the same for a nested child). packageSplit: `build()` reads core's
+  /// shell page registry instead of constructing the page directly, same as
+  /// a top-level branch (see [CoreTemplates.shellBranchClassesBuilder]).
+  @visibleForTesting
+  static String wireChildIntoTypedShell({
+    required String shellSource,
+    required String packageName,
+    required String parentFeature,
+    required String childFeature,
+    String? childPackageName,
+    String? corePackageName,
+  }) {
+    var s = healShellBranchTyped(shellSource, parentFeature);
+    final childPascal = _pascal(childFeature);
+    final childCamel = _camel(childFeature);
+
+    final childPkg = childPackageName ?? packageName;
+    final childPathPrefix = childPackageName != null ? '' : 'features/$childFeature/';
+    final childImportLine = childPackageName != null
+        ? "import 'package:${corePackageName!}/core/router/shell_page_registry.dart';"
+        : "import 'package:$childPkg/${childPathPrefix}presentation/pages/${childFeature}_page.dart';";
+    if (!s.contains(childImportLine)) {
+      s = _insertBefore(s, '// neat:shell-imports', childImportLine);
+    }
+
+    final anchor = '// neat:typed-children:$parentFeature';
+    s = _insertBefore(s, anchor, "    TypedGoRoute<${childPascal}Route>(path: '$childFeature'),");
+
+    if (!s.contains('class ${childPascal}Route extends GoRouteData')) {
+      final buildBody = childPackageName != null
+          ? "lookupShellPage('$childCamel')(context, state)"
+          : 'const ${childPascal}Page()';
+      final childClass = 'class ${childPascal}Route extends GoRouteData with \$${childPascal}Route {\n'
+          '  const ${childPascal}Route();\n\n'
+          '  @override\n'
+          '  Widget build(BuildContext context, GoRouterState state) => $buildBody;\n'
+          '}\n';
+      s = _insertBefore(s, '// neat:shell-classes', childClass);
+    }
+    return s;
+  }
+
+  /// Plain go_router equivalent of [wireChildIntoTypedShell].
+  @visibleForTesting
+  static String wireChildIntoPlainShell({
+    required String routesSource,
+    required String packageName,
+    required String parentFeature,
+    required String childFeature,
+    String? childPackageName,
+    String? corePackageName,
+  }) {
+    var s = healShellBranchPlain(routesSource, parentFeature);
+    final childPascal = _pascal(childFeature);
+    final childCamel = _camel(childFeature);
+
+    final childPkg = childPackageName ?? packageName;
+    final childPathPrefix = childPackageName != null ? '' : 'features/$childFeature/';
+    final childImportLine = childPackageName != null
+        ? "import 'package:${corePackageName!}/core/router/shell_page_registry.dart';"
+        : "import 'package:$childPkg/${childPathPrefix}presentation/pages/${childFeature}_page.dart';";
+    if (!s.contains(childImportLine)) {
+      s = _insertBefore(s, '// neat:route-imports', childImportLine);
+    }
+
+    final anchor = '// neat:children:$parentFeature';
+    final builderBody = childPackageName != null
+        ? "(context, state) => lookupShellPage('$childCamel')(context, state)"
+        : '(context, state) => const ${childPascal}Page()';
+    s = _insertBefore(
+      s,
+      anchor,
+      '            GoRoute(\n'
+          "              path: '$childFeature',\n"
+          '              builder: $builderBody,\n'
+          '            ),',
+    );
+    return s;
+  }
+
   // ── Shell branch wiring (create-or-extend the app's StatefulShellRoute) ────
 
   /// Adds [featureName] as a branch of the app's bottom-navigation shell.
@@ -752,6 +1136,7 @@ class GenerateFeatureUsecase {
         featureName,
         firstBranch: firstBranch,
         featurePackageName: featurePackageName,
+        corePackageName: corePackageName,
       );
     } else {
       await _wireShellBranchPlain(
@@ -760,7 +1145,15 @@ class GenerateFeatureUsecase {
         featureName,
         firstBranch: firstBranch,
         featurePackageName: featurePackageName,
+        corePackageName: corePackageName,
       );
+    }
+
+    // 4. packageSplit: this branch's page can't be imported directly by
+    // app_shell_route.dart/routes.dart — register it into core's
+    // shellPageBuilders instead (mirrors _registerChopperDecoderSplit).
+    if (featurePackageName != null && corePackageName != null) {
+      await _registerShellPageSplit(projectPath, featurePackageName, featureName, corePackageName);
     }
   }
 
@@ -770,18 +1163,23 @@ class GenerateFeatureUsecase {
     String featureName, {
     required bool firstBranch,
     String? featurePackageName,
+    String? corePackageName,
   }) async {
     final routes = File('$projectPath/lib/core/router/routes.dart');
     if (!routes.existsSync()) return;
     var s = await routes.readAsString();
     final pkg = featurePackageName ?? packageName;
     final pathPrefix = featurePackageName != null ? '' : 'features/$featureName/';
-    s = _insertBefore(
-      s,
-      '// neat:route-imports',
-      "import 'package:$pkg/${pathPrefix}presentation/pages/"
-          "${featureName}_page.dart';",
-    );
+    // packageSplit → import the registry instead of the page directly (see
+    // CoreTemplates.shellPageRegistry's doc). Every branch imports the same
+    // registry line, unlike each branch's own unique page import, so this
+    // needs an idempotency guard subsequent branches don't get here.
+    final pageImportLine = featurePackageName != null
+        ? "import 'package:${corePackageName!}/core/router/shell_page_registry.dart';"
+        : "import 'package:$pkg/${pathPrefix}presentation/pages/${featureName}_page.dart';";
+    if (!s.contains(pageImportLine)) {
+      s = _insertBefore(s, '// neat:route-imports', pageImportLine);
+    }
     if (firstBranch) {
       s = _insertBefore(
         s,
@@ -791,13 +1189,21 @@ class GenerateFeatureUsecase {
       s = _insertBefore(
         s,
         '// neat:route-entries',
-        CoreTemplates.shellRouteEntryPlain(featureName: featureName),
+        CoreTemplates.shellRouteEntryPlain(
+          featureName: featureName,
+          featurePackageName: featurePackageName,
+          corePackageName: corePackageName,
+        ),
       );
     } else {
       s = _insertBefore(
         s,
         '// neat:shell-branches',
-        CoreTemplates.shellBranchPlain(featureName: featureName),
+        CoreTemplates.shellBranchPlain(
+          featureName: featureName,
+          featurePackageName: featurePackageName,
+          corePackageName: corePackageName,
+        ),
       );
     }
     await routes.writeAsString(s);
@@ -809,6 +1215,7 @@ class GenerateFeatureUsecase {
     String featureName, {
     required bool firstBranch,
     String? featurePackageName,
+    String? corePackageName,
   }) async {
     final shellFile = File('$projectPath/lib/core/router/app_shell_route.dart');
     if (firstBranch) {
@@ -818,6 +1225,7 @@ class GenerateFeatureUsecase {
           packageName: packageName,
           featureName: featureName,
           featurePackageName: featurePackageName,
+          corePackageName: corePackageName,
         ),
       );
       // Aggregate the shell's generated routes into routes.dart.
@@ -840,6 +1248,7 @@ class GenerateFeatureUsecase {
           packageName: packageName,
           featureName: featureName,
           featurePackageName: featurePackageName,
+          corePackageName: corePackageName,
         ),
       );
     }
@@ -855,16 +1264,19 @@ class GenerateFeatureUsecase {
     required String packageName,
     required String featureName,
     String? featurePackageName,
+    String? corePackageName,
   }) {
     var s = shellSource;
     final pkg = featurePackageName ?? packageName;
     final pathPrefix = featurePackageName != null ? '' : 'features/$featureName/';
-    s = _insertBefore(
-      s,
-      '// neat:shell-imports',
-      "import 'package:$pkg/${pathPrefix}presentation/pages/"
-          "${featureName}_page.dart';",
-    );
+    // packageSplit → import the registry instead of the page directly — see
+    // _wireShellBranchPlain's doc for why this needs an idempotency guard.
+    final pageImportLine = featurePackageName != null
+        ? "import 'package:${corePackageName!}/core/router/shell_page_registry.dart';"
+        : "import 'package:$pkg/${pathPrefix}presentation/pages/${featureName}_page.dart';";
+    if (!s.contains(pageImportLine)) {
+      s = _insertBefore(s, '// neat:shell-imports', pageImportLine);
+    }
     s = _insertBefore(
       s,
       '// neat:shell-branches',
@@ -873,7 +1285,11 @@ class GenerateFeatureUsecase {
     return _insertBefore(
       s,
       '// neat:shell-classes',
-      CoreTemplates.shellBranchClassesBuilder(featureName: featureName),
+      CoreTemplates.shellBranchClassesBuilder(
+        featureName: featureName,
+        featurePackageName: featurePackageName,
+        corePackageName: corePackageName,
+      ),
     );
   }
 
@@ -987,6 +1403,23 @@ class GenerateFeatureUsecase {
     s = s.replaceFirst(
       'dependencies:\n  flutter:\n    sdk: flutter',
       'dependencies:\n  flutter:\n    sdk: flutter\n  $dependencyName:\n    path: packages/$dependencyName\n',
+    );
+    await pubspec.writeAsString(s);
+  }
+
+  /// Adds a version dependency on `go_router` to `packages/$packageDir`'s
+  /// pubspec — needed the first time `_registerShellPageSplit` creates the
+  /// shell page registry for a project that predates it (see
+  /// `CorePackageTemplates.pubspec`'s `useShell` param, which a *freshly*
+  /// generated core package already gets). Idempotent.
+  Future<void> _addGoRouterDependency(String projectPath, String packageDir) async {
+    final pubspec = File('$projectPath/packages/$packageDir/pubspec.yaml');
+    if (!pubspec.existsSync()) return;
+    var s = await pubspec.readAsString();
+    if (s.contains('go_router:')) return;
+    s = s.replaceFirst(
+      'dependencies:\n  flutter:\n    sdk: flutter',
+      'dependencies:\n  flutter:\n    sdk: flutter\n  go_router: ^17.2.3\n',
     );
     await pubspec.writeAsString(s);
   }

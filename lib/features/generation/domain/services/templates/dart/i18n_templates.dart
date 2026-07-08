@@ -17,12 +17,19 @@ class I18nTemplates {
   /// [baseTranslations]/[frTranslations]) — defaults to `en` to match NEAT's
   /// long-standing default, but the caller picks `fr` when English wasn't
   /// selected (see ArchitectureState.i18nLocales).
+  ///
+  /// `string_interpolation: braces` is required — slang's own default is
+  /// Dart-style `$variable` interpolation, so a translation like `Welcome
+  /// {name}` added later would otherwise render literally instead of
+  /// substituting the variable (see [I18nImporter.slangCsvConfig], same fix
+  /// for the CSV-upload path).
   static String slangConfig({String baseLocale = 'en'}) => '''base_locale: $baseLocale
 fallback_strategy: base_locale
 input_directory: lib/i18n
 input_file_pattern: .i18n.json
 output_directory: lib/i18n
 output_file_name: strings.g.dart
+string_interpolation: braces
 ''';
 
   // ── lib/i18n/en.i18n.json (base locale) ───────────────────────────────────

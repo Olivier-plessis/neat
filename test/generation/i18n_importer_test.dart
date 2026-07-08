@@ -22,6 +22,11 @@ void main() {
       expect(I18nImporter.parseLocales('key\n'), isEmpty);
       expect(I18nImporter.parseLocales(''), isEmpty);
     });
+
+    test('excludes the (comments) column slang uses for per-key descriptions', () {
+      const csv = 'key,(comments),en,fr\ninboxCount.one,,1 message,1 message\n';
+      expect(I18nImporter.parseLocales(csv), ['en', 'fr']);
+    });
   });
 
   group('I18nImporter.slangCsvConfig', () {
@@ -30,6 +35,9 @@ void main() {
       expect(cfg, contains('base_locale: fr'));
       expect(cfg, contains('input_file_pattern: .i18n.csv'));
       expect(cfg, contains('output_file_name: strings.g.dart'));
+      // Without this, `{n}`/`{name}` placeholders render literally instead
+      // of being substituted (slang defaults to $-style Dart interpolation).
+      expect(cfg, contains('string_interpolation: braces'));
     });
   });
 }

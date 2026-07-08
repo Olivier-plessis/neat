@@ -696,4 +696,29 @@ final ${camel(featureName)}Route = GoRoute(
 );
 ''';
   }
+
+  /// `presentation/routes/<f>_shell_registration.dart` — packageSplit shell
+  /// branch (or a child nested under one): self-registers this feature's page
+  /// into core's `shellPageBuilders` (see `CoreTemplates.shellPageRegistry`)
+  /// instead of `app_shell_route.dart`/`routes.dart` importing it directly.
+  /// A shell branch/child never gets a `<f>_routes.dart` (its route lives in
+  /// the shell's own tree, not a standalone file), so unlike chopper's
+  /// decoder registration — which piggybacks on the already-existing
+  /// `<f>_repository_providers.dart` — this is a new, small file dedicated to
+  /// the one thing it does. Called once from `bootstrap()` before `runApp`
+  /// (see `AppTemplates.bootstrap`'s `// neat:shell-register-*` anchors).
+  static String featureShellRegistration({
+    required String featureName,
+    required String corePackageName,
+  }) {
+    final p = pascal(featureName);
+    final c = camel(featureName);
+    return '''import 'package:$corePackageName/core/router/shell_page_registry.dart';
+import '../pages/${featureName}_page.dart';
+
+void register${p}ShellPage() {
+  shellPageBuilders['$c'] = (context, state) => const ${p}Page();
+}
+''';
+  }
 }
