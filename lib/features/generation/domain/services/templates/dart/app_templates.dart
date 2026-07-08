@@ -56,6 +56,11 @@ void main() => $call;
     // redirects bootstrap.dart's import to the single copy that does exist,
     // in the core package.
     String? corePackageName,
+    // packageSplit + envied + dio/chopper: the core package's client can't
+    // import AppEnv itself (see CoreTemplates.apiConfig's doc) — bootstrap
+    // bridges it once here, before runApp, into the core package's
+    // ApiConfig.baseUrl.
+    bool bridgesApiBaseUrl = false,
   }) {
     final registersChopper = chopperRegisterFeaturePackage != null;
     final imports = StringBuffer()
@@ -94,6 +99,9 @@ void main() => $call;
     if (useEnvied) {
       imports.writeln("import 'package:$packageName/core/env/app_env.dart';");
     }
+    if (bridgesApiBaseUrl) {
+      imports.writeln("import 'package:$corePackageName/core/network/api_config.dart';");
+    }
     imports.writeln("import 'package:$packageName/core/error/error_handler.dart';");
     imports.writeln("import 'package:${corePackageName ?? packageName}/core/utils/app_logger.dart';");
     if (hasRiverpod) {
@@ -108,7 +116,8 @@ void main() => $call;
 
     final sig =
         useEnvied ? 'Future<void> bootstrap(AppEnv env) async' : 'Future<void> bootstrap() async';
-    final setEnv = useEnvied ? '  AppEnv.setEnv(env);\n' : '';
+    final apiConfigLine = bridgesApiBaseUrl ? '  ApiConfig.baseUrl = env.apiBaseUrl;\n' : '';
+    final setEnv = useEnvied ? '  AppEnv.setEnv(env);\n$apiConfigLine' : '';
     final pathUrl = isWeb ? '\n      usePathUrlStrategy();' : '';
     final supaInit = hasSupabase
         ? (useEnvied

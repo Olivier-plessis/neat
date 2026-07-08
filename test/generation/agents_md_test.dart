@@ -26,7 +26,7 @@ void main() {
     expect(md, contains('go_router_builder'));
     expect(md, contains('TypedGoRoute'));
     expect(md, contains('StatefulShellRoute'));
-    expect(md, contains('packages/shop_local_storage'));
+    expect(md, contains('packages/local_storage'));
     expect(md, contains('Outbox'));
     expect(md, contains('SyncService'));
     expect(md, contains('infrastructure_providers.dart'));
@@ -89,7 +89,7 @@ void main() {
     expect(md, isNot(contains('chopperClientProvider')));
     expect(md, contains('No HTTP client is enabled'));
     // Offline read but NOT sync → no Outbox.
-    expect(md, contains('packages/notes_local_storage'));
+    expect(md, contains('packages/local_storage'));
     expect(md, isNot(contains('Outbox')));
   });
 }

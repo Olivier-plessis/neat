@@ -6,6 +6,7 @@ import 'package:neat/core/contract/neat_contract.dart';
 import 'package:neat/features/architecture/presentation/widgets/entity_fields_editor.dart';
 import 'package:neat/features/feature_gen/domain/models/feature_gen_options.dart';
 import 'package:neat/features/feature_gen/presentation/providers/workshop_controller.dart';
+import 'package:neat/features/generation/domain/models/endpoint_spec.dart';
 import 'package:neat/features/generation/domain/models/field_spec.dart';
 import 'package:neat/features/generation/domain/services/json_entity_inferencer.dart';
 import 'package:neat/features/shell/presentation/providers/stepper_provider.dart';
@@ -177,6 +178,15 @@ class _Workshop extends HookWidget {
     final parentMissing = needsParent && opts.parentFeature.isEmpty;
     final isShell = opts.routing == FeatureRouting.shell;
 
+    // "Custom Endpoints" (ROADMAP.md §7 Phase 2): chopper-only, and — for
+    // this pass — not combined with packageSplit (see
+    // GenerateFeatureUsecase's own validation, which this mirrors so the
+    // Workshop never even offers a combination it would reject).
+    final canCustomEndpoints = c.httpClient == 'chopper' && !c.packageSplit;
+    final endpointsValid = opts.endpoints.isNotEmpty &&
+        opts.endpoints.every((e) => e.name.isNotEmpty && e.path.isNotEmpty) &&
+        opts.endpoints.map((e) => e.name).toSet().length == opts.endpoints.length;
+
     final nameError = nameCtrl.text.isEmpty
         ? null
         : (opts.validateName() ??
@@ -187,6 +197,7 @@ class _Workshop extends HookWidget {
         nameCtrl.text.isNotEmpty &&
         nameError == null &&
         !parentMissing &&
+        (!opts.useCustomEndpoints || endpointsValid) &&
         !state.isGenerating;
 
     void set(FeatureGenOptions v) => options.value = v;
@@ -267,6 +278,21 @@ class _Workshop extends HookWidget {
                           decoration: _fieldDecoration('e.g. user_profile, auth_login', nameError),
                         ),
 
+                        // "Custom Endpoints" (ROADMAP.md §7 Phase 2) — an
+                        // opt-in alternative to Entity + CRUD, only offered
+                        // when the project's stack can actually support it
+                        // (chopper, non-packageSplit).
+                        if (canCustomEndpoints) ...[
+                          24.gapH,
+                          const _SectionTitle(Icons.api_outlined, 'Feature Shape'),
+                          10.gapH,
+                          _FeatureShapeRow(
+                            useCustomEndpoints: opts.useCustomEndpoints,
+                            enabled: !state.isGenerating,
+                            onSelect: (v) => set(opts.copyWith(useCustomEndpoints: v)),
+                          ),
+                        ],
+
                         24.gapH,
                         if (hasNav) ...[
                           const _SectionTitle(Icons.alt_route, 'Navigation & Routing'),
@@ -299,6 +325,15 @@ class _Workshop extends HookWidget {
                           ],
                           24.gapH,
                         ],
+                        if (opts.useCustomEndpoints) ...[
+                          const _SectionTitle(Icons.api_outlined, 'Endpoints'),
+                          10.gapH,
+                          _EndpointsEditor(
+                            endpoints: opts.endpoints,
+                            enabled: !state.isGenerating,
+                            onChange: (eps) => set(opts.copyWith(endpoints: eps)),
+                          ),
+                        ] else ...[
                         const _SectionTitle(Icons.layers, 'Architecture Layers'),
                         10.gapH,
                         _LayerToggle(
@@ -438,6 +473,7 @@ class _Workshop extends HookWidget {
                             set(opts.copyWith(fields: [...opts.fields]..removeAt(i)));
                           },
                         ),
+                        ],
                       ],
                     ),
                   ),
@@ -527,6 +563,49 @@ class _Workshop extends HookWidget {
     if (c.storageStrategy != 'remoteOnly') c.storageStrategy,
     if (c.extractUiPackage) 'ui-package',
   ];
+}
+
+// ── Feature Shape cards (Entity + CRUD vs Custom Endpoints) ────────────────────
+
+/// ROADMAP.md §7 Phase 2: picks between the entity-centric flow (one entity +
+/// fixed CRUD) and the endpoint-centric one (N arbitrary REST calls). Reuses
+/// [_RoutingCard]'s exact visual language — same kind of mutually-exclusive
+/// mode choice, just two options instead of three.
+class _FeatureShapeRow extends StatelessWidget {
+  const _FeatureShapeRow({
+    required this.useCustomEndpoints,
+    required this.enabled,
+    required this.onSelect,
+  });
+
+  final bool useCustomEndpoints;
+  final bool enabled;
+  final ValueChanged<bool> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: _RoutingCard(
+            title: 'Entity + CRUD',
+            subtitle: 'One entity, full CRUD (get/create/update/delete)',
+            isSelected: !useCustomEndpoints,
+            onTap: enabled ? () => onSelect(false) : null,
+          ),
+        ),
+        12.gapW,
+        Expanded(
+          child: _RoutingCard(
+            title: 'Custom Endpoints',
+            subtitle: 'N arbitrary REST calls, each typed independently',
+            isSelected: useCustomEndpoints,
+            onTap: enabled ? () => onSelect(true) : null,
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 // ── Navigation & Routing cards ─────────────────────────────────────────────────
@@ -884,6 +963,326 @@ class _LayerToggle extends StatelessWidget {
   }
 }
 
+// ── Endpoints editor (Custom Endpoints mode — ROADMAP.md §7 Phase 2) ───────────
+
+/// The list of [EndpointSpec]s for a "Custom Endpoints" feature — add/remove,
+/// and per-endpoint name/method/path + request/response bodies (each reusing
+/// [EntityFieldsEditor] as-is: it already works from any named field list,
+/// nothing about it is entity-specific). Fully "controlled": all state lives
+/// in [endpoints], bubbled up via [onChange] — matches every other field on
+/// this screen. Only the expand/collapse of each endpoint's card is local,
+/// ephemeral UI state (via [ExpansionTile]), never persisted.
+class _EndpointsEditor extends StatelessWidget {
+  const _EndpointsEditor({
+    required this.endpoints,
+    required this.enabled,
+    required this.onChange,
+  });
+
+  final List<EndpointSpec> endpoints;
+  final bool enabled;
+  final ValueChanged<List<EndpointSpec>> onChange;
+
+  void _update(int index, EndpointSpec Function(EndpointSpec) f) {
+    final next = [...endpoints];
+    next[index] = f(next[index]);
+    onChange(next);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var i = 0; i < endpoints.length; i++) ...[
+          _EndpointRow(
+            key: ValueKey(i),
+            endpoint: endpoints[i],
+            enabled: enabled,
+            onName: (v) => _update(i, (e) => e.copyWith(name: v.trim())),
+            onMethod: (m) => _update(i, (e) => e.copyWith(method: m)),
+            onPath: (v) => _update(i, (e) => e.copyWith(path: v.trim())),
+            onRequestInfer: (j) {
+              if (j.trim().isEmpty) {
+                _update(
+                  i,
+                  (e) => e.copyWith(requestJson: '', requestFields: const [], requestWarnings: const []),
+                );
+                return;
+              }
+              final r = const JsonEntityInferencer().infer(j, requireId: false);
+              _update(
+                i,
+                (e) => e.copyWith(requestJson: j, requestFields: r.fields, requestWarnings: r.warnings),
+              );
+            },
+            onRequestReset: () => _update(
+              i,
+              (e) => e.copyWith(requestJson: '', requestFields: const [], requestWarnings: const []),
+            ),
+            onRequestAddField: () => _update(i, (e) {
+              final used = e.requestFields.map((f) => f.dartName).toSet();
+              var n = 'field';
+              for (var k = 1; used.contains(n); k++) {
+                n = 'field$k';
+              }
+              return e.copyWith(requestFields: [...e.requestFields, FieldSpec(jsonKey: n, dartName: n)]);
+            }),
+            onRequestName: (fi, v) => _update(
+              i,
+              (e) => e.copyWith(
+                requestFields: _editField(e.requestFields, fi, (f) => f.copyWith(dartName: v.trim())),
+              ),
+            ),
+            onRequestType: (fi, v) => _update(
+              i,
+              (e) => e.copyWith(
+                requestFields: _editField(e.requestFields, fi, (f) => f.copyWith(dartType: v)),
+              ),
+            ),
+            onRequestNullable: (fi, v) => _update(
+              i,
+              (e) => e.copyWith(
+                requestFields: _editField(e.requestFields, fi, (f) => f.copyWith(nullable: v)),
+              ),
+            ),
+            onRequestRemove: (fi) => _update(
+              i,
+              (e) => e.copyWith(requestFields: [...e.requestFields]..removeAt(fi)),
+            ),
+            onResponseInfer: (j) {
+              if (j.trim().isEmpty) {
+                _update(
+                  i,
+                  (e) =>
+                      e.copyWith(responseJson: '', responseFields: const [], responseWarnings: const []),
+                );
+                return;
+              }
+              final r = const JsonEntityInferencer().infer(j, requireId: false);
+              _update(
+                i,
+                (e) =>
+                    e.copyWith(responseJson: j, responseFields: r.fields, responseWarnings: r.warnings),
+              );
+            },
+            onResponseReset: () => _update(
+              i,
+              (e) => e.copyWith(responseJson: '', responseFields: const [], responseWarnings: const []),
+            ),
+            onResponseAddField: () => _update(i, (e) {
+              final used = e.responseFields.map((f) => f.dartName).toSet();
+              var n = 'field';
+              for (var k = 1; used.contains(n); k++) {
+                n = 'field$k';
+              }
+              return e.copyWith(
+                  responseFields: [...e.responseFields, FieldSpec(jsonKey: n, dartName: n)]);
+            }),
+            onResponseName: (fi, v) => _update(
+              i,
+              (e) => e.copyWith(
+                responseFields: _editField(e.responseFields, fi, (f) => f.copyWith(dartName: v.trim())),
+              ),
+            ),
+            onResponseType: (fi, v) => _update(
+              i,
+              (e) => e.copyWith(
+                responseFields: _editField(e.responseFields, fi, (f) => f.copyWith(dartType: v)),
+              ),
+            ),
+            onResponseNullable: (fi, v) => _update(
+              i,
+              (e) => e.copyWith(
+                responseFields: _editField(e.responseFields, fi, (f) => f.copyWith(nullable: v)),
+              ),
+            ),
+            onResponseRemove: (fi) => _update(
+              i,
+              (e) => e.copyWith(responseFields: [...e.responseFields]..removeAt(fi)),
+            ),
+            onRemove: () => onChange([...endpoints]..removeAt(i)),
+          ),
+          10.gapH,
+        ],
+        OutlinedButton.icon(
+          onPressed: enabled
+              ? () {
+                  var n = 'endpoint';
+                  final used = endpoints.map((e) => e.name).toSet();
+                  for (var k = 1; used.contains(n); k++) {
+                    n = 'endpoint$k';
+                  }
+                  onChange([...endpoints, EndpointSpec(name: n)]);
+                }
+              : null,
+          icon: const Icon(Icons.add, size: 16),
+          label: const Text('Add endpoint'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: Palette.colorPrimaryCyan,
+            side: const BorderSide(color: Palette.colorPrimaryCyan),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _EndpointRow extends HookWidget {
+  const _EndpointRow({
+    required this.endpoint,
+    required this.enabled,
+    required this.onName,
+    required this.onMethod,
+    required this.onPath,
+    required this.onRequestInfer,
+    required this.onRequestReset,
+    required this.onRequestAddField,
+    required this.onRequestName,
+    required this.onRequestType,
+    required this.onRequestNullable,
+    required this.onRequestRemove,
+    required this.onResponseInfer,
+    required this.onResponseReset,
+    required this.onResponseAddField,
+    required this.onResponseName,
+    required this.onResponseType,
+    required this.onResponseNullable,
+    required this.onResponseRemove,
+    required this.onRemove,
+    super.key,
+  });
+
+  final EndpointSpec endpoint;
+  final bool enabled;
+  final ValueChanged<String> onName;
+  final ValueChanged<HttpMethod> onMethod;
+  final ValueChanged<String> onPath;
+  final ValueChanged<String> onRequestInfer;
+  final VoidCallback onRequestReset;
+  final VoidCallback onRequestAddField;
+  final void Function(int, String) onRequestName;
+  final void Function(int, String) onRequestType;
+  final void Function(int, bool) onRequestNullable;
+  final ValueChanged<int> onRequestRemove;
+  final ValueChanged<String> onResponseInfer;
+  final VoidCallback onResponseReset;
+  final VoidCallback onResponseAddField;
+  final void Function(int, String) onResponseName;
+  final void Function(int, String) onResponseType;
+  final void Function(int, bool) onResponseNullable;
+  final ValueChanged<int> onResponseRemove;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    // Own controllers (created once per row, keyed by the parent's
+    // ValueKey(i)) so typing doesn't recreate them / jump the cursor on
+    // every rebuild — same pattern _Workshop itself uses for its own text
+    // fields, just local to this row instead of lifted to the top.
+    final nameCtrl = useTextEditingController(text: endpoint.name);
+    final pathCtrl = useTextEditingController(text: endpoint.path);
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: const Color(0xFF161619),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.white12),
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          initiallyExpanded: endpoint.name.startsWith('endpoint') && endpoint.path.isEmpty,
+          title: Row(
+            children: [
+              Expanded(
+                flex: 2,
+                child: TextField(
+                  controller: nameCtrl,
+                  enabled: enabled,
+                  onChanged: onName,
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                  decoration: const InputDecoration.collapsed(hintText: 'name, e.g. login'),
+                ),
+              ),
+              8.gapW,
+              SizedBox(
+                width: 90,
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<HttpMethod>(
+                    value: endpoint.method,
+                    isDense: true,
+                    dropdownColor: const Color(0xFF18181C),
+                    style: const TextStyle(color: Palette.colorPrimaryCyan, fontSize: 12),
+                    onChanged: enabled ? (m) => onMethod(m ?? HttpMethod.get) : null,
+                    items: HttpMethod.values
+                        .map((m) => DropdownMenuItem(value: m, child: Text(m.name.toUpperCase())))
+                        .toList(),
+                  ),
+                ),
+              ),
+              8.gapW,
+              Expanded(
+                flex: 3,
+                child: TextField(
+                  controller: pathCtrl,
+                  enabled: enabled,
+                  onChanged: onPath,
+                  style: const TextStyle(color: Colors.white, fontSize: 13, fontFamily: 'monospace'),
+                  decoration: const InputDecoration.collapsed(hintText: '/auth/login'),
+                ),
+              ),
+              IconButton(
+                onPressed: enabled ? onRemove : null,
+                icon: const Icon(Icons.delete_outline, size: 18, color: Colors.white54),
+                tooltip: 'Remove endpoint',
+              ),
+            ],
+          ),
+          childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+          children: [
+            Text(
+              'Request body (optional)',
+              style: TextStyle(color: Colors.grey[500], fontSize: 11, fontWeight: FontWeight.bold),
+            ),
+            8.gapH,
+            EntityFieldsEditor(
+              json: endpoint.requestJson,
+              fields: endpoint.requestFields,
+              warnings: endpoint.requestWarnings,
+              onInfer: onRequestInfer,
+              onReset: onRequestReset,
+              onAddField: onRequestAddField,
+              onName: onRequestName,
+              onType: onRequestType,
+              onNullable: onRequestNullable,
+              onRemove: onRequestRemove,
+            ),
+            16.gapH,
+            Text(
+              'Response body (optional)',
+              style: TextStyle(color: Colors.grey[500], fontSize: 11, fontWeight: FontWeight.bold),
+            ),
+            8.gapH,
+            EntityFieldsEditor(
+              json: endpoint.responseJson,
+              fields: endpoint.responseFields,
+              warnings: endpoint.responseWarnings,
+              onInfer: onResponseInfer,
+              onReset: onResponseReset,
+              onAddField: onResponseAddField,
+              onName: onResponseName,
+              onType: onResponseType,
+              onNullable: onResponseNullable,
+              onRemove: onResponseRemove,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 // ── Blueprint Overview (live feature tree) ─────────────────────────────────────
 
 class _BlueprintTree extends StatelessWidget {
@@ -896,38 +1295,7 @@ class _BlueprintTree extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final name = options.name.isEmpty ? 'feature_name' : options.name;
-    final remote = hasHttp && options.includeRemoteDataSource;
-    // Mirrors FeatureScaffolder's writeLocal exactly: a local source is only
-    // written for the offline-first 3-source repo (remote + a project that
-    // actually ships Drift), or a genuinely local-only feature (no remote,
-    // Local Data Source explicitly on) — never forced on just because remote
-    // is off (that made the toggle meaningless — see ROADMAP.md).
-    final localIsDrift = contract.storageStrategy != 'remoteOnly';
-    final local = options.includeLocalDataSource && (!remote || localIsDrift);
-    final hasAnyDataSource = remote || local;
-    final lines = <String>[
-      'lib/features/$name/',
-      if (hasAnyDataSource) ...[
-        '├── data/',
-        '│   ├── sources/',
-        if (remote) '│   │   ├── ${name}_api_source.dart',
-        if (local) '│   │   └── ${name}_local_source.dart',
-        '│   ├── models/',
-        '│   └── repositories/',
-      ],
-      '├── domain/',
-      '│   ├── entities/',
-      if (hasAnyDataSource) '│   ├── repositories/',
-      if (options.includeUseCase && hasAnyDataSource) '│   └── usecases/',
-      '└── presentation/',
-      '    ├── pages/',
-      '    ├── providers/',
-      // child/shell features don't get their own route file (it lives in the
-      // parent's / shell's tree), so only a root route adds routes/.
-      if (contract.navigation != 'none' && options.routing == FeatureRouting.root)
-        '    ├── routes/',
-      '    └── widgets/',
-    ];
+    final lines = options.useCustomEndpoints ? _customEndpointsLines(name) : _crudLines(name);
 
     return Container(
       width: double.infinity,
@@ -991,6 +1359,71 @@ class _BlueprintTree extends StatelessWidget {
     height: 12,
     decoration: BoxDecoration(color: c, shape: BoxShape.circle),
   );
+
+  /// The existing entity + CRUD preview (unchanged).
+  List<String> _crudLines(String name) {
+    final remote = hasHttp && options.includeRemoteDataSource;
+    // Mirrors FeatureScaffolder's writeLocal exactly: a local source is only
+    // written for the offline-first 3-source repo (remote + a project that
+    // actually ships Drift), or a genuinely local-only feature (no remote,
+    // Local Data Source explicitly on) — never forced on just because remote
+    // is off (that made the toggle meaningless — see ROADMAP.md).
+    final localIsDrift = contract.storageStrategy != 'remoteOnly';
+    final local = options.includeLocalDataSource && (!remote || localIsDrift);
+    final hasAnyDataSource = remote || local;
+    return [
+      'lib/features/$name/',
+      if (hasAnyDataSource) ...[
+        '├── data/',
+        '│   ├── sources/',
+        if (remote) '│   │   ├── ${name}_api_source.dart',
+        if (local) '│   │   └── ${name}_local_source.dart',
+        '│   ├── models/',
+        '│   └── repositories/',
+      ],
+      '├── domain/',
+      '│   ├── entities/',
+      if (hasAnyDataSource) '│   ├── repositories/',
+      if (options.includeUseCase && hasAnyDataSource) '│   └── usecases/',
+      '└── presentation/',
+      '    ├── pages/',
+      '    ├── providers/',
+      // child/shell features don't get their own route file (it lives in the
+      // parent's / shell's tree), so only a root route adds routes/.
+      if (contract.navigation != 'none' && options.routing == FeatureRouting.root)
+        '    ├── routes/',
+      '    └── widgets/',
+    ];
+  }
+
+  /// Custom Endpoints (ROADMAP.md §7 Phase 2): no entity, no repository, no
+  /// local source — mirrors FeatureScaffolder's useCustomEndpoints branch
+  /// exactly. Models only for endpoints that actually have a body.
+  List<String> _customEndpointsLines(String name) {
+    final endpoints = options.endpoints;
+    final hasAnyModel = endpoints.any((e) => e.hasRequestBody || e.hasResponseBody);
+    return [
+      'lib/features/$name/',
+      '├── data/',
+      '│   ├── sources/',
+      '│   │   └── ${name}_api_source.dart',
+      if (hasAnyModel) ...[
+        for (final e in endpoints.where((e) => e.hasRequestBody || e.hasResponseBody))
+          '│   └── models/${e.name.isEmpty ? '<endpoint>' : e.name}_model.dart',
+      ] else
+        '│   └── models/ (none — no endpoint has a request/response body)',
+      '├── domain/',
+      '│   └── usecases/',
+      for (final e in endpoints)
+        '│       ├── ${e.name.isEmpty ? '<endpoint>' : e.name}_usecase.dart',
+      '└── presentation/',
+      '    ├── pages/',
+      '    ├── providers/',
+      if (contract.navigation != 'none' && options.routing == FeatureRouting.root)
+        '    ├── routes/',
+      '    └── widgets/',
+    ];
+  }
 }
 
 // ── Logs console ───────────────────────────────────────────────────────────────

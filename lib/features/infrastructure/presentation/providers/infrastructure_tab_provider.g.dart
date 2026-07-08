@@ -42,7 +42,7 @@ final class CurrentInfrastructureTabProvider
 }
 
 String _$currentInfrastructureTabHash() =>
-    r'5f6328cb512ad40e21bd585bb95e1341b46e5b9d';
+    r'6f29af5137de16b9ae823bddeebed41d1d998e87';
 
 abstract class _$CurrentInfrastructureTab extends $Notifier<InfrastructureTab> {
   InfrastructureTab build();

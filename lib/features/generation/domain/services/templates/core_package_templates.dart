@@ -1,4 +1,4 @@
-/// Templates for the `<name>_core` workspace package — the shared foundation
+/// Templates for the `core` workspace package — the shared foundation
 /// every other workspace member (feature packages, later phases) depends on
 /// instead of depending on the app itself (which a pub workspace forbids: the
 /// app already depends on its feature packages, so a cycle would result).
@@ -15,7 +15,8 @@ class CorePackageTemplates {
 
   /// pubspec.yaml for the core package.
   ///
-  /// [corePackageName] is the workspace member name, e.g. `myapp_core`.
+  /// [corePackageName] is the workspace member name — always `core` (no
+  /// app-name prefix, unlike the extracted UI package).
   /// `resolution: workspace` is required for every member of a Dart workspace.
   /// [httpClient] drives the network client dep: dio for dio,
   /// chopper (+ its generator, for `ModelJsonConverter`'s registry file —
