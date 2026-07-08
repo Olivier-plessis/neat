@@ -1022,6 +1022,12 @@ $logo}
       primaryOverrideHex: theme.primaryOverrideHex,
       secondaryOverrideHex: theme.secondaryOverrideHex,
       tertiaryOverrideHex: theme.tertiaryOverrideHex,
+      primaryContainerOverrideHex: theme.primaryContainerOverrideHex,
+      surfaceContainerHighestOverrideHex: theme.surfaceContainerHighestOverrideHex,
+      onPrimaryOverrideHex: theme.onPrimaryOverrideHex,
+      onPrimaryContainerOverrideHex: theme.onPrimaryContainerOverrideHex,
+      onSecondaryOverrideHex: theme.onSecondaryOverrideHex,
+      outlineOverrideHex: theme.outlineOverrideHex,
       useScreenUtil: useScreenUtil,
     );
   }
@@ -1056,6 +1062,12 @@ $logo}
     String? primaryOverrideHex,
     String? secondaryOverrideHex,
     String? tertiaryOverrideHex,
+    String? primaryContainerOverrideHex,
+    String? surfaceContainerHighestOverrideHex,
+    String? onPrimaryOverrideHex,
+    String? onPrimaryContainerOverrideHex,
+    String? onSecondaryOverrideHex,
+    String? outlineOverrideHex,
     // Responsive font sizes via flutter_screenutil (.sp)
     bool useScreenUtil = false,
   }) {
@@ -1105,6 +1117,15 @@ $logo}
       if (primaryOverrideHex != null) '      primary: Color($primaryOverrideHex),',
       if (secondaryOverrideHex != null) '      secondary: Color($secondaryOverrideHex),',
       if (tertiaryOverrideHex != null) '      tertiary: Color($tertiaryOverrideHex),',
+      if (primaryContainerOverrideHex != null)
+        '      primaryContainer: Color($primaryContainerOverrideHex),',
+      if (surfaceContainerHighestOverrideHex != null)
+        '      surfaceContainerHighest: Color($surfaceContainerHighestOverrideHex),',
+      if (onPrimaryOverrideHex != null) '      onPrimary: Color($onPrimaryOverrideHex),',
+      if (onPrimaryContainerOverrideHex != null)
+        '      onPrimaryContainer: Color($onPrimaryContainerOverrideHex),',
+      if (onSecondaryOverrideHex != null) '      onSecondary: Color($onSecondaryOverrideHex),',
+      if (outlineOverrideHex != null) '      outline: Color($outlineOverrideHex),',
     ].join('\n');
     final schemeOverride = overrideEntries.isEmpty ? '' : '.copyWith(\n$overrideEntries\n    )';
 

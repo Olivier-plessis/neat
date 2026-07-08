@@ -1737,14 +1737,21 @@ final List<RouteBase> appRoutes = [
   /// `routes.dart` for a shell-rooted app (plain go_router): the first feature is
   /// the shell's first branch, wrapped in a [StatefulShellRoute]. [featurePackageName]
   /// crosses into the split feature package instead of `features/<name>/` when
-  /// packageSplit is on (see ROADMAP.md §6a).
+  /// packageSplit is on (see ROADMAP.md §6a). [corePackageName] (required when
+  /// [featurePackageName] is set): packageSplit means this file can't import the
+  /// branch's page directly without the app depending on a page it doesn't
+  /// otherwise need at aggregation time — the branch registers itself into
+  /// core's `shellPageBuilders` instead (see [shellPageRegistry]), and this
+  /// file looks it up via `lookupShellPage` rather than constructing it
+  /// directly.
   static String routesManualShell({
     required String packageName,
     required String featureName,
     String? featurePackageName,
+    String? corePackageName,
   }) {
     final pageImport = featurePackageName != null
-        ? "import 'package:$featurePackageName/presentation/pages/${featureName}_page.dart';"
+        ? "import 'package:${corePackageName!}/core/router/shell_page_registry.dart';"
         : "import 'package:$packageName/features/$featureName/presentation/pages/${featureName}_page.dart';";
     return '''import 'package:go_router/go_router.dart';
 import 'package:$packageName/core/constants/app_route_path.dart';
@@ -1755,7 +1762,7 @@ $pageImport
 /// Aggregated app routes. The app boots into the navigation shell; NEAT inserts
 /// new features at the anchors below.
 final List<RouteBase> appRoutes = [
-${shellRouteEntryPlain(featureName: featureName)}
+${shellRouteEntryPlain(featureName: featureName, featurePackageName: featurePackageName, corePackageName: corePackageName)}
   // neat:route-entries
 ];
 ''';
@@ -1909,9 +1916,23 @@ class ScaffoldWithNavBar extends StatelessWidget {
 
   /// The whole `StatefulShellRoute.indexedStack(...)` block (first branch +
   /// anchors), inserted into `appRoutes` when the first shell branch is added.
-  static String shellRouteEntryPlain({required String featureName}) {
+  /// [featurePackageName]/[corePackageName]: packageSplit — see
+  /// [appShellRouteBuilder]'s doc for why the closure looks up the page in
+  /// core's registry instead of constructing it directly. The nested
+  /// `routes: [...]` clause is always present (split or not) so the Workshop
+  /// can later nest a sub-route under this branch via the
+  /// `// neat:children:<feature>` anchor, the same mechanism a normal
+  /// top-level feature's own children anchor already uses.
+  static String shellRouteEntryPlain({
+    required String featureName,
+    String? featurePackageName,
+    String? corePackageName,
+  }) {
     final p = _pascal(featureName);
     final c = _camel(featureName);
+    final builderBody = featurePackageName != null
+        ? "(context, state) => lookupShellPage('$c')(context, state)"
+        : '(context, state) => const ${p}Page()';
     return '''  StatefulShellRoute.indexedStack(
     builder: (context, state, navigationShell) =>
         ScaffoldWithNavBar(navigationShell: navigationShell),
@@ -1920,7 +1941,10 @@ class ScaffoldWithNavBar extends StatelessWidget {
         routes: [
           GoRoute(
             path: AppRoutePath.$c,
-            builder: (context, state) => const ${p}Page(),
+            builder: $builderBody,
+            routes: [
+              // neat:children:$featureName
+            ],
           ),
         ],
       ),
@@ -1930,14 +1954,26 @@ class ScaffoldWithNavBar extends StatelessWidget {
   }
 
   /// A single `StatefulShellBranch` block, inserted at the branches anchor.
-  static String shellBranchPlain({required String featureName}) {
+  /// See [shellRouteEntryPlain]'s doc for [featurePackageName]/[corePackageName]
+  /// and the proactive children anchor.
+  static String shellBranchPlain({
+    required String featureName,
+    String? featurePackageName,
+    String? corePackageName,
+  }) {
     final p = _pascal(featureName);
     final c = _camel(featureName);
+    final builderBody = featurePackageName != null
+        ? "(context, state) => lookupShellPage('$c')(context, state)"
+        : '(context, state) => const ${p}Page()';
     return '''      StatefulShellBranch(
         routes: [
           GoRoute(
             path: AppRoutePath.$c,
-            builder: (context, state) => const ${p}Page(),
+            builder: $builderBody,
+            routes: [
+              // neat:children:$featureName
+            ],
           ),
         ],
       ),''';
@@ -1949,16 +1985,29 @@ class ScaffoldWithNavBar extends StatelessWidget {
   /// branch + anchors), created when the first shell branch is added.
   /// [featurePackageName] crosses into the split feature package instead of
   /// `features/<name>/` when packageSplit is on (see ROADMAP.md §6a).
+  /// [corePackageName] (required when [featurePackageName] is set): packageSplit
+  /// means this file can't import the branch's page directly without the app
+  /// depending on a page it doesn't otherwise need at aggregation time — the
+  /// branch registers itself into core's `shellPageBuilders` instead (see
+  /// [shellPageRegistry]), and `build()` looks it up via `lookupShellPage`
+  /// rather than constructing it directly. The nested `routes: [...]` clause
+  /// is always present (split or not) so the Workshop can later nest a
+  /// sub-route under this branch via `// neat:typed-children:<feature>`, the
+  /// same anchor a normal top-level feature's own children already use.
   static String appShellRouteBuilder({
     required String packageName,
     required String featureName,
     String? featurePackageName,
+    String? corePackageName,
   }) {
     final p = _pascal(featureName);
     final c = _camel(featureName);
-    final pageImport = featurePackageName != null
-        ? "import 'package:$featurePackageName/presentation/pages/${featureName}_page.dart';"
+    final usesRegistry = featurePackageName != null;
+    final pageImport = usesRegistry
+        ? "import 'package:${corePackageName!}/core/router/shell_page_registry.dart';"
         : "import 'package:$packageName/features/$featureName/presentation/pages/${featureName}_page.dart';";
+    final buildBody =
+        usesRegistry ? "lookupShellPage('$c')(context, state)" : 'const ${p}Page()';
     return '''import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:$packageName/core/constants/app_route_path.dart';
@@ -1972,7 +2021,12 @@ part 'app_shell_route.g.dart';
   branches: [
     TypedStatefulShellBranch<${p}BranchData>(
       routes: [
-        TypedGoRoute<${p}Route>(path: AppRoutePath.$c),
+        TypedGoRoute<${p}Route>(
+          path: AppRoutePath.$c,
+          routes: [
+            // neat:typed-children:$featureName
+          ],
+        ),
       ],
     ),
     // neat:shell-branches
@@ -1998,27 +2052,45 @@ class ${p}Route extends GoRouteData with \$${p}Route {
   const ${p}Route();
 
   @override
-  Widget build(BuildContext context, GoRouterState state) => const ${p}Page();
+  Widget build(BuildContext context, GoRouterState state) => $buildBody;
 }
 // neat:shell-classes
 ''';
   }
 
-  /// A single `TypedStatefulShellBranch` block, inserted at the branches anchor.
+  /// A single `TypedStatefulShellBranch` block, inserted at the branches
+  /// anchor. The nested `routes: [...]` clause is always present so the
+  /// Workshop can later nest a sub-route under this branch (see
+  /// [appShellRouteBuilder]'s doc).
   static String shellBranchBuilder({required String featureName}) {
     final p = _pascal(featureName);
     final c = _camel(featureName);
     return '''    TypedStatefulShellBranch<${p}BranchData>(
       routes: [
-        TypedGoRoute<${p}Route>(path: AppRoutePath.$c),
+        TypedGoRoute<${p}Route>(
+          path: AppRoutePath.$c,
+          routes: [
+            // neat:typed-children:$featureName
+          ],
+        ),
       ],
     ),''';
   }
 
   /// The branch's `BranchData` + `GoRouteData` classes, inserted at the classes
   /// anchor (the builder generates the `\$<Feature>Route` mixin from the tree).
-  static String shellBranchClassesBuilder({required String featureName}) {
+  /// [featurePackageName]/[corePackageName]: packageSplit — see
+  /// [appShellRouteBuilder]'s doc for why `build()` looks up the page in
+  /// core's registry instead of constructing it directly.
+  static String shellBranchClassesBuilder({
+    required String featureName,
+    String? featurePackageName,
+    String? corePackageName,
+  }) {
     final p = _pascal(featureName);
+    final c = _camel(featureName);
+    final buildBody =
+        featurePackageName != null ? "lookupShellPage('$c')(context, state)" : 'const ${p}Page()';
     return '''class ${p}BranchData extends StatefulShellBranchData {
   const ${p}BranchData();
 }
@@ -2027,7 +2099,62 @@ class ${p}Route extends GoRouteData with \$${p}Route {
   const ${p}Route();
 
   @override
-  Widget build(BuildContext context, GoRouterState state) => const ${p}Page();
+  Widget build(BuildContext context, GoRouterState state) => $buildBody;
+}
+''';
+  }
+
+  // ── core/router/shell_page_registry.dart (packageSplit shell registry) ────
+
+  /// packageSplit + shell branches (and children nested under one — see
+  /// `GenerateFeatureUsecase`'s shell-child wiring): `app_shell_route.dart`/
+  /// `routes.dart` live in the app, and importing every branch package's page
+  /// directly there works (app→feature is always allowed, see ROADMAP.md
+  /// §6a), but each branch instead registers itself here — mirrors
+  /// `chopperModelDecoders`' exact shape (see [chopperModelConverter]): a
+  /// plain top-level `Map`, not GetIt, not a DI container. [featureName]/
+  /// [featurePackageName] seed a witness entry (the first shell branch) so
+  /// the registry is never pointlessly empty when written at generation
+  /// time — both null for the Workshop-only self-heal path (an existing
+  /// project gaining its shell page registry retroactively has no single
+  /// "first" branch to seed with).
+  static String shellPageRegistry({
+    required String packageName,
+    String? featurePackageName,
+    String? featureName,
+  }) {
+    final hasWitness = featureName != null && featurePackageName != null;
+    final witnessImport =
+        hasWitness ? "import 'package:$featurePackageName/presentation/pages/${featureName}_page.dart';\n" : '';
+    final witnessEntry =
+        hasWitness ? "  '${_camel(featureName)}': (context, state) => const ${_pascal(featureName)}Page(),\n" : '';
+    return '''import 'package:flutter/widgets.dart';
+import 'package:go_router/go_router.dart';
+$witnessImport// neat:shell-page-imports
+
+typedef ShellPageBuilder = Widget Function(BuildContext, GoRouterState);
+
+/// Maps each shell-branch (or shell-branch-child) feature's route key —
+/// its camelCase feature name, matching `AppRoutePath`'s own naming
+/// convention — to its page builder. Populated by each feature's own
+/// `register<Feature>ShellPage()`, called once from `bootstrap()` before
+/// `runApp` (see `// neat:shell-register-imports`/`-calls`).
+final Map<String, ShellPageBuilder> shellPageBuilders = {
+$witnessEntry  // neat:shell-page-builders
+};
+
+/// Looks up a registered shell page builder, throwing a clear error instead
+/// of a bare null-check crash if a feature's `register<Feature>ShellPage()`
+/// was never wired into `bootstrap()`.
+ShellPageBuilder lookupShellPage(String key) {
+  final builder = shellPageBuilders[key];
+  if (builder == null) {
+    throw StateError(
+      'No shell page registered for "\$key". Did bootstrap() call '
+      'register<Feature>ShellPage() for this branch/child?',
+    );
+  }
+  return builder;
 }
 ''';
   }

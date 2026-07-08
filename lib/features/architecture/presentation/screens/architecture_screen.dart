@@ -171,16 +171,6 @@ class ArchitectureScreen extends ConsumerWidget {
                         value: state.includeMappers,
                         onChanged: notifier.toggleMappers,
                       ),
-                      const SizedBox(height: 8),
-                      if (hasRiverpod)
-                        ToggleTile(
-                          title: 'Use @riverpod annotation syntax',
-                          description: state.useRiverpodAnnotations
-                              ? 'Génère `@riverpod class MyNotifier extends _\$MyNotifier` (code-gen via build_runner).'
-                              : 'Génère `class MyNotifier extends Notifier<T>` + `NotifierProvider` à la main — pas de build_runner pour l\'état, mais pas de liste/CRUD witness (voir ROADMAP.md).',
-                          value: state.useRiverpodAnnotations,
-                          onChanged: notifier.toggleRiverpodAnnotations,
-                        ),
 
                       const SizedBox(height: 28),
                       SectionHeader(icon: Icons.cloud_off_outlined, label: 'Storage Strategy'),
@@ -275,10 +265,7 @@ class ArchitectureScreen extends ConsumerWidget {
 
                       if (hasBackend && hasRiverpod) ...[
                         const SizedBox(height: 28),
-                        SectionHeader(
-                          icon: Icons.cloud_outlined,
-                          label: 'Backend ($backendLabel)',
-                        ),
+                        SectionHeader(icon: Icons.cloud_outlined, label: 'Backend ($backendLabel)'),
                         const SizedBox(height: 12),
                         // Backend credentials (URLs / keys / Firebase config) live
                         // on the Dependencies screen now.
@@ -311,10 +298,7 @@ class ArchitectureScreen extends ConsumerWidget {
                       // Backend/Navigation provider, not an architecture-layer
                       // concern.
                       const SizedBox(height: 28),
-                      SectionHeader(
-                        icon: Icons.bug_report_outlined,
-                        label: 'Testing Architecture',
-                      ),
+                      SectionHeader(icon: Icons.bug_report_outlined, label: 'Testing Architecture'),
                       const SizedBox(height: 12),
                       ToggleTile(
                         title: 'Mirror Structure in /test',
@@ -477,7 +461,6 @@ class _FeatureNameFieldState extends State<_FeatureNameField> {
     );
   }
 }
-
 
 // ── Pattern card ──────────────────────────────────────────────────────────────
 

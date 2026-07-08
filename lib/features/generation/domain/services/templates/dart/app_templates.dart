@@ -50,6 +50,17 @@ void main() => $call;
     // its own registration the same way the router aggregator's anchors do.
     String? chopperRegisterFeaturePackage,
     String? chopperRegisterFeatureName,
+    // packageSplit + shell branch: the split branch's page can't be
+    // imported by app_shell_route.dart/routes.dart directly — it registers
+    // itself into core's shellPageBuilders instead, called here before
+    // runApp, same anchor mechanism as chopper's registration above. Single
+    // nullable pair (not a list): bootstrap.dart is written once at wizard
+    // time, seeding at most the first shell branch; every subsequent
+    // branch/child is wired via the Workshop's own anchor-insertion
+    // (_registerShellPageSplit), mirroring chopperRegisterFeaturePackage's
+    // own "seed the first, anchor-insert the rest" shape.
+    String? shellRegisterFeaturePackage,
+    String? shellRegisterFeatureName,
     // packageSplit: AppLogger is a stateless utility (unlike
     // theme_mode_controller, no singleton-sharing correctness issue either
     // way), but the app no longer writes its own copy when split — so this
@@ -63,6 +74,7 @@ void main() => $call;
     bool bridgesApiBaseUrl = false,
   }) {
     final registersChopper = chopperRegisterFeaturePackage != null;
+    final registersShell = shellRegisterFeaturePackage != null;
     final imports = StringBuffer()
       ..writeln("import 'dart:async';")
       ..writeln()
@@ -113,6 +125,12 @@ void main() => $call;
             "import 'package:$chopperRegisterFeaturePackage/data/repositories/${chopperRegisterFeatureName}_repository_providers.dart';")
         ..writeln('// neat:chopper-register-imports');
     }
+    if (registersShell) {
+      imports
+        ..writeln(
+            "import 'package:$shellRegisterFeaturePackage/presentation/routes/${shellRegisterFeatureName}_shell_registration.dart';")
+        ..writeln('// neat:shell-register-imports');
+    }
 
     final sig =
         useEnvied ? 'Future<void> bootstrap(AppEnv env) async' : 'Future<void> bootstrap() async';
@@ -155,12 +173,16 @@ void main() => $call;
         ? '\n      register${pascal(chopperRegisterFeatureName!)}ChopperDecoders();'
             '\n      // neat:chopper-register-calls'
         : '';
+    final shellRegisterCalls = registersShell
+        ? '\n      register${pascal(shellRegisterFeatureName!)}ShellPage();'
+            '\n      // neat:shell-register-calls'
+        : '';
 
     return '''${imports.toString()}
 $docComment$sig {
 $setEnv  await runZonedGuarded(
     () async {
-      WidgetsFlutterBinding.ensureInitialized();$chopperRegisterCalls
+      WidgetsFlutterBinding.ensureInitialized();$chopperRegisterCalls$shellRegisterCalls
       registerErrorHandler();$pathUrl$i18nInit$firebaseInit$supaInit
       runApp($root);
     },

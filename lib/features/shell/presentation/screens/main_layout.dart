@@ -18,6 +18,7 @@ import 'package:neat/features/shell/presentation/providers/stepper_provider.dart
 import 'package:neat/features/shell/presentation/screens/launch_screen.dart';
 import 'package:neat/features/theme_engine/domain/models/theme_engine_state.dart';
 import 'package:neat/features/theme_engine/presentation/providers/theme_engine_provider.dart';
+import 'package:neat/features/theme_engine/presentation/providers/theme_engine_tab_provider.dart';
 import 'package:neat/features/theme_engine/presentation/screens/theme_engine_screen.dart';
 import 'package:neat_ui/neat_ui.dart';
 
@@ -102,6 +103,36 @@ class MainLayout extends ConsumerWidget {
                 // Wizard steps (featureGen / Workshop is reached from the Hub).
                 _buildItem(ref, NeatStep.identity, 'IDENTITY', Icons.fingerprint_outlined),
                 _buildItem(ref, NeatStep.themeEngine, 'THEME ENGINE', Icons.palette_outlined),
+                // Sub-tabs only apply to the Custom M3 editor (FlexColorScheme
+                // and the entry point have no sub-tabs of their own).
+                if (currentStep == NeatStep.themeEngine &&
+                    ref.watch(themeEngineProvider.select((s) => s.approach)) ==
+                        ThemeApproach.customM3) ...[
+                  Column(
+                    crossAxisAlignment: .start,
+                    children: [
+                      _buildThemeEngineSubItem(ref, ThemeEngineTab.colors, 'COLORS'),
+                      _buildThemeEngineSubItem(ref, ThemeEngineTab.typography, 'TYPOGRAPHY'),
+                      _buildThemeEngineSubItem(
+                        ref,
+                        ThemeEngineTab.buttonsShapes,
+                        'BUTTONS & SHAPES',
+                      ),
+                      _buildThemeEngineSubItem(ref, ThemeEngineTab.icons, 'COMPONENTS & ICONS'),
+                    ],
+                  ),
+                ],
+                if (currentStep == NeatStep.themeEngine &&
+                    ref.watch(themeEngineProvider.select((s) => s.approach)) ==
+                        ThemeApproach.flexColorScheme) ...[
+                  Column(
+                    crossAxisAlignment: .start,
+                    children: [
+                      _buildThemeEngineSubItem(ref, ThemeEngineTab.colors, 'PLAYGROUND'),
+                      _buildThemeEngineSubItem(ref, ThemeEngineTab.icons, 'COMPONENTS & ICONS'),
+                    ],
+                  ),
+                ],
                 _buildItem(
                   ref,
                   NeatStep.infrastructure,
@@ -276,6 +307,35 @@ class MainLayout extends ConsumerWidget {
     );
   }
 
+  /// A sub-item nested under [NeatStep.themeEngine] (Custom M3 only — see
+  /// its call site). Mirrors [_buildSubItem] exactly.
+  Widget _buildThemeEngineSubItem(WidgetRef ref, ThemeEngineTab tab, String label) {
+    final current = ref.watch(currentThemeEngineTabProvider);
+    final isSelected = current == tab;
+
+    return InkWell(
+      onTap: () => ref.read(currentThemeEngineTabProvider.notifier).setTab(tab),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        margin: const .fromLTRB(28, 1, 12, 1),
+        padding: const .symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? Palette.colorPrimaryCyan.withValues(alpha: 0.06) : Colors.transparent,
+          borderRadius: .circular(6),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? Palette.colorPrimaryCyan : Colors.grey[600],
+            fontSize: 11,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            letterSpacing: 0.6,
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _screenFor(NeatStep step) {
     return switch (step) {
       NeatStep.identity => const IdentityScreen(),
@@ -324,6 +384,17 @@ class _NavBar extends ConsumerWidget {
     InfrastructureTab.localization,
   ];
 
+  static final _themeTabs = [
+    ThemeEngineTab.colors,
+    ThemeEngineTab.typography,
+    ThemeEngineTab.buttonsShapes,
+    ThemeEngineTab.icons,
+  ];
+
+  // FlexColorScheme only has 2 sub-tabs (PLAYGROUND / COMPONENTS & ICONS) —
+  // no typography/buttons-shapes split, unlike Custom M3.
+  static final _themeTabsFlex = [ThemeEngineTab.colors, ThemeEngineTab.icons];
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final notifier = ref.read(currentStepProvider.notifier);
@@ -340,6 +411,22 @@ class _NavBar extends ConsumerWidget {
     final infraTabIndex = infraTab == null ? -1 : _infraTabs.indexOf(infraTab);
     final infraTabNotifier = ref.read(currentInfrastructureTabProvider.notifier);
 
+    // Same idea for Theme Engine's sub-tabs — Custom M3 has 4 (colors,
+    // typography, buttons & shapes, icons), FlexColorScheme has 2 (playground,
+    // components & icons); the entry point (no approach picked yet) has none.
+    final themeApproach = step == NeatStep.themeEngine
+        ? ref.watch(themeEngineProvider.select((s) => s.approach))
+        : null;
+    final activeThemeTabs = themeApproach == ThemeApproach.flexColorScheme
+        ? _themeTabsFlex
+        : _themeTabs;
+    final themeTab =
+        themeApproach == ThemeApproach.customM3 || themeApproach == ThemeApproach.flexColorScheme
+        ? ref.watch(currentThemeEngineTabProvider)
+        : null;
+    final themeTabIndex = themeTab == null ? -1 : activeThemeTabs.indexOf(themeTab);
+    final themeTabNotifier = ref.read(currentThemeEngineTabProvider.notifier);
+
     final bool canGoNext = _isStepValid(step, ref);
 
     // Launch: Back is locked while generation runs
@@ -351,6 +438,10 @@ class _NavBar extends ConsumerWidget {
     void goNext() {
       if (infraTab != null && infraTabIndex < _infraTabs.length - 1) {
         infraTabNotifier.setTab(_infraTabs[infraTabIndex + 1]);
+        return;
+      }
+      if (themeTab != null && themeTabIndex < activeThemeTabs.length - 1) {
+        themeTabNotifier.setTab(activeThemeTabs[themeTabIndex + 1]);
         return;
       }
       // Lazy: add flex dep here if user chose FlexColorScheme
@@ -379,11 +470,18 @@ class _NavBar extends ConsumerWidget {
         infraTabNotifier.setTab(_infraTabs[infraTabIndex - 1]);
         return;
       }
+      if (themeTab != null && themeTabIndex > 0) {
+        themeTabNotifier.setTab(activeThemeTabs[themeTabIndex - 1]);
+        return;
+      }
       if (prev != null) notifier.setStep(prev);
     }
 
-    final showBack = prev != null || infraTabIndex > 0;
-    final showNext = next != null || (infraTab != null && infraTabIndex < _infraTabs.length - 1);
+    final showBack = prev != null || infraTabIndex > 0 || themeTabIndex > 0;
+    final showNext =
+        next != null ||
+        (infraTab != null && infraTabIndex < _infraTabs.length - 1) ||
+        (themeTab != null && themeTabIndex < activeThemeTabs.length - 1);
 
     return Container(
       padding: const .fromLTRB(40, 16, 40, 24),

@@ -83,6 +83,15 @@ class FeatureScaffolder {
     // list off of).
     bool useCustomEndpoints = false,
     List<EndpointSpec> endpoints = const [],
+    // packageSplit + shell branch, or a child nested under one (see
+    // ROADMAP.md §6a): app_shell_route.dart/routes.dart can't import this
+    // feature's page directly without the app depending on a page it
+    // doesn't otherwise need at aggregation time, so it self-registers into
+    // core's shellPageBuilders instead. Independent of isChildRoute/
+    // isShellBranch's routes-file gate above — a shell branch/child skips
+    // <f>_routes.dart but gains <f>_shell_registration.dart instead, when
+    // packageSplit.
+    bool needsShellRegistration = false,
   }) async {
     // The project ships a Drift package → any local source is Drift-backed.
     final localIsDrift = localStoragePackage != null;
@@ -386,6 +395,19 @@ class FeatureScaffolder {
         PresentationTemplates.featureRoute(
           featureName: featureName,
           useBuilder: false,
+        ),
+      );
+    }
+
+    // presentation/routes/<f>_shell_registration.dart — packageSplit shell
+    // self-registration (see needsShellRegistration's doc). Additive: never
+    // interacts with the routes-file gate just above.
+    if (needsShellRegistration && packageSplit && corePackageName != null) {
+      await _write(
+        '$presentationBase/routes/${featureName}_shell_registration.dart',
+        PresentationTemplates.featureShellRegistration(
+          featureName: featureName,
+          corePackageName: corePackageName,
         ),
       );
     }

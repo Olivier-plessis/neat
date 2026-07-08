@@ -1801,6 +1801,335 @@ void main() {
   );
 
   test(
+    'packageSplit=true + go_router_builder + shell branches + a nested child '
+    '(§7): the app never imports a branch/child page directly — every '
+    'shell-owned page routes through core\'s shell page registry instead — '
+    'and a child can be nested under a shell branch at all (real bug: the '
+    'old child-route wiring silently no-op\'d for a shell-branch parent)',
+    () async {
+      const projectName = 'neat_pkgsplit_shell_registry_test';
+      final logs = <String>[];
+      final builderPackages = <PubPackage>[
+        _dep('hooks_riverpod', '3.3.1'),
+        _dep('flutter_hooks', '0.21.3+1'),
+        _dep('riverpod_annotation', '4.0.2'),
+        _dep('json_annotation', '4.11.0'),
+        _dep('freezed_annotation', '3.1.0'),
+        _dep('dio', '5.9.2'),
+        _dep('go_router', '17.2.3'),
+        _dev('go_router_builder', '4.3.0'),
+        _dev('riverpod_generator', '4.0.3'),
+        _dev('riverpod_lint', '3.1.3'),
+        _dev('json_serializable', '6.13.0'),
+        _dev('build_runner', '2.15.0'),
+        _dev('freezed', '3.2.5'),
+      ];
+
+      final identity = IdentityState(
+        name: projectName,
+        organization: 'com.neat.test',
+        projectPath: tempRoot.path,
+        description: 'NEAT packageSplit + shell page registry integration test',
+        targetPlatforms: const ['macos'],
+      );
+      // packageSplit + shell: the wizard's own first feature ('product')
+      // becomes the shell's first branch.
+      const architecture = ArchitectureState(
+        packageSplit: true,
+        firstFeatureName: 'product',
+        useNavigationShell: true,
+        shellIcon: 'shopping_bag',
+        shellLabel: 'Product',
+      );
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: identity,
+          packages: builderPackages,
+          architecture: architecture,
+          cicd: const CicdState(),
+          theme: const ThemeEngineState(approach: ThemeApproach.customM3),
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('Base generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+      String read(String p) => File(p).readAsStringSync();
+
+      // The core package already ships the registry after the wizard's own
+      // first shell branch — seeded with 'product' as a witness.
+      final registryPath = '${projectDir.path}/packages/core/lib/core/router/shell_page_registry.dart';
+      expect(File(registryPath).existsSync(), isTrue, reason: 'shell_page_registry.dart missing');
+      expect(read(registryPath), contains('final Map<String, ShellPageBuilder> shellPageBuilders = {'));
+      expect(read(registryPath), contains('ShellPageBuilder lookupShellPage(String key)'));
+
+      final shellRoutePath = '${projectDir.path}/lib/core/router/app_shell_route.dart';
+      expect(
+        read(shellRoutePath),
+        contains("import 'package:core/core/router/shell_page_registry.dart';"),
+      );
+      expect(read(shellRoutePath), contains("lookupShellPage('product')(context, state)"));
+      expect(
+        read(shellRoutePath),
+        isNot(contains("import 'package:product/presentation/pages/product_page.dart';")),
+        reason: 'the app must never import a packageSplit shell branch\'s page directly',
+      );
+
+      // 'product' (the first branch) self-registers, and bootstrap.dart calls it.
+      final productRegPath =
+          '${projectDir.path}/packages/product/lib/presentation/routes/product_shell_registration.dart';
+      expect(File(productRegPath).existsSync(), isTrue);
+      expect(read(productRegPath), contains('void registerProductShellPage()'));
+      expect(read(productRegPath), contains("shellPageBuilders['product'] = "));
+      final bootstrapPath = '${projectDir.path}/lib/core/bootstrap.dart';
+      expect(
+        read(bootstrapPath),
+        contains(
+          "import 'package:product/presentation/routes/product_shell_registration.dart';",
+        ),
+      );
+      expect(read(bootstrapPath), contains('registerProductShellPage();'));
+
+      // ── Add 'users' as a second shell branch via the Workshop ──────────────
+      var project = await const ProjectLoader().load(projectDir.path);
+      expect(project!.contract.packageSplit, isTrue);
+      await const GenerateFeatureUsecase().execute(
+        project: project,
+        options: const FeatureGenOptions(
+          name: 'users',
+          routing: FeatureRouting.shell,
+          shellIcon: 'people',
+          shellLabel: 'Users',
+        ),
+        onLog: logs.add,
+      );
+
+      expect(read(shellRoutePath), contains("lookupShellPage('users')(context, state)"));
+      expect(
+        read(shellRoutePath),
+        isNot(contains("import 'package:users/presentation/pages/users_page.dart';")),
+      );
+      final usersRegPath =
+          '${projectDir.path}/packages/users/lib/presentation/routes/users_shell_registration.dart';
+      expect(File(usersRegPath).existsSync(), isTrue);
+      expect(read(bootstrapPath), contains('registerUsersShellPage();'));
+      // Both branches carry their own proactive children anchor, ready for a
+      // sub-route to be nested under either one later.
+      expect(read(shellRoutePath), contains('// neat:typed-children:product'));
+      expect(read(shellRoutePath), contains('// neat:typed-children:users'));
+
+      // ── Nest 'reviews' as a child under the 'product' shell branch ──────────
+      // The real bug this closes: the pre-fix child-route wiring assumed
+      // every parent had its own <parent>_routes.dart — a shell branch never
+      // does (its route lives in app_shell_route.dart instead), so this
+      // silently no-op'd, generating 'reviews' without ever wiring its route.
+      project = await const ProjectLoader().load(projectDir.path);
+      await const GenerateFeatureUsecase().execute(
+        project: project!,
+        options: const FeatureGenOptions(
+          name: 'reviews',
+          routing: FeatureRouting.child,
+          parentFeature: 'product',
+        ),
+        onLog: logs.add,
+      );
+
+      final shellRouteContent = read(shellRoutePath);
+      expect(shellRouteContent, contains("TypedGoRoute<ReviewsRoute>(path: 'reviews')"));
+      expect(shellRouteContent, contains(r'class ReviewsRoute extends GoRouteData with $ReviewsRoute'));
+      expect(shellRouteContent, contains("lookupShellPage('reviews')(context, state)"));
+      expect(
+        shellRouteContent,
+        isNot(contains("import 'package:reviews/presentation/pages/reviews_page.dart';")),
+      );
+      // The child sits under 'product's own anchor, not 'users'.
+      final anchorIdx = shellRouteContent.indexOf('// neat:typed-children:product');
+      final childIdx = shellRouteContent.indexOf("TypedGoRoute<ReviewsRoute>(path: 'reviews')");
+      expect(childIdx, lessThan(anchorIdx));
+
+      final reviewsRegPath =
+          '${projectDir.path}/packages/reviews/lib/presentation/routes/reviews_shell_registration.dart';
+      expect(File(reviewsRegPath).existsSync(), isTrue);
+      expect(read(bootstrapPath), contains('registerReviewsShellPage();'));
+
+      // The child never gets its own standalone routes file (its route
+      // lives in the shell's tree, like any other shell branch/child).
+      expect(
+        File('${projectDir.path}/packages/reviews/lib/presentation/routes/reviews_routes.dart')
+            .existsSync(),
+        isFalse,
+      );
+
+      // AppRoutePath gained the nested '/product/reviews' constant, both in
+      // the app's own copy and core's mirrored copy.
+      expect(
+        read('${projectDir.path}/lib/core/constants/app_route_path.dart'),
+        contains("static const String reviews = '/product/reviews';"),
+      );
+      expect(
+        read('${projectDir.path}/packages/core/lib/core/constants/app_route_path.dart'),
+        contains("static const String reviews = '/product/reviews';"),
+      );
+
+      // No cross-feature-package dependency needed: the child was never
+      // imported by 'product's own package, only registered — so 'product'
+      // never gains a path: dependency on 'reviews' (unlike the normal
+      // top-level-parent child-route case, see the packageSplit + child
+      // route test above).
+      expect(
+        read('${projectDir.path}/packages/product/pubspec.yaml'),
+        isNot(contains('reviews:')),
+      );
+      // The root workspace still wires 'reviews' in, same as any new feature.
+      expect(read('${projectDir.path}/pubspec.yaml'), contains('- packages/reviews'));
+
+      // The whole (now 5-package) workspace analyzes cleanly — proves the
+      // $ReviewsRoute mixin generated correctly from app_shell_route.dart's
+      // own build_runner pass (a cross-package codegen dependency direction
+      // not exercised before this feature).
+      final analyze = await Process.run(
+        'flutter',
+        ['analyze', '--no-pub'],
+        workingDirectory: projectDir.path,
+      );
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      expect(
+        RegExp(r'(\d+ issues? found|No issues found)').hasMatch(out),
+        isTrue,
+        reason: 'flutter analyze did not run as expected:\n$out',
+      );
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason: 'flutter analyze reported errors:\n${errorLines.join('\n')}\n\n'
+            '--- full analyze output ---\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
+
+  test(
+    'packageSplit=true + plain go_router (not builder) + shell branch + a '
+    'nested child (§7): same registry decoupling + sub-route support as the '
+    'go_router_builder case above, via routes.dart\'s embedded '
+    'StatefulShellRoute instead of a typed app_shell_route.dart',
+    () async {
+      const projectName = 'neat_pkgsplit_shell_registry_plain_test';
+      final logs = <String>[];
+      final plainPackages = <PubPackage>[
+        _dep('hooks_riverpod', '3.3.1'),
+        _dep('flutter_hooks', '0.21.3+1'),
+        _dep('riverpod_annotation', '4.0.2'),
+        _dep('json_annotation', '4.11.0'),
+        _dep('freezed_annotation', '3.1.0'),
+        _dep('dio', '5.9.2'),
+        _dep('go_router', '17.2.3'),
+        _dev('riverpod_generator', '4.0.3'),
+        _dev('riverpod_lint', '3.1.3'),
+        _dev('json_serializable', '6.13.0'),
+        _dev('build_runner', '2.15.0'),
+        _dev('freezed', '3.2.5'),
+      ];
+
+      final identity = IdentityState(
+        name: projectName,
+        organization: 'com.neat.test',
+        projectPath: tempRoot.path,
+        description: 'NEAT packageSplit + plain shell page registry integration test',
+        targetPlatforms: const ['macos'],
+      );
+      const architecture = ArchitectureState(
+        packageSplit: true,
+        firstFeatureName: 'product',
+        useNavigationShell: true,
+        shellIcon: 'shopping_bag',
+        shellLabel: 'Product',
+      );
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: identity,
+          packages: plainPackages,
+          architecture: architecture,
+          cicd: const CicdState(),
+          theme: const ThemeEngineState(approach: ThemeApproach.customM3),
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('Base generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+      String read(String p) => File(p).readAsStringSync();
+      final routesPath = '${projectDir.path}/lib/core/router/routes.dart';
+
+      expect(read(routesPath), contains("lookupShellPage('product')(context, state)"));
+      expect(
+        read(routesPath),
+        isNot(contains("import 'package:product/presentation/pages/product_page.dart';")),
+      );
+      expect(read(routesPath), contains('// neat:children:product'));
+
+      // Add 'reviews' as a child of the 'product' shell branch.
+      final project = await const ProjectLoader().load(projectDir.path);
+      expect(project!.contract.packageSplit, isTrue);
+      await const GenerateFeatureUsecase().execute(
+        project: project,
+        options: const FeatureGenOptions(
+          name: 'reviews',
+          routing: FeatureRouting.child,
+          parentFeature: 'product',
+        ),
+        onLog: logs.add,
+      );
+
+      final routesContent = read(routesPath);
+      expect(routesContent, contains("path: 'reviews',"));
+      expect(routesContent, contains("lookupShellPage('reviews')(context, state)"));
+      expect(
+        routesContent,
+        isNot(contains("import 'package:reviews/presentation/pages/reviews_page.dart';")),
+      );
+      final reviewsRegPath =
+          '${projectDir.path}/packages/reviews/lib/presentation/routes/reviews_shell_registration.dart';
+      expect(File(reviewsRegPath).existsSync(), isTrue);
+      expect(
+        read('${projectDir.path}/lib/core/bootstrap.dart'),
+        contains('registerReviewsShellPage();'),
+      );
+
+      final analyze = await Process.run(
+        'flutter',
+        ['analyze', '--no-pub'],
+        workingDirectory: projectDir.path,
+      );
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      expect(
+        RegExp(r'(\d+ issues? found|No issues found)').hasMatch(out),
+        isTrue,
+        reason: 'flutter analyze did not run as expected:\n$out',
+      );
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason: 'flutter analyze reported errors:\n${errorLines.join('\n')}\n\n'
+            '--- full analyze output ---\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
+
+  test(
     'packageSplit=true + offline-first: the split feature shares core\'s '
     'Drift db + connectivity, and the workspace analyzes cleanly',
     () async {
@@ -4168,8 +4497,18 @@ void main() {
 
       final shellRoute = File('${projectDir.path}/lib/core/router/app_shell_route.dart');
       expect(shellRoute.existsSync(), isTrue, reason: 'app_shell_route.dart missing');
-      expect(shellRoute.readAsStringSync(), contains('@TypedStatefulShellRoute<AppShellRouteData>'));
-      expect(shellRoute.readAsStringSync(), contains('TypedGoRoute<HomeRoute>(path: AppRoutePath.home)'));
+      final shellRouteContent = shellRoute.readAsStringSync();
+      expect(shellRouteContent, contains('@TypedStatefulShellRoute<AppShellRouteData>'));
+      expect(shellRouteContent, contains('TypedGoRoute<HomeRoute>('));
+      expect(shellRouteContent, contains('path: AppRoutePath.home'));
+      // Proactive children anchor (§7 sub-routes): present even though no
+      // child was ever added — lets the Workshop nest one later.
+      expect(shellRouteContent, contains('// neat:typed-children:home'));
+      // Non-split: the branch's page is imported/constructed directly, never
+      // through the shell page registry (that's packageSplit-only — see the
+      // packageSplit+shell+chopper test below).
+      expect(shellRouteContent, contains('const HomePage()'));
+      expect(shellRouteContent, isNot(contains('lookupShellPage')));
 
       // routes.dart aggregates the shell (not a flat first-feature route).
       final routesDart =

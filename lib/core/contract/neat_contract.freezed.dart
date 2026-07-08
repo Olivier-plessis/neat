@@ -25,12 +25,12 @@ mixin _$NeatContract {
 /// instead of full Bloc. Read by the Workshop's feature generator so a
 /// feature added later matches the project's existing choice.
  bool get useCubit; bool get extractUiPackage; bool get useScreenUtil; bool get hasEnvied; bool get hasFreezed; bool get hasJsonSerializable; bool get includeMappers; bool get mirrorTestStructure; bool get generateWidgetbook; bool get useNavigationShell; bool get generateAuth; bool get generateRealtime; bool get generateStorage; bool get generateOAuth; bool get generateI18n; List<String> get components;/// Modular Monorepo (see ROADMAP.md §6a): every feature lives in its own
-/// workspace package (`packages/<projectName>_<feature>/`) instead of a
-/// folder under `lib/features/`. Read by the Workshop's feature generator
-/// and project loader so a feature added later matches the project's
-/// existing structure. The shared core package is always named
-/// `<projectName>_core` — not stored separately, derived by convention
-/// (same convention the wizard itself uses).
+/// workspace package (`packages/<feature>/`) instead of a folder under
+/// `lib/features/`. Read by the Workshop's feature generator and project
+/// loader so a feature added later matches the project's existing
+/// structure. The shared core package is always named `core` — not
+/// stored separately, derived by convention (same convention the wizard
+/// itself uses).
  bool get packageSplit;
 /// Create a copy of NeatContract
 /// with the given fields replaced by the non-null parameter values.
@@ -294,12 +294,12 @@ class _NeatContract implements NeatContract {
 }
 
 /// Modular Monorepo (see ROADMAP.md §6a): every feature lives in its own
-/// workspace package (`packages/<projectName>_<feature>/`) instead of a
-/// folder under `lib/features/`. Read by the Workshop's feature generator
-/// and project loader so a feature added later matches the project's
-/// existing structure. The shared core package is always named
-/// `<projectName>_core` — not stored separately, derived by convention
-/// (same convention the wizard itself uses).
+/// workspace package (`packages/<feature>/`) instead of a folder under
+/// `lib/features/`. Read by the Workshop's feature generator and project
+/// loader so a feature added later matches the project's existing
+/// structure. The shared core package is always named `core` — not
+/// stored separately, derived by convention (same convention the wizard
+/// itself uses).
 @override@JsonKey() final  bool packageSplit;
 
 /// Create a copy of NeatContract

@@ -16,24 +16,32 @@ class I18nImporter {
   const I18nImporter();
 
   /// The locale columns of a compact CSV header (everything after the key
-  /// column). `key,en,fr` → `['en', 'fr']`. Empty when it can't be parsed.
+  /// column, excluding slang's `(comments)` column). `key,en,fr` →
+  /// `['en', 'fr']`; `key,(comments),en,fr` → `['en', 'fr']`. Empty when it
+  /// can't be parsed.
   static List<String> parseLocales(String csvContent) {
     final firstLine = const LineSplitter()
         .convert(csvContent)
         .firstWhere((l) => l.trim().isNotEmpty, orElse: () => '');
     final cols = firstLine.split(',').map((c) => c.trim()).toList();
     if (cols.length <= 1) return const [];
-    return cols.sublist(1).where((c) => c.isNotEmpty).toList();
+    return cols.sublist(1).where((c) => c.isNotEmpty && !c.startsWith('(')).toList();
   }
 
   /// slang.yaml pointing at the compact CSV. [baseLocale] must be one of the
   /// CSV's locale columns.
+  ///
+  /// `string_interpolation: braces` is required here — slang's own default
+  /// is Dart-style `$variable` interpolation, so without it a CSV cell like
+  /// `You have {n} messages` is copied verbatim (literal `{n}` at runtime)
+  /// instead of being recognized as the plural/placeholder variable.
   static String slangCsvConfig(String baseLocale) => '''base_locale: $baseLocale
 fallback_strategy: base_locale
 input_directory: lib/i18n
 input_file_pattern: .i18n.csv
 output_directory: lib/i18n
 output_file_name: strings.g.dart
+string_interpolation: braces
 ''';
 
   /// Places [csvContent] as the single source of translations under

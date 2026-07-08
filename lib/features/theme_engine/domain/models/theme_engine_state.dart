@@ -1,3 +1,4 @@
+import 'package:flex_color_scheme/flex_color_scheme.dart';
 import 'package:flutter/material.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
@@ -6,6 +7,16 @@ part 'theme_engine_state.freezed.dart';
 // ── Theme approach ─────────────────────────────────────────────────────────────
 
 enum ThemeApproach { none, customM3, flexColorScheme }
+
+/// Matches the `scheme: FlexScheme.xxx` argument the playground emits for
+/// every built-in palette — see [ThemeEngineState._parsedFlexScheme].
+final _flexSchemeNameRegex = RegExp(r'scheme:\s*FlexScheme\.(\w+)');
+
+/// Matches `FlexSubThemesData` radius fields — see
+/// [ThemeEngineState.filledButtonRadius]/[ThemeEngineState.outlinedButtonRadius].
+final _flexDefaultRadiusRegex = RegExp(r'defaultRadius:\s*(-?\d+(?:\.\d+)?)');
+final _flexFilledButtonRadiusRegex = RegExp(r'filledButtonRadius:\s*(-?\d+(?:\.\d+)?)');
+final _flexOutlinedButtonRadiusRegex = RegExp(r'outlinedButtonRadius:\s*(-?\d+(?:\.\d+)?)');
 
 // ── Design-system components (opt-in, generated into lib/components/) ─────────
 
@@ -228,6 +239,16 @@ abstract class ThemeEngineState with _$ThemeEngineState {
     Color? primaryOverride,
     Color? secondaryOverride,
     Color? tertiaryOverride,
+    // Every other swatch shown on the Colors tab — same override pattern,
+    // null = keep the seed-derived M3 default. Field names match
+    // ColorScheme's own (surfaceContainerHighest, not the UI's "surfaceHigh"
+    // label) so they can be passed straight to ColorScheme.copyWith below.
+    Color? primaryContainerOverride,
+    Color? surfaceContainerHighestOverride,
+    Color? onPrimaryOverride,
+    Color? onPrimaryContainerOverride,
+    Color? onSecondaryOverride,
+    Color? outlineOverride,
 
     // Shape / elevation (global)
     @Default(12.0) double containerRadius,
@@ -246,8 +267,6 @@ abstract class ThemeEngineState with _$ThemeEngineState {
 
     // FlexColorScheme
     String? flexColorSchemeCode,
-    @Default(13.0) double surfaceBlendLevel,
-    @Default(20.0) double onSurfaceBlendLevel,
 
     // Components
     /// Design-system components to generate into lib/components/ (opt-in).
@@ -278,23 +297,86 @@ abstract class ThemeEngineState with _$ThemeEngineState {
   /// Effective border radius for a button: override if set, else global.
   double effectiveRadius(ButtonConfig btn) => btn.radiusOverride ?? containerRadius;
 
+  /// Filled/outlined button radius shown in the Live Preview. Custom M3 uses
+  /// [effectiveRadius] as usual; FlexColorScheme instead best-effort-parses
+  /// the pasted `FlexSubThemesData(filledButtonRadius: ..., defaultRadius:
+  /// ...)` fields (same named-field approach as [_parsedFlexScheme]) so the
+  /// preview matches what was actually pasted instead of the Custom M3
+  /// button config, which FlexColorScheme users never touch.
+  double get filledButtonRadius => approach == ThemeApproach.flexColorScheme
+      ? _parsedFlexRadius(_flexFilledButtonRadiusRegex) ??
+            _parsedFlexRadius(_flexDefaultRadiusRegex) ??
+            containerRadius
+      : effectiveRadius(filledButton);
+
+  double get outlinedButtonRadius => approach == ThemeApproach.flexColorScheme
+      ? _parsedFlexRadius(_flexOutlinedButtonRadiusRegex) ??
+            _parsedFlexRadius(_flexDefaultRadiusRegex) ??
+            containerRadius
+      : effectiveRadius(outlinedButton);
+
+  double? _parsedFlexRadius(RegExp pattern) {
+    final code = flexColorSchemeCode;
+    if (code == null) return null;
+    return double.tryParse(pattern.firstMatch(code)?.group(1) ?? '');
+  }
+
   // ── Derived color schemes ─────────────────────────────────────────────────
 
-  ColorScheme get lightScheme => _applyOverrides(ColorScheme.fromSeed(seedColor: seedColor));
+  ColorScheme get lightScheme => approach == ThemeApproach.flexColorScheme
+      ? _flexScheme(Brightness.light)
+      : _applyOverrides(ColorScheme.fromSeed(seedColor: seedColor));
 
-  ColorScheme get darkScheme =>
-      _applyOverrides(ColorScheme.fromSeed(seedColor: seedColor, brightness: Brightness.dark));
+  ColorScheme get darkScheme => approach == ThemeApproach.flexColorScheme
+      ? _flexScheme(Brightness.dark)
+      : _applyOverrides(ColorScheme.fromSeed(seedColor: seedColor, brightness: Brightness.dark));
 
   ColorScheme get activeScheme => defaultBrightness == Brightness.dark ? darkScheme : lightScheme;
 
+  /// Best-effort Live Preview for a pasted FlexColorScheme export: only
+  /// recognizes the named-scheme form (`scheme: FlexScheme.xxx`, what the
+  /// playground emits for every built-in palette). Calls the real
+  /// FlexThemeData.light/dark so the preview matches FlexColorScheme's own
+  /// blending instead of a from-seed approximation. Falls back to Material
+  /// baseline when nothing's pasted yet, or the paste uses fully custom
+  /// inline colors instead of a named scheme (not parsed — see ROADMAP).
+  ColorScheme _flexScheme(Brightness brightness) {
+    final scheme = _parsedFlexScheme ?? FlexScheme.materialBaseline;
+    return brightness == Brightness.dark
+        ? FlexThemeData.dark(scheme: scheme).colorScheme
+        : FlexThemeData.light(scheme: scheme).colorScheme;
+  }
+
+  FlexScheme? get _parsedFlexScheme {
+    final code = flexColorSchemeCode;
+    if (code == null) return null;
+    final name = _flexSchemeNameRegex.firstMatch(code)?.group(1);
+    if (name == null) return null;
+    return FlexScheme.values.asNameMap()[name];
+  }
+
   ColorScheme _applyOverrides(ColorScheme base) {
-    if (primaryOverride == null && secondaryOverride == null && tertiaryOverride == null) {
+    if (primaryOverride == null &&
+        secondaryOverride == null &&
+        tertiaryOverride == null &&
+        primaryContainerOverride == null &&
+        surfaceContainerHighestOverride == null &&
+        onPrimaryOverride == null &&
+        onPrimaryContainerOverride == null &&
+        onSecondaryOverride == null &&
+        outlineOverride == null) {
       return base;
     }
     return base.copyWith(
       primary: primaryOverride,
       secondary: secondaryOverride,
       tertiary: tertiaryOverride,
+      primaryContainer: primaryContainerOverride,
+      surfaceContainerHighest: surfaceContainerHighestOverride,
+      onPrimary: onPrimaryOverride,
+      onPrimaryContainer: onPrimaryContainerOverride,
+      onSecondary: onSecondaryOverride,
+      outline: outlineOverride,
     );
   }
 
@@ -307,6 +389,18 @@ abstract class ThemeEngineState with _$ThemeEngineState {
   String? get secondaryOverrideHex => _hex(secondaryOverride);
 
   String? get tertiaryOverrideHex => _hex(tertiaryOverride);
+
+  String? get primaryContainerOverrideHex => _hex(primaryContainerOverride);
+
+  String? get surfaceContainerHighestOverrideHex => _hex(surfaceContainerHighestOverride);
+
+  String? get onPrimaryOverrideHex => _hex(onPrimaryOverride);
+
+  String? get onPrimaryContainerOverrideHex => _hex(onPrimaryContainerOverride);
+
+  String? get onSecondaryOverrideHex => _hex(onSecondaryOverride);
+
+  String? get outlineOverrideHex => _hex(outlineOverride);
 
   /// Semantic color hexes for code generation.
   String get accentColorHex => _hex(accentColor)!;
