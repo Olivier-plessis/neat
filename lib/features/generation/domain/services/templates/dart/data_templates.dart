@@ -1,5 +1,7 @@
+import 'package:neat/features/generation/domain/models/endpoint_spec.dart';
 import 'package:neat/features/generation/domain/models/field_spec.dart';
 import 'package:neat/features/generation/domain/services/templates/dart/_template_utils.dart';
+import 'package:neat/features/generation/domain/services/templates/dart/endpoint_templates.dart';
 import 'package:neat/features/generation/domain/services/templates/dart/field_codegen.dart';
 
 class DataTemplates {
@@ -428,6 +430,10 @@ class ${p}RepositoryImpl implements I${p}Repository {
     required String httpClient,
     bool realtime = false,
     String? apiPath,
+    // "Custom Endpoints" (ROADMAP.md §7 Phase 2): N arbitrary REST calls
+    // instead of the fixed 5-method CRUD shape below — chopper-only.
+    bool useCustomEndpoints = false,
+    List<EndpointSpec> endpoints = const [],
   }) {
     final p = pascal(featureName);
     // An absolute apiPath (e.g. https://fakestoreapi.com/products) overrides
@@ -435,6 +441,29 @@ class ${p}RepositoryImpl implements I${p}Repository {
     // their base URL when the request path is already absolute, so no second
     // HTTP client is needed to target a different host.
     final base = apiPath ?? '/${featureName}s';
+
+    if (useCustomEndpoints) {
+      // No shared resource path across arbitrary endpoints (unlike the CRUD
+      // shape below) — baseUrl stays empty, each method carries its own full
+      // path (see EndpointTemplates.apiSourceMethod).
+      final modelImports = endpoints
+          .where((e) => e.hasRequestBody || e.hasResponseBody)
+          .map((e) => "import '../models/${e.name}_model.dart';")
+          .join('\n');
+      final methods = endpoints.map(EndpointTemplates.apiSourceMethod).join('\n\n');
+      return '''import 'package:chopper/chopper.dart';
+$modelImports
+
+part '${featureName}_api_source.chopper.dart';
+
+@ChopperApi(baseUrl: '')
+abstract class ${p}ApiSource extends ChopperService {
+  static ${p}ApiSource create([ChopperClient? client]) => _\$${p}ApiSource(client);
+
+$methods
+}
+''';
+    }
 
     if (httpClient == 'chopper') {
       return '''import 'package:chopper/chopper.dart';

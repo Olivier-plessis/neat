@@ -156,4 +156,39 @@ void main() {
       expect(r.fields, FieldSpec.idName);
     });
   });
+
+  // requireId: false — ROADMAP.md §7 Phase 2 (custom endpoint request/response
+  // bodies have no natural id, unlike CRUD entities).
+  group('requireId: false (endpoint request/response bodies)', () {
+    test('no id is synthesised when the sample has none', () {
+      final r = sut.infer('{"token": "abc", "expiresAt": "2024-01-31T10:00:00Z"}', requireId: false);
+      expect(r.fields.any((f) => f.isId), isFalse);
+      expect(r.fields.any((f) => f.dartName == 'token'), isTrue);
+      expect(r.fields.any((f) => f.dartName == 'expiresAt'), isTrue);
+    });
+
+    test('a literal "id" field in the sample is still kept (just not forced)', () {
+      final r = sut.infer('{"id": 42, "token": "abc"}', requireId: false);
+      final id = r.fields.firstWhere((f) => f.dartName == 'id');
+      expect(id.isId, isTrue);
+      expect(id.dartType, 'String');
+    });
+
+    test('empty input falls back to an empty field list, not id/name', () {
+      final r = sut.infer('', requireId: false);
+      expect(r.fields, isEmpty);
+      expect(r.warnings, isEmpty);
+    });
+
+    test('invalid JSON falls back to an empty field list, not id/name', () {
+      final r = sut.infer('{not json', requireId: false);
+      expect(r.fields, isEmpty);
+      expect(r.warnings.single, contains('Invalid JSON'));
+    });
+
+    test('default requireId (unset) still guarantees an id — existing behavior untouched', () {
+      final r = sut.infer('{"token": "abc"}');
+      expect(r.fields.any((f) => f.isId), isTrue);
+    });
+  });
 }
