@@ -12,6 +12,7 @@ import 'package:neat/features/dependencies/domain/models/pub_package.dart';
 import 'package:neat/features/feature_gen/domain/models/feature_gen_options.dart';
 import 'package:neat/features/feature_gen/domain/services/project_loader.dart';
 import 'package:neat/features/feature_gen/domain/usecases/generate_feature_usecase.dart';
+import 'package:neat/features/generation/domain/models/endpoint_spec.dart';
 import 'package:neat/features/generation/domain/models/field_spec.dart';
 import 'package:neat/features/generation/domain/services/json_entity_inferencer.dart';
 import 'package:neat/features/generation/domain/usecases/launch_generation_usecase.dart';
@@ -1084,7 +1085,7 @@ void main() {
       // lib/src/ of its own — scanning every packages/*/lib/src/ is flaky
       // (filesystem listing order isn't guaranteed).
       final dbContent = File(
-        '${projectDir.path}/packages/${projectName}_local_storage/lib/src/database.dart',
+        '${projectDir.path}/packages/local_storage/lib/src/database.dart',
       ).readAsStringSync();
       expect(dbContent, contains('tables: ['));
       expect(dbContent, isNot(contains('Rows,')), reason: 'no feature table should exist');
@@ -1163,11 +1164,11 @@ void main() {
       }
 
       final projectDir = Directory('${tempRoot.path}/$projectName');
-      final coreRoot = '${projectDir.path}/packages/${projectName}_core';
+      final coreRoot = '${projectDir.path}/packages/core';
       String read(String p) => File(p).readAsStringSync();
 
       final corePubspec = read('$coreRoot/pubspec.yaml');
-      expect(corePubspec, contains('name: ${projectName}_core'));
+      expect(corePubspec, contains('name: core'));
       expect(corePubspec, contains('resolution: workspace'));
 
       final failure = read('$coreRoot/lib/core/error/failure.dart');
@@ -1175,11 +1176,11 @@ void main() {
 
       final result = read('$coreRoot/lib/core/result/result.dart');
       expect(result, contains('sealed class Result<T>'));
-      expect(result, contains("import 'package:${projectName}_core/core/error/failure.dart';"));
+      expect(result, contains("import 'package:core/core/error/failure.dart';"));
 
       final useCase = read('$coreRoot/lib/core/usecases/use_case.dart');
       expect(useCase, contains('abstract class UseCase<Params, T>'));
-      expect(useCase, contains("import 'package:${projectName}_core/core/network/network_error_handler.dart';"));
+      expect(useCase, contains("import 'package:core/core/network/network_error_handler.dart';"));
 
       final errorHandler = read('$coreRoot/lib/core/network/network_error_handler.dart');
       expect(errorHandler, contains('DioException'));
@@ -1198,14 +1199,14 @@ void main() {
       // ── Split first feature (Step 2a): packages/<app>_home/ ──────────────
       // architecture.generateFirstFeature defaults true, so packageSplit
       // also splits the default first feature ('home') into its own package.
-      final featureRoot = '${projectDir.path}/packages/${projectName}_home';
+      final featureRoot = '${projectDir.path}/packages/home';
 
       final featurePubspec = read('$featureRoot/pubspec.yaml');
-      expect(featurePubspec, contains('name: ${projectName}_home'));
+      expect(featurePubspec, contains('name: home'));
       expect(featurePubspec, contains('resolution: workspace'));
       expect(
         featurePubspec,
-        contains('${projectName}_core:\n    path: ../${projectName}_core'),
+        contains('core:\n    path: ../core'),
         reason: 'the feature package depends on core via a sibling path dep, never on the app',
       );
 
@@ -1222,17 +1223,17 @@ void main() {
       // The usecase crosses into core, not the app — Result/Failure/UseCase
       // live in the shared package, never duplicated per feature.
       final getUsecase = read('$featureRoot/lib/domain/usecases/get_home_usecase.dart');
-      expect(getUsecase, contains("import 'package:${projectName}_core/core/usecases/use_case.dart';"));
+      expect(getUsecase, contains("import 'package:core/core/usecases/use_case.dart';"));
       expect(getUsecase, isNot(contains('package:$projectName/')),
           reason: 'a split feature package must never import from the app — that would be a cycle');
 
       // The list page's Failure/theme toggle also cross into core, for the
       // same single-source-of-truth reason as the usecase above.
       final homePage = read('$featureRoot/lib/presentation/pages/home_page.dart');
-      expect(homePage, contains("import 'package:${projectName}_core/core/error/failure.dart';"));
+      expect(homePage, contains("import 'package:core/core/error/failure.dart';"));
       expect(
         homePage,
-        contains("import 'package:${projectName}_core/core/theme/theme_mode_controller.dart';"),
+        contains("import 'package:core/core/theme/theme_mode_controller.dart';"),
       );
       expect(homePage, isNot(contains('package:$projectName/')));
 
@@ -1250,16 +1251,16 @@ void main() {
       final routes = read('${projectDir.path}/lib/core/router/routes.dart');
       expect(
         routes,
-        contains("import 'package:${projectName}_home/presentation/pages/home_page.dart';"),
+        contains("import 'package:home/presentation/pages/home_page.dart';"),
       );
 
       // Root pubspec wires both packages into the workspace.
       final rootPubspec = read('${projectDir.path}/pubspec.yaml');
       expect(rootPubspec, contains('workspace:'));
-      expect(rootPubspec, contains('- packages/${projectName}_core'));
-      expect(rootPubspec, contains('- packages/${projectName}_home'));
-      expect(rootPubspec, contains('${projectName}_core:\n    path: packages/${projectName}_core'));
-      expect(rootPubspec, contains('${projectName}_home:\n    path: packages/${projectName}_home'));
+      expect(rootPubspec, contains('- packages/core'));
+      expect(rootPubspec, contains('- packages/home'));
+      expect(rootPubspec, contains('core:\n    path: packages/core'));
+      expect(rootPubspec, contains('home:\n    path: packages/home'));
 
       // The whole workspace (app + core + split feature) analyzes cleanly.
       final analyze = await Process.run(
@@ -1341,8 +1342,8 @@ void main() {
       }
 
       final projectDir = Directory('${tempRoot.path}/$projectName');
-      final coreRoot = '${projectDir.path}/packages/${projectName}_core';
-      final featureRoot = '${projectDir.path}/packages/${projectName}_home';
+      final coreRoot = '${projectDir.path}/packages/core';
+      final featureRoot = '${projectDir.path}/packages/home';
       String read(String p) => File(p).readAsStringSync();
 
       // Core's NetworkErrorHandler matches the actual client (chopper), not
@@ -1368,7 +1369,7 @@ void main() {
       final featurePubspec = read('$featureRoot/pubspec.yaml');
       expect(featurePubspec, contains('chopper: ^8.6.0'));
       expect(featurePubspec, contains('chopper_generator: ^8.6.2'));
-      expect(featurePubspec, contains('${projectName}_core:\n    path: ../${projectName}_core'));
+      expect(featurePubspec, contains('core:\n    path: ../core'));
 
       // The feature registers its own decoder — imports core's registry +
       // its own Model, never the app.
@@ -1379,13 +1380,13 @@ void main() {
       expect(
         repoProviders,
         contains(
-          "import 'package:${projectName}_core/core/network/chopper_model_converter.dart';",
+          "import 'package:core/core/network/chopper_model_converter.dart';",
         ),
       );
       expect(
         repoProviders,
         contains(
-          "import 'package:${projectName}_core/core/network/chopper_client_provider.dart';",
+          "import 'package:core/core/network/chopper_client_provider.dart';",
         ),
       );
       expect(repoProviders, isNot(contains('package:$projectName/')),
@@ -1400,7 +1401,7 @@ void main() {
       expect(
         bootstrap,
         contains(
-          "import 'package:${projectName}_home/data/repositories/home_repository_providers.dart';",
+          "import 'package:home/data/repositories/home_repository_providers.dart';",
         ),
       );
       expect(bootstrap, contains('registerHomeChopperDecoders();'));
@@ -1417,8 +1418,8 @@ void main() {
 
       // Root pubspec wires both packages into the workspace.
       final chopperRootPubspec = read('${projectDir.path}/pubspec.yaml');
-      expect(chopperRootPubspec, contains('- packages/${projectName}_core'));
-      expect(chopperRootPubspec, contains('- packages/${projectName}_home'));
+      expect(chopperRootPubspec, contains('- packages/core'));
+      expect(chopperRootPubspec, contains('- packages/home'));
 
       // The whole workspace (app + core + split feature) analyzes cleanly.
       final chopperAnalyze = await Process.run(
@@ -1441,6 +1442,111 @@ void main() {
         isEmpty,
         reason: 'flutter analyze reported errors:\n${chopperErrorLines.join('\n')}\n\n'
             '--- full analyze output ---\n$chopperOut',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
+
+  test(
+    'packageSplit=true + chopper + envied: the core package bridges '
+    'AppEnv.apiBaseUrl via ApiConfig (real bug: core cannot import AppEnv '
+    'itself), and the workspace analyzes cleanly',
+    () async {
+      const projectName = 'neat_gen_pkgsplit_chopper_envied_test';
+      final logs = <String>[];
+      // Same combo as the plain packageSplit+chopper test, plus envied — the
+      // combo that actually exercises the core package's client provider,
+      // which used to hardcode useEnvied: false unconditionally (found via a
+      // real project: every split feature's remote call hit an empty
+      // baseUrl, "Invalid argument(s): No host specified in URI ...").
+      final packages = <PubPackage>[
+        _dep('hooks_riverpod', '3.3.1'),
+        _dep('flutter_hooks', '0.21.3+1'),
+        _dep('riverpod_annotation', '4.0.2'),
+        _dep('json_annotation', '4.11.0'),
+        _dep('freezed_annotation', '3.1.0'),
+        _dep('chopper', '8.6.0'),
+        _dep('go_router', '17.2.3'),
+        _dep('envied', '1.3.5'),
+        _dev('riverpod_generator', '4.0.3'),
+        _dev('envied_generator', '1.3.5'),
+        _dev('riverpod_lint', '3.1.3'),
+        _dev('json_serializable', '6.13.0'),
+        _dev('build_runner', '2.15.0'),
+        _dev('freezed', '3.2.5'),
+        _dev('chopper_generator', '8.6.2'),
+      ];
+
+      final identity = IdentityState(
+        name: projectName,
+        organization: 'com.neat.test',
+        projectPath: tempRoot.path,
+        description: 'NEAT packageSplit + chopper + envied integration test',
+        targetPlatforms: const ['macos'],
+      );
+
+      const architecture = ArchitectureState(packageSplit: true);
+      const cicd = CicdState();
+      const theme = ThemeEngineState(approach: ThemeApproach.customM3);
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: identity,
+          packages: packages,
+          architecture: architecture,
+          cicd: cicd,
+          theme: theme,
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('Generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+      final coreRoot = '${projectDir.path}/packages/core';
+      String read(String p) => File(p).readAsStringSync();
+
+      // Core ships the ApiConfig bridge, and its chopper client reads it
+      // instead of trying (and failing) to import AppEnv.
+      final apiConfig = read('$coreRoot/lib/core/network/api_config.dart');
+      expect(apiConfig, contains('class ApiConfig'));
+      expect(apiConfig, contains("static String baseUrl = '';"));
+
+      final chopperClientProvider = read('$coreRoot/lib/core/network/chopper_client_provider.dart');
+      expect(chopperClientProvider, contains('baseUrl: Uri.parse(ApiConfig.baseUrl)'));
+      expect(chopperClientProvider, contains("import 'package:core/core/network/api_config.dart';"));
+      expect(chopperClientProvider, isNot(contains('AppEnv')),
+          reason: 'core cannot import the app\'s AppEnv — that would recreate the cycle '
+              'packageSplit exists to avoid');
+
+      // bootstrap.dart bridges env.apiBaseUrl into core's ApiConfig once,
+      // before runApp — the same "set a static value from the composition
+      // root" shape AppEnv.setEnv(env) itself already uses.
+      final bootstrap = read('${projectDir.path}/lib/core/bootstrap.dart');
+      expect(bootstrap, contains("import 'package:core/core/network/api_config.dart';"));
+      expect(bootstrap, contains('ApiConfig.baseUrl = env.apiBaseUrl;'));
+
+      // The whole workspace (app + core + split feature) analyzes cleanly.
+      final analyze = await Process.run(
+        'flutter',
+        ['analyze', '--no-pub'],
+        workingDirectory: projectDir.path,
+      );
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      expect(
+        RegExp(r'(\d+ issues? found|No issues found)').hasMatch(out),
+        isTrue,
+        reason: 'flutter analyze did not run as expected:\n$out',
+      );
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason: 'flutter analyze reported errors:\n${errorLines.join('\n')}\n\n'
+            '--- full analyze output ---\n$out',
       );
     },
     timeout: const Timeout(Duration(minutes: 12)),
@@ -1498,8 +1604,8 @@ void main() {
       }
 
       final projectDir = Directory('${tempRoot.path}/$projectName');
-      final coreRoot = '${projectDir.path}/packages/${projectName}_core';
-      final featureRoot = '${projectDir.path}/packages/${projectName}_home';
+      final coreRoot = '${projectDir.path}/packages/core';
+      final featureRoot = '${projectDir.path}/packages/home';
       String read(String p) => File(p).readAsStringSync();
 
       // The feature package's typed route class crosses into core for
@@ -1509,7 +1615,7 @@ void main() {
       final featureRoutes = read('$featureRoot/lib/presentation/routes/home_routes.dart');
       expect(
         featureRoutes,
-        contains("import 'package:${projectName}_core/core/constants/app_route_path.dart';"),
+        contains("import 'package:core/core/constants/app_route_path.dart';"),
       );
       expect(featureRoutes, contains("import '../pages/home_page.dart';"));
       expect(featureRoutes, contains('@TypedGoRoute<HomeRoute>'));
@@ -1521,9 +1627,7 @@ void main() {
       final routes = read('${projectDir.path}/lib/core/router/routes.dart');
       expect(
         routes,
-        contains(
-          "import 'package:${projectName}_home/presentation/routes/home_routes.dart'\n    as home;",
-        ),
+        contains("import 'package:home/presentation/routes/home_routes.dart' as home;"),
       );
 
       // go_router_builder's codegen ran in the feature package's own
@@ -1628,8 +1732,8 @@ void main() {
       );
 
       String read(String p) => File(p).readAsStringSync();
-      final homeRoot = '${projectDir.path}/packages/${projectName}_home';
-      final reviewsRoot = '${projectDir.path}/packages/${projectName}_reviews';
+      final homeRoot = '${projectDir.path}/packages/home';
+      final reviewsRoot = '${projectDir.path}/packages/reviews';
 
       // The parent package's own routes file crosses into the child package
       // directly — the one legitimate feature-to-feature import (a one-way
@@ -1637,7 +1741,7 @@ void main() {
       final parentRoutes = read('$homeRoot/lib/presentation/routes/home_routes.dart');
       expect(
         parentRoutes,
-        contains("import 'package:${projectName}_reviews/presentation/pages/reviews_page.dart';"),
+        contains("import 'package:reviews/presentation/pages/reviews_page.dart';"),
       );
       expect(parentRoutes, contains("TypedGoRoute<ReviewsRoute>(path: 'reviews')"));
       expect(parentRoutes, contains(r'class ReviewsRoute extends GoRouteData with $ReviewsRoute'));
@@ -1646,7 +1750,7 @@ void main() {
       final parentPubspec = read('$homeRoot/pubspec.yaml');
       expect(
         parentPubspec,
-        contains('${projectName}_reviews:\n    path: ../${projectName}_reviews'),
+        contains('reviews:\n    path: ../reviews'),
       );
 
       // The parent package's own build_runner pass re-ran: $ReviewsRoute
@@ -1663,7 +1767,7 @@ void main() {
         contains("static const String reviews = '/home/reviews';"),
       );
       expect(
-        read('${projectDir.path}/packages/${projectName}_core/lib/core/constants/app_route_path.dart'),
+        read('${projectDir.path}/packages/core/lib/core/constants/app_route_path.dart'),
         contains("static const String reviews = '/home/reviews';"),
       );
 
@@ -1750,9 +1854,9 @@ void main() {
       }
 
       final projectDir = Directory('${tempRoot.path}/$projectName');
-      final coreRoot = '${projectDir.path}/packages/${projectName}_core';
-      final featureRoot = '${projectDir.path}/packages/${projectName}_home';
-      final storageRoot = '${projectDir.path}/packages/${projectName}_local_storage';
+      final coreRoot = '${projectDir.path}/packages/core';
+      final featureRoot = '${projectDir.path}/packages/home';
+      final storageRoot = '${projectDir.path}/packages/local_storage';
       String read(String p) => File(p).readAsStringSync();
 
       // Core ships NetworkInfo + the shared appDatabaseProvider/
@@ -1764,16 +1868,16 @@ void main() {
       expect(infraProviders, contains('NetworkInfo networkInfo(Ref ref)'));
       expect(
         infraProviders,
-        contains("import 'package:${projectName}_core/core/network/network_info.dart';"),
+        contains("import 'package:core/core/network/network_info.dart';"),
       );
-      expect(infraProviders, contains("import 'package:${projectName}_local_storage/"));
+      expect(infraProviders, contains("import 'package:local_storage/"));
 
       // Core's own pubspec depends on the Drift package + connectivity_plus.
       final corePubspec = read('$coreRoot/pubspec.yaml');
       expect(corePubspec, contains('connectivity_plus:'));
       expect(
         corePubspec,
-        contains('${projectName}_local_storage:\n    path: ../${projectName}_local_storage'),
+        contains('local_storage:\n    path: ../local_storage'),
       );
 
       // The feature package's repository crosses into core for
@@ -1782,11 +1886,11 @@ void main() {
       final repoImpl = read('$featureRoot/lib/data/repositories/home_repository_impl.dart');
       expect(
         repoImpl,
-        contains("import 'package:${projectName}_core/core/error/failure.dart';"),
+        contains("import 'package:core/core/error/failure.dart';"),
       );
       expect(
         repoImpl,
-        contains("import 'package:${projectName}_core/core/network/network_info.dart';"),
+        contains("import 'package:core/core/network/network_info.dart';"),
       );
       expect(repoImpl, isNot(contains('package:$projectName/')),
           reason: 'a split feature package must never import from the app — that would be a cycle');
@@ -1796,28 +1900,28 @@ void main() {
       expect(
         repoProviders,
         contains(
-          "import 'package:${projectName}_core/core/providers/infrastructure_providers.dart';",
+          "import 'package:core/core/providers/infrastructure_providers.dart';",
         ),
       );
 
       final localSource = read('$featureRoot/lib/data/sources/home_local_source.dart');
       expect(
         localSource,
-        contains("import 'package:${projectName}_local_storage/${projectName}_local_storage.dart';"),
+        contains("import 'package:local_storage/local_storage.dart';"),
       );
 
       // The feature package's own pubspec depends on the Drift package too.
       final featurePubspec = read('$featureRoot/pubspec.yaml');
       expect(
         featurePubspec,
-        contains('${projectName}_local_storage:\n    path: ../${projectName}_local_storage'),
+        contains('local_storage:\n    path: ../local_storage'),
       );
 
       // Root pubspec wires all three packages into the workspace.
       final rootPubspec = read('${projectDir.path}/pubspec.yaml');
-      expect(rootPubspec, contains('- packages/${projectName}_core'));
-      expect(rootPubspec, contains('- packages/${projectName}_home'));
-      expect(rootPubspec, contains('- packages/${projectName}_local_storage'));
+      expect(rootPubspec, contains('- packages/core'));
+      expect(rootPubspec, contains('- packages/home'));
+      expect(rootPubspec, contains('- packages/local_storage'));
 
       expect(Directory(storageRoot).existsSync(), isTrue);
 
@@ -1907,7 +2011,7 @@ void main() {
         onLog: logs.add,
       );
 
-      final orderRoot = '${projectDir.path}/packages/${projectName}_orders';
+      final orderRoot = '${projectDir.path}/packages/orders';
       String read(String p) => File(p).readAsStringSync();
 
       expect(
@@ -1919,10 +2023,10 @@ void main() {
       expect(File('$orderRoot/lib/domain/entities/orders_entity.dart').existsSync(), isTrue);
 
       final orderPubspec = read('$orderRoot/pubspec.yaml');
-      expect(orderPubspec, contains('name: ${projectName}_orders'));
+      expect(orderPubspec, contains('name: orders'));
       expect(
         orderPubspec,
-        contains('${projectName}_core:\n    path: ../${projectName}_core'),
+        contains('core:\n    path: ../core'),
       );
 
       // The usecase crosses into core, never the app — same discipline as the
@@ -1930,17 +2034,17 @@ void main() {
       final getUsecase = read('$orderRoot/lib/domain/usecases/get_orders_usecase.dart');
       expect(
         getUsecase,
-        contains("import 'package:${projectName}_core/core/usecases/use_case.dart';"),
+        contains("import 'package:core/core/usecases/use_case.dart';"),
       );
       expect(getUsecase, isNot(contains('package:$projectName/')));
 
       // Root pubspec: new workspace member + path dependency (routes.dart
       // imports the new package directly).
       final rootPubspec = read('${projectDir.path}/pubspec.yaml');
-      expect(rootPubspec, contains('- packages/${projectName}_orders'));
+      expect(rootPubspec, contains('- packages/orders'));
       expect(
         rootPubspec,
-        contains('${projectName}_orders:\n    path: packages/${projectName}_orders'),
+        contains('orders:\n    path: packages/orders'),
       );
 
       // routes.dart crosses into the new package; AppRoutePath gained the
@@ -1949,7 +2053,7 @@ void main() {
       final routes = read('${projectDir.path}/lib/core/router/routes.dart');
       expect(
         routes,
-        contains("import 'package:${projectName}_orders/presentation/pages/orders_page.dart';"),
+        contains("import 'package:orders/presentation/pages/orders_page.dart';"),
       );
       expect(routes, contains('AppRoutePath.orders'));
       expect(
@@ -1957,7 +2061,7 @@ void main() {
         contains("static const String orders = '/orders';"),
       );
       expect(
-        read('${projectDir.path}/packages/${projectName}_core/lib/core/constants/app_route_path.dart'),
+        read('${projectDir.path}/packages/core/lib/core/constants/app_route_path.dart'),
         contains("static const String orders = '/orders';"),
         reason: 'the split feature imports AppRoutePath from core, not the app — core\'s '
             'mirrored copy must gain the constant too',
@@ -1992,7 +2096,7 @@ void main() {
           read('${projectDir.path}/lib/core/router/routes.dart');
       expect(
         routesAfterChild,
-        contains("import 'package:${projectName}_reviews/presentation/pages/reviews_page.dart';"),
+        contains("import 'package:reviews/presentation/pages/reviews_page.dart';"),
       );
       expect(routesAfterChild, isNot(contains('features/reviews/')));
       expect(routesAfterChild, contains("path: 'reviews',"));
@@ -2083,7 +2187,7 @@ void main() {
       );
 
       String read(String p) => File(p).readAsStringSync();
-      final orderRoot = '${projectDir.path}/packages/${projectName}_orders';
+      final orderRoot = '${projectDir.path}/packages/orders';
 
       // The new feature package generated its own registration function...
       final repoProviders =
@@ -2091,7 +2195,7 @@ void main() {
       expect(repoProviders, contains('void registerOrdersChopperDecoders() {'));
       expect(
         repoProviders,
-        contains("import 'package:${projectName}_core/core/network/chopper_model_converter.dart';"),
+        contains("import 'package:core/core/network/chopper_model_converter.dart';"),
       );
 
       // ...and bootstrap.dart calls it (alongside the wizard's own first
@@ -2101,7 +2205,7 @@ void main() {
       expect(
         bootstrap,
         contains(
-          "import 'package:${projectName}_orders/data/repositories/orders_repository_providers.dart';",
+          "import 'package:orders/data/repositories/orders_repository_providers.dart';",
         ),
       );
       expect(bootstrap, contains('registerOrdersChopperDecoders();'));
@@ -2170,8 +2274,8 @@ void main() {
       }
 
       final projectDir = Directory('${tempRoot.path}/$projectName');
-      final coreRoot = '${projectDir.path}/packages/${projectName}_core';
-      final featureRoot = '${projectDir.path}/packages/${projectName}_home';
+      final coreRoot = '${projectDir.path}/packages/core';
+      final featureRoot = '${projectDir.path}/packages/home';
       String read(String p) => File(p).readAsStringSync();
 
       // The whole i18n setup lives in core...
@@ -2196,19 +2300,19 @@ void main() {
       final bootstrap = read('${projectDir.path}/lib/core/bootstrap.dart');
       expect(
         bootstrap,
-        contains("import 'package:${projectName}_core/core/i18n/locale_store.dart';"),
+        contains("import 'package:core/core/i18n/locale_store.dart';"),
       );
-      expect(bootstrap, contains("import 'package:${projectName}_core/i18n/strings.g.dart';"));
+      expect(bootstrap, contains("import 'package:core/i18n/strings.g.dart';"));
       expect(bootstrap, contains('LocaleStore.init()'));
       final app = read('${projectDir.path}/lib/app.dart');
-      expect(app, contains("import 'package:${projectName}_core/i18n/strings.g.dart';"));
+      expect(app, contains("import 'package:core/i18n/strings.g.dart';"));
 
       // The split feature's page also crosses into core — never the app.
       final homePage = read('$featureRoot/lib/presentation/pages/home_page.dart');
-      expect(homePage, contains("import 'package:${projectName}_core/i18n/strings.g.dart';"));
+      expect(homePage, contains("import 'package:core/i18n/strings.g.dart';"));
       expect(
         homePage,
-        contains("import 'package:${projectName}_core/core/i18n/language_switcher.dart';"),
+        contains("import 'package:core/core/i18n/language_switcher.dart';"),
       );
       expect(homePage, contains('context.t.home.title'));
       expect(homePage, isNot(contains('package:$projectName/')),
@@ -2282,8 +2386,8 @@ void main() {
       }
 
       final projectDir = Directory('${tempRoot.path}/$projectName');
-      final coreRoot = '${projectDir.path}/packages/${projectName}_core';
-      final featureRoot = '${projectDir.path}/packages/${projectName}_home';
+      final coreRoot = '${projectDir.path}/packages/core';
+      final featureRoot = '${projectDir.path}/packages/home';
       String read(String p) => File(p).readAsStringSync();
 
       // sync_service.dart lives in core, importing core's own network_info.dart...
@@ -2291,7 +2395,7 @@ void main() {
       expect(coreSync, contains('class SyncService'));
       expect(
         coreSync,
-        contains("import 'package:${projectName}_core/core/network/network_info.dart';"),
+        contains("import 'package:core/core/network/network_info.dart';"),
       );
 
       // ...never duplicated in the app.
@@ -2306,7 +2410,7 @@ void main() {
       expect(di, contains('SyncService homeSync(Ref ref)'));
       expect(
         di,
-        contains("import 'package:${projectName}_core/core/sync/sync_service.dart';"),
+        contains("import 'package:core/core/sync/sync_service.dart';"),
       );
       expect(di, isNot(contains('package:$projectName/')),
           reason: 'a split feature package must never import from the app');
@@ -2384,9 +2488,9 @@ void main() {
       }
 
       final projectDir = Directory('${tempRoot.path}/$projectName');
-      final coreRoot = '${projectDir.path}/packages/${projectName}_core';
-      final featureRoot = '${projectDir.path}/packages/${projectName}_home';
-      final authRoot = '${projectDir.path}/packages/${projectName}_auth';
+      final coreRoot = '${projectDir.path}/packages/core';
+      final featureRoot = '${projectDir.path}/packages/home';
+      final authRoot = '${projectDir.path}/packages/auth';
       String read(String p) => File(p).readAsStringSync();
 
       // supabase_provider.dart lives in core...
@@ -2415,22 +2519,22 @@ void main() {
       // authentication package does).
       expect(
         authImpl,
-        contains("import 'package:${projectName}_core/core/error/failure.dart';"),
+        contains("import 'package:core/core/error/failure.dart';"),
       );
       expect(
         authImpl,
-        contains("import 'package:${projectName}_core/core/result/result.dart';"),
+        contains("import 'package:core/core/result/result.dart';"),
       );
       final authProvider =
           read('$authRoot/lib/presentation/providers/auth_provider.dart');
       expect(
         authProvider,
-        contains("import 'package:${projectName}_core/core/network/supabase_provider.dart';"),
+        contains("import 'package:core/core/network/supabase_provider.dart';"),
       );
       final authPubspec = read('$authRoot/pubspec.yaml');
       expect(
         authPubspec,
-        contains('${projectName}_core:\n    path: ../${projectName}_core'),
+        contains('core:\n    path: ../core'),
       );
 
       // router_notifier.dart (app-level) crosses into the auth package for
@@ -2439,7 +2543,7 @@ void main() {
           read('${projectDir.path}/lib/core/router/router_notifier.dart');
       expect(
         routerNotifier,
-        contains("import 'package:${projectName}_auth/presentation/providers/auth_provider.dart';"),
+        contains("import 'package:auth/presentation/providers/auth_provider.dart';"),
       );
 
       // The split feature's own repository-providers DI graph crosses into
@@ -2447,7 +2551,7 @@ void main() {
       final di = read('$featureRoot/lib/data/repositories/home_repository_providers.dart');
       expect(
         di,
-        contains("import 'package:${projectName}_core/core/network/supabase_provider.dart';"),
+        contains("import 'package:core/core/network/supabase_provider.dart';"),
       );
       expect(di, isNot(contains('package:$projectName/')),
           reason: 'a split feature package must never import from the app');
@@ -2535,9 +2639,9 @@ void main() {
       }
 
       final projectDir = Directory('${tempRoot.path}/$projectName');
-      final coreRoot = '${projectDir.path}/packages/${projectName}_core';
-      final featureRoot = '${projectDir.path}/packages/${projectName}_home';
-      final authRoot = '${projectDir.path}/packages/${projectName}_auth';
+      final coreRoot = '${projectDir.path}/packages/core';
+      final featureRoot = '${projectDir.path}/packages/home';
+      final authRoot = '${projectDir.path}/packages/auth';
       String read(String p) => File(p).readAsStringSync();
 
       // firebase_provider.dart lives in core, with auth + storage singletons
@@ -2556,11 +2660,11 @@ void main() {
       // for Result/Failure/the client.
       expect(File('${projectDir.path}/lib/features/auth').existsSync(), isFalse);
       final authImpl = read('$authRoot/lib/data/repositories/auth_repository_impl.dart');
-      expect(authImpl, contains("import 'package:${projectName}_core/core/result/result.dart';"));
+      expect(authImpl, contains("import 'package:core/core/result/result.dart';"));
       final authProvider = read('$authRoot/lib/presentation/providers/auth_provider.dart');
       expect(
         authProvider,
-        contains("import 'package:${projectName}_core/core/network/firebase_provider.dart';"),
+        contains("import 'package:core/core/network/firebase_provider.dart';"),
       );
 
       // Storage stays app-level too (nothing NEAT generates imports it
@@ -2568,7 +2672,7 @@ void main() {
       final storage = read('${projectDir.path}/lib/core/storage/storage_service.dart');
       expect(
         storage,
-        contains("import 'package:${projectName}_core/core/network/firebase_provider.dart';"),
+        contains("import 'package:core/core/network/firebase_provider.dart';"),
       );
 
       // The split feature crosses into core for Firestore + realtime works.
@@ -2577,7 +2681,7 @@ void main() {
       final di = read('$featureRoot/lib/data/repositories/home_repository_providers.dart');
       expect(
         di,
-        contains("import 'package:${projectName}_core/core/network/firebase_provider.dart';"),
+        contains("import 'package:core/core/network/firebase_provider.dart';"),
       );
       expect(di, isNot(contains('package:$projectName/')),
           reason: 'a split feature package must never import from the app');
@@ -2649,7 +2753,7 @@ void main() {
       }
 
       final projectDir = Directory('${tempRoot.path}/$projectName');
-      const pkg = '${projectName}_local_storage';
+      const pkg = 'local_storage';
 
       // The workspace member package exists, is wired up, and its Drift
       // codegen ran (database.g.dart proves build_runner ran in the package).
@@ -2809,7 +2913,7 @@ void main() {
       }
 
       final projectDir = Directory('${tempRoot.path}/$projectName');
-      const pkg = '${projectName}_local_storage';
+      const pkg = 'local_storage';
 
       // SyncService brick + Outbox table generated.
       expect(
@@ -2913,7 +3017,6 @@ void main() {
         approach: ThemeApproach.customM3,
         components: {AppComponent.button, AppComponent.card},
         generateWidgetbook: true,
-        extractUiPackage: true,
       );
 
       try {
@@ -3051,10 +3154,7 @@ void main() {
       const architecture = ArchitectureState(firstFeatureName: 'user_profile');
 
       // FlexColorScheme approach (default config, no pasted code) + UI extraction.
-      const theme = ThemeEngineState(
-        approach: ThemeApproach.flexColorScheme,
-        extractUiPackage: true,
-      );
+      const theme = ThemeEngineState(approach: ThemeApproach.flexColorScheme);
 
       try {
         await const LaunchGenerationUsecase().execute(
@@ -3436,6 +3536,182 @@ abstract final class Palette {
   );
 
   test(
+    'Custom Endpoints (§7 Phase 2): a feature with a request+response '
+    'endpoint, a response-only endpoint, and a bodyless endpoint — typed '
+    'chopper methods, per-endpoint Models/UseCases, no entity/repository, '
+    'decoder registry entries, analyzes cleanly',
+    () async {
+      const projectName = 'neat_custom_endpoints_test';
+      final logs = <String>[];
+
+      final pkgs = <PubPackage>[
+        _dep('hooks_riverpod', '3.3.1'),
+        _dep('flutter_hooks', '0.21.3+1'),
+        _dep('riverpod_annotation', '4.0.2'),
+        _dep('chopper', '8.6.0'),
+        _dep('go_router', '17.2.3'),
+        _dev('riverpod_generator', '4.0.3'),
+        _dev('chopper_generator', '8.6.2'),
+        _dev('build_runner', '2.15.0'),
+      ];
+
+      final identity = IdentityState(
+        name: projectName,
+        organization: 'com.neat.test',
+        projectPath: tempRoot.path,
+        description: 'NEAT Custom Endpoints integration test',
+        targetPlatforms: const ['macos'],
+      );
+      // No first feature — this test adds the custom-endpoints feature via
+      // the Workshop, same as a real user would.
+      const architecture = ArchitectureState(generateFirstFeature: false);
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: identity,
+          packages: pkgs,
+          architecture: architecture,
+          cicd: const CicdState(),
+          theme: const ThemeEngineState(approach: ThemeApproach.customM3),
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('Base generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+      final project = await const ProjectLoader().load(projectDir.path);
+      expect(project, isNotNull);
+      expect(project!.contract.httpClient, 'chopper');
+
+      const inferencer = JsonEntityInferencer();
+      final loginReq = inferencer.infer('{"email": "a@b.com", "password": "secret"}', requireId: false);
+      final loginRes = inferencer.infer('{"token": "abc", "expiresAt": "2024-01-31T10:00:00Z"}',
+          requireId: false);
+      final meRes = inferencer.infer('{"name": "Ada", "email": "a@b.com"}', requireId: false);
+
+      final options = FeatureGenOptions(
+        name: 'auth',
+        useCustomEndpoints: true,
+        endpoints: [
+          EndpointSpec(
+            name: 'login',
+            method: HttpMethod.post,
+            path: '/auth/login',
+            requestFields: loginReq.fields,
+            responseFields: loginRes.fields,
+          ),
+          EndpointSpec(
+            name: 'me',
+            path: '/auth/me',
+            responseFields: meRes.fields,
+          ),
+          const EndpointSpec(name: 'logout', method: HttpMethod.post, path: '/auth/logout'),
+        ],
+      );
+
+      try {
+        await const GenerateFeatureUsecase().execute(
+          project: project,
+          options: options,
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('Custom Endpoints generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+      }
+
+      String read(String p) => File(p).readAsStringSync();
+      final featureRoot = '${projectDir.path}/lib/features/auth';
+
+      // No entity, no repository interface, no local source — there's no
+      // single entity to abstract over.
+      expect(Directory('$featureRoot/domain/entities').existsSync(), isFalse);
+      expect(Directory('$featureRoot/domain/repositories').existsSync(), isFalse);
+      expect(File('$featureRoot/data/sources/auth_local_source.dart').existsSync(), isFalse);
+
+      // One UseCase per endpoint.
+      expect(File('$featureRoot/domain/usecases/login_usecase.dart').existsSync(), isTrue);
+      expect(File('$featureRoot/domain/usecases/me_usecase.dart').existsSync(), isTrue);
+      expect(File('$featureRoot/domain/usecases/logout_usecase.dart').existsSync(), isTrue);
+      final loginUsecase = read('$featureRoot/domain/usecases/login_usecase.dart');
+      expect(loginUsecase, contains('class LoginUsecase extends UseCase<LoginRequestModel, LoginResponseModel>'));
+      expect(loginUsecase, contains('unwrapChopperResponse'));
+      final logoutUsecase = read('$featureRoot/domain/usecases/logout_usecase.dart');
+      expect(logoutUsecase, contains('class LogoutUsecase extends NoParamsUseCase<Unit>'));
+      final meUsecase = read('$featureRoot/domain/usecases/me_usecase.dart');
+      expect(meUsecase, contains('class MeUsecase extends NoParamsUseCase<MeResponseModel>'));
+
+      // Models: login has both request+response, me has response-only, logout has neither.
+      expect(File('$featureRoot/data/models/login_model.dart').existsSync(), isTrue);
+      final loginModel = read('$featureRoot/data/models/login_model.dart');
+      expect(loginModel, contains('class LoginRequestModel'));
+      expect(loginModel, contains('class LoginResponseModel'));
+      expect(File('$featureRoot/data/models/me_model.dart').existsSync(), isTrue);
+      final meModel = read('$featureRoot/data/models/me_model.dart');
+      expect(meModel, isNot(contains('class MeRequestModel')));
+      expect(meModel, contains('class MeResponseModel'));
+      expect(File('$featureRoot/data/models/logout_model.dart').existsSync(), isFalse);
+
+      // One shared API source, N typed methods, each with its own full path
+      // (no shared @ChopperApi baseUrl — arbitrary endpoints share no prefix).
+      final apiSource = read('$featureRoot/data/sources/auth_api_source.dart');
+      expect(apiSource, contains("@ChopperApi(baseUrl: '')"));
+      expect(apiSource, contains("@POST(path: '/auth/login')"));
+      expect(apiSource, contains('Future<Response<LoginResponseModel>> login(@Body() LoginRequestModel body);'));
+      expect(apiSource, contains("@GET(path: '/auth/me')"));
+      expect(apiSource, contains('Future<Response<MeResponseModel>> me();'));
+      expect(apiSource, contains("@POST(path: '/auth/logout')"));
+      expect(apiSource, contains('Future<Response<dynamic>> logout();'));
+
+      // Decoder registry: response models only (login + me), not logout
+      // (no response body) and not request models (never decoded).
+      final converter = read('${projectDir.path}/lib/core/network/chopper_model_converter.dart');
+      expect(converter, contains('LoginResponseModel: (json) => LoginResponseModel.fromJson(json)'));
+      expect(converter, contains('MeResponseModel: (json) => MeResponseModel.fromJson(json)'));
+      expect(converter, isNot(contains('LogoutResponseModel')));
+
+      // Presentation still gets exactly one placeholder page (no CRUD DI
+      // graph — dataList is always false here).
+      expect(File('$featureRoot/presentation/pages/auth_page.dart').existsSync(), isTrue);
+      expect(
+        Directory('$featureRoot/presentation/providers').existsSync() ||
+            Directory('$featureRoot/presentation/cubit').existsSync() ||
+            Directory('$featureRoot/presentation/bloc').existsSync(),
+        isTrue,
+      );
+      expect(
+        File('$featureRoot/presentation/providers/auth_usecase_providers.dart').existsSync(),
+        isFalse,
+        reason: 'no repository exists for a usecase-level DI graph to wire',
+      );
+
+      // The whole workspace analyzes cleanly (chopper_generator's codegen
+      // for auth_api_source.chopper.dart included).
+      final analyze = await Process.run(
+        'flutter',
+        ['analyze', '--no-pub'],
+        workingDirectory: projectDir.path,
+      );
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      expect(
+        RegExp(r'(\d+ issues? found|No issues found)').hasMatch(out),
+        isTrue,
+        reason: 'flutter analyze did not run as expected:\n$out',
+      );
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason: 'Custom Endpoints workspace analyze reported issues:\n${errorLines.join('\n')}\n\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
+
+  test(
     'feature generation (chopper) registers the new feature in the decoder registry',
     () async {
       const projectName = 'neat_featgen_chopper';
@@ -3782,7 +4058,7 @@ void main() {
       }
 
       final projectDir = Directory('${tempRoot.path}/$projectName');
-      const uiPkg = '${projectName}_local_storage';
+      const uiPkg = 'local_storage';
 
       final project = await const ProjectLoader().load(projectDir.path);
       expect(project, isNotNull);
@@ -4457,7 +4733,7 @@ void main() {
       expect(pubspec, contains('firebase_auth:'));
       expect(pubspec, contains('firebase_storage:'));
       expect(
-        Directory('${projectDir.path}/packages/${projectName}_local_storage').existsSync(),
+        Directory('${projectDir.path}/packages/local_storage').existsSync(),
         isFalse,
         reason: 'Firebase backend should not generate a Drift workspace package',
       );
@@ -5044,7 +5320,7 @@ void main() {
       expect(model, contains("@JsonKey(name: 'created_at')"));
 
       // Drift table columns are typed per field; id stays the TextColumn PK.
-      final db = read('packages/${projectName}_local_storage/lib/src/database.dart');
+      final db = read('packages/local_storage/lib/src/database.dart');
       expect(db, contains('TextColumn get id => text()();'));
       expect(db, contains('RealColumn get price => real()();'));
       expect(db, contains('BoolColumn get inStock => boolean()();'));
@@ -5175,7 +5451,7 @@ void main() {
       expect(model, contains('RatingModel.fromEntity'));
 
       // Drift stores complex fields as JSON TextColumns; local source (de)serialises.
-      final db = read('packages/${projectName}_local_storage/lib/src/database.dart');
+      final db = read('packages/local_storage/lib/src/database.dart');
       expect(db, contains('TextColumn get rating => text()();'));
       expect(db, contains('TextColumn get tags => text()();'));
       final local = read('lib/features/product/data/sources/product_local_source.dart');

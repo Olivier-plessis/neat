@@ -33,23 +33,24 @@ class ProjectLoader {
   }
 
   /// Existing features = the directories under `lib/features/` (or, when
-  /// `packageSplit` is on, the `<projectName>_<feature>` workspace packages
-  /// under `packages/` — see ROADMAP.md §6a Step 2b). The filesystem is the
-  /// single source of truth (never a list stored in the contract), so it
-  /// stays correct even when teammates add features by hand.
+  /// `packageSplit` is on, the workspace packages under `packages/` — see
+  /// ROADMAP.md §6a Step 2b). A feature package is named after the feature
+  /// itself (no app-name prefix); only the UI package keeps the
+  /// `<projectName>_ui` prefix (avoids reading as generic as "core"/"auth"
+  /// when extracted on its own). The filesystem is the single source of
+  /// truth (never a list stored in the contract), so it stays correct even
+  /// when teammates add features by hand.
   List<String> scanFeatures(String projectPath, NeatContract contract) {
     if (contract.packageSplit) {
       final packagesDir = Directory('$projectPath/packages');
       if (!packagesDir.existsSync()) return const [];
-      final prefix = '${contract.projectName}_';
-      const nonFeatureSuffixes = ['core', 'local_storage', 'ui', 'auth'];
+      final uiPackageName = '${contract.projectName}_ui';
+      const nonFeatureNames = ['core', 'local_storage', 'auth'];
       return packagesDir
           .listSync()
           .whereType<Directory>()
           .map((d) => d.uri.pathSegments.where((s) => s.isNotEmpty).last)
-          .where((name) => name.startsWith(prefix))
-          .map((name) => name.substring(prefix.length))
-          .where((name) => !nonFeatureSuffixes.contains(name))
+          .where((name) => name != uiPackageName && !nonFeatureNames.contains(name))
           .toList()
         ..sort();
     }

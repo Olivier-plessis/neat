@@ -20,7 +20,7 @@ class AgentsMdTemplate {
     final offline = c.storageStrategy != 'remoteOnly';
     final sync = c.storageStrategy == 'offlineFirstSync';
     final hasCodegen = useAnnotations || c.hasFreezed || c.hasJsonSerializable || builder || hasHttp;
-    final pkg = '${c.projectName}_local_storage';
+    const pkg = 'local_storage';
     final fbase = featureFirst ? 'lib/features/<feature>' : 'lib/{data,domain,presentation}/<feature>';
 
     final b = StringBuffer();

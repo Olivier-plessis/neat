@@ -417,10 +417,23 @@ class LoggerInterceptor extends Interceptor {
     required String packageName,
     required bool useAnnotations,
     required bool useEnvied,
+    // Set when this is the packageSplit core package's own copy: it sits
+    // below the app (which owns envied's AppEnv), so it can't import AppEnv
+    // back without recreating the cycle packageSplit exists to avoid. It
+    // reads ApiConfig.baseUrl instead — a plain settable value bootstrap()
+    // assigns from AppEnv once, before runApp (see apiConfig() below).
+    bool sharedConfig = false,
   }) {
-    final baseUrl = useEnvied ? 'AppEnv.current.apiBaseUrl' : "''";
-    final envImport =
-        useEnvied ? "import 'package:$packageName/core/env/app_env.dart';\n" : '';
+    final baseUrl = !useEnvied
+        ? "''"
+        : sharedConfig
+            ? 'ApiConfig.baseUrl'
+            : 'AppEnv.current.apiBaseUrl';
+    final envImport = !useEnvied
+        ? ''
+        : sharedConfig
+            ? "import 'package:$packageName/core/network/api_config.dart';\n"
+            : "import 'package:$packageName/core/env/app_env.dart';\n";
     if (useAnnotations) {
       return '''import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
@@ -462,10 +475,19 @@ final dioProvider = Provider<Dio>((ref) {
     required String packageName,
     required bool useAnnotations,
     required bool useEnvied,
+    // See dioProvider's doc — same bridge, same reason.
+    bool sharedConfig = false,
   }) {
-    final baseUrl = useEnvied ? 'AppEnv.current.apiBaseUrl' : "''";
-    final envImport =
-        useEnvied ? "import 'package:$packageName/core/env/app_env.dart';\n" : '';
+    final baseUrl = !useEnvied
+        ? "''"
+        : sharedConfig
+            ? 'ApiConfig.baseUrl'
+            : 'AppEnv.current.apiBaseUrl';
+    final envImport = !useEnvied
+        ? ''
+        : sharedConfig
+            ? "import 'package:$packageName/core/network/api_config.dart';\n"
+            : "import 'package:$packageName/core/env/app_env.dart';\n";
     if (useAnnotations) {
       return '''import 'package:chopper/chopper.dart';
 import 'package:flutter/foundation.dart';
@@ -503,6 +525,26 @@ final chopperClientProvider = Provider<ChopperClient>((ref) {
 });
 ''';
   }
+
+  // ── core/network/api_config.dart (packageSplit + envied bridge) ───────────
+
+  /// Written only for the packageSplit core package, only when the project
+  /// has envied *and* a dio/chopper client (see `_writeCorePackage`'s
+  /// `sharedConfig` wiring): the core package can't import the app's
+  /// `AppEnv` (that would recreate the app→feature cycle packageSplit exists
+  /// to avoid), so `bootstrap()` assigns [baseUrl] once from `AppEnv.current
+  /// .apiBaseUrl` before `runApp` — the exact same "set a static value from
+  /// the composition root, read it as ambient state everywhere else" shape
+  /// `AppEnv.setEnv(env)` itself already uses.
+  static String apiConfig() => '''/// Bridges the app's envied `AppEnv.apiBaseUrl` into this package: this
+/// package sits below the app (which owns `AppEnv`), so it can't import it
+/// back. `bootstrap()` sets [baseUrl] once, before `runApp`.
+class ApiConfig {
+  ApiConfig._();
+
+  static String baseUrl = '';
+}
+''';
 
   // ── core/network/chopper_model_converter.dart (chopper JSON → Model) ──────
 

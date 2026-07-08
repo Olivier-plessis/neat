@@ -57,12 +57,12 @@ abstract class NeatContract with _$NeatContract {
     @Default(<String>[]) List<String> components,
 
     /// Modular Monorepo (see ROADMAP.md §6a): every feature lives in its own
-    /// workspace package (`packages/<projectName>_<feature>/`) instead of a
-    /// folder under `lib/features/`. Read by the Workshop's feature generator
-    /// and project loader so a feature added later matches the project's
-    /// existing structure. The shared core package is always named
-    /// `<projectName>_core` — not stored separately, derived by convention
-    /// (same convention the wizard itself uses).
+    /// workspace package (`packages/<feature>/`) instead of a folder under
+    /// `lib/features/`. Read by the Workshop's feature generator and project
+    /// loader so a feature added later matches the project's existing
+    /// structure. The shared core package is always named `core` — not
+    /// stored separately, derived by convention (same convention the wizard
+    /// itself uses).
     @Default(false) bool packageSplit,
   }) = _NeatContract;
 

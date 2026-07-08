@@ -1,4 +1,5 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:neat/features/generation/domain/models/endpoint_spec.dart';
 import 'package:neat/features/generation/domain/models/field_spec.dart';
 
 part 'feature_gen_options.freezed.dart';
@@ -35,6 +36,16 @@ abstract class FeatureGenOptions with _$FeatureGenOptions {
     /// project's API Base URL entirely. Empty → the default pluralised path.
     /// REST clients only (dio/chopper).
     @Default('') String apiPath,
+
+    /// "Custom Endpoints" mode (see ROADMAP.md §7 Phase 2): the feature is N
+    /// arbitrary REST calls instead of one entity + fixed CRUD. Mutually
+    /// exclusive with [fields]/[json]/[apiPath]/the data-source toggles above
+    /// — the Workshop UI shows one section or the other, never both.
+    /// Chopper-only, remote-only (no local storage/offline-first/realtime).
+    @Default(false) bool useCustomEndpoints,
+
+    /// The endpoints when [useCustomEndpoints] is on.
+    @Default(<EndpointSpec>[]) List<EndpointSpec> endpoints,
   }) = _FeatureGenOptions;
 
   const FeatureGenOptions._();

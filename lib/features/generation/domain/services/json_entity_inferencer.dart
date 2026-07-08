@@ -16,19 +16,26 @@ typedef InferenceResult = ({List<FieldSpec> fields, List<String> warnings});
 class JsonEntityInferencer {
   const JsonEntityInferencer();
 
-  InferenceResult infer(String raw) {
+  /// [requireId] guarantees a String `id` field (CRUD is id-centric) —
+  /// disable it for a request/response body with no natural id (e.g. a login
+  /// response with just `token`/`expiresAt`; see ROADMAP.md §7 Phase 2). The
+  /// recursive inference itself (scalars/objects/lists, key normalization) is
+  /// unaffected either way.
+  InferenceResult infer(String raw, {bool requireId = true}) {
+    // Only the CRUD entity flow falls back to the id/name placeholder — a
+    // request/response body with no natural id just has no fields at all.
+    final fallback = requireId ? FieldSpec.idName : const <FieldSpec>[];
+    final fallbackNote = requireId ? 'kept the default id/name fields' : 'kept an empty field list';
+
     if (raw.trim().isEmpty) {
-      return (fields: FieldSpec.idName, warnings: const []);
+      return (fields: fallback, warnings: const []);
     }
 
     final Object? decoded;
     try {
       decoded = jsonDecode(raw);
     } catch (_) {
-      return (
-        fields: FieldSpec.idName,
-        warnings: const ['Invalid JSON — kept the default id/name fields.'],
-      );
+      return (fields: fallback, warnings: ['Invalid JSON — $fallbackNote.']);
     }
 
     final warnings = <String>[];
@@ -36,25 +43,19 @@ class JsonEntityInferencer {
     Object? sample = decoded;
     if (sample is List) {
       if (sample.isEmpty) {
-        return (
-          fields: FieldSpec.idName,
-          warnings: const ['Empty JSON array — kept the default id/name fields.'],
-        );
+        return (fields: fallback, warnings: ['Empty JSON array — $fallbackNote.']);
       }
       sample = sample.first;
     }
 
     if (sample is! Map) {
-      return (
-        fields: FieldSpec.idName,
-        warnings: const ['JSON is not an object — kept the default id/name fields.'],
-      );
+      return (fields: fallback, warnings: ['JSON is not an object — $fallbackNote.']);
     }
 
     final fields = _childrenOf(sample, warnings, topLevel: true);
 
     // Guarantee a String id at the top level (the CRUD contract requires it).
-    if (!fields.any((f) => f.isId)) {
+    if (requireId && !fields.any((f) => f.isId)) {
       fields.insert(
         0,
         const FieldSpec(jsonKey: 'id', dartName: 'id', isId: true),

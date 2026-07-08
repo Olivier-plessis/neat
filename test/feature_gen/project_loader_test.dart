@@ -74,11 +74,12 @@ void main() {
     expect(loader.scanFeatures(tempRoot.path, contract), ['home']);
   });
 
-  test('packageSplit: scans packages/ for <projectName>_<feature>, excluding core/ui/local_storage',
-      () async {
+  test(
+      'packageSplit: scans packages/ for unprefixed feature packages, excluding '
+      'core/local_storage/auth/<projectName>_ui', () async {
     final split = contract.copyWith(packageSplit: true);
     writeContract(split);
-    for (final pkg in ['demo_core', 'demo_local_storage', 'demo_ui', 'demo_home', 'demo_orders']) {
+    for (final pkg in ['core', 'local_storage', 'auth', 'demo_ui', 'home', 'orders']) {
       Directory('${tempRoot.path}/packages/$pkg').createSync(recursive: true);
     }
     final project = await loader.load(tempRoot.path);

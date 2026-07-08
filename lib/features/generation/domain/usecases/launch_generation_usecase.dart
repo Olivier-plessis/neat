@@ -162,15 +162,18 @@ class LaunchGenerationUsecase {
     // (enabled in bootstrap via Settings(persistenceEnabled: true)) to avoid two
     // competing caches.
     final offlineFirst = architecture.storageStrategy.isOfflineFirst && !hasFirebase;
-    final localStoragePackage = offlineFirst ? '${packageName}_local_storage' : null;
+    final localStoragePackage = offlineFirst ? 'local_storage' : null;
     // Sync strategy adds the Outbox table + SyncService + repository write path.
     final hasSync = architecture.storageStrategy.hasSync;
 
-    // Opt-in: extract theme + tokens + components into a <app>_ui workspace package.
+    // Opt-in: extract theme + tokens + components into a <app>_ui workspace
+    // package — the one package that keeps the app-name prefix (every other
+    // split package below — core/local_storage/auth/feature — doesn't; see
+    // corePackageName/featurePackageName's comments).
     final uiPackage = theme.extractUiPackage ? '${packageName}_ui' : null;
     // Widgetbook becomes a workspace member when the UI package is on.
     final widgetbookIsMember = uiPackage != null && theme.generateWidgetbook;
-    // Opt-in: Result/Failure/UseCase/dio-networking as a shared <app>_core
+    // Opt-in: Result/Failure/UseCase/dio-networking as a shared `core`
     // workspace package — a prerequisite for packageSplit. Cross-package
     // imports resolve fine either way in a Dart workspace (every member
     // shares one package_config.json — verified directly, not assumed), so
@@ -194,18 +197,21 @@ class LaunchGenerationUsecase {
             httpClient == 'firebase') &&
         useAnnotations &&
         hasGoRouter;
-    final corePackageName = packageSplitSupported ? '${packageName}_core' : null;
-    // The split first feature — only meaningful when there is one.
-    final featurePackageName = packageSplitSupported && architecture.generateFirstFeature
-        ? '${packageName}_$featureName'
-        : null;
+    final corePackageName = packageSplitSupported ? 'core' : null;
+    // The split first feature — only meaningful when there is one. Like
+    // core/local_storage/auth, a feature package is named after the feature
+    // itself, no app-name prefix (only the extracted UI package keeps one —
+    // see uiPackage above). The app name adds nothing here; it's already
+    // implied by being in this workspace.
+    final featurePackageName =
+        packageSplitSupported && architecture.generateFirstFeature ? featureName : null;
     // Auth becomes its own workspace package too when split — same
     // package-root shape as any other split feature (screens included), just
     // depending on corePackageName for Result/Failure/UseCase instead of
     // duplicating them (unlike wesioo's standalone `authentication` package,
     // which has zero workspace deps — see ROADMAP.md §6a for why NEAT
     // deliberately diverges here).
-    final authPackageName = packageSplitSupported && hasAuth ? '${packageName}_auth' : null;
+    final authPackageName = packageSplitSupported && hasAuth ? 'auth' : null;
     // App path-deps + workspace members.
     final pathPackages = <String>[
       ?localStoragePackage,
@@ -269,6 +275,7 @@ class LaunchGenerationUsecase {
         hasSync: hasSync,
         hasAuth: hasAuth,
         hasStorage: hasStorage,
+        hasEnvied: hasEnvied,
       );
       onLog('[✓] packages/$corePackageName created.');
     }
@@ -582,6 +589,8 @@ class LaunchGenerationUsecase {
         chopperRegisterFeaturePackage: httpClient == 'chopper' ? featurePackageName : null,
         chopperRegisterFeatureName: httpClient == 'chopper' ? featureName : null,
         corePackageName: corePackageName,
+        bridgesApiBaseUrl:
+            hasEnvied && corePackageName != null && (httpClient == 'dio' || httpClient == 'chopper'),
       ),
     );
 
@@ -1399,7 +1408,7 @@ dev_dependencies:
   // ── auth feature (opt-in: Supabase + go_router_builder + riverpod) ──────────
 
   /// [authPackageName] set when packageSplit is on: Auth (screens included)
-  /// becomes its own workspace package (`packages/<app>_auth/`, package-root
+  /// becomes its own workspace package (`packages/auth/`, package-root
   /// layout like any other split feature) instead of `lib/features/auth/`,
   /// depending on [corePackageName] for Result/Failure/UseCase rather than
   /// duplicating them the way wesioo's standalone `authentication` package
@@ -1892,8 +1901,14 @@ dev_dependencies:
   /// instead of the app's own package name — same content, different home.
   /// [httpClient] drives NetworkErrorHandler + which client provider ships
   /// (dio for dio, chopper's client + its witness-free decoder
-  /// registry for chopper). No envied (`AppEnv` needs an interface/
-  /// implementation split to be shareable, deferred to a later phase).
+  /// registry for chopper). When [hasEnvied] is on too, the dio/chopper
+  /// client's `baseUrl` can't read `AppEnv` directly (this package sits
+  /// below the app, which owns it) — it reads a settable `ApiConfig.baseUrl`
+  /// instead, bridged from `bootstrap()` (see `CoreTemplates.apiConfig`/
+  /// `dioProvider`/`chopperClientProvider`'s `sharedConfig` param). Real bug,
+  /// found via a real packageSplit + envied + chopper project: without this,
+  /// every split feature's remote call silently hits an empty baseUrl
+  /// (`Invalid argument(s): No host specified in URI ...`).
   Future<void> _writeCorePackage(
     Directory projectDir,
     String corePackageName, {
@@ -1920,6 +1935,7 @@ dev_dependencies:
     // singletons firebase_provider.dart exposes (mirrors the app-level call).
     bool hasAuth = false,
     bool hasStorage = false,
+    bool hasEnvied = false,
   }) async {
     final root = '${projectDir.path}/packages/$corePackageName';
     await _write(
@@ -1947,13 +1963,19 @@ dev_dependencies:
       CoreTemplates.networkErrorHandler(packageName: corePackageName, httpClient: httpClient),
     );
     final isDioBased = httpClient == 'dio';
+    // Bridges AppEnv.apiBaseUrl into this package when both apply — see this
+    // method's doc comment.
+    if (hasEnvied && (isDioBased || httpClient == 'chopper')) {
+      await _write('$root/lib/core/network/api_config.dart', CoreTemplates.apiConfig());
+    }
     if (isDioBased) {
       await _write(
         '$root/lib/core/network/dio_provider.dart',
         CoreTemplates.dioProvider(
           packageName: corePackageName,
           useAnnotations: true,
-          useEnvied: false,
+          useEnvied: hasEnvied,
+          sharedConfig: true,
         ),
       );
     }
@@ -1972,7 +1994,8 @@ dev_dependencies:
         CoreTemplates.chopperClientProvider(
           packageName: corePackageName,
           useAnnotations: true,
-          useEnvied: false,
+          useEnvied: hasEnvied,
+          sharedConfig: true,
         ),
       );
     }
@@ -2216,7 +2239,7 @@ dev_dependencies:
         devDeps.write('  flutter_native_splash: ^2.4.6\n');
       }
     }
-    // Path deps on local workspace packages (e.g. <app>_ui, <app>_local_storage).
+    // Path deps on local workspace packages (e.g. <app>_ui, local_storage).
     for (final pkg in pathPackages) {
       deps.write('  $pkg:\n    path: packages/$pkg\n');
     }

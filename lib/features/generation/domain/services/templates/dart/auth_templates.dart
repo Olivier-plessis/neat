@@ -37,8 +37,8 @@ abstract interface class IAuthRepository {
   // ── data/repositories/auth_repository_impl.dart ───────────────────────────
   // corePackageName: see iAuthRepository's doc — same redirect rationale.
   // authPackageName: set when packageSplit is on — Auth becomes its own
-  // workspace package (packages/<app>_auth/, package-root layout like any
-  // other split feature, depending on <app>_core rather than duplicating
+  // workspace package (packages/auth/, package-root layout like any
+  // other split feature, depending on core rather than duplicating
   // Result/Failure/UseCase the way wesioo's standalone `authentication`
   // package does). Same-feature self-references become relative imports —
   // identical technique to Phase 1 Step 2a's conversion for regular features.

@@ -31,8 +31,8 @@ class GenerateFeatureUsecase {
     // package instead of a folder under lib/features/. Names follow the same
     // convention the wizard itself uses.
     final packageSplit = c.packageSplit;
-    final corePackageName = packageSplit ? '${c.projectName}_core' : null;
-    final featurePackageName = packageSplit ? '${c.projectName}_$featureName' : null;
+    final corePackageName = packageSplit ? 'core' : null;
+    final featurePackageName = packageSplit ? featureName : null;
 
     // Non-destructive guard.
     final featureDir = Directory(
@@ -53,17 +53,41 @@ class GenerateFeatureUsecase {
     final hasGoRouterBuilder = c.navigation == 'go_router_builder';
     final hasGoRouter = c.navigation == 'go_router' || hasGoRouterBuilder;
     final projectHasHttp = c.httpClient != 'none';
-    final localStoragePackage =
-        c.storageStrategy != 'remoteOnly' ? '${c.projectName}_local_storage' : null;
+    final localStoragePackage = c.storageStrategy != 'remoteOnly' ? 'local_storage' : null;
     final hasSync = c.storageStrategy == 'offlineFirstSync';
+
+    // "Custom Endpoints" (ROADMAP.md §7 Phase 2): chopper-only, remote-only,
+    // and — for this pass — not combined with packageSplit (the chopper
+    // decoder registry crossing into core, `EndpointTemplates.endpointUsecase`
+    // threading corePackageName, etc. aren't exercised together yet; same
+    // "don't combine an unproven combo with another" discipline this
+    // ROADMAP already applies elsewhere). Reject clearly instead of
+    // generating something broken.
+    if (options.useCustomEndpoints) {
+      if (c.httpClient != 'chopper') {
+        throw Exception(
+          'Custom Endpoints requires chopper as the project\'s HTTP client '
+          '(see ROADMAP.md §7 Phase 2) — this project uses "${c.httpClient}".',
+        );
+      }
+      if (packageSplit) {
+        throw Exception(
+          'Custom Endpoints isn\'t supported yet for packageSplit projects '
+          '(see ROADMAP.md §7 Phase 2). Add it as a normal (non-split) feature '
+          'instead.',
+        );
+      }
+    }
 
     // … then refine them with the per-feature Workshop choices. The feature can
     // only use stack capabilities the project actually has (you can't add a
     // remote source if the project has no HTTP client).
-    final effHasHttp = projectHasHttp && options.includeRemoteDataSource;
-    final httpClient = effHasHttp ? c.httpClient : '';
-    // A local-only feature (no remote) always keeps its local source.
-    final writeLocal = options.includeLocalDataSource || !effHasHttp;
+    final effHasHttp =
+        options.useCustomEndpoints || (projectHasHttp && options.includeRemoteDataSource);
+    final httpClient = options.useCustomEndpoints ? 'chopper' : (effHasHttp ? c.httpClient : '');
+    // A local-only feature (no remote) always keeps its local source. Custom
+    // endpoints are remote-only by design — never a local source.
+    final writeLocal = !options.useCustomEndpoints && (options.includeLocalDataSource || !effHasHttp);
     // Drift-backed local source → the feature needs a typed table injected.
     final needsDriftTable = localStoragePackage != null && writeLocal;
 
@@ -86,7 +110,7 @@ class GenerateFeatureUsecase {
     // onto the child package (see _wireChildRouteBuilder/
     // _addPathDependencyToPackage) — a one-way edge (child never depends back
     // on parent), so no cycle, unlike arbitrary two-way feature coupling.
-    final parentPackageName = packageSplit ? '${c.projectName}_${options.parentFeature}' : null;
+    final parentPackageName = packageSplit ? options.parentFeature : null;
 
     // packages/<pkg>_<feature>/pubspec.yaml + wiring into the root workspace —
     // same shape as the wizard's own first split feature (see
@@ -135,6 +159,8 @@ class GenerateFeatureUsecase {
       apiPath: options.apiPath.isEmpty ? null : options.apiPath,
       packageSplit: packageSplit,
       corePackageName: corePackageName,
+      useCustomEndpoints: options.useCustomEndpoints,
+      endpoints: options.endpoints,
     );
     onLog('[✓] Feature files written.');
 
@@ -201,8 +227,14 @@ class GenerateFeatureUsecase {
     // mirror it exactly. `effHasHttp` alone isn't enough: a real project
     // (Remote Data Source ON, Domain UseCase OFF) still skips the file, but
     // bootstrap.dart was wired to import/call a function that was never
-    // generated, breaking the build.
-    if (httpClient == 'chopper' && useAnnotations && effHasHttp && options.includeUseCase) {
+    // generated, breaking the build. Custom-endpoints features never
+    // generate that file either (no repository at all) — they register via
+    // the separate per-endpoint block below instead.
+    if (!options.useCustomEndpoints &&
+        httpClient == 'chopper' &&
+        useAnnotations &&
+        effHasHttp &&
+        options.includeUseCase) {
       if (packageSplit) {
         // The split feature already generated its own register<Feature>
         // ChopperDecoders() (see DataTemplates.featureRepositoryProviders) —
@@ -210,6 +242,22 @@ class GenerateFeatureUsecase {
         await _registerChopperDecoderSplit(project.path, featurePackageName!, featureName);
       } else {
         await _registerChopperDecoder(project.path, c.projectName, featureName);
+      }
+    }
+
+    // Custom Endpoints (ROADMAP.md §7 Phase 2): register each endpoint's
+    // *response* Model (request models are never decoded, only sent) — never
+    // packageSplit here (rejected above), so always the direct, non-split path.
+    if (options.useCustomEndpoints) {
+      for (final ep in options.endpoints) {
+        if (ep.hasResponseBody) {
+          await _registerChopperDecoderCustomEndpoint(
+            project.path,
+            c.projectName,
+            featureName,
+            ep.name,
+          );
+        }
       }
     }
 
@@ -230,9 +278,11 @@ class GenerateFeatureUsecase {
       }
     }
 
-    // Regenerate code if the stack uses generators (riverpod / freezed / json).
+    // Regenerate code if the stack uses generators (riverpod / freezed / json)
+    // — custom endpoints always need chopper_generator's `.chopper.dart` part
+    // for the API source, regardless of state management.
     final dart = await _resolveDart();
-    if (useAnnotations || c.hasFreezed || c.hasJsonSerializable) {
+    if (useAnnotations || c.hasFreezed || c.hasJsonSerializable || options.useCustomEndpoints) {
       onLog("[▶] Running 'dart run build_runner build' ($dart)...");
       await _runBuildRunner(dart, project.path, onLog);
     }
@@ -280,6 +330,31 @@ class GenerateFeatureUsecase {
         "import 'package:$packageName/features/$featureName/data/models/${featureName}_model.dart';\n");
     s = _insertBefore(
         s, '// neat:chopper-decoders', '  ${p}Model: (json) => ${p}Model.fromJson(json),');
+    await file.writeAsString(s);
+  }
+
+  /// Custom Endpoints variant (ROADMAP.md §7 Phase 2): registers one
+  /// endpoint's *response* Model — same anchor mechanism as
+  /// [_registerChopperDecoder], just named `${p}ResponseModel` (an endpoint's
+  /// model file, not a feature-wide one) and one call per endpoint that
+  /// actually has a response body, rather than once per feature.
+  Future<void> _registerChopperDecoderCustomEndpoint(
+    String projectPath,
+    String packageName,
+    String featureName,
+    String endpointName,
+  ) async {
+    final file = File('$projectPath/lib/core/network/chopper_model_converter.dart');
+    if (!file.existsSync()) return;
+    final p = _pascal(endpointName);
+    var s = await file.readAsString();
+    s = _insertBefore(
+      s,
+      '// neat:chopper-imports',
+      "import 'package:$packageName/features/$featureName/data/models/${endpointName}_model.dart';\n",
+    );
+    s = _insertBefore(s, '// neat:chopper-decoders',
+        '  ${p}ResponseModel: (json) => ${p}ResponseModel.fromJson(json),');
     await file.writeAsString(s);
   }
 

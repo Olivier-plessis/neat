@@ -8,21 +8,14 @@ class GenerateTreeUsecase {
     bool hasRiverpod = false,
     bool hasBloc = false,
     // Only meaningful with pattern == featureFirst — packageSplit moves the
-    // feature out to packages/<packageName>_<feature>/ instead of
-    // lib/features/<feature>/ (see ROADMAP.md §6a). Callers only pass true
-    // once the combo is actually supported (see architecture_screen.dart's
-    // canPackageSplit) — this usecase doesn't re-validate it.
+    // feature out to packages/<feature>/ instead of lib/features/<feature>/
+    // (see ROADMAP.md §6a). Callers only pass true once the combo is
+    // actually supported (see architecture_screen.dart's canPackageSplit) —
+    // this usecase doesn't re-validate it.
     bool packageSplit = false,
-    String packageName = '',
   }) {
     return state.pattern == StructuralPattern.featureFirst
-        ? _featureFirst(
-            state,
-            hasRiverpod: hasRiverpod,
-            hasBloc: hasBloc,
-            packageSplit: packageSplit,
-            packageName: packageName,
-          )
+        ? _featureFirst(state, hasRiverpod: hasRiverpod, hasBloc: hasBloc, packageSplit: packageSplit)
         : _layerFirst(state, hasRiverpod: hasRiverpod, hasBloc: hasBloc);
   }
 
@@ -31,7 +24,6 @@ class GenerateTreeUsecase {
     required bool hasRiverpod,
     required bool hasBloc,
     bool packageSplit = false,
-    String packageName = '',
   }) {
     final lines = <String>[];
     lines.add('lib/');
@@ -51,9 +43,8 @@ class GenerateTreeUsecase {
     // top-level tree section instead of a features/<f>/ line, to reflect that
     // it's a genuinely separate package (see ROADMAP.md §6a).
     if (packageSplit) {
-      final pkg = '${packageName.isEmpty ? 'app' : packageName}_$f';
       lines.add('');
-      lines.add('packages/$pkg/lib/');
+      lines.add('packages/$f/lib/');
       lines.add('├── data/');
       lines.add('│   ├── models/');
       if (state.includeMappers) lines.add('│   ├── mappers/');
@@ -73,7 +64,7 @@ class GenerateTreeUsecase {
       lines.add('    └── widgets/');
       if (state.mirrorTestStructure) {
         lines.add('');
-        lines.add('packages/$pkg/test/');
+        lines.add('packages/$f/test/');
         lines.add('├── data/');
         lines.add('├── domain/');
         lines.add('└── presentation/');

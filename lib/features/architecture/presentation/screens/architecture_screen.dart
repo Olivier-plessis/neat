@@ -4,7 +4,6 @@ import 'package:neat/features/architecture/domain/models/architecture_state.dart
 import 'package:neat/features/architecture/domain/usecases/generate_tree_usecase.dart';
 import 'package:neat/features/architecture/presentation/providers/architecture_provider.dart';
 import 'package:neat/features/dependencies/presentation/providers/dependencies_provider.dart';
-import 'package:neat/features/identity/presentation/providers/identity_provider.dart';
 import 'package:neat_ui/neat_ui.dart';
 
 class ArchitectureScreen extends ConsumerWidget {
@@ -14,7 +13,6 @@ class ArchitectureScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(architectureProvider);
     final notifier = ref.read(architectureProvider.notifier);
-    final packageName = ref.watch(identityProvider.select((i) => i.name));
     final hasRiverpod = ref.watch(
       selectedPackagesProvider.select((list) => list.any((p) => p.name.contains('riverpod'))),
     );
@@ -64,7 +62,6 @@ class ArchitectureScreen extends ConsumerWidget {
       hasRiverpod: hasRiverpod,
       hasBloc: hasBloc,
       packageSplit: canPackageSplit && state.packageSplit,
-      packageName: packageName,
     );
 
     return Column(
@@ -119,7 +116,7 @@ class ArchitectureScreen extends ConsumerWidget {
                         const SizedBox(height: 6),
                         Text(
                           canPackageSplit && state.packageSplit
-                              ? 'Generated at packages/${state.firstFeatureName.isEmpty ? '...' : '${packageName}_${state.firstFeatureName}'}/'
+                              ? 'Generated at packages/${state.firstFeatureName.isEmpty ? '...' : state.firstFeatureName}/'
                               : 'Generated at lib/features/${state.firstFeatureName.isEmpty ? '...' : state.firstFeatureName}/',
                           style: TextStyle(
                             color: Palette.colorPrimaryCyan.withValues(alpha: 0.7),
@@ -229,9 +226,9 @@ class ArchitectureScreen extends ConsumerWidget {
                         title: 'Split first feature into its own package',
                         description: canPackageSplit
                             ? 'Team workflow: the first feature moves into its own workspace '
-                                  'package (packages/${packageName.isEmpty ? '<app>' : packageName}_'
+                                  'package (packages/'
                                   '${state.firstFeatureName.isEmpty ? '<feature>' : state.firstFeatureName}/), '
-                                  'depending only on a shared <app>_core package (Result/Failure/'
+                                  'depending only on a shared core package (Result/Failure/'
                                   'UseCase/networking) — never on the app itself, so multiple devs '
                                   'can own separate features without touching a shared lib/.'
                             : 'Requires: a first feature, dio/chopper/Supabase/Firebase, and '
