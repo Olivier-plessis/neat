@@ -230,6 +230,29 @@ class AgentsMdTemplate {
           'choice won\'t be saved. `LocaleStore.init()` (in bootstrap) restores it on start-up.\n');
     }
 
+    // ── Onboarding ────────────────────────────────────────────────────────────
+    if (c.generateOnboarding) {
+      final onboardingAutoWired = c.navigation == 'go_router_builder';
+      b.writeln('## Onboarding\n');
+      b.writeln('- `lib/core/onboarding/onboarding_page.dart` is a content-free `PageView` skeleton — '
+          'edit `_slides` with real copy.');
+      b.writeln('- `lib/core/onboarding/onboarding_seen_provider.dart` (`onboardingSeenProvider`) is a '
+          'Riverpod `keepAlive` provider persisting whether onboarding was seen, in shared_preferences.');
+      if (onboardingAutoWired) {
+        b.writeln('- **The routing gate is already wired**: `lib/core/router/app_router.dart` (or '
+            '`router_notifier.dart` if this project also has Auth — the check is merged into that same '
+            'guard, not a second `refreshListenable`) redirects unseen users to `/onboarding`. The '
+            'persisted flag is loaded in `bootstrap()`, before the first redirect decision. Don\'t add a '
+            'second gate — edit the existing one if the behavior needs to change.\n');
+      } else {
+        b.writeln('- **NEAT did not wire the routing gate** — this project uses plain go_router, which '
+            'has no proven anchor-splicing precedent for this yet (go_router_builder projects get it '
+            'auto-wired). See `OnboardingPage`\'s doc comment for a `redirect:` example. If this project '
+            'also has Auth\'s `RouterNotifier` (`refreshListenable`), merge the onboarding check into its '
+            '`redirect()` — go_router only accepts one `refreshListenable`, don\'t attach a second one.\n');
+      }
+    }
+
     // ── Config / env ────────────────────────────────────────────────────────
     if (c.hasEnvied) {
       b.writeln('## Configuration (envied)\n');

@@ -28,10 +28,17 @@ Clean Architecture (feature-first) + Riverpod (annotations) + go_router/go_route
 
 ## Roadmap (in priority order)
 
-### 1. Open-source on GitHub ← in progress
+### 1. Open-source on GitHub ← docs done, publish step remains
 
 - License: **MIT** (max adoption, zero friction). ✅ present.
-- Real README, ROADMAP, CONTRIBUTING. Public repo.
+- ✅ Real README (refreshed: accurate test count, "shipped/in progress/next"
+  section no longer lists AGENTS.md/i18n/branding as upcoming — they're done).
+- ✅ CONTRIBUTING (harness-first contribution bar, architecture-in-a-minute).
+- ✅ ROADMAP (this file).
+- ⬜ **Publish**: flip the `github.com:Olivier-plessis/neat` remote to public
+  and push. Not something to do silently — visibility + history become
+  public and it's hard to walk back, so this is a manual, explicit step for
+  the repo owner, not something to script.
 - *Why first:* distribution is the single highest-leverage move. Depth helps no one if
   no one can use it. (Desktop-only today; **web wizard is the eventual goal**.)
 
@@ -1290,6 +1297,78 @@ bloc/cubit were gated too — both unlocked instead, see § below.)
   wrapper class/field shape and asserts `AppTheme.light`/`.dark` are still
   generated correctly with the `AppColors` extension wired into both, 0/0
   analyze. Full suite green.
+- ✅ **Onboarding feature — first-launch-only flow — done**. `ArchitectureState
+  .generateOnboarding` (opt-in toggle on the Architecture screen, gated on
+  Riverpod annotations — the "seen it" flag needs `@riverpod` — same gating
+  as Realtime/Storage). Deliberately narrow scope, matching the earlier design
+  pass: NEAT generates `lib/core/onboarding/onboarding_page.dart` (a
+  content-free `PageView` skeleton — dots indicator, Skip/Next, 3 placeholder
+  slides) and `onboarding_seen_provider.dart` (`@Riverpod(keepAlive: true)`
+  bool over `shared_preferences`, `load()`/`markSeen()`, mirroring
+  `LocaleStore`'s init-before-runApp convention but as a **provider** so it's
+  watchable from a redirect) — both always app-level, no packageSplit
+  placement question (no cross-feature dependency to solve). NEAT does **not**
+  wire the routing gate itself (bootstrap/app_router stay untouched) — that's
+  the scoping call that kept this simple instead of needing to generalize
+  across `useNavigationShell`/auth-gated routing/packageSplit all at once, same
+  "generator supplies the plumbing, not a guessed policy" principle as the
+  Outbox conflict-resolution feature. Instead, `OnboardingPage`'s doc comment
+  and the generated `AGENTS.md` (new section, mirroring the i18n one) both spell
+  out exactly how to wire a go_router `redirect:`, including the one real
+  footgun: go_router only accepts one `refreshListenable`, so a project that
+  also has Auth's `RouterNotifier` must merge the check into its `redirect()`
+  instead of attaching a second listenable. `shared_preferences` is
+  auto-injected into pubspec (deduplicated against i18n's own injection of the
+  same package, so enabling both doesn't double the dependency line — a real
+  bug caught in `buildPubspecContent`'s tests, not just theorized). `.neat.json`
+  gained `generateOnboarding` for the Workshop/contract to track. Harness-proven:
+  a new integration test generates a real project with the toggle on, asserts
+  the provider/page content, the pubspec dependency, that bootstrap.dart stays
+  untouched (proving the "no auto-wiring" scoping decision actually held), and
+  0/0 `flutter analyze`. New unit tests for both templates and the pubspec
+  dedup case. Full suite green (217 fast tests).
+  - ✅ **Follow-up: auto-wired for go_router_builder — done**. The "no
+    auto-wiring" call above traded working-out-of-the-box for avoiding a
+    combinatorial mess (shell/auth/packageSplit all at once) — reasonable, but
+    it meant the feature was invisible until someone hand-wired it, which
+    doesn't read as "on" from the UI. Revisited using wesioo's
+    `router_notifier.dart` as the reference (one consolidated guard, not
+    stacked listenables — validates the existing "merge into RouterNotifier"
+    guidance rather than replacing it). Scoped the redo to
+    **go_router_builder only** — the one path with a proven guard mechanism
+    already (Auth's `RouterNotifier`); plain go_router's own
+    `authRoutesPlainEntries()` exists but has never actually been wired
+    anywhere, so there's no precedent to build on there yet, and it keeps the
+    unwired fallback (unchanged). `autoWireOnboarding = hasOnboarding &&
+    hasGoRouterBuilder` in `launch_generation_usecase.dart` now:
+    registers `AppRoutePath.onboarding` + a typed `OnboardingRoute`
+    (`OnboardingTemplates.onboardingRoutesBuilder`, mirroring
+    `AuthTemplates.authRoutesBuilder`'s shape) aggregated into `routes.dart`
+    at the existing anchors; makes `OnboardingSeen` itself `implements
+    Listenable` (same shape as `RouterNotifier`) so it can be
+    `refreshListenable` directly when there's no Auth; when there **is** Auth,
+    merges the check into the existing `RouterNotifier.redirect()` instead
+    (checked first — shown before even asking to log in) rather than
+    attaching a second listenable. The one real gap the "generate the page"
+    version had: the persisted flag was never actually loaded before the
+    first redirect decision, since that needs a `ref` and `bootstrap()` runs
+    before `runApp` — fixed by pre-warming a `ProviderContainer` and handing
+    it to `UncontrolledProviderScope` (the exact move `bootstrap()`'s own
+    existing doc comment already hinted at). Both `OnboardingPage`'s doc
+    comment and the AGENTS.md section now branch on whether the redirect was
+    actually auto-wired, so neither ever says "wire it yourself" when NEAT
+    already did. Harness-proven: two new integration tests — one mirroring
+    the exact reported case (go_router_builder, no Auth, `useNavigationShell`
+    — asserts the onboarding route sits as a top-level sibling of the shell
+    route, not inside it) and one with Auth on (asserts exactly one
+    `implements Listenable` across the generated router code, i.e. the merge
+    didn't create a second guard) — both 0/0 `flutter analyze` on the real
+    generated project. New unit tests for every modified template
+    (`appRoutePath`, `appRouterBuilder`, `bootstrap`, `routerNotifier`,
+    `onboardingRoutesBuilder`). Hand-verified by applying the same diff
+    directly to the reporter's own nexus project (no Auth, shell,
+    go_router_builder) — 0/0 analyze there too. Full suite green (227 fast
+    tests).
 
 ## Backlog — not yet scheduled
 
@@ -1346,17 +1425,6 @@ bloc/cubit were gated too — both unlocked instead, see § below.)
   packageSplit put it in its own package. Should reuse the anchor list the
   generator already tracks rather than re-deriving it by hand, so the notice
   can't drift out of sync with what actually got wired for a given stack.
-
-- **Onboarding feature — first-launch-only flow**. A new generatable feature:
-  a short intro/onboarding flow (a few pages) shown once on first app launch,
-  then skipped on every subsequent launch. Needs: a persisted "seen it" flag
-  (`shared_preferences`, same persistence NEAT already uses for
-  `LocaleStore`/theme mode), and a gate in `bootstrap`/`app.dart`'s initial
-  route decision (before the router settles on the normal first screen).
-  Scope not yet fleshed out — how it interacts with `useNavigationShell`,
-  auth-gated routing (`router_notifier.dart`), and packageSplit (is it its own
-  package, or app-level like Auth?) needs a real design pass before
-  implementation starts.
 
 - ✅ **State Management picker on the Infrastructure screen — logged and done
   in the same pass**. Raised while reviewing the Infrastructure screen

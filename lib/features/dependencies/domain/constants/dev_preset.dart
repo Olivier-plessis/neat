@@ -50,7 +50,7 @@ const devPresetPackages = [
   ),
   PubPackage(
     name: 'riverpod_lint',
-    version: '3.1.3',
+    version: '3.1.4',
     description: 'Lint rules for Riverpod.',
     isDev: true,
   ),

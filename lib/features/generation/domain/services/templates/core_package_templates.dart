@@ -46,9 +46,10 @@ class CorePackageTemplates {
     final clientDep = switch (httpClient) {
       'chopper' => '  chopper: ^8.6.0\n',
       'supabase' => '  supabase_flutter: ^2.14.1\n',
-      'firebase' => '  cloud_firestore: ^5.6.0\n'
-          '${hasAuth ? '  firebase_auth: ^5.3.4\n' : ''}'
-          '${hasStorage ? '  firebase_storage: ^12.4.0\n' : ''}',
+      'firebase' =>
+        '  cloud_firestore: ^5.6.0\n'
+            '${hasAuth ? '  firebase_auth: ^5.3.4\n' : ''}'
+            '${hasStorage ? '  firebase_storage: ^12.4.0\n' : ''}',
       _ => '  dio: ^5.9.2\n',
     };
     final offlineDeps = localStoragePackage != null
@@ -57,11 +58,11 @@ class CorePackageTemplates {
               '    path: ../$localStoragePackage\n'
         : '';
     final i18nDeps = hasI18n
-        ? '  slang: ^4.16.0\n'
-              '  slang_flutter: ^4.16.0\n'
+        ? '  slang: ^4.18.0\n'
+              '  slang_flutter: ^4.18.0\n'
               '  flutter_localizations:\n'
               '    sdk: flutter\n'
-              '  shared_preferences: ^2.3.3\n'
+              '  shared_preferences: ^2.5.5\n'
         : '';
     final shellDep = useShell ? '  go_router: ^17.2.3\n' : '';
     return '''name: $corePackageName
@@ -140,11 +141,11 @@ resolution: workspace
 dependencies:
   flutter:
     sdk: flutter
-  hooks_riverpod: ^3.3.1
-  riverpod_annotation: ^4.0.2
+  hooks_riverpod: ^3.3.2
+  riverpod_annotation: ^4.0.3
   freezed_annotation: ^3.1.0
-  json_annotation: ^4.11.0
-  go_router: ^17.2.3
+  json_annotation: ^4.12.0
+  go_router: ^17.3.0
 $clientDeps  skeletonizer: ^2.1.3
   $corePackageName:
     path: ../$corePackageName
@@ -153,9 +154,9 @@ $localStorageDep
 dev_dependencies:
   flutter_lints: ^6.0.0
   build_runner: ^2.15.0
-  riverpod_generator: ^4.0.3
+  riverpod_generator: ^4.0.4
   freezed: ^3.2.5
-  json_serializable: ^6.13.0
+  json_serializable: ^6.14.0
 $clientDevDeps$routerDevDeps''';
   }
 }

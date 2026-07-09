@@ -36,6 +36,9 @@ class ArchitectureScreen extends ConsumerWidget {
     final hasBackend = hasSupabase || hasFirebase;
     final backendLabel = hasFirebase ? 'Firebase' : 'Supabase';
     final canAuth = hasBackend && hasGoRouterBuilder;
+    // v1 scope: the "seen it" flag is a Riverpod provider (see
+    // OnboardingTemplates) — same annotations requirement as Realtime/Storage.
+    final canOnboarding = hasRiverpod && state.useRiverpodAnnotations;
     final hasDio = ref.watch(
       selectedPackagesProvider.select((list) => list.any((p) => p.name == 'dio')),
     );
@@ -306,6 +309,24 @@ class ArchitectureScreen extends ConsumerWidget {
                             'Automatically create matching directory structures for unit and widget tests.',
                         value: state.mirrorTestStructure,
                         onChanged: notifier.toggleMirrorTest,
+                      ),
+
+                      const SizedBox(height: 28),
+                      SectionHeader(icon: Icons.flag_outlined, label: 'Onboarding'),
+                      const SizedBox(height: 12),
+                      ToggleTile(
+                        title: 'First-launch onboarding flow',
+                        description: canOnboarding
+                            ? 'A content-free PageView skeleton (a few slides + Skip/Next) shown '
+                                  'once, then never again — write your own slide content. NEAT '
+                                  'does not wire it into your router (it depends on your '
+                                  'navigation shell/auth setup) — the generated OnboardingPage '
+                                  'has a doc comment showing exactly how.'
+                            : 'Requires Riverpod with @riverpod annotations — the persisted '
+                                  '"seen it" flag is a Riverpod provider.',
+                        value: canOnboarding && state.generateOnboarding,
+                        disabled: !canOnboarding,
+                        onChanged: notifier.toggleGenerateOnboarding,
                       ),
                     ],
                   ),

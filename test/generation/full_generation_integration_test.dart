@@ -5899,6 +5899,411 @@ void main() {
     },
     timeout: const Timeout(Duration(minutes: 12)),
   );
+
+  test(
+    'onboarding (plain go_router, no builder): generates the seen provider + page skeleton, '
+    'stays unwired, analyzes cleanly',
+    () async {
+      const projectName = 'neat_onboarding_test';
+      final logs = <String>[];
+
+      final pkgs = <PubPackage>[
+        _dep('hooks_riverpod', '3.3.1'),
+        _dep('flutter_hooks', '0.21.3+1'),
+        _dep('riverpod_annotation', '4.0.2'),
+        _dep('go_router', '17.2.3'),
+        _dep('json_annotation', '4.11.0'),
+        _dep('freezed_annotation', '3.1.0'),
+        _dev('riverpod_generator', '4.0.3'),
+        _dev('build_runner', '2.15.0'),
+        _dev('freezed', '3.2.5'),
+        _dev('json_serializable', '6.13.0'),
+      ];
+
+      final identity = IdentityState(
+        name: projectName,
+        organization: 'com.neat.test',
+        projectPath: tempRoot.path,
+        description: 'NEAT onboarding integration test',
+        targetPlatforms: const ['macos'],
+      );
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: identity,
+          packages: pkgs,
+          architecture: const ArchitectureState(generateOnboarding: true),
+          cicd: const CicdState(),
+          theme: const ThemeEngineState(approach: ThemeApproach.customM3),
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('Onboarding generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+
+      final contract = jsonDecode(
+        File('${projectDir.path}/.neat.json').readAsStringSync(),
+      ) as Map<String, dynamic>;
+      expect(contract['generateOnboarding'], isTrue);
+
+      // The seen-flag provider.
+      final provider = File(
+        '${projectDir.path}/lib/core/onboarding/onboarding_seen_provider.dart',
+      ).readAsStringSync();
+      expect(provider, contains('@Riverpod(keepAlive: true)'));
+      expect(provider, contains('class OnboardingSeen extends _\$OnboardingSeen'));
+      expect(provider, contains('SharedPreferences'));
+
+      // The page skeleton.
+      final page = File(
+        '${projectDir.path}/lib/core/onboarding/onboarding_page.dart',
+      ).readAsStringSync();
+      expect(page, contains('class OnboardingPage extends HookConsumerWidget'));
+      expect(page, contains('usePageController()'));
+      expect(page, contains('PageView('));
+      // NEAT deliberately does not wire routing — bootstrap/app_router stay
+      // untouched, only the doc comment mentions the redirect example.
+      expect(page, contains('redirect: (context, state) {'));
+
+      // Not auto-wired into bootstrap or the router.
+      final bootstrap = File('${projectDir.path}/lib/core/bootstrap.dart').readAsStringSync();
+      expect(bootstrap, isNot(contains('OnboardingSeen')));
+      expect(bootstrap, isNot(contains('onboardingSeenProvider')));
+
+      // Dep injected.
+      final pubspec = File('${projectDir.path}/pubspec.yaml').readAsStringSync();
+      expect(pubspec, contains('shared_preferences:'));
+
+      // Analyze 0/0 — the un-wired skeleton must still compile on its own.
+      final analyze = await Process.run(
+        'flutter',
+        ['analyze', '--no-pub'],
+        workingDirectory: projectDir.path,
+      );
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      expect(
+        RegExp(r'(\d+ issues? found|No issues found)').hasMatch(out),
+        isTrue,
+        reason: 'flutter analyze did not run as expected:\n$out',
+      );
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason: 'onboarding project analyze reported issues:\n${errorLines.join('\n')}\n\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
+
+  test(
+    'onboarding (go_router_builder, no Auth, shell): redirect auto-wired, analyzes cleanly',
+    () async {
+      const projectName = 'neat_onboarding_autowired_test';
+      final logs = <String>[];
+
+      final pkgs = <PubPackage>[
+        _dep('hooks_riverpod', '3.3.1'),
+        _dep('flutter_hooks', '0.21.3+1'),
+        _dep('riverpod_annotation', '4.0.2'),
+        _dep('go_router', '17.2.3'),
+        _dep('json_annotation', '4.11.0'),
+        _dep('freezed_annotation', '3.1.0'),
+        _dev('riverpod_generator', '4.0.3'),
+        _dev('build_runner', '2.15.0'),
+        _dev('freezed', '3.2.5'),
+        _dev('json_serializable', '6.13.0'),
+        _dev('go_router_builder', '4.3.0'),
+      ];
+
+      final identity = IdentityState(
+        name: projectName,
+        organization: 'com.neat.test',
+        projectPath: tempRoot.path,
+        description: 'NEAT onboarding auto-wired integration test',
+        targetPlatforms: const ['macos'],
+      );
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: identity,
+          packages: pkgs,
+          // useNavigationShell mirrors the reported case (nexus: no Auth,
+          // go_router_builder, a shell) — the onboarding route is a top-level
+          // sibling of the shell, so it shouldn't interact with its branches.
+          architecture: const ArchitectureState(
+            generateOnboarding: true,
+            useNavigationShell: true,
+          ),
+          cicd: const CicdState(),
+          theme: const ThemeEngineState(approach: ThemeApproach.customM3),
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('Onboarding (auto-wired) generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+
+      // Route registered.
+      final routePath = File(
+        '${projectDir.path}/lib/core/constants/app_route_path.dart',
+      ).readAsStringSync();
+      expect(routePath, contains("static const String onboarding = '/onboarding';"));
+
+      final routes = File('${projectDir.path}/lib/core/onboarding/onboarding_routes.dart')
+          .readAsStringSync();
+      expect(routes, contains('@TypedGoRoute<OnboardingRoute>(path: AppRoutePath.onboarding)'));
+
+      // routes.dart aggregates it (no separate RouterNotifier — no Auth here).
+      // dart format may wrap the long import line — check substrings, not the
+      // exact single-line form.
+      final routesDart = File('${projectDir.path}/lib/core/router/routes.dart').readAsStringSync();
+      expect(routesDart, contains('core/onboarding/onboarding_routes.dart'));
+      expect(routesDart, contains('as onboarding;'));
+      expect(routesDart, contains(r'...onboarding.$appRoutes,'));
+      expect(
+        File('${projectDir.path}/lib/core/router/router_notifier.dart').existsSync(),
+        isFalse,
+        reason: 'no Auth in this scenario — there should be no RouterNotifier at all',
+      );
+
+      // Standalone guard wired directly in app_router.dart.
+      final appRouter = File('${projectDir.path}/lib/core/router/app_router.dart').readAsStringSync();
+      expect(appRouter, contains('onboarding_seen_provider.dart'));
+      expect(appRouter, contains('refreshListenable: seen'));
+      expect(appRouter, contains('AppRoutePath.onboarding'));
+
+      // bootstrap pre-loads the persisted flag before runApp.
+      final bootstrap = File('${projectDir.path}/lib/core/bootstrap.dart').readAsStringSync();
+      expect(bootstrap, contains('ProviderContainer'));
+      expect(bootstrap, contains('onboardingSeenProvider.notifier).load()'));
+      expect(bootstrap, contains('UncontrolledProviderScope'));
+
+      // The doc comment reflects reality — already wired, not "wire it yourself".
+      final page = File(
+        '${projectDir.path}/lib/core/onboarding/onboarding_page.dart',
+      ).readAsStringSync();
+      expect(page, contains('NEAT already wired the routing gate'));
+
+      // AGENTS.md reflects the auto-wired case too.
+      final agents = File('${projectDir.path}/AGENTS.md').readAsStringSync();
+      expect(agents, contains('The routing gate is already wired'));
+
+      // Analyze 0/0 — the real, hard part: does the generated redirect
+      // actually compile (shell branches included)?
+      final analyze = await Process.run(
+        'flutter',
+        ['analyze', '--no-pub'],
+        workingDirectory: projectDir.path,
+      );
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      expect(
+        RegExp(r'(\d+ issues? found|No issues found)').hasMatch(out),
+        isTrue,
+        reason: 'flutter analyze did not run as expected:\n$out',
+      );
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason: 'onboarding (auto-wired) project analyze reported issues:\n${errorLines.join('\n')}\n\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
+
+  test(
+    'onboarding + Auth (go_router_builder): merged into RouterNotifier, one refreshListenable, analyzes cleanly',
+    () async {
+      const projectName = 'neat_onboarding_auth_test';
+      final logs = <String>[];
+
+      final pkgs = <PubPackage>[
+        _dep('hooks_riverpod', '3.3.1'),
+        _dep('flutter_hooks', '0.21.3+1'),
+        _dep('riverpod_annotation', '4.0.2'),
+        _dep('supabase_flutter', '2.14.1'),
+        _dep('go_router', '17.2.3'),
+        _dep('json_annotation', '4.11.0'),
+        _dep('freezed_annotation', '3.1.0'),
+        _dev('riverpod_generator', '4.0.3'),
+        _dev('build_runner', '2.15.0'),
+        _dev('freezed', '3.2.5'),
+        _dev('json_serializable', '6.13.0'),
+        _dev('go_router_builder', '4.3.0'),
+      ];
+
+      final identity = IdentityState(
+        name: projectName,
+        organization: 'com.neat.test',
+        projectPath: tempRoot.path,
+        description: 'NEAT onboarding + auth integration test',
+        targetPlatforms: const ['macos'],
+      );
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: identity,
+          packages: pkgs,
+          architecture: const ArchitectureState(generateAuth: true, generateOnboarding: true),
+          cicd: const CicdState(),
+          theme: const ThemeEngineState(approach: ThemeApproach.customM3),
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('Onboarding + Auth generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+
+      // Merged into the existing RouterNotifier — not a second Listenable.
+      final notifier = File(
+        '${projectDir.path}/lib/core/router/router_notifier.dart',
+      ).readAsStringSync();
+      expect(notifier, contains('onboarding_seen_provider.dart'));
+      expect(notifier, contains('ref.listen(onboardingSeenProvider,'));
+      expect(notifier, contains('AppRoutePath.onboarding'));
+      expect('implements Listenable'.allMatches(notifier).length, 1);
+
+      // app_router.dart uses the Auth guard's shape — no standalone onboarding guard.
+      final appRouter = File('${projectDir.path}/lib/core/router/app_router.dart').readAsStringSync();
+      expect(appRouter, contains('refreshListenable: guard'));
+      expect(appRouter, isNot(contains('onboarding_seen_provider.dart')));
+
+      // Route registered + aggregated.
+      final routesDart = File('${projectDir.path}/lib/core/router/routes.dart').readAsStringSync();
+      expect(routesDart, contains(r'...onboarding.$appRoutes,'));
+      expect(routesDart, contains(r'...auth.$appRoutes,'));
+
+      // Analyze 0/0 — the real proof that merging into RouterNotifier compiles.
+      final analyze = await Process.run(
+        'flutter',
+        ['analyze', '--no-pub'],
+        workingDirectory: projectDir.path,
+      );
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      expect(
+        RegExp(r'(\d+ issues? found|No issues found)').hasMatch(out),
+        isTrue,
+        reason: 'flutter analyze did not run as expected:\n$out',
+      );
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason: 'onboarding+auth project analyze reported issues:\n${errorLines.join('\n')}\n\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
+
+  test(
+    'onboarding + packageSplit (go_router_builder, shell, no Auth): AppRoutePath.onboarding is '
+    'mirrored into the core package too, analyzes cleanly',
+    () async {
+      const projectName = 'neat_onboarding_pkgsplit_test';
+      final logs = <String>[];
+
+      final pkgs = <PubPackage>[
+        _dep('hooks_riverpod', '3.3.1'),
+        _dep('flutter_hooks', '0.21.3+1'),
+        _dep('riverpod_annotation', '4.0.2'),
+        _dep('dio', '5.9.2'),
+        _dep('go_router', '17.2.3'),
+        _dep('json_annotation', '4.11.0'),
+        _dep('freezed_annotation', '3.1.0'),
+        _dev('riverpod_generator', '4.0.3'),
+        _dev('build_runner', '2.15.0'),
+        _dev('freezed', '3.2.5'),
+        _dev('json_serializable', '6.13.0'),
+        _dev('go_router_builder', '4.3.0'),
+      ];
+
+      final identity = IdentityState(
+        name: projectName,
+        organization: 'com.neat.test',
+        projectPath: tempRoot.path,
+        description: 'NEAT onboarding + packageSplit integration test',
+        targetPlatforms: const ['macos'],
+      );
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: identity,
+          packages: pkgs,
+          // Mirrors the reported case (nexus_pac): packageSplit + onboarding
+          // + shell, no Auth.
+          architecture: const ArchitectureState(
+            packageSplit: true,
+            generateOnboarding: true,
+            useNavigationShell: true,
+          ),
+          cicd: const CicdState(),
+          theme: const ThemeEngineState(approach: ThemeApproach.customM3),
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('Onboarding + packageSplit generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+
+      // The app's own copy has it (already covered by the non-split test,
+      // re-asserted here since this is a different generation path).
+      final appCopy = File(
+        '${projectDir.path}/lib/core/constants/app_route_path.dart',
+      ).readAsStringSync();
+      expect(appCopy, contains("static const String onboarding = '/onboarding';"));
+
+      // The bug this test exists for: the core package's *mirrored* copy
+      // must have it too — a split feature (e.g. one added later via the
+      // Workshop) can only ever import AppRoutePath from here, never from
+      // the app directly (see _writeCorePackage's hasOnboarding doc).
+      final coreCopy = File(
+        '${projectDir.path}/packages/core/lib/core/constants/app_route_path.dart',
+      ).readAsStringSync();
+      expect(
+        coreCopy,
+        contains("static const String onboarding = '/onboarding';"),
+        reason: 'packages/core\'s AppRoutePath mirror is missing onboarding — any split feature '
+            'referencing it would fail to compile',
+      );
+
+      final analyze = await Process.run(
+        'flutter',
+        ['analyze', '--no-pub'],
+        workingDirectory: projectDir.path,
+      );
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      expect(
+        RegExp(r'(\d+ issues? found|No issues found)').hasMatch(out),
+        isTrue,
+        reason: 'flutter analyze did not run as expected:\n$out',
+      );
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason: 'onboarding+packageSplit project analyze reported issues:\n${errorLines.join('\n')}\n\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
 }
 
 PubPackage _dep(String name, String version) =>
