@@ -50,7 +50,7 @@ machine that created the project.
 ## Quality bar
 
 A `--tags integration` harness generates **real** projects and runs `flutter analyze`
-with a **0-error / 0-warning** gate, plus ~70 fast unit tests for the wiring logic.
+with a **0-error / 0-warning** gate, plus 200+ fast unit tests for the wiring logic.
 If NEAT ships it, it compiles.
 
 ```bash
@@ -69,8 +69,9 @@ flutter run -d macos
 
 ## Roadmap
 
-Open-source → contract-aware AI rules (AGENTS.md) → Skeletonizer + logo→assets →
-Firebase/Supabase → i18n (slang) → more architectures (carefully). Details in
+Shipped: contract-aware AI rules (AGENTS.md), i18n (slang), Bloc/Cubit. In progress:
+open-sourcing this repo, Modular Monorepo (opt-in per-feature packages). Next:
+Firebase/Supabase backends, more architectures (carefully). Details in
 [ROADMAP.md](ROADMAP.md).
 
 ## License

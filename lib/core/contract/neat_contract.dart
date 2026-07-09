@@ -54,6 +54,7 @@ abstract class NeatContract with _$NeatContract {
     @Default(false) bool generateStorage,
     @Default(false) bool generateOAuth,
     @Default(false) bool generateI18n,
+    @Default(false) bool generateOnboarding,
     @Default(<String>[]) List<String> components,
 
     /// Modular Monorepo (see ROADMAP.md §6a): every feature lives in its own

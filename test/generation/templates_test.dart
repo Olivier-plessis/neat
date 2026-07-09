@@ -31,6 +31,15 @@ void main() {
     });
 
     test('no leftover placeholders', () => expectNoPlaceholders(out));
+
+    test('no onboarding constant when hasOnboarding is off', () {
+      expect(out, isNot(contains('onboarding')));
+    });
+
+    test('hasOnboarding registers the /onboarding constant', () {
+      final withOnboarding = CoreTemplates.appRoutePath(featureName: feature, hasOnboarding: true);
+      expect(withOnboarding, contains("static const String onboarding = '/onboarding';"));
+    });
   });
 
   group('CoreTemplates.appRouterBuilder (riverpod annotations)', () {
@@ -52,6 +61,39 @@ void main() {
     test('aggregates routes via routes.dart', () {
       expect(out, contains("import 'routes.dart';"));
       expect(out, contains('routes: appRoutes'));
+    });
+
+    test('no redirect/refreshListenable when neither auth nor onboarding is on', () {
+      expect(out, isNot(contains('redirect')));
+      expect(out, isNot(contains('refreshListenable')));
+    });
+
+    test('hasOnboarding (no auth): wires a standalone OnboardingSeen guard', () {
+      final withOnboarding = CoreTemplates.appRouterBuilder(
+        packageName: pkgName,
+        featureName: feature,
+        useAnnotations: true,
+        hasOnboarding: true,
+      );
+      expect(withOnboarding, contains('onboarding_seen_provider.dart'));
+      expect(withOnboarding, contains('refreshListenable: seen'));
+      expect(withOnboarding, contains('AppRoutePath.onboarding'));
+      expect(withOnboarding, contains('AppRoutePath.userProfile'));
+    });
+
+    test('hasAuth + hasOnboarding: guard stays RouterNotifier-only (merge happens there)', () {
+      final withBoth = CoreTemplates.appRouterBuilder(
+        packageName: pkgName,
+        featureName: feature,
+        useAnnotations: true,
+        hasAuth: true,
+        hasOnboarding: true,
+      );
+      expect(withBoth, contains('router_notifier.dart'));
+      expect(withBoth, contains('refreshListenable: guard'));
+      // The standalone onboarding guard must not also appear — merged into
+      // RouterNotifier instead (see AuthTemplates.routerNotifier).
+      expect(withBoth, isNot(contains('onboarding_seen_provider.dart')));
     });
   });
 
@@ -191,6 +233,26 @@ void main() {
       );
       expect(out, contains('Future<void> bootstrap(AppEnv env) async'));
       expect(out, contains('AppEnv.setEnv(env);'));
+    });
+
+    test('hasOnboarding: pre-warms a ProviderContainer and loads the seen flag before runApp', () {
+      final out = AppTemplates.bootstrap(
+        packageName: pkgName,
+        hasRiverpod: true,
+        useAnnotations: true,
+        useEnvied: false,
+        isWeb: false,
+        hasOnboarding: true,
+      );
+      expect(out, contains('onboarding_seen_provider.dart'));
+      expect(out, contains('final container = ProviderContainer(observers: [RiverpodObserver()]);'));
+      expect(out, contains('await container.read(onboardingSeenProvider.notifier).load();'));
+      expect(out, contains('UncontrolledProviderScope(container: container, child: const App())'));
+      // The load must happen before runApp, not after.
+      expect(
+        out.indexOf('container.read(onboardingSeenProvider.notifier).load()'),
+        lessThan(out.indexOf('runApp(')),
+      );
     });
 
     test('web target adds usePathUrlStrategy', () {

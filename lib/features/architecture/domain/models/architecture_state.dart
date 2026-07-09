@@ -142,6 +142,13 @@ abstract class ArchitectureState with _$ArchitectureState {
     /// ignored — the CSV's own header columns decide the languages.
     @Default('') String i18nCsvPath,
 
+    /// Opt-in: a first-launch-only onboarding flow (a content-free `PageView`
+    /// skeleton + a persisted "seen it" provider). NEAT does not wire the
+    /// actual routing gate — that depends on your navigation shell/auth setup
+    /// — see OnboardingPage's doc comment for how to wire it yourself. v1
+    /// scope: Riverpod annotations only (see ROADMAP.md backlog).
+    @Default(false) bool generateOnboarding,
+
     /// Opt-in: generate native **build flavors** (Android productFlavors, per-env
     /// entry points `main_<flavor>.dart`, `.vscode/launch.json`). Off by default
     /// so a plain `flutter run` works with zero config. Only effective with envied.

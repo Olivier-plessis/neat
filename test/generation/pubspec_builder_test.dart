@@ -305,4 +305,31 @@ void main() {
       expect(parseDeps(out).devDeps.containsKey('envied_generator'), isTrue);
     });
   });
+
+  group('buildPubspecContent — onboarding', () {
+    test('addOnboarding injects shared_preferences', () {
+      final out = LaunchGenerationUsecase.buildPubspecContent(
+        _basePubspec,
+        const [],
+        addOnboarding: true,
+      );
+      expect(parseDeps(out).deps.containsKey('shared_preferences'), isTrue);
+    });
+
+    test('no shared_preferences when onboarding is off', () {
+      final out = LaunchGenerationUsecase.buildPubspecContent(_basePubspec, const []);
+      expect(parseDeps(out).deps.containsKey('shared_preferences'), isFalse);
+    });
+
+    test('addSlang + addOnboarding together: shared_preferences added once, not duplicated', () {
+      final out = LaunchGenerationUsecase.buildPubspecContent(
+        _basePubspec,
+        const [],
+        addSlang: true,
+        addOnboarding: true,
+      );
+      expect(() => parseDeps(out), returnsNormally);
+      expect('shared_preferences:'.allMatches(out).length, 1);
+    });
+  });
 }

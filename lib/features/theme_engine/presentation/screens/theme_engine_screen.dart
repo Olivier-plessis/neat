@@ -1000,7 +1000,9 @@ class _SplashIconTab extends ConsumerWidget {
               hasComponents: state.components.isNotEmpty,
               onChanged: notifier.setGenerateWidgetbook,
             ),
+            const SizedBox(height: 16),
           ],
+          SectionHeader(icon: Icons.dns_outlined, label: 'Modular Monorepo'),
           const SizedBox(height: 16),
           _SimpleToggleCard(
             icon: Icons.widgets_outlined,

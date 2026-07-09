@@ -10,12 +10,19 @@ class CoreTemplates {
     required String featureName,
     bool hasFirstFeature = true,
     bool hasAuth = false,
+    bool hasOnboarding = false,
   }) {
     final auth = hasAuth
         ? "\n  static const String login = '/login';\n"
             "  static const String signup = '/signup';\n"
             "  static const String forgotPassword = '/forgot-password';\n"
         : '';
+    // Only registered when the redirect can actually be auto-wired
+    // (go_router_builder — see launch_generation_usecase.dart's
+    // autoWireOnboarding) — see ROADMAP.md's onboarding entry for why plain
+    // go_router stays unwired.
+    final onboarding =
+        hasOnboarding ? "\n  static const String onboarding = '/onboarding';\n" : '';
     final entry = hasFirstFeature
         ? '  /// First feature — app entry point.\n'
             "  static const String ${_camel(featureName)} = '/';\n"
@@ -25,7 +32,7 @@ class CoreTemplates {
     return '''class AppRoutePath {
   AppRoutePath._();
 
-$entry$auth  // neat:routes — feature route constants are inserted above this line.
+$entry$auth$onboarding  // neat:routes — feature route constants are inserted above this line.
 }
 ''';
   }
@@ -1525,15 +1532,23 @@ final appRouter = GoRouter(
     required bool useAnnotations,
     bool hasAuth = false,
     bool hasFirstFeature = true,
+    bool hasOnboarding = false,
   }) {
     final c = hasFirstFeature ? _camel(featureName) : 'welcome';
     if (useAnnotations) {
-      // Auth wires a RouterNotifier guard (refreshListenable + redirect).
+      // Auth wires a RouterNotifier guard (refreshListenable + redirect) —
+      // it also covers onboarding when both are on (merged into that same
+      // guard, see AuthTemplates.routerNotifier). No Auth but onboarding is
+      // on: a standalone guard using OnboardingSeen itself as the Listenable.
       final authImport = hasAuth
           ? "import 'package:$packageName/core/router/router_notifier.dart';\n"
           : '';
-      final body = hasAuth
-          ? '''RouterConfig<Object> appRouter(Ref ref) {
+      final onboardingImport = (!hasAuth && hasOnboarding)
+          ? "import 'package:$packageName/core/onboarding/onboarding_seen_provider.dart';\n"
+          : '';
+      final String body;
+      if (hasAuth) {
+        body = '''RouterConfig<Object> appRouter(Ref ref) {
   // riverpod strips the "Notifier" suffix: RouterNotifier → routerProvider.
   final guard = ref.watch(routerProvider.notifier);
   return GoRouter(
@@ -1543,17 +1558,36 @@ final appRouter = GoRouter(
     redirect: guard.redirect,
     routes: appRoutes,
   );
-}'''
-          : '''RouterConfig<Object> appRouter(Ref ref) => GoRouter(
+}''';
+      } else if (hasOnboarding) {
+        body = '''RouterConfig<Object> appRouter(Ref ref) {
+  final seen = ref.watch(onboardingSeenProvider.notifier);
+  return GoRouter(
+    initialLocation: AppRoutePath.$c,
+    debugLogDiagnostics: true,
+    refreshListenable: seen,
+    redirect: (context, state) {
+      final onboardingSeen = ref.read(onboardingSeenProvider);
+      final onOnboarding = state.matchedLocation == AppRoutePath.onboarding;
+      if (!onboardingSeen && !onOnboarding) return AppRoutePath.onboarding;
+      if (onboardingSeen && onOnboarding) return AppRoutePath.$c;
+      return null;
+    },
+    routes: appRoutes,
+  );
+}''';
+      } else {
+        body = '''RouterConfig<Object> appRouter(Ref ref) => GoRouter(
   initialLocation: AppRoutePath.$c,
   debugLogDiagnostics: true,
   routes: appRoutes,
 );''';
+      }
       return '''import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:$packageName/core/constants/app_route_path.dart';
-${authImport}import 'routes.dart';
+$authImport${onboardingImport}import 'routes.dart';
 
 part 'app_router.g.dart';
 

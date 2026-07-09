@@ -245,21 +245,39 @@ IAuthRepository authRepository(Ref ref) =>
     required String homeRoute,
     String backend = 'supabase',
     String? authPackageName,
+    bool hasOnboarding = false,
   }) {
     final authProviderImport = authPackageName != null
         ? "import 'package:$authPackageName/presentation/providers/auth_provider.dart';"
         : "import 'package:$packageName/features/auth/presentation/providers/auth_provider.dart';";
+    // Onboarding is always app-level (see OnboardingTemplates) — never
+    // affected by authPackageName's split-package redirect.
+    final onboardingImport = hasOnboarding
+        ? "\nimport 'package:$packageName/core/onboarding/onboarding_seen_provider.dart';"
+        : '';
+    final onboardingListen = hasOnboarding
+        ? '\n    ref.listen(onboardingSeenProvider, (_, __) => _listener?.call());'
+        : '';
+    // Checked first — shown before even asking to log in.
+    final onboardingCheck = hasOnboarding
+        ? '''
+    final onboardingSeen = ref.read(onboardingSeenProvider);
+    final onOnboarding = loc == AppRoutePath.onboarding;
+    if (!onboardingSeen && !onOnboarding) return AppRoutePath.onboarding;
+    if (onboardingSeen && onOnboarding) return $homeRoute;
+'''
+        : '';
     return '''import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:${backend == 'firebase' ? 'firebase_auth/firebase_auth.dart' : 'supabase_flutter/supabase_flutter.dart'}';
 import 'package:$packageName/core/constants/app_route_path.dart';
-$authProviderImport
+$authProviderImport$onboardingImport
 
 part 'router_notifier.g.dart';
 
-/// Drives go_router redirects from the auth state. It is a [Listenable] so the
-/// router refreshes whenever the user signs in or out.
+/// Drives go_router redirects from the auth state${hasOnboarding ? ' and onboarding' : ''}.
+/// It is a [Listenable] so the router refreshes whenever ${hasOnboarding ? 'either changes' : 'the user signs in or out'}.
 @Riverpod(keepAlive: true)
 class RouterNotifier extends _\$RouterNotifier implements Listenable {
   VoidCallback? _listener;
@@ -269,15 +287,16 @@ class RouterNotifier extends _\$RouterNotifier implements Listenable {
     ref.listen(authControllerProvider, (_, next) {
       state = next;
       _listener?.call();
-    });
+    });$onboardingListen
     return ref.read(authControllerProvider);
   }
 
   /// Unauthenticated users are sent to /login (except on auth routes);
   /// authenticated users on an auth route are sent home.
   String? redirect(BuildContext context, GoRouterState routerState) {
-    final loggedIn = state != null;
     final loc = routerState.matchedLocation;
+$onboardingCheck
+    final loggedIn = state != null;
     final onAuthRoute = loc == AppRoutePath.login ||
         loc == AppRoutePath.signup ||
         loc == AppRoutePath.forgotPassword;

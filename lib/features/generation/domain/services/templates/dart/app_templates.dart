@@ -72,6 +72,10 @@ void main() => $call;
     // bridges it once here, before runApp, into the core package's
     // ApiConfig.baseUrl.
     bool bridgesApiBaseUrl = false,
+    // Only set when the redirect is auto-wired (go_router_builder — see
+    // launch_generation_usecase.dart's autoWireOnboarding). Always app-level
+    // (see OnboardingTemplates), never affected by corePackageName.
+    bool hasOnboarding = false,
   }) {
     final registersChopper = chopperRegisterFeaturePackage != null;
     final registersShell = shellRegisterFeaturePackage != null;
@@ -131,6 +135,10 @@ void main() => $call;
             "import 'package:$shellRegisterFeaturePackage/presentation/routes/${shellRegisterFeatureName}_shell_registration.dart';")
         ..writeln('// neat:shell-register-imports');
     }
+    if (hasOnboarding) {
+      imports.writeln(
+          "import 'package:$packageName/core/onboarding/onboarding_seen_provider.dart';");
+    }
 
     final sig =
         useEnvied ? 'Future<void> bootstrap(AppEnv env) async' : 'Future<void> bootstrap() async';
@@ -155,9 +163,22 @@ void main() => $call;
         : '';
     // Apply the persisted locale (falls back to the device locale) before runApp.
     final i18nInit = hasI18n ? '\n      await LocaleStore.init();' : '';
-    final baseRoot = hasRiverpod
-        ? 'ProviderScope(observers: [RiverpodObserver()], child: const App())'
-        : 'const App()';
+    // Onboarding's redirect (auto-wired — see AuthTemplates.routerNotifier /
+    // CoreTemplates.appRouterBuilder) needs the persisted "seen it" flag
+    // loaded *before* the router's first redirect decision — that needs a
+    // `ref`, which doesn't exist before runApp. Pre-warm a ProviderContainer
+    // (the exact move this class's own docComment below already hints at)
+    // and hand it to UncontrolledProviderScope instead of building a fresh
+    // ProviderScope, so the loaded state carries into the running app.
+    final onboardingInit = hasOnboarding
+        ? '\n      final container = ProviderContainer(observers: [RiverpodObserver()]);'
+            '\n      await container.read(onboardingSeenProvider.notifier).load();'
+        : '';
+    final baseRoot = hasOnboarding
+        ? 'UncontrolledProviderScope(container: container, child: const App())'
+        : hasRiverpod
+            ? 'ProviderScope(observers: [RiverpodObserver()], child: const App())'
+            : 'const App()';
     // slang's TranslationProvider must sit above MaterialApp so context.t works.
     final root = hasI18n ? 'TranslationProvider(child: $baseRoot)' : baseRoot;
 
@@ -183,7 +204,7 @@ $docComment$sig {
 $setEnv  await runZonedGuarded(
     () async {
       WidgetsFlutterBinding.ensureInitialized();$chopperRegisterCalls$shellRegisterCalls
-      registerErrorHandler();$pathUrl$i18nInit$firebaseInit$supaInit
+      registerErrorHandler();$pathUrl$i18nInit$firebaseInit$supaInit$onboardingInit
       runApp($root);
     },
     (error, stack) => AppLogger.f('Uncaught exception', error: error, stackTrace: stack),
