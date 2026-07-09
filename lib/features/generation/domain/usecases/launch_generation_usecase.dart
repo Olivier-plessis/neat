@@ -19,6 +19,7 @@ import 'package:neat/features/generation/domain/services/templates/dart/app_temp
 import 'package:neat/features/generation/domain/services/templates/dart/auth_templates.dart';
 import 'package:neat/features/generation/domain/services/templates/dart/core_dart_templates.dart';
 import 'package:neat/features/generation/domain/services/templates/dart/i18n_templates.dart';
+import 'package:neat/features/generation/domain/services/templates/dart/onboarding_templates.dart';
 import 'package:neat/features/generation/domain/services/templates/local_storage_templates.dart';
 import 'package:neat/features/identity/domain/models/identity_state.dart';
 import 'package:neat/features/theme_engine/domain/models/theme_engine_state.dart';
@@ -164,6 +165,12 @@ class LaunchGenerationUsecase {
     // consumption (`context.t` + LanguageSwitcher) is woven into riverpod pages.
     final hasI18n = architecture.generateI18n;
 
+    // Opt-in onboarding (first-launch-only PageView skeleton + a persisted
+    // "seen it" provider). Riverpod-annotations only for v1 — the provider
+    // needs `@riverpod`. App-level always, no packageSplit placement (unlike
+    // i18n) — see ROADMAP.md backlog for why.
+    final hasOnboarding = architecture.generateOnboarding && hasRiverpod && useAnnotations;
+
     // Offline-first turns the project into a Dart workspace with a dedicated
     // local-storage package (Drift). null when remote-only. Firestore ships its
     // own offline persistence, so a Firebase backend disables the Drift layer
@@ -264,6 +271,7 @@ class LaunchGenerationUsecase {
       hasStorage: hasStorage,
       hasOAuth: hasOAuth,
       hasI18n: hasI18n,
+      hasOnboarding: hasOnboarding,
       corePackageName: corePackageName,
       featurePackageName: featurePackageName,
       authPackageName: authPackageName,
@@ -273,6 +281,11 @@ class LaunchGenerationUsecase {
     // 2a. Shared core workspace package (Result/Failure/UseCase/dio networking)
     if (corePackageName != null) {
       onLog('[▶] Creating shared core workspace package...');
+      // Mirrors _buildScaffold's own autoWireOnboarding — this method has its
+      // own local scope (same reasoning as useShell just above), so it's
+      // recomputed here from the same inputs rather than threaded through as
+      // yet another argument.
+      final autoWireOnboarding = hasOnboarding && hasGoRouterBuilder;
       await _writeCorePackage(
         projectDir,
         corePackageName,
@@ -286,6 +299,7 @@ class LaunchGenerationUsecase {
         hasEnvied: hasEnvied,
         useShell: useShell,
         featurePackageName: featurePackageName,
+        hasOnboarding: autoWireOnboarding,
       );
       onLog('[✓] packages/$corePackageName created.');
     }
@@ -353,6 +367,7 @@ class LaunchGenerationUsecase {
       addFirebaseAuth: hasAuth && httpClient == 'firebase',
       addFirebaseStorage: hasStorage && httpClient == 'firebase',
       addSlang: hasI18n,
+      addOnboarding: hasOnboarding,
     );
     onLog('[✓] Dependencies added to pubspec.yaml.');
 
@@ -469,6 +484,7 @@ class LaunchGenerationUsecase {
       generateStorage: hasStorage,
       generateOAuth: hasOAuth,
       generateI18n: hasI18n,
+      generateOnboarding: hasOnboarding,
       useNavigationShell: architecture.useNavigationShell && hasGoRouter,
       components: theme.components.map((c) => c.name).toList(),
       packageSplit: packageSplitSupported,
@@ -539,6 +555,7 @@ class LaunchGenerationUsecase {
     bool hasStorage = false,
     bool hasOAuth = false,
     bool hasI18n = false,
+    bool hasOnboarding = false,
     String? corePackageName,
     String? featurePackageName,
     String? authPackageName,
@@ -563,6 +580,13 @@ class LaunchGenerationUsecase {
         architecture.i18nCsvPath.isNotEmpty &&
         File(architecture.i18nCsvPath).existsSync();
     final hasI18nSample = hasI18n && !i18nFromCsv;
+
+    // The redirect can only be auto-wired where the RouterNotifier-style
+    // guard mechanism already exists (go_router_builder) — plain go_router
+    // has no proven anchor-splicing precedent for this yet (see ROADMAP.md's
+    // onboarding entry). Never mirrored into a packageSplit core package —
+    // onboarding stays app-level, unlike Auth.
+    final autoWireOnboarding = hasOnboarding && hasGoRouterBuilder;
 
     // ── main.dart + bootstrap ───────────────────────────────────────────────
     // A single environment → one `main.dart` loading the lone `Env`. With ≥2
@@ -612,6 +636,7 @@ class LaunchGenerationUsecase {
         corePackageName: corePackageName,
         bridgesApiBaseUrl:
             hasEnvied && corePackageName != null && (httpClient == 'dio' || httpClient == 'chopper'),
+        hasOnboarding: autoWireOnboarding,
       ),
     );
 
@@ -673,6 +698,7 @@ class LaunchGenerationUsecase {
         featureName: featureName,
         hasAuth: hasAuth,
         hasFirstFeature: architecture.generateFirstFeature,
+        hasOnboarding: autoWireOnboarding,
       ),
     );
 
@@ -946,6 +972,7 @@ class LaunchGenerationUsecase {
         hasFirstFeature: architecture.generateFirstFeature,
         featurePackageName: featurePackageName,
         corePackageName: corePackageName,
+        hasOnboarding: autoWireOnboarding,
       );
     }
 
@@ -960,6 +987,7 @@ class LaunchGenerationUsecase {
         oauth: hasOAuth,
         corePackageName: corePackageName,
         authPackageName: authPackageName,
+        hasOnboarding: autoWireOnboarding,
       );
     }
 
@@ -1007,6 +1035,47 @@ class LaunchGenerationUsecase {
         '$i18nLib/core/i18n/language_switcher.dart',
         I18nTemplates.languageSwitcher(packageName: i18nPackageName),
       );
+    }
+
+    // ── onboarding (opt-in, Riverpod annotations only) ────────────────────
+    // Always app-level (unlike i18n) — it has no cross-feature dependency to
+    // solve, so no packageSplit placement question. The redirect is
+    // auto-wired only when autoWireOnboarding (go_router_builder) — see
+    // OnboardingTemplates' doc comment for the plain-go_router fallback.
+    if (hasOnboarding) {
+      await _write(
+        '$lib/core/onboarding/onboarding_seen_provider.dart',
+        OnboardingTemplates.onboardingSeenProvider(packageName: packageName),
+      );
+      await _write(
+        '$lib/core/onboarding/onboarding_page.dart',
+        OnboardingTemplates.onboardingPage(
+          packageName: packageName,
+          autoWired: autoWireOnboarding,
+        ),
+      );
+      if (autoWireOnboarding) {
+        final onboardingHomeRoute = 'AppRoutePath.${_camelCase(featureName)}';
+        await _write(
+          '$lib/core/onboarding/onboarding_routes.dart',
+          OnboardingTemplates.onboardingRoutesBuilder(
+            packageName: packageName,
+            homeRoute: onboardingHomeRoute,
+          ),
+        );
+
+        // Aggregate the onboarding route into the shared route table (typed
+        // go_router_builder only — see autoWireOnboarding).
+        final onboardingRoutesImport =
+            "import 'package:$packageName/core/onboarding/onboarding_routes.dart' as onboarding;";
+        final routesFile = File('$lib/core/router/routes.dart');
+        if (routesFile.existsSync()) {
+          var s = await routesFile.readAsString();
+          s = _insertBeforeAnchor(s, '// neat:route-imports', onboardingRoutesImport);
+          s = _insertBeforeAnchor(s, '// neat:route-entries', r'  ...onboarding.$appRoutes,');
+          await routesFile.writeAsString(s);
+        }
+      }
     }
 
     // ── components ────────────────────────────────────────────────────────
@@ -1438,6 +1507,7 @@ dev_dependencies:
     bool oauth = false,
     String? corePackageName,
     String? authPackageName,
+    bool hasOnboarding = false,
   }) async {
     final a = authPackageName != null
         ? '${projectDir.path}/packages/$authPackageName/lib'
@@ -1532,6 +1602,7 @@ dev_dependencies:
         homeRoute: homeRoute,
         backend: backend,
         authPackageName: authPackageName,
+        hasOnboarding: hasOnboarding,
       ),
     );
 
@@ -1620,12 +1691,16 @@ dev_dependencies:
     // first branch's page (when useShell) reads core's shell page registry
     // instead of being imported directly (see CoreTemplates.shellPageRegistry).
     String? corePackageName,
+    // Only true when the redirect can be auto-wired (go_router_builder — see
+    // execute()'s autoWireOnboarding). Ignored when !hasGoRouterBuilder.
+    bool hasOnboarding = false,
   }) async {
     final r = '$lib/core/router';
 
     // app_router.dart: initialLocation = AppRoutePath.<first> = '/' (or
     // AppRoutePath.welcome with no first feature). With auth a
-    // RouterNotifier guard is wired (refreshListenable + redirect).
+    // RouterNotifier guard is wired (refreshListenable + redirect) — it also
+    // covers onboarding when both are on.
     await _write(
       '$r/app_router.dart',
       hasGoRouterBuilder
@@ -1635,6 +1710,7 @@ dev_dependencies:
               useAnnotations: useAnnotations,
               hasAuth: hasAuth,
               hasFirstFeature: hasFirstFeature,
+              hasOnboarding: hasOnboarding,
             )
           : CoreTemplates.appRouter(
               packageName: packageName,
@@ -1894,6 +1970,7 @@ dev_dependencies:
     bool addFirebaseAuth = false,
     bool addFirebaseStorage = false,
     bool addSlang = false,
+    bool addOnboarding = false,
   }) async {
     final pubspecFile = File('${projectDir.path}/pubspec.yaml');
     if (!pubspecFile.existsSync()) return;
@@ -1914,6 +1991,7 @@ dev_dependencies:
       addFirebaseAuth: addFirebaseAuth,
       addFirebaseStorage: addFirebaseStorage,
       addSlang: addSlang,
+      addOnboarding: addOnboarding,
     );
 
     await pubspecFile.writeAsString(content);
@@ -1970,6 +2048,11 @@ dev_dependencies:
     // first branch's own split package, used for the witness import.
     bool useShell = false,
     String? featurePackageName,
+    // Same rationale as hasAuth just below: a split feature package (added
+    // later via the Workshop) may want AppRoutePath.onboarding — e.g. a
+    // "Replay onboarding" settings action — and can only reach it through
+    // this mirrored copy, never the app's own.
+    bool hasOnboarding = false,
   }) async {
     final root = '${projectDir.path}/packages/$corePackageName';
     await _write(
@@ -2081,7 +2164,13 @@ dev_dependencies:
       // from here, so the login/signup/forgotPassword constants must be
       // mirrored here too — missing this made every auth route constant
       // undefined in the auth package (found via a failing integration test).
-      CoreTemplates.appRoutePath(featureName: featureName, hasAuth: hasAuth),
+      // hasOnboarding: same shape of bug, found the same way — see the param
+      // doc above.
+      CoreTemplates.appRoutePath(
+        featureName: featureName,
+        hasAuth: hasAuth,
+        hasOnboarding: hasOnboarding,
+      ),
     );
     // theme_mode_controller is a single app-wide *stateful* provider (unlike
     // the other core files above, which are stateless types/singletons) —
@@ -2168,6 +2257,7 @@ dev_dependencies:
     bool addFirebaseAuth = false,
     bool addFirebaseStorage = false,
     bool addSlang = false,
+    bool addOnboarding = false,
   }) {
     final deps = StringBuffer();
     final devDeps = StringBuffer();
@@ -2276,6 +2366,14 @@ dev_dependencies:
       if (!uniquePackages.any((p) => p.name == 'shared_preferences')) {
         deps.write('  shared_preferences: ^2.3.3\n');
       }
+    }
+    // Onboarding: shared_preferences for the "seen it" flag — same package
+    // LocaleStore uses for locale persistence, so guard against addSlang
+    // already having added it (avoid a duplicate line).
+    if (addOnboarding &&
+        !addSlang &&
+        !uniquePackages.any((p) => p.name == 'shared_preferences')) {
+      deps.write('  shared_preferences: ^2.3.3\n');
     }
     // Branding tooling: app icons + splash from the uploaded logo.
     if (addBranding) {

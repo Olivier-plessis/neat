@@ -32,6 +32,7 @@ _NeatContract _$NeatContractFromJson(Map<String, dynamic> json) =>
       generateStorage: json['generateStorage'] as bool? ?? false,
       generateOAuth: json['generateOAuth'] as bool? ?? false,
       generateI18n: json['generateI18n'] as bool? ?? false,
+      generateOnboarding: json['generateOnboarding'] as bool? ?? false,
       components:
           (json['components'] as List<dynamic>?)
               ?.map((e) => e as String)
@@ -66,6 +67,7 @@ Map<String, dynamic> _$NeatContractToJson(_NeatContract instance) =>
       'generateStorage': instance.generateStorage,
       'generateOAuth': instance.generateOAuth,
       'generateI18n': instance.generateI18n,
+      'generateOnboarding': instance.generateOnboarding,
       'components': instance.components,
       'packageSplit': instance.packageSplit,
     };

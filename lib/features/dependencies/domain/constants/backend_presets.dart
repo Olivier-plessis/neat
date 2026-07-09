@@ -72,7 +72,12 @@ const _riverpodPreset = <PubPackage>[
     description: 'Code generator for Riverpod providers.',
     isDev: true,
   ),
-  PubPackage(name: 'riverpod_lint', version: '3.1.3', description: 'Lint rules for Riverpod.', isDev: true),
+  PubPackage(
+    name: 'riverpod_lint',
+    version: '3.1.4',
+    description: 'Lint rules for Riverpod.',
+    isDev: true,
+  ),
 ];
 
 /// Bloc/Cubit state management (see [StateManagementKind]).
@@ -102,7 +107,11 @@ const goRouterBuilderPackage = PubPackage(
 /// REST: core + a Chopper HTTP client.
 const restPreset = <PubPackage>[
   ..._corePackages,
-  PubPackage(name: 'chopper', version: '8.6.0', description: 'HTTP client generator using annotations.'),
+  PubPackage(
+    name: 'chopper',
+    version: '8.6.0',
+    description: 'HTTP client generator using annotations.',
+  ),
   PubPackage(
     name: 'chopper_generator',
     version: '8.6.2',
@@ -148,10 +157,10 @@ const backendMarkerPackages = <String>{
 };
 
 List<PubPackage> presetFor(BackendKind kind) => switch (kind) {
-      BackendKind.rest => restPreset,
-      BackendKind.supabase => supabasePreset,
-      BackendKind.firebase => firebasePreset,
-    };
+  BackendKind.rest => restPreset,
+  BackendKind.supabase => supabasePreset,
+  BackendKind.firebase => firebasePreset,
+};
 
 /// Infers the active backend from the manifest (the source of truth).
 BackendKind backendOf(List<PubPackage> packages) {
@@ -168,9 +177,9 @@ BackendKind backendOf(List<PubPackage> packages) {
 enum HttpClientKind { chopper, dio }
 
 List<PubPackage> presetForHttpClient(HttpClientKind kind) => switch (kind) {
-      HttpClientKind.chopper => restPreset,
-      HttpClientKind.dio => dioPreset,
-    };
+  HttpClientKind.chopper => restPreset,
+  HttpClientKind.dio => dioPreset,
+};
 
 /// Infers the active REST client from the manifest. Defaults to chopper
 /// (restPreset's own default) when dio isn't present.
@@ -198,9 +207,9 @@ RoutingStyle routingStyleOf(List<PubPackage> packages) =>
 enum StateManagementKind { riverpod, bloc }
 
 List<PubPackage> presetForStateManagement(StateManagementKind kind) => switch (kind) {
-      StateManagementKind.riverpod => _riverpodPreset,
-      StateManagementKind.bloc => _blocPreset,
-    };
+  StateManagementKind.riverpod => _riverpodPreset,
+  StateManagementKind.bloc => _blocPreset,
+};
 
 /// State-management package names — stripped before applying a new state
 /// management preset (mirrors [backendMarkerPackages]), and consulted by
@@ -219,4 +228,6 @@ const stateManagementMarkerPackages = <String>{
 /// Infers the active state management from the manifest. Defaults to
 /// Riverpod (NEAT's default) when no bloc-family package is present.
 StateManagementKind stateManagementOf(List<PubPackage> packages) =>
-    packages.any((p) => p.name.contains('bloc')) ? StateManagementKind.bloc : StateManagementKind.riverpod;
+    packages.any((p) => p.name.contains('bloc'))
+    ? StateManagementKind.bloc
+    : StateManagementKind.riverpod;
