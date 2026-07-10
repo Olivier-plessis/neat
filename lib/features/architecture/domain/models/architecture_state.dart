@@ -29,10 +29,10 @@ enum StorageStrategy {
   bool get hasSync => this == StorageStrategy.offlineFirstSync;
 
   String get label => switch (this) {
-        remoteOnly => 'Remote Only',
-        offlineFirstRead => 'Offline-First',
-        offlineFirstSync => 'Offline + Sync',
-      };
+    remoteOnly => 'Remote Only',
+    offlineFirstRead => 'Offline-First',
+    offlineFirstSync => 'Offline + Sync',
+  };
 }
 
 @freezed
@@ -158,8 +158,7 @@ abstract class ArchitectureState with _$ArchitectureState {
     /// written into its `.env`. Starts as a **single** `prod` env (→ plain `.env`
     /// + `main.dart`, no flavors); the user adds more on demand. Drives envied +
     /// flavors. The production base is [baseEnvIndex] (not positional).
-    @Default(<EnvConfig>[EnvConfig(name: 'prod')])
-    List<EnvConfig> environments,
+    @Default(<EnvConfig>[EnvConfig(name: 'prod')]) List<EnvConfig> environments,
 
     /// Index into [environments] of the production **base** (no appId suffix; the
     /// logger quietens there; release builds target it). Chosen explicitly via
@@ -185,7 +184,6 @@ abstract class ArchitectureState with _$ArchitectureState {
   String get effectiveShellLabel {
     if (shellLabel.trim().isNotEmpty) return shellLabel.trim();
     if (firstFeatureName.isEmpty) return '';
-    return firstFeatureName[0].toUpperCase() +
-        firstFeatureName.substring(1).replaceAll('_', ' ');
+    return firstFeatureName[0].toUpperCase() + firstFeatureName.substring(1).replaceAll('_', ' ');
   }
 }

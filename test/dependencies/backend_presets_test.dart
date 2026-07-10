@@ -103,12 +103,9 @@ void main() {
       expect(routingStyleOf([]), RoutingStyle.manual);
     });
 
-    test('go_router_builder is not bundled into any default preset', () {
-      // Regression: it used to live in _corePackages, so every preset always
-      // carried it — packageSplit (which requires manual routing) could then
-      // never be reached without the user manually deleting the package.
+    test('go_router_builder is bundled into every default preset (typed routing is the default)', () {
       for (final preset in [restPreset, supabasePreset, firebasePreset, dioPreset]) {
-        expect(preset.map((p) => p.name), isNot(contains('go_router_builder')));
+        expect(preset.map((p) => p.name), contains('go_router_builder'));
       }
     });
   });
@@ -122,8 +119,8 @@ void main() {
     setUp(() => container = ProviderContainer());
     tearDown(() => container.dispose());
 
-    test('defaults to manual — no go_router_builder out of the box', () {
-      expect(names(), isNot(contains('go_router_builder')));
+    test('defaults to typed — go_router_builder present out of the box', () {
+      expect(names(), contains('go_router_builder'));
     });
 
     test('typed adds go_router_builder, manual removes it', () {

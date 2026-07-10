@@ -76,15 +76,23 @@ class WelcomePage extends StatelessWidget {
 
   // ── core/env/app_env.dart (envied — flavor contract + singleton) ─────────
 
-  static String appEnv({bool hasApiBaseUrl = true, bool hasSupabase = false}) {
+  static String appEnv({
+    bool hasApiBaseUrl = true,
+    bool hasSupabase = false,
+    // Sentry (CI/CD screen, opt-in): a single DSN, same across every flavor
+    // (unlike apiBaseUrl/supabase, which genuinely vary per environment) —
+    // read back by SentryFlutter.init in bootstrap().
+    bool hasSentry = false,
+  }) {
     final api = hasApiBaseUrl ? '  abstract final String apiBaseUrl;\n' : '';
     final supa = hasSupabase
         ? '  abstract final String supabaseUrl;\n  abstract final String supabasePublishableKey;\n'
         : '';
+    final sentry = hasSentry ? '  abstract final String sentryDsn;\n' : '';
     return '''/// The environment contract shared by every flavor.
 abstract interface class AppEnvFields {
   abstract final String appName;
-$api$supa}
+$api$supa$sentry}
 
 /// Global access to the active environment.
 /// Call [AppEnv.setEnv] in main() before runApp().
@@ -110,6 +118,8 @@ abstract interface class AppEnv implements AppEnvFields {
     bool single = false,
     bool hasApiBaseUrl = true,
     bool hasSupabase = false,
+    // See appEnv's hasSentry doc.
+    bool hasSentry = false,
   }) {
     final p = single ? '' : _pascal(flavor); // '' / Dev / Staging / Prod
     // Source file is env.dart (single) or <flavor>_env.dart → matching part.
@@ -139,6 +149,13 @@ abstract interface class AppEnv implements AppEnvFields {
   @override
   final String supabasePublishableKey = ${p}EnvVars.supabasePublishableKey;'''
         : '';
+    final sentryField = hasSentry
+        ? "\n\n  @EnviedField(varName: 'SENTRY_DSN')\n"
+            '  static final String sentryDsn = _${p}EnvVars.sentryDsn;'
+        : '';
+    final sentryImpl = hasSentry
+        ? '\n\n  @override\n  final String sentryDsn = ${p}EnvVars.sentryDsn;'
+        : '';
     final envPath = single ? '.env' : '.env.$flavor';
     return '''import 'package:envied/envied.dart';
 import 'package:$packageName/core/env/app_env.dart';
@@ -148,12 +165,12 @@ part '$partFile';
 @Envied(path: '$envPath', obfuscate: true)
 abstract class ${p}EnvVars {
   @EnviedField(varName: 'APP_NAME')
-  static final String appName = _${p}EnvVars.appName;$apiField$supaFields
+  static final String appName = _${p}EnvVars.appName;$apiField$supaFields$sentryField
 }
 
 class ${p}Env implements AppEnv {
   @override
-  final String appName = ${p}EnvVars.appName;$apiImpl$supaImpl
+  final String appName = ${p}EnvVars.appName;$apiImpl$supaImpl$sentryImpl
 }
 ''';
   }
@@ -164,15 +181,18 @@ class ${p}Env implements AppEnv {
     required String appName,
     bool hasApiBaseUrl = true,
     bool hasSupabase = false,
+    bool hasSentry = false,
     String apiBaseUrl = '',
     String supabaseUrl = '',
     String supabaseKey = '',
+    String sentryDsn = '',
   }) {
     final api = hasApiBaseUrl ? 'API_BASE_URL=$apiBaseUrl\n' : '';
     final supa =
         hasSupabase ? 'SUPABASE_URL=$supabaseUrl\nSUPABASE_PUBLISHABLE_KEY=$supabaseKey\n' : '';
+    final sentry = hasSentry ? 'SENTRY_DSN=$sentryDsn\n' : '';
     return '''APP_NAME=$appName
-$api$supa''';
+$api$supa$sentry''';
   }
 
   // ── core/network/network_info.dart (offline-first) ───────────────────────

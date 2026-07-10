@@ -811,40 +811,28 @@ class _LocalizationTab extends ConsumerWidget {
               24.gapH,
               const _SectionLabel('Languages', icon: Icons.translate_outlined),
               12.gapH,
-              Row(
+              Wrap(
                 spacing: 16,
+                runSpacing: 16,
                 children: [
-                  Expanded(
-                    child: _BackendCard(
-                      icon: Icons.language,
-                      iconColor: Palette.colorPrimaryCyan,
-                      title: 'English',
-                      subtitle: '',
-                      active: arch.i18nLocales.contains('en'),
-                      onTap: () => notifier.toggleI18nLocale('en'),
+                  for (final (code, title, iconColor) in [
+                    ('en', 'English', context.neatColors.colorPrimaryCyan),
+                    ('fr', 'French', context.neatColors.colorTertiaryPurple),
+                    ('es', 'Spanish', context.neatColors.errorColor),
+                    ('de', 'German', context.neatColors.colorYellow),
+                    ('it', 'Italian', context.neatColors.colorGreen),
+                  ])
+                    SizedBox(
+                      width: 180,
+                      child: _BackendCard(
+                        icon: Icons.language,
+                        iconColor: iconColor,
+                        title: title,
+                        subtitle: '',
+                        active: arch.i18nLocales.contains(code),
+                        onTap: () => notifier.toggleI18nLocale(code),
+                      ),
                     ),
-                  ),
-                  Expanded(
-                    child: _BackendCard(
-                      icon: Icons.language,
-                      iconColor: const Color(0xFF3ECF8E),
-                      title: 'French',
-                      subtitle: '',
-                      active: arch.i18nLocales.contains('fr'),
-                      onTap: () => notifier.toggleI18nLocale('fr'),
-                    ),
-                  ),
-                  Expanded(
-                    child: _BackendCard(
-                      icon: Icons.language,
-                      iconColor: const Color(0xFFFFA000),
-                      title: 'Spanish',
-                      subtitle: '',
-                      active: false,
-                      disabled: true,
-                      onTap: _noop,
-                    ),
-                  ),
                 ],
               ),
               8.gapH,

@@ -95,6 +95,8 @@ class AppTheme {
           colorSecondaryBlue: Palette.colorSecondaryBlue,
           colorTertiaryPurple: Palette.colorTertiaryPurple,
           errorColor: Palette.errorColor,
+          colorYellow: Palette.colorYellow,
+          colorGreen: Palette.colorGreen,
         ),
       ],
     );

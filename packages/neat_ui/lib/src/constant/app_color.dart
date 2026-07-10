@@ -17,4 +17,6 @@ class Palette {
   static const Color colorSecondaryBlue = Color(0xFF2E3C5A); // Teinte Bleutée Secondaire
   static const Color colorTertiaryPurple = Color(0xFF6366F1); // Touche Violette (Tertiary)
   static const Color errorColor = Color(0xFFFF6B6B); // Touche Violette (Tertiary)
+  static const Color colorYellow = Color(0xFFFFA000); // Touche Jaune
+  static const Color colorGreen = Color(0xFF3ECF8E); // Touche Verte
 }

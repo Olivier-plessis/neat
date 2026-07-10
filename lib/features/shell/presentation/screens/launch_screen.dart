@@ -391,6 +391,7 @@ class _ConfigPanel extends StatelessWidget {
     CiTool.codemagic => 'Codemagic',
     CiTool.fastlane => 'Fastlane',
     CiTool.shorebird => 'Shorebird',
+    CiTool.sentry => 'Sentry',
   };
 }
 

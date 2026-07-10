@@ -41,7 +41,7 @@ final class CicdNotifierProvider
   }
 }
 
-String _$cicdNotifierHash() => r'9fcac99c1db5194980e6b3916e4a930ab4466570';
+String _$cicdNotifierHash() => r'f8282fb28e871e6cbae221df9a088b23ae3a1192';
 
 abstract class _$CicdNotifier extends $Notifier<CicdState> {
   CicdState build();

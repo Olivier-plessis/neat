@@ -171,6 +171,10 @@ class LaunchGenerationUsecase {
     // i18n) — see ROADMAP.md backlog for why.
     final hasOnboarding = architecture.generateOnboarding && hasRiverpod && useAnnotations;
 
+    // Opt-in Sentry (CI/CD screen) — see AppTemplates.bootstrap's hasSentry
+    // doc for how it wraps runApp instead of just adding an init line.
+    final hasSentry = cicd.hasSentryDelivery;
+
     // Offline-first turns the project into a Dart workspace with a dedicated
     // local-storage package (Drift). null when remote-only. Firestore ships its
     // own offline persistence, so a Firebase backend disables the Drift layer
@@ -273,6 +277,8 @@ class LaunchGenerationUsecase {
       hasOAuth: hasOAuth,
       hasI18n: hasI18n,
       hasOnboarding: hasOnboarding,
+      hasSentry: hasSentry,
+      sentryDsn: cicd.sentryDsn,
       corePackageName: corePackageName,
       featurePackageName: featurePackageName,
       authPackageName: authPackageName,
@@ -369,6 +375,7 @@ class LaunchGenerationUsecase {
       addFirebaseStorage: hasStorage && httpClient == 'firebase',
       addSlang: hasI18n,
       addOnboarding: hasOnboarding,
+      addSentry: hasSentry,
     );
     onLog('[✓] Dependencies added to pubspec.yaml.');
 
@@ -557,6 +564,9 @@ class LaunchGenerationUsecase {
     bool hasOAuth = false,
     bool hasI18n = false,
     bool hasOnboarding = false,
+    // See AppTemplates.bootstrap's hasSentry doc.
+    bool hasSentry = false,
+    String sentryDsn = '',
     String? corePackageName,
     String? featurePackageName,
     String? authPackageName,
@@ -642,6 +652,7 @@ class LaunchGenerationUsecase {
             corePackageName != null &&
             (httpClient == 'dio' || httpClient == 'chopper'),
         hasOnboarding: autoWireOnboarding,
+        hasSentry: hasSentry,
       ),
     );
 
@@ -657,6 +668,8 @@ class LaunchGenerationUsecase {
         // No REST base URL for the SDK backends (Firebase config lives in
         // firebase_options.dart; Supabase keys are separate fields).
         hasApiBaseUrl: httpClient != 'supabase' && httpClient != 'firebase',
+        hasSentry: hasSentry,
+        sentryDsn: sentryDsn,
       );
     }
 
@@ -1032,11 +1045,17 @@ class LaunchGenerationUsecase {
         final baseLocale = locales.contains('en') ? 'en' : locales.first;
         await _write('$i18nRoot/slang.yaml', I18nTemplates.slangConfig(baseLocale: baseLocale));
         // Non-namespace mode → files are named `<locale>.i18n.json`.
-        if (locales.contains('en')) {
-          await _write('$i18nLib/i18n/en.i18n.json', I18nTemplates.baseTranslations(featureName));
-        }
-        if (locales.contains('fr')) {
-          await _write('$i18nLib/i18n/fr.i18n.json', I18nTemplates.frTranslations(featureName));
+        const translationsByLocale = <String, String Function(String)>{
+          'en': I18nTemplates.baseTranslations,
+          'fr': I18nTemplates.frTranslations,
+          'de': I18nTemplates.deTranslations,
+          'es': I18nTemplates.spTranslations,
+          'it': I18nTemplates.itTranslations,
+        };
+        for (final entry in translationsByLocale.entries) {
+          if (locales.contains(entry.key)) {
+            await _write('$i18nLib/i18n/${entry.key}.i18n.json', entry.value(featureName));
+          }
         }
       }
       await _write(
@@ -1411,11 +1430,19 @@ dev_dependencies:
     bool singleEnv = false,
     bool hasSupabase = false,
     bool hasApiBaseUrl = true,
+    // Sentry (CI/CD screen, opt-in): a single DSN, same across every flavor —
+    // see CoreTemplates.appEnv's doc.
+    bool hasSentry = false,
+    String sentryDsn = '',
   }) async {
     // Dart: contract shared by every env.
     await _write(
       '$lib/core/env/app_env.dart',
-      CoreTemplates.appEnv(hasApiBaseUrl: hasApiBaseUrl, hasSupabase: hasSupabase),
+      CoreTemplates.appEnv(
+        hasApiBaseUrl: hasApiBaseUrl,
+        hasSupabase: hasSupabase,
+        hasSentry: hasSentry,
+      ),
     );
 
     if (singleEnv) {
@@ -1430,6 +1457,7 @@ dev_dependencies:
           single: true,
           hasApiBaseUrl: hasApiBaseUrl,
           hasSupabase: hasSupabase,
+          hasSentry: hasSentry,
         ),
       );
       await _write(
@@ -1438,9 +1466,11 @@ dev_dependencies:
           appName: packageName,
           hasApiBaseUrl: hasApiBaseUrl,
           hasSupabase: hasSupabase,
+          hasSentry: hasSentry,
           apiBaseUrl: env.apiBaseUrl,
           supabaseUrl: env.supabaseUrl,
           supabaseKey: env.supabaseAnonKey,
+          sentryDsn: sentryDsn,
         ),
       );
     } else {
@@ -1455,6 +1485,7 @@ dev_dependencies:
             flavor: env.flavor,
             hasApiBaseUrl: hasApiBaseUrl,
             hasSupabase: hasSupabase,
+            hasSentry: hasSentry,
           ),
         );
       }
@@ -1465,9 +1496,13 @@ dev_dependencies:
             appName: packageName,
             hasApiBaseUrl: hasApiBaseUrl,
             hasSupabase: hasSupabase,
+            hasSentry: hasSentry,
             apiBaseUrl: env.apiBaseUrl,
             supabaseUrl: env.supabaseUrl,
             supabaseKey: env.supabaseAnonKey,
+            // Same DSN across every flavor (unlike apiBaseUrl) — see
+            // CoreTemplates.appEnv's doc.
+            sentryDsn: sentryDsn,
           ),
         );
       }
@@ -1478,6 +1513,7 @@ dev_dependencies:
         appName: packageName,
         hasApiBaseUrl: hasApiBaseUrl,
         hasSupabase: hasSupabase,
+        hasSentry: hasSentry,
       ),
     );
 
@@ -1996,6 +2032,7 @@ dev_dependencies:
     bool addFirebaseStorage = false,
     bool addSlang = false,
     bool addOnboarding = false,
+    bool addSentry = false,
   }) async {
     final pubspecFile = File('${projectDir.path}/pubspec.yaml');
     if (!pubspecFile.existsSync()) return;
@@ -2017,6 +2054,7 @@ dev_dependencies:
       addFirebaseStorage: addFirebaseStorage,
       addSlang: addSlang,
       addOnboarding: addOnboarding,
+      addSentry: addSentry,
     );
 
     await pubspecFile.writeAsString(content);
@@ -2284,6 +2322,7 @@ dev_dependencies:
     bool addFirebaseStorage = false,
     bool addSlang = false,
     bool addOnboarding = false,
+    bool addSentry = false,
   }) {
     final deps = StringBuffer();
     final devDeps = StringBuffer();
@@ -2398,6 +2437,11 @@ dev_dependencies:
     // already having added it (avoid a duplicate line).
     if (addOnboarding && !addSlang && !uniquePackages.any((p) => p.name == 'shared_preferences')) {
       deps.write('  shared_preferences: ^2.3.3\n');
+    }
+    // Sentry (CI/CD screen, opt-in): crash/error reporting, wrapped around
+    // runApp in bootstrap() — see AppTemplates.bootstrap's hasSentry doc.
+    if (addSentry && !uniquePackages.any((p) => p.name == 'sentry_flutter')) {
+      deps.write('  sentry_flutter: ^9.5.0\n');
     }
     // Branding tooling: app icons + splash from the uploaded logo.
     if (addBranding) {

@@ -14,7 +14,11 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$CicdState {
 
- Set<CiTool> get selectedTools; bool get runAnalyze; bool get runTests; bool get autoDeploy;
+ Set<CiTool> get selectedTools; bool get runAnalyze; bool get runTests; bool get autoDeploy;/// The Sentry project DSN, only meaningful when [hasSentryDelivery]. Flows
+/// into the generated app's `.env` (via envied, alongside apiBaseUrl) —
+/// never embedded as a literal in `bootstrap.dart` — and is read back by
+/// `SentryFlutter.init` there.
+ String get sentryDsn;
 /// Create a copy of CicdState
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -25,16 +29,16 @@ $CicdStateCopyWith<CicdState> get copyWith => _$CicdStateCopyWithImpl<CicdState>
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is CicdState&&const DeepCollectionEquality().equals(other.selectedTools, selectedTools)&&(identical(other.runAnalyze, runAnalyze) || other.runAnalyze == runAnalyze)&&(identical(other.runTests, runTests) || other.runTests == runTests)&&(identical(other.autoDeploy, autoDeploy) || other.autoDeploy == autoDeploy));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CicdState&&const DeepCollectionEquality().equals(other.selectedTools, selectedTools)&&(identical(other.runAnalyze, runAnalyze) || other.runAnalyze == runAnalyze)&&(identical(other.runTests, runTests) || other.runTests == runTests)&&(identical(other.autoDeploy, autoDeploy) || other.autoDeploy == autoDeploy)&&(identical(other.sentryDsn, sentryDsn) || other.sentryDsn == sentryDsn));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(selectedTools),runAnalyze,runTests,autoDeploy);
+int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(selectedTools),runAnalyze,runTests,autoDeploy,sentryDsn);
 
 @override
 String toString() {
-  return 'CicdState(selectedTools: $selectedTools, runAnalyze: $runAnalyze, runTests: $runTests, autoDeploy: $autoDeploy)';
+  return 'CicdState(selectedTools: $selectedTools, runAnalyze: $runAnalyze, runTests: $runTests, autoDeploy: $autoDeploy, sentryDsn: $sentryDsn)';
 }
 
 
@@ -45,7 +49,7 @@ abstract mixin class $CicdStateCopyWith<$Res>  {
   factory $CicdStateCopyWith(CicdState value, $Res Function(CicdState) _then) = _$CicdStateCopyWithImpl;
 @useResult
 $Res call({
- Set<CiTool> selectedTools, bool runAnalyze, bool runTests, bool autoDeploy
+ Set<CiTool> selectedTools, bool runAnalyze, bool runTests, bool autoDeploy, String sentryDsn
 });
 
 
@@ -62,13 +66,14 @@ class _$CicdStateCopyWithImpl<$Res>
 
 /// Create a copy of CicdState
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? selectedTools = null,Object? runAnalyze = null,Object? runTests = null,Object? autoDeploy = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? selectedTools = null,Object? runAnalyze = null,Object? runTests = null,Object? autoDeploy = null,Object? sentryDsn = null,}) {
   return _then(_self.copyWith(
 selectedTools: null == selectedTools ? _self.selectedTools : selectedTools // ignore: cast_nullable_to_non_nullable
 as Set<CiTool>,runAnalyze: null == runAnalyze ? _self.runAnalyze : runAnalyze // ignore: cast_nullable_to_non_nullable
 as bool,runTests: null == runTests ? _self.runTests : runTests // ignore: cast_nullable_to_non_nullable
 as bool,autoDeploy: null == autoDeploy ? _self.autoDeploy : autoDeploy // ignore: cast_nullable_to_non_nullable
-as bool,
+as bool,sentryDsn: null == sentryDsn ? _self.sentryDsn : sentryDsn // ignore: cast_nullable_to_non_nullable
+as String,
   ));
 }
 
@@ -153,10 +158,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( Set<CiTool> selectedTools,  bool runAnalyze,  bool runTests,  bool autoDeploy)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( Set<CiTool> selectedTools,  bool runAnalyze,  bool runTests,  bool autoDeploy,  String sentryDsn)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _CicdState() when $default != null:
-return $default(_that.selectedTools,_that.runAnalyze,_that.runTests,_that.autoDeploy);case _:
+return $default(_that.selectedTools,_that.runAnalyze,_that.runTests,_that.autoDeploy,_that.sentryDsn);case _:
   return orElse();
 
 }
@@ -174,10 +179,10 @@ return $default(_that.selectedTools,_that.runAnalyze,_that.runTests,_that.autoDe
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( Set<CiTool> selectedTools,  bool runAnalyze,  bool runTests,  bool autoDeploy)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( Set<CiTool> selectedTools,  bool runAnalyze,  bool runTests,  bool autoDeploy,  String sentryDsn)  $default,) {final _that = this;
 switch (_that) {
 case _CicdState():
-return $default(_that.selectedTools,_that.runAnalyze,_that.runTests,_that.autoDeploy);case _:
+return $default(_that.selectedTools,_that.runAnalyze,_that.runTests,_that.autoDeploy,_that.sentryDsn);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -194,10 +199,10 @@ return $default(_that.selectedTools,_that.runAnalyze,_that.runTests,_that.autoDe
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( Set<CiTool> selectedTools,  bool runAnalyze,  bool runTests,  bool autoDeploy)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( Set<CiTool> selectedTools,  bool runAnalyze,  bool runTests,  bool autoDeploy,  String sentryDsn)?  $default,) {final _that = this;
 switch (_that) {
 case _CicdState() when $default != null:
-return $default(_that.selectedTools,_that.runAnalyze,_that.runTests,_that.autoDeploy);case _:
+return $default(_that.selectedTools,_that.runAnalyze,_that.runTests,_that.autoDeploy,_that.sentryDsn);case _:
   return null;
 
 }
@@ -209,7 +214,7 @@ return $default(_that.selectedTools,_that.runAnalyze,_that.runTests,_that.autoDe
 
 
 class _CicdState extends CicdState {
-  const _CicdState({final  Set<CiTool> selectedTools = const <CiTool>{}, this.runAnalyze = true, this.runTests = true, this.autoDeploy = false}): _selectedTools = selectedTools,super._();
+  const _CicdState({final  Set<CiTool> selectedTools = const <CiTool>{}, this.runAnalyze = true, this.runTests = true, this.autoDeploy = false, this.sentryDsn = ''}): _selectedTools = selectedTools,super._();
   
 
  final  Set<CiTool> _selectedTools;
@@ -222,6 +227,11 @@ class _CicdState extends CicdState {
 @override@JsonKey() final  bool runAnalyze;
 @override@JsonKey() final  bool runTests;
 @override@JsonKey() final  bool autoDeploy;
+/// The Sentry project DSN, only meaningful when [hasSentryDelivery]. Flows
+/// into the generated app's `.env` (via envied, alongside apiBaseUrl) —
+/// never embedded as a literal in `bootstrap.dart` — and is read back by
+/// `SentryFlutter.init` there.
+@override@JsonKey() final  String sentryDsn;
 
 /// Create a copy of CicdState
 /// with the given fields replaced by the non-null parameter values.
@@ -233,16 +243,16 @@ _$CicdStateCopyWith<_CicdState> get copyWith => __$CicdStateCopyWithImpl<_CicdSt
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _CicdState&&const DeepCollectionEquality().equals(other._selectedTools, _selectedTools)&&(identical(other.runAnalyze, runAnalyze) || other.runAnalyze == runAnalyze)&&(identical(other.runTests, runTests) || other.runTests == runTests)&&(identical(other.autoDeploy, autoDeploy) || other.autoDeploy == autoDeploy));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _CicdState&&const DeepCollectionEquality().equals(other._selectedTools, _selectedTools)&&(identical(other.runAnalyze, runAnalyze) || other.runAnalyze == runAnalyze)&&(identical(other.runTests, runTests) || other.runTests == runTests)&&(identical(other.autoDeploy, autoDeploy) || other.autoDeploy == autoDeploy)&&(identical(other.sentryDsn, sentryDsn) || other.sentryDsn == sentryDsn));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_selectedTools),runAnalyze,runTests,autoDeploy);
+int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_selectedTools),runAnalyze,runTests,autoDeploy,sentryDsn);
 
 @override
 String toString() {
-  return 'CicdState(selectedTools: $selectedTools, runAnalyze: $runAnalyze, runTests: $runTests, autoDeploy: $autoDeploy)';
+  return 'CicdState(selectedTools: $selectedTools, runAnalyze: $runAnalyze, runTests: $runTests, autoDeploy: $autoDeploy, sentryDsn: $sentryDsn)';
 }
 
 
@@ -253,7 +263,7 @@ abstract mixin class _$CicdStateCopyWith<$Res> implements $CicdStateCopyWith<$Re
   factory _$CicdStateCopyWith(_CicdState value, $Res Function(_CicdState) _then) = __$CicdStateCopyWithImpl;
 @override @useResult
 $Res call({
- Set<CiTool> selectedTools, bool runAnalyze, bool runTests, bool autoDeploy
+ Set<CiTool> selectedTools, bool runAnalyze, bool runTests, bool autoDeploy, String sentryDsn
 });
 
 
@@ -270,13 +280,14 @@ class __$CicdStateCopyWithImpl<$Res>
 
 /// Create a copy of CicdState
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? selectedTools = null,Object? runAnalyze = null,Object? runTests = null,Object? autoDeploy = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? selectedTools = null,Object? runAnalyze = null,Object? runTests = null,Object? autoDeploy = null,Object? sentryDsn = null,}) {
   return _then(_CicdState(
 selectedTools: null == selectedTools ? _self._selectedTools : selectedTools // ignore: cast_nullable_to_non_nullable
 as Set<CiTool>,runAnalyze: null == runAnalyze ? _self.runAnalyze : runAnalyze // ignore: cast_nullable_to_non_nullable
 as bool,runTests: null == runTests ? _self.runTests : runTests // ignore: cast_nullable_to_non_nullable
 as bool,autoDeploy: null == autoDeploy ? _self.autoDeploy : autoDeploy // ignore: cast_nullable_to_non_nullable
-as bool,
+as bool,sentryDsn: null == sentryDsn ? _self.sentryDsn : sentryDsn // ignore: cast_nullable_to_non_nullable
+as String,
   ));
 }
 

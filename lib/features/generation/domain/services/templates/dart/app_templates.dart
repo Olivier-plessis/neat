@@ -76,6 +76,14 @@ void main() => $call;
     // launch_generation_usecase.dart's autoWireOnboarding). Always app-level
     // (see OnboardingTemplates), never affected by corePackageName.
     bool hasOnboarding = false,
+    // Sentry (CI/CD screen, opt-in): SentryFlutter.init wraps runApp itself
+    // (it takes the appRunner callback) and chains onto FlutterError.onError/
+    // PlatformDispatcher.instance.onError — called *after* registerErrorHandler
+    // so it wraps (not replaces) AppLogger's own handlers, with the outer
+    // runZonedGuarded staying the last-resort catch for anything before
+    // Sentry initializes. Always app-level, like i18n/onboarding — Sentry
+    // reports for the whole app, not per split feature package.
+    bool hasSentry = false,
   }) {
     final registersChopper = chopperRegisterFeaturePackage != null;
     final registersShell = shellRegisterFeaturePackage != null;
@@ -149,6 +157,15 @@ void main() => $call;
         "import 'package:$packageName/core/onboarding/onboarding_seen_provider.dart';",
       );
     }
+    if (hasSentry) {
+      // kDebugMode only actually appears in the generated dsnExpr below when
+      // useEnvied (otherwise the DSN is unconditionally blank) — gating the
+      // import the same way avoids an unused_import lint.
+      if (useEnvied) {
+        imports.writeln("import 'package:flutter/foundation.dart';");
+      }
+      imports.writeln("import 'package:sentry_flutter/sentry_flutter.dart';");
+    }
 
     final sig = useEnvied
         ? 'Future<void> bootstrap(AppEnv env) async'
@@ -210,13 +227,32 @@ void main() => $call;
               '\n      // neat:shell-register-calls'
         : '';
 
+    // Never a literal DSN in source — envied's AppEnv when available,
+    // otherwise blank + a TODO on its own line (a same-line comment would
+    // swallow the trailing comma into itself — a real bug, caught by
+    // actually printing this output rather than assuming the string shape).
+    // Disabled in debug mode regardless (kDebugMode, not the dev/staging/
+    // prod flavor — decoupled from whether the project even has envied
+    // flavors configured at all): local hot-reload iteration shouldn't spam
+    // a real Sentry project or burn its quota. Sentry treats an empty DSN as
+    // "disabled", so this needs no separate if/else around the init call
+    // itself.
+    final dsnExpr = useEnvied ? "kDebugMode ? '' : AppEnv.current.sentryDsn" : "''";
+    final dsnTodo = useEnvied ? '' : '\n        // TODO: set your Sentry DSN (see .env.example).';
+    final runAppCall = hasSentry
+        ? '''await SentryFlutter.init($dsnTodo
+        (options) => options.dsn = $dsnExpr,
+        appRunner: () => runApp($root),
+      );'''
+        : 'runApp($root);';
+
     return '''${imports.toString()}
 $docComment$sig {
 $setEnv  await runZonedGuarded(
     () async {
       WidgetsFlutterBinding.ensureInitialized();$chopperRegisterCalls$shellRegisterCalls
       registerErrorHandler();$pathUrl$i18nInit$firebaseInit$supaInit$onboardingInit
-      runApp($root);
+      $runAppCall
     },
     (error, stack) => AppLogger.f('Uncaught exception', error: error, stackTrace: stack),
   );

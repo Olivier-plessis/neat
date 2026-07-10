@@ -237,6 +237,28 @@ void main() {
       expect(out, contains('APP_NAME=My App'));
       expect(out, contains('API_BASE_URL='));
     });
+
+    test('hasSentry: a single sentryDsn field (no per-flavor pair, unlike supabase)', () {
+      final env = CoreTemplates.appEnv(hasSentry: true);
+      expect(env, contains('abstract final String sentryDsn;'));
+
+      final dev = CoreTemplates.flavorEnv(packageName: pkgName, flavor: 'dev', hasSentry: true);
+      expect(dev, contains("@EnviedField(varName: 'SENTRY_DSN')"));
+      expect(dev, contains('static final String sentryDsn = _DevEnvVars.sentryDsn;'));
+      expect(dev, contains('final String sentryDsn = DevEnvVars.sentryDsn;'));
+
+      final file = CoreTemplates.envFile(appName: 'My App', hasSentry: true, sentryDsn: 'https://x');
+      expect(file, contains('SENTRY_DSN=https://x'));
+    });
+
+    test('hasSentry off: no trace of it in any of the three env artifacts', () {
+      expect(CoreTemplates.appEnv(), isNot(contains('sentryDsn')));
+      expect(
+        CoreTemplates.flavorEnv(packageName: pkgName, flavor: 'dev'),
+        isNot(contains('sentryDsn')),
+      );
+      expect(CoreTemplates.envFile(appName: 'My App'), isNot(contains('SENTRY_DSN')));
+    });
   });
 
   group('CoreTemplates.chopperModelConverter', () {
@@ -356,6 +378,68 @@ void main() {
       expect(out, contains('runApp(const App())'));
       expect(out, isNot(contains('ProviderScope')));
     });
+
+    test(
+      'hasSentry + envied: SentryFlutter.init wraps runApp as appRunner, reading the DSN from '
+      'AppEnv — chained onto (not replacing) the existing runZonedGuarded/registerErrorHandler',
+      () {
+        final out = AppTemplates.bootstrap(
+          packageName: pkgName,
+          hasRiverpod: true,
+          useAnnotations: true,
+          useEnvied: true,
+          isWeb: false,
+          hasSentry: true,
+        );
+        expect(out, contains("import 'package:flutter/foundation.dart';"));
+        expect(out, contains("import 'package:sentry_flutter/sentry_flutter.dart';"));
+        expect(out, contains('await SentryFlutter.init('));
+        // Disabled in debug mode (kDebugMode, not the dev/staging/prod
+        // flavor) — local iteration shouldn't spam a real Sentry project.
+        expect(out, contains("options.dsn = kDebugMode ? '' : AppEnv.current.sentryDsn"));
+        expect(
+          out,
+          contains(
+            'appRunner: () => runApp(ProviderScope(observers: [RiverpodObserver()], child: const App())',
+          ),
+        );
+        // registerErrorHandler still runs (chained onto by Sentry's own
+        // FlutterError.onError/PlatformDispatcher.onError, not replaced), and
+        // the outer runZonedGuarded/AppLogger.f fallback stays untouched.
+        expect(out, contains('registerErrorHandler();'));
+        expect(out, contains('runZonedGuarded'));
+        expect(out, contains("AppLogger.f('Uncaught exception'"));
+        // registerErrorHandler must run *before* SentryFlutter.init so Sentry
+        // chains onto it rather than the other way around.
+        expect(
+          out.indexOf('registerErrorHandler();'),
+          lessThan(out.indexOf('SentryFlutter.init(')),
+        );
+      },
+    );
+
+    test(
+      'hasSentry without envied: DSN is never a literal secret — left blank with a TODO, on its '
+      "own line so the comment can't swallow the trailing comma (real bug, caught by printing "
+      'the actual output instead of assuming the string shape)',
+      () {
+        final out = AppTemplates.bootstrap(
+          packageName: pkgName,
+          hasRiverpod: true,
+          useAnnotations: true,
+          useEnvied: false,
+          isWeb: false,
+          hasSentry: true,
+        );
+        expect(out, contains("options.dsn = '',"));
+        expect(out, contains('// TODO: set your Sentry DSN'));
+        // No kDebugMode reference here (DSN is unconditionally blank without
+        // envied) — the foundation.dart import would otherwise go unused.
+        expect(out, isNot(contains('kDebugMode')));
+        expect(out, isNot(contains("import 'package:flutter/foundation.dart';")));
+        expect(out, isNot(contains('AppEnv')));
+      },
+    );
   });
 
   group('AppTemplates.appDart responsive wrapping', () {

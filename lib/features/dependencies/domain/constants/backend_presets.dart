@@ -89,20 +89,21 @@ const _blocPreset = <PubPackage>[
   ),
 ];
 
-/// Backward-compat composition (shared + Riverpod) — seeds [restPreset] et al.
-/// so a fresh project defaults to Riverpod, same packages as before this axis
-/// was split out.
-const _corePackages = <PubPackage>[..._sharedCore, ..._riverpodPreset];
-
-/// Opt-in typed routing (see [RoutingStyle]) — not bundled in [_corePackages]
-/// so "manual go_router" is a real, reachable default instead of something
-/// only achieved by manually deleting a package from Managed Packages.
+/// Typed routing (see [RoutingStyle]) — go_router_builder's codegen'd routes,
+/// NEAT's default. Still a real, independently-reachable axis: the Routing
+/// style toggle removes it for plain hand-written GoRoutes (`setRoutingStyle`
+/// (RoutingStyle.manual)`), the same way it's added back for `.typed`.
 const goRouterBuilderPackage = PubPackage(
   name: 'go_router_builder',
   version: '4.3.0',
   description: 'Type-safe route generation for go_router.',
   isDev: true,
 );
+
+/// Backward-compat composition (shared + Riverpod + typed routing) — seeds
+/// [restPreset] et al. so a fresh project defaults to Riverpod + typed
+/// go_router_builder routes.
+const _corePackages = <PubPackage>[..._sharedCore, ..._riverpodPreset, goRouterBuilderPackage];
 
 /// REST: core + a Chopper HTTP client.
 const restPreset = <PubPackage>[
