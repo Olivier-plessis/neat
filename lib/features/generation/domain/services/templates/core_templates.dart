@@ -1510,10 +1510,15 @@ extension IterableX<T> on Iterable<T> {
     required String packageName,
     required String featureName,
     bool hasFirstFeature = true,
+    // Set when packageSplit is on: AppRoutePath is single-sourced in the
+    // shared core package (mirrors theme_mode_controller.dart's own
+    // corePackageName redirect) — the app no longer keeps its own copy, so
+    // every app-level consumer of AppRoutePath must cross into core instead.
+    String? corePackageName,
   }) {
     final routeConst = hasFirstFeature ? _camel(featureName) : 'welcome';
     return '''import 'package:go_router/go_router.dart';
-import 'package:$packageName/core/constants/app_route_path.dart';
+import 'package:${corePackageName ?? packageName}/core/constants/app_route_path.dart';
 import 'routes.dart';
 
 final appRouter = GoRouter(
@@ -1533,6 +1538,9 @@ final appRouter = GoRouter(
     bool hasAuth = false,
     bool hasFirstFeature = true,
     bool hasOnboarding = false,
+    // Set when packageSplit is on: AppRoutePath is single-sourced in the
+    // shared core package — see appRouter's own doc for the rationale.
+    String? corePackageName,
   }) {
     final c = hasFirstFeature ? _camel(featureName) : 'welcome';
     if (useAnnotations) {
@@ -1586,7 +1594,7 @@ final appRouter = GoRouter(
       return '''import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import 'package:$packageName/core/constants/app_route_path.dart';
+import 'package:${corePackageName ?? packageName}/core/constants/app_route_path.dart';
 $authImport${onboardingImport}import 'routes.dart';
 
 part 'app_router.g.dart';
@@ -1596,7 +1604,7 @@ $body
 ''';
     }
     return '''import 'package:go_router/go_router.dart';
-import 'package:$packageName/core/constants/app_route_path.dart';
+import 'package:${corePackageName ?? packageName}/core/constants/app_route_path.dart';
 import 'routes.dart';
 
 final appRouter = GoRouter(
@@ -1670,16 +1678,18 @@ class ${_pascal(featureName)}Route extends GoRouteData with \$${_pascal(featureN
     required String packageName,
     required String featureName,
     // Set when the first feature was split into its own workspace package
-    // (packageSplit — see ROADMAP.md §6a): the app still owns its own
-    // AppRoutePath, only the feature-page import crosses the package
-    // boundary.
+    // (packageSplit — see ROADMAP.md §6a): the feature-page import crosses
+    // the package boundary.
     String? featurePackageName,
+    // Set when packageSplit is on: AppRoutePath is single-sourced in the
+    // shared core package — see CoreTemplates.appRouter's own doc.
+    String? corePackageName,
   }) {
     final pageImport = featurePackageName != null
         ? "import 'package:$featurePackageName/presentation/pages/${featureName}_page.dart';"
         : "import 'package:$packageName/features/$featureName/presentation/pages/${featureName}_page.dart';";
     return '''import 'package:go_router/go_router.dart';
-import 'package:$packageName/core/constants/app_route_path.dart';
+import 'package:${corePackageName ?? packageName}/core/constants/app_route_path.dart';
 $pageImport
 // neat:route-imports
 
@@ -1698,9 +1708,9 @@ final List<RouteBase> appRoutes = [
   /// welcome placeholder owns `/` instead. Same anchors as [routesManual], so
   /// the Workshop's insertion logic is unaffected when a real feature is
   /// added later.
-  static String routesManualWelcome({required String packageName}) =>
+  static String routesManualWelcome({required String packageName, String? corePackageName}) =>
       '''import 'package:go_router/go_router.dart';
-import 'package:$packageName/core/constants/app_route_path.dart';
+import 'package:${corePackageName ?? packageName}/core/constants/app_route_path.dart';
 import 'package:$packageName/core/pages/welcome_page.dart';
 // neat:route-imports
 
@@ -1719,10 +1729,10 @@ final List<RouteBase> appRoutes = [
   /// Typed-route counterpart to [featureRoutes] for the welcome placeholder —
   /// same `@TypedGoRoute` shape, so [routesAggregatorWelcome] can spread its
   /// generated `\$appRoutes` exactly like a real feature's.
-  static String welcomeRoute({required String packageName}) =>
+  static String welcomeRoute({required String packageName, String? corePackageName}) =>
       '''import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:$packageName/core/constants/app_route_path.dart';
+import 'package:${corePackageName ?? packageName}/core/constants/app_route_path.dart';
 import 'package:$packageName/core/pages/welcome_page.dart';
 
 part 'welcome_route.g.dart';
@@ -1788,8 +1798,8 @@ final List<RouteBase> appRoutes = [
         ? "import 'package:${corePackageName!}/core/router/shell_page_registry.dart';"
         : "import 'package:$packageName/features/$featureName/presentation/pages/${featureName}_page.dart';";
     return '''import 'package:go_router/go_router.dart';
-import 'package:$packageName/core/constants/app_route_path.dart';
-import 'package:$packageName/core/router/scaffold_with_nav_bar.dart';
+import 'package:${corePackageName ?? packageName}/core/constants/app_route_path.dart';
+import 'package:$packageName/core/navigation/scaffold_with_nav_bar.dart';
 $pageImport
 // neat:route-imports
 
@@ -1903,8 +1913,10 @@ NetworkInfo networkInfo(Ref ref) => NetworkInfo(Connectivity());
 
   // ── Shell scaffold (bottom NavigationBar driven by a StatefulShellRoute) ──
 
-  /// `lib/core/router/scaffold_with_nav_bar.dart` — created with the first shell
-  /// branch. Subsequent branches insert a [NavigationDestination] at the anchor.
+  /// `lib/core/navigation/scaffold_with_nav_bar.dart` — a UI widget, not routing
+  /// config, so it gets its own folder alongside (not inside) `core/router/`.
+  /// Created with the first shell branch. Subsequent branches insert a
+  /// [NavigationDestination] at the anchor.
   static String scaffoldWithNavBar({required String firstIcon, required String firstLabel}) =>
       '''import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -2044,8 +2056,8 @@ class ScaffoldWithNavBar extends StatelessWidget {
         usesRegistry ? "lookupShellPage('$c')(context, state)" : 'const ${p}Page()';
     return '''import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:$packageName/core/constants/app_route_path.dart';
-import 'package:$packageName/core/router/scaffold_with_nav_bar.dart';
+import 'package:${corePackageName ?? packageName}/core/constants/app_route_path.dart';
+import 'package:$packageName/core/navigation/scaffold_with_nav_bar.dart';
 $pageImport
 // neat:shell-imports
 

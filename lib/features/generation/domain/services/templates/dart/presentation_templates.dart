@@ -14,12 +14,17 @@ class PresentationTemplates {
     bool realtime = false,
     bool includeCrudUi = false,
     List<FieldSpec> fields = FieldSpec.idName,
+    // See DataTemplates.featureModel's domainCross doc — same rationale,
+    // applied to the cross-layer imports below (domain/entities, plus
+    // data/repositories for the realtime stream notifier).
+    String domainCross = '../../domain',
+    String dataCross = '../../data',
   }) {
     if (useAnnotations) {
       if (dataList) {
         return realtime
-            ? _riverpodListStreamNotifier(featureName)
-            : _riverpodListNotifier(featureName, includeCrudUi, fields);
+            ? _riverpodListStreamNotifier(featureName, dataCross, domainCross)
+            : _riverpodListNotifier(featureName, includeCrudUi, fields, domainCross);
       }
       return _riverpodAnnotationTemplate(featureName);
     }
@@ -31,11 +36,15 @@ class PresentationTemplates {
   /// Same-feature self-references, so plain relative imports work unchanged
   /// in both flat and packageSplit layouts (see _riverpodListNotifier's
   /// equivalent imports just below) — no packageName/corePackageName needed.
-  static String _riverpodListStreamNotifier(String featureName) {
+  static String _riverpodListStreamNotifier(
+    String featureName,
+    String dataCross,
+    String domainCross,
+  ) {
     final p = pascal(featureName);
     return '''import 'package:riverpod_annotation/riverpod_annotation.dart';
-import '../../data/repositories/${featureName}_repository_providers.dart';
-import '../../domain/entities/${featureName}_entity.dart';
+import '$dataCross/repositories/${featureName}_repository_providers.dart';
+import '$domainCross/entities/${featureName}_entity.dart';
 
 part '${featureName}_provider.g.dart';
 
@@ -55,6 +64,7 @@ class ${p}Notifier extends _\$${p}Notifier {
     String featureName, [
     bool includeCrudUi = false,
     List<FieldSpec> fields = FieldSpec.idName,
+    String domainCross = '../../domain',
   ]) {
     final p = pascal(featureName);
     final idName = idField(fields).dartName;
@@ -76,7 +86,7 @@ class ${p}Notifier extends _\$${p}Notifier {
   }'''
         : '';
     return '''import 'package:riverpod_annotation/riverpod_annotation.dart';
-import '../../domain/entities/${featureName}_entity.dart';
+import '$domainCross/entities/${featureName}_entity.dart';
 import '${featureName}_usecase_providers.dart';
 
 part '${featureName}_provider.g.dart';
@@ -105,13 +115,16 @@ class ${p}Notifier extends _\$${p}Notifier {
   /// Model, RepositoryImpl) directly — matches the wesioo reference pattern.
   static String featureUsecaseProviders({
     required String featureName,
+    // See DataTemplates.featureModel's domainCross doc.
+    String domainCross = '../../domain',
+    String dataCross = '../../data',
   }) {
     final p = pascal(featureName);
     final c = camel(featureName);
     return '''import 'package:riverpod_annotation/riverpod_annotation.dart';
-import '../../data/repositories/${featureName}_repository_providers.dart';
-import '../../domain/usecases/get_${featureName}_usecase.dart';
-import '../../domain/usecases/${featureName}_crud_usecases.dart';
+import '$dataCross/repositories/${featureName}_repository_providers.dart';
+import '$domainCross/usecases/get_${featureName}_usecase.dart';
+import '$domainCross/usecases/${featureName}_crud_usecases.dart';
 
 part '${featureName}_usecase_providers.g.dart';
 
@@ -180,6 +193,8 @@ class ${p}Notifier extends Notifier<AsyncValue<void>> {
     // has to be single-sourced from core, not duplicated, or the toggle here
     // and the app's rendered theme would drift out of sync.
     String? corePackageName,
+    // See DataTemplates.featureModel's domainCross doc.
+    String domainCross = '../../domain',
   ]) {
     final p = pascal(featureName);
     final c = camel(featureName);
@@ -249,7 +264,7 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:skeletonizer/skeletonizer.dart';
 import 'package:$corePkg/core/error/failure.dart';
 import 'package:$corePkg/core/theme/theme_mode_controller.dart';
-${i18nImports}import '../../domain/entities/${featureName}_entity.dart';
+${i18nImports}import '$domainCross/entities/${featureName}_entity.dart';
 import '../providers/${featureName}_provider.dart';
 $crudImport
 class ${p}Page extends ConsumerWidget {
@@ -520,12 +535,14 @@ $disposeLines
     bool includeCrudUi = false,
     // See _riverpodListPage's doc — same packageSplit rationale.
     String? corePackageName,
+    // See DataTemplates.featureModel's domainCross doc.
+    String domainCross = '../../domain',
   }) {
     final p = pascal(featureName);
 
     if (hasRiverpod && useAnnotations && dataList) {
       return _riverpodListPage(
-          featureName, packageName, i18n, fields, includeCrudUi, corePackageName);
+          featureName, packageName, i18n, fields, includeCrudUi, corePackageName, domainCross);
     }
 
     if (hasRiverpod) {
