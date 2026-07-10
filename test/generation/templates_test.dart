@@ -97,6 +97,84 @@ void main() {
     });
   });
 
+  group('packageSplit: AppRoutePath is single-sourced in the core package', () {
+    // Every app-level template that references AppRoutePath must redirect to
+    // corePackageName when it's set (mirrors theme_mode_controller.dart's own
+    // redirect) — no local copy is written at all in that case (see
+    // LaunchGenerationUsecase._buildScaffold), so an unfixed template would
+    // point at a file that doesn't exist.
+    const core = 'core';
+
+    test('appRouter (plain, no builder)', () {
+      final out = CoreTemplates.appRouter(
+        packageName: pkgName,
+        featureName: feature,
+        corePackageName: core,
+      );
+      expect(out, contains("import 'package:core/core/constants/app_route_path.dart';"));
+      expect(out, isNot(contains('package:$pkgName/core/constants/app_route_path.dart')));
+    });
+
+    test('appRouterBuilder (typed)', () {
+      final out = CoreTemplates.appRouterBuilder(
+        packageName: pkgName,
+        featureName: feature,
+        useAnnotations: true,
+        corePackageName: core,
+      );
+      expect(out, contains("import 'package:core/core/constants/app_route_path.dart';"));
+      expect(out, isNot(contains('package:$pkgName/core/constants/app_route_path.dart')));
+    });
+
+    test('routesManual (plain, with first feature)', () {
+      final out = CoreTemplates.routesManual(
+        packageName: pkgName,
+        featureName: feature,
+        corePackageName: core,
+      );
+      expect(out, contains("import 'package:core/core/constants/app_route_path.dart';"));
+    });
+
+    test('routesManualWelcome / welcomeRoute (no first feature)', () {
+      expect(
+        CoreTemplates.routesManualWelcome(packageName: pkgName, corePackageName: core),
+        contains("import 'package:core/core/constants/app_route_path.dart';"),
+      );
+      expect(
+        CoreTemplates.welcomeRoute(packageName: pkgName, corePackageName: core),
+        contains("import 'package:core/core/constants/app_route_path.dart';"),
+      );
+    });
+
+    test('routesManualShell / appShellRouteBuilder (shell)', () {
+      expect(
+        CoreTemplates.routesManualShell(
+          packageName: pkgName,
+          featureName: feature,
+          corePackageName: core,
+        ),
+        contains("import 'package:core/core/constants/app_route_path.dart';"),
+      );
+      expect(
+        CoreTemplates.appShellRouteBuilder(
+          packageName: pkgName,
+          featureName: feature,
+          corePackageName: core,
+        ),
+        contains("import 'package:core/core/constants/app_route_path.dart';"),
+      );
+    });
+
+    test('no corePackageName: falls back to the app\'s own package (non-split default)', () {
+      final out = CoreTemplates.appRouterBuilder(
+        packageName: pkgName,
+        featureName: feature,
+        useAnnotations: true,
+      );
+      expect(out, contains("import 'package:$pkgName/core/constants/app_route_path.dart';"));
+    });
+  });
+
   group('CoreTemplates.featureRoutes (typed go_router)', () {
     final out = CoreTemplates.featureRoutes(packageName: pkgName, featureName: feature);
 

@@ -1013,6 +1013,144 @@ Harness-proven: `pubspec_builder_test.dart` gained two cases (override present
 >     wiring/pubspec deps and `flutter analyze` 0/0), and the fix re-run
 >     directly against a copy of the real project that surfaced it end to
 >     end. Full suite green.
+> - ✅ **Merge a child route into its parent (opt-in) — done, real bug found:
+>   cross-layer relative imports weren't nesting-depth-aware**. Idea from a
+>   real Workshop session: a "apparence" feature added as a child route of
+>   "profile" felt like it should just be a settings sub-page of profile, not
+>   a whole separate feature/package — mirrors `maxit-front-flutter`'s
+>   `packages/feature/profile`, which groups several sub-features
+>   (`page/<sub>/`, `data/<sub>/`) inside one package. Confirmed the design
+>   with the user before building: own entity/repository/datasource (never
+>   extending the parent's — risks clobbering the user's own hand-edits to
+>   already-generated files), organized in a `<child>/` subfolder at each
+>   layer inside the parent's own package/folder, and the child's routing
+>   still injects into the parent's own routes file exactly as it already did
+>   for a non-merged child (no change needed there beyond the page import
+>   path). `FeatureGenOptions.mergeIntoParent` (opt-in, only meaningful for
+>   Child Route — Workshop toggle + Blueprint Overview preview both gate on
+>   it) and a new `FeatureScaffolder.writeFeature` `mergeBase` param: when set,
+>   it takes priority over packageSplit/isFeatureFirst and re-roots
+>   `domain/data/presentation` under it, each gaining a `$featureName/`
+>   subfolder — exactly the existing (but never packageSplit-relevant)
+>   layer-first shape, just re-rooted at the parent instead of the app.
+>   Initially not offered when the parent is a shell branch (that already has
+>   its own registry-based mechanism — combining the two wasn't explored yet,
+>   same "don't combine an unproven combo" discipline as Custom Endpoints +
+>   packageSplit) — **later extended, see the second follow-up below**. Still
+>   rejected with Custom Endpoints (its own `EndpointTemplates` cross-layer
+>   imports aren't nesting-aware either — rejected clearly, same as the
+>   packageSplit case).
+>   **Real bug, found by the integration tests this feature needed (not
+>   theorized)**: every cross-layer relative import in `data_templates.dart`/
+>   `presentation_templates.dart` (model → entity, repository impl → entity +
+>   i-repository, repository providers → i-repository, usecase providers →
+>   repository providers + usecases, list page/notifier → entity) hardcoded a
+>   fixed `'../../domain'`/`'../../data'` prefix — correct only when
+>   `domainBase`/`dataBase`/`presentationBase` are direct siblings under a
+>   shared root (the packageSplit and isFeatureFirst branches). Nesting a
+>   `$featureName/` folder *inside* each layer (both the new `mergeBase`
+>   branch and, latent all along, the pre-existing but never-integration-
+>   tested layer-first/non-featureFirst pattern) adds one more directory
+>   level and moves the sibling layer's own `$featureName/` folder into the
+>   path — e.g. `data/reviews/models/reviews_model.dart` needs
+>   `'../../../domain/reviews/entities/reviews_entity.dart'`, not
+>   `'../../domain/entities/...'`. Every affected template function gained a
+>   `domainCross`/`dataCross` param (default: the old 2-up literal, unchanged
+>   for every existing caller), computed once in `FeatureScaffolder
+>   .writeFeature` from a `crossLayerNested` flag (`mergeBase != null ||
+>   (!packageSplit && !isFeatureFirst)`) and threaded through — fixing the
+>   layer-first architecture pattern's own latent bug as a side effect, not
+>   just the new merge case. Harness-proven: new unit tests for
+>   `wireChildIntoRoutes`/`wireChildIntoTypedRoutes`'s merged-import branches
+>   and `FeatureScaffolder`'s `mergeBase` path + cross-layer-import content
+>   (the existence-only version of this test passed despite the broken
+>   imports — content assertions are what caught the bug), and two new
+>   integration tests (packageSplit + go_router_builder, and non-split
+>   feature-first + plain go_router) each merge a child into a parent and
+>   assert no new package/workspace member/path dependency, files nested
+>   under a `<child>/` subfolder per layer, the parent's routes file import
+>   (relative for the typed/same-package case, `package:`-redirected-into-
+>   parent for the plain/app-shared-routes.dart case), and `flutter analyze`
+>   0/0. Full suite green.
+>   - ✅ **Follow-up: two real crashes found via a real packageSplit +
+>     go_router_builder + chopper project — done**. The harness above never
+>     combined merge with chopper, so it missed both:
+>     1. **`_registerChopperDecoderSplit`'s call site force-unwrapped
+>        `featurePackageName!`** unconditionally whenever `packageSplit` —
+>        when merged, `featurePackageName` is `null` by design (no separate
+>        package), so this threw `Null check operator used on a null value`
+>        the moment a merged feature also used chopper (the Workshop's own
+>        "Merging ... into parent ..." log, then a crash with no further
+>        progress). Fixed: the caller now passes `parentPackageName!` instead
+>        when merging, and `_registerChopperDecoderSplit` gained a
+>        `mergeIntoParent` flag so the `bootstrap.dart` import it wires
+>        points at the merged child's actual nested location
+>        (`data/$featureName/repositories/...` inside the *parent's* package,
+>        not that package's own root).
+>     2. **The per-feature `build_runner` re-run also assumed a separate
+>        package existed** (`packages/$featurePackageName`, `null` when
+>        merged — would have targeted a nonexistent `packages/null`). Fixed:
+>        when merging it now runs in `packages/$parentPackageName` instead
+>        (the merged child's own newly-generated annotated files live there
+>        now) — and the separate go_router_builder-only "re-run the parent
+>        package" step right after it is skipped in that case (redundant,
+>        already covered).
+>     Also addressed a related **silent-mismatch UX gap** (not a crash, but
+>     reported in the same session): merging is intentionally not offered for
+>     a shell-branch parent (see above), and the Workshop enforces that
+>     server-side — but the Blueprint Overview preview and the toggle itself
+>     can't know a parent is a shell branch without a filesystem check, so
+>     they still showed "merged" while the actual result silently generated a
+>     normal, non-merged child. The generation log now says so explicitly
+>     (`"Merge into parent" is ignored for a shell-branch parent ...`) instead
+>     of silently diverging from what the toggle showed; the preview-side
+>     mismatch itself is a known, accepted cosmetic limitation (fixing it
+>     would need the Workshop to inspect the project's filesystem on parent
+>     selection, not just its already-loaded `.neat.json` state).
+>     Harness-proven: the packageSplit merge integration test above switched
+>     from dio to chopper (mirrors the "packageSplit + chopper" test's own
+>     combo) specifically to exercise this path, with new assertions on
+>     `bootstrap.dart`'s import (`package:home/data/reviews/repositories/
+>     reviews_repository_providers.dart`) and its register call — both would
+>     have caught this before it ever reached a real project. Full suite
+>     green.
+>   - ✅ **Second follow-up: mergeIntoParent extended to shell-branch parents
+>     — done, prompted by the exact same real project** (the shell-branch
+>     restriction above was still live when the user retested "ingredient"
+>     merging into "recepies", a real bottom-nav shell branch — same silent-
+>     mismatch UX gap flagged in the first follow-up, but this time the user
+>     asked to actually close the gap rather than just surface it). Dropped
+>     the `!parentIsShellBranch` condition from `mergeIntoParent`'s
+>     computation entirely. The registry (`shell_page_registry.dart`) exists
+>     to keep `app_shell_route.dart`/`routes.dart` from hard-importing every
+>     branch's page — but a merged child's page now lives *inside* the
+>     parent's own package, which the app already depends on directly (it's a
+>     top-level shell branch), so that reason doesn't apply: `needsShellRegistration`
+>     is now `... && !mergeIntoParent` (no `<f>_shell_registration.dart` written
+>     for a merged child), and `wireChildIntoTypedShell`/`wireChildIntoPlainShell`
+>     gained a `mergeIntoParent` branch that imports the child's page directly
+>     from its new nested location (`package:$parentPackageName/presentation/
+>     $childFeature/pages/...`, mirroring the non-shell merge case's import
+>     shape) and constructs it directly (`const ChildPage()`) instead of
+>     `lookupShellPage(...)` — skipping the registry call-site wiring
+>     entirely. Every other merge mechanic (`mergeBase` scaffolding, the
+>     `domainCross`/`dataCross` cross-layer import fix, the chopper decoder
+>     registration fix, the `packages/$parentPackageName` build_runner re-run)
+>     already worked unchanged for a shell-branch parent — none of that logic
+>     ever checked `parentIsShellBranch` itself, only `mergeIntoParent`, so
+>     lifting the one restriction was sufficient. Workshop toggle's subtitle
+>     updated to match (was "ignored if the parent turns out to be a shell
+>     branch"). Harness-proven: two new unit tests (`wireChildIntoTypedShell`/
+>     `wireChildIntoPlainShell`'s `mergeIntoParent` branch — asserts no
+>     registry/`lookupShellPage` reference, a direct import + construction
+>     instead) and a new integration test reproducing the exact real scenario
+>     (packageSplit + go_router_builder + chopper + a "recepies" shell branch
+>     merging in "ingredient") — asserts no separate package, the direct
+>     `app_shell_route.dart` import, no shell-registration file/bootstrap
+>     call, the chopper decoder import pointing at the merged nested path,
+>     and `flutter analyze` 0/0 across the workspace. The pre-existing (non-
+>     merged) shell-child integration tests re-verified green, unaffected.
+>     Full suite green.
 
 ### 7. JSON-driven feature generation — big bet, high value
 
@@ -1369,6 +1507,47 @@ bloc/cubit were gated too — both unlocked instead, see § below.)
     directly to the reporter's own nexus project (no Auth, shell,
     go_router_builder) — 0/0 analyze there too. Full suite green (227 fast
     tests).
+  - ✅ **Second follow-up: AppRoutePath single-sourced in packages/core for
+    packageSplit — done**. Testing the auto-wired onboarding redirect against
+    a packageSplit project surfaced a real bug: `_writeCorePackage`'s mirror
+    of `AppRoutePath` never got `hasOnboarding` threaded through, so the
+    app's own copy had the `/onboarding` constant but the core package's
+    mirror didn't — any split feature referencing it (a plausible "Replay
+    onboarding" settings action) would fail to compile. Fixed narrowly at
+    first (thread the missing param), but the report prompted a bigger
+    question: why mirror `AppRoutePath` into two files that must be kept in
+    sync by hand at all, when `theme_mode_controller.dart` already proves the
+    better pattern (single-sourced in `packages/core`, the app imports it
+    from there, zero drift possible by construction)? Investigated why
+    `AppRoutePath` didn't already follow that pattern — the Workshop's
+    `generate_feature_usecase.dart` has had 6 call sites deliberately
+    inserting into *both* copies since packageSplit was built, so the mirror
+    wasn't an oversight, just an intentional choice for a plain
+    `static const String` class (unlike `theme_mode_controller`, a stateful
+    provider where two copies would be two different runtime instances — a
+    real bug, not just drift risk). Re-scoped to the version that actually
+    holds: **single-source it like theme_mode_controller after all**,
+    eliminating the drift-risk class instead of just patching this one
+    instance of it. `CoreTemplates.appRoutePath`/`appRouter`/
+    `appRouterBuilder`/`routesManual`/`routesManualWelcome`/`welcomeRoute`/
+    `routesManualShell`/`appShellRouteBuilder`, `AuthTemplates.routerNotifier`,
+    and `OnboardingTemplates.onboardingRoutesBuilder` all gained (or started
+    using an already-present) `corePackageName` param redirecting the import
+    to `package:$corePackageName/core/constants/app_route_path.dart` — every
+    app-level file that references route paths, not just the onboarding-added
+    ones. `_buildScaffold` now writes the app's own copy only when
+    `corePackageName == null` (non-split). The Workshop needed **zero**
+    changes — `_addRouteConstant` already no-ops gracefully when its target
+    file doesn't exist, so it silently stops touching the (now nonexistent)
+    app copy instead of erroring or recreating it. Harness-proven: new unit
+    tests for every fixed template's redirect, the packageSplit onboarding
+    integration test now asserts the app copy doesn't exist at all (not just
+    that both copies match), and three pre-existing packageSplit integration
+    tests (§6a Phase 3 child route, §7 shell + nested child, Step 2b) had
+    their own now-stale "both copies" assertions updated to match. Hand
+    verified by deleting the duplicate directly in the reporter's own
+    packageSplit test project and fixing its 3 redirected imports — 0/0
+    analyze. Full suite still green.
 
 ## Backlog — not yet scheduled
 

@@ -66,6 +66,16 @@ void main() {
       expect(code, contains("part 'onboarding_routes.g.dart';"));
       expect(code, contains('OnboardingPage(onDone: () => context.go(AppRoutePath.product))'));
     });
+
+    test('packageSplit: AppRoutePath redirects to the core package, onboarding_page.dart stays app-level', () {
+      final code = OnboardingTemplates.onboardingRoutesBuilder(
+        packageName: 'demo_app',
+        homeRoute: 'AppRoutePath.product',
+        corePackageName: 'core',
+      );
+      expect(code, contains("import 'package:core/core/constants/app_route_path.dart';"));
+      expect(code, contains("import 'package:demo_app/core/onboarding/onboarding_page.dart';"));
+    });
   });
 
   group('AuthTemplates.routerNotifier — onboarding merge', () {

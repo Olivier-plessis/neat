@@ -312,6 +312,23 @@ class _Workshop extends HookWidget {
                               error: parentMissing ? 'Choose the parent feature.' : null,
                               onSelect: (f) => set(opts.copyWith(parentFeature: f ?? '')),
                             ),
+                            if (opts.parentFeature.isNotEmpty) ...[
+                              4.gapH,
+                              _LayerToggle(
+                                title: 'Merge into parent',
+                                subtitle:
+                                    'Nests this feature inside "${opts.parentFeature}" '
+                                    '(its own entity/repository/datasource, in a '
+                                    '"${opts.name.isEmpty ? 'feature_name' : opts.name}/" '
+                                    'subfolder per layer) instead of a separate feature — '
+                                    'no new package, workspace member, or path: dependency. '
+                                    'Works for a shell-branch parent too (imports the page '
+                                    'directly, skipping the shell page registry).',
+                                value: opts.mergeIntoParent,
+                                enabled: !state.isGenerating,
+                                onChanged: (v) => set(opts.copyWith(mergeIntoParent: v)),
+                              ),
+                            ],
                           ],
                           if (isShell) ...[
                             12.gapH,
@@ -1360,7 +1377,7 @@ class _BlueprintTree extends StatelessWidget {
     decoration: BoxDecoration(color: c, shape: BoxShape.circle),
   );
 
-  /// The existing entity + CRUD preview (unchanged).
+  /// The existing entity + CRUD preview.
   List<String> _crudLines(String name) {
     final remote = hasHttp && options.includeRemoteDataSource;
     // Mirrors FeatureScaffolder's writeLocal exactly: a local source is only
@@ -1371,6 +1388,38 @@ class _BlueprintTree extends StatelessWidget {
     final localIsDrift = contract.storageStrategy != 'remoteOnly';
     final local = options.includeLocalDataSource && (!remote || localIsDrift);
     final hasAnyDataSource = remote || local;
+
+    // Merge into parent (opt-in, child routes only — see FeatureGenOptions
+    // .mergeIntoParent / FeatureScaffolder's mergeBase): own entity/repository
+    // /datasource, but nested in a "$name/" subfolder per layer inside the
+    // parent's own package/folder instead of a separate feature.
+    if (options.routing == FeatureRouting.child &&
+        options.mergeIntoParent &&
+        options.parentFeature.isNotEmpty) {
+      return [
+        '${options.parentFeature}/ (merged)',
+        if (hasAnyDataSource) ...[
+          '├── data/',
+          '│   └── $name/',
+          '│       ├── sources/',
+          if (remote) '│       │   ├── ${name}_api_source.dart',
+          if (local) '│       │   └── ${name}_local_source.dart',
+          '│       ├── models/',
+          '│       └── repositories/',
+        ],
+        '├── domain/',
+        '│   └── $name/',
+        '│       ├── entities/',
+        if (hasAnyDataSource) '│       ├── repositories/',
+        if (options.includeUseCase && hasAnyDataSource) '│       └── usecases/',
+        '└── presentation/',
+        '    └── $name/',
+        '        ├── pages/',
+        '        ├── providers/',
+        '        └── widgets/',
+      ];
+    }
+
     return [
       'lib/features/$name/',
       if (hasAnyDataSource) ...[
@@ -1433,6 +1482,18 @@ class _LogsConsole extends StatelessWidget {
 
   final List<String> logs;
 
+  // Mirrors GenerateFeatureUsecase/LaunchGenerationUsecase's own onLog
+  // prefixes: [▶] in progress, [✓]/[✓✓] done, [i] informational note, [!]
+  // warning/failure — see generate_feature_usecase.dart's onLog call sites.
+  Color _colorFor(String line) {
+    if (line.startsWith('[!]')) return Colors.redAccent[100]!;
+    if (line.startsWith('[✓✓]')) return const Color(0xFF4ADE80);
+    if (line.startsWith('[✓]')) return const Color(0xFF86EFAC);
+    if (line.startsWith('[i]')) return Colors.lightBlueAccent[100]!;
+    if (line.startsWith('[▶]')) return Palette.colorPrimaryCyan;
+    return Colors.grey[400]!;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -1446,14 +1507,24 @@ class _LogsConsole extends StatelessWidget {
       ),
       child: SingleChildScrollView(
         reverse: true,
-        child: Text(
-          logs.join('\n'),
-          style: TextStyle(
-            color: Colors.grey[400],
-            fontSize: 11,
-            fontFamily: 'monospace',
-            height: 1.5,
-          ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (final line in logs)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 1),
+                child: Text(
+                  line,
+                  style: TextStyle(
+                    color: _colorFor(line),
+                    fontSize: 11,
+                    fontFamily: 'monospace',
+                    fontWeight: line.startsWith('[✓✓]') ? FontWeight.bold : FontWeight.normal,
+                    height: 1.5,
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );

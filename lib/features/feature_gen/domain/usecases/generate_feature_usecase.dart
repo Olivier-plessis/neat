@@ -32,15 +32,65 @@ class GenerateFeatureUsecase {
     // convention the wizard itself uses.
     final packageSplit = c.packageSplit;
     final corePackageName = packageSplit ? 'core' : null;
-    final featurePackageName = packageSplit ? featureName : null;
+    final hasGoRouterBuilder = c.navigation == 'go_router_builder';
+    final hasGoRouter = c.navigation == 'go_router' || hasGoRouterBuilder;
+
+    // A child route nests under an existing feature instead of getting its own
+    // top-level route (supported for both go_router and go_router_builder).
+    final asChild = hasGoRouter &&
+        options.routing == FeatureRouting.child &&
+        options.parentFeature.isNotEmpty;
+    // A child's parent may itself be a shell branch (its route lives inside
+    // app_shell_route.dart/routes.dart, not a standalone <parent>_routes.dart
+    // — see "Child route wiring — nested under a shell branch"). Computed
+    // early (before the merge/package-creation decisions just below, which
+    // both need it) rather than recomputed at the routing-dispatch point
+    // further down.
+    final parentIsShellBranch = asChild
+        ? (hasGoRouterBuilder
+            ? await _isShellBranchTyped(project.path, options.parentFeature)
+            : await _isShellBranchPlain(project.path, options.parentFeature))
+        : false;
+    // Opt-in (Workshop, child routes only — see FeatureGenOptions
+    // .mergeIntoParent): nests this feature's files inside the parent's own
+    // package/folder instead of giving it a separate one — no new pubspec,
+    // workspace member, or path: dependency. Also valid for a shell-branch
+    // parent: the merged child skips the shell page registry entirely (see
+    // needsShellRegistration below and wireChildIntoTypedShell/
+    // wireChildIntoPlainShell's mergeIntoParent branch) and app_shell_route
+    // .dart/routes.dart imports its page directly from the parent's own
+    // (nested) package instead — a plain app→feature import the app already
+    // has (the parent is a top-level shell branch, always a workspace
+    // dependency), so the registry's whole reason to exist (avoiding N direct
+    // imports into an app-owned file) doesn't apply to a feature that's
+    // conceptually just a sub-page of one of those N branches.
+    final mergeIntoParent = asChild && options.mergeIntoParent;
+
+    final featurePackageName = packageSplit && !mergeIntoParent ? featureName : null;
+    // The parent's own lib root when merging — packages/<parent>/lib
+    // (packageSplit) or lib/features/<parent> (feature-first) — this
+    // feature's files then nest by name underneath it (see
+    // FeatureScaffolder.writeFeature's mergeBase doc). Layer-first
+    // (non-feature-first, non-split) projects already nest every feature by
+    // name under a shared lib/domain, lib/data, lib/presentation — merging
+    // degenerates to that same shape, so mergeBase is just lib there.
+    final mergeBase = !mergeIntoParent
+        ? null
+        : packageSplit
+            ? '${project.path}/packages/${options.parentFeature}/lib'
+            : isFeatureFirst
+                ? '$lib/features/${options.parentFeature}'
+                : lib;
 
     // Non-destructive guard.
     final featureDir = Directory(
-      packageSplit
-          ? '${project.path}/packages/$featurePackageName'
-          : isFeatureFirst
-              ? '$lib/features/$featureName'
-              : '$lib/domain/$featureName',
+      mergeIntoParent
+          ? '$mergeBase/domain/$featureName'
+          : packageSplit
+              ? '${project.path}/packages/$featureName'
+              : isFeatureFirst
+                  ? '$lib/features/$featureName'
+                  : '$lib/domain/$featureName',
     );
     if (featureDir.existsSync()) {
       throw Exception('Feature "$featureName" already exists — aborting (nothing overwritten).');
@@ -50,8 +100,6 @@ class GenerateFeatureUsecase {
     final hasRiverpod = c.stateManagement == 'riverpod';
     final hasBloc = c.stateManagement == 'bloc';
     final useAnnotations = c.useRiverpodAnnotations && hasRiverpod;
-    final hasGoRouterBuilder = c.navigation == 'go_router_builder';
-    final hasGoRouter = c.navigation == 'go_router' || hasGoRouterBuilder;
     final projectHasHttp = c.httpClient != 'none';
     final localStoragePackage = c.storageStrategy != 'remoteOnly' ? 'local_storage' : null;
     final hasSync = c.storageStrategy == 'offlineFirstSync';
@@ -77,6 +125,13 @@ class GenerateFeatureUsecase {
           'instead.',
         );
       }
+      if (mergeIntoParent) {
+        throw Exception(
+          'Custom Endpoints isn\'t supported yet combined with mergeIntoParent '
+          '(EndpointTemplates\' own cross-layer imports aren\'t nesting-aware). '
+          'Add it as a normal (non-merged) feature instead.',
+        );
+      }
     }
 
     // … then refine them with the per-feature Workshop choices. The feature can
@@ -91,11 +146,6 @@ class GenerateFeatureUsecase {
     // Drift-backed local source → the feature needs a typed table injected.
     final needsDriftTable = localStoragePackage != null && writeLocal;
 
-    // A child route nests under an existing feature instead of getting its own
-    // top-level route (supported for both go_router and go_router_builder).
-    final asChild = hasGoRouter &&
-        options.routing == FeatureRouting.child &&
-        options.parentFeature.isNotEmpty;
     // A shell branch joins the app's StatefulShellRoute (bottom NavigationBar).
     final asShell = hasGoRouter && options.routing == FeatureRouting.shell;
 
@@ -110,12 +160,15 @@ class GenerateFeatureUsecase {
     // onto the child package (see _wireChildRouteBuilder/
     // _addPathDependencyToPackage) — a one-way edge (child never depends back
     // on parent), so no cycle, unlike arbitrary two-way feature coupling.
+    // Still meaningful when merging (locates the parent's own routes file),
+    // even though there's no child package to add a path: dependency for.
     final parentPackageName = packageSplit ? options.parentFeature : null;
 
     // packages/<pkg>_<feature>/pubspec.yaml + wiring into the root workspace —
     // same shape as the wizard's own first split feature (see
     // CorePackageTemplates.featurePackagePubspec / LaunchGenerationUsecase).
-    if (packageSplit) {
+    // Skipped entirely when merging — there's no new package to create.
+    if (packageSplit && !mergeIntoParent) {
       final featurePubspec = File('${project.path}/packages/$featurePackageName/pubspec.yaml');
       await featurePubspec.create(recursive: true);
       await featurePubspec.writeAsString(
@@ -132,21 +185,9 @@ class GenerateFeatureUsecase {
       await _addPathDependency(project.path, featurePackageName);
     }
 
-    // A child's parent may itself be a shell branch (its route lives inside
-    // app_shell_route.dart/routes.dart, not a standalone <parent>_routes.dart
-    // — see "Child route wiring — nested under a shell branch"). Detected
-    // once here, before FeatureScaffolder.writeFeature (which needs it for
-    // needsShellRegistration below) and reused at the routing-dispatch point
-    // further down, rather than recomputed there.
-    final parentIsShellBranch = asChild
-        ? (hasGoRouterBuilder
-            ? await _isShellBranchTyped(project.path, options.parentFeature)
-            : await _isShellBranchPlain(project.path, options.parentFeature))
-        : false;
-
     onLog('[▶] Generating feature "$featureName" (matching the project stack)...');
     await const FeatureScaffolder().writeFeature(
-      lib: packageSplit ? '${project.path}/packages/$featurePackageName/lib' : lib,
+      lib: mergeBase ?? (packageSplit ? '${project.path}/packages/$featureName/lib' : lib),
       featureName: featureName,
       packageName: c.projectName,
       isFeatureFirst: isFeatureFirst,
@@ -173,7 +214,11 @@ class GenerateFeatureUsecase {
       corePackageName: corePackageName,
       useCustomEndpoints: options.useCustomEndpoints,
       endpoints: options.endpoints,
-      needsShellRegistration: asShell || (asChild && parentIsShellBranch),
+      // A merged shell-branch child skips the registry entirely (see
+      // wireChildIntoTypedShell/wireChildIntoPlainShell's mergeIntoParent
+      // branch) — no <f>_shell_registration.dart to write.
+      needsShellRegistration: asShell || (asChild && parentIsShellBranch && !mergeIntoParent),
+      mergeBase: mergeBase,
     );
     onLog('[✓] Feature files written.');
 
@@ -184,7 +229,9 @@ class GenerateFeatureUsecase {
       await _ensureRoutingAnchors(project.path);
       if (asChild && parentIsShellBranch) {
         onLog(
-          '[▶] Wiring "$featureName" as a child of shell branch "${options.parentFeature}"...',
+          mergeIntoParent
+              ? '[▶] Merging "$featureName" into shell branch "${options.parentFeature}"...'
+              : '[▶] Wiring "$featureName" as a child of shell branch "${options.parentFeature}"...',
         );
         if (hasGoRouterBuilder) {
           await _wireChildIntoShellBuilder(
@@ -193,7 +240,9 @@ class GenerateFeatureUsecase {
             featureName,
             options.parentFeature,
             childPackageName: featurePackageName,
+            parentPackageName: parentPackageName,
             corePackageName: corePackageName,
+            mergeIntoParent: mergeIntoParent,
           );
         } else {
           await _wireChildIntoShellPlain(
@@ -202,11 +251,17 @@ class GenerateFeatureUsecase {
             featureName,
             options.parentFeature,
             childPackageName: featurePackageName,
+            parentPackageName: parentPackageName,
             corePackageName: corePackageName,
+            mergeIntoParent: mergeIntoParent,
           );
         }
       } else if (asChild) {
-        onLog('[▶] Wiring "$featureName" as a child of "${options.parentFeature}"...');
+        onLog(
+          mergeIntoParent
+              ? '[▶] Merging "$featureName" into parent "${options.parentFeature}"...'
+              : '[▶] Wiring "$featureName" as a child of "${options.parentFeature}"...',
+        );
         if (hasGoRouterBuilder) {
           await _wireChildRouteBuilder(
             project.path,
@@ -216,6 +271,7 @@ class GenerateFeatureUsecase {
             childPackageName: featurePackageName,
             parentPackageName: parentPackageName,
             corePackageName: corePackageName,
+            mergeIntoParent: mergeIntoParent,
           );
         } else {
           await _wireChildRoute(
@@ -224,7 +280,9 @@ class GenerateFeatureUsecase {
             featureName,
             options.parentFeature,
             childPackageName: featurePackageName,
+            parentPackageName: parentPackageName,
             corePackageName: corePackageName,
+            mergeIntoParent: mergeIntoParent,
           );
         }
       } else if (asShell) {
@@ -274,8 +332,16 @@ class GenerateFeatureUsecase {
       if (packageSplit) {
         // The split feature already generated its own register<Feature>
         // ChopperDecoders() (see DataTemplates.featureRepositoryProviders) —
-        // only bootstrap.dart's call-site wiring is left to do.
-        await _registerChopperDecoderSplit(project.path, featurePackageName!, featureName);
+        // only bootstrap.dart's call-site wiring is left to do. Merged: that
+        // file lives inside the *parent's* own package now, nested under
+        // data/$featureName/ (see FeatureScaffolder's mergeBase), so the
+        // import must point there instead of a (nonexistent) featurePackageName.
+        await _registerChopperDecoderSplit(
+          project.path,
+          mergeIntoParent ? parentPackageName! : featurePackageName!,
+          featureName,
+          mergeIntoParent: mergeIntoParent,
+        );
       } else {
         await _registerChopperDecoder(project.path, c.projectName, featureName);
       }
@@ -329,16 +395,22 @@ class GenerateFeatureUsecase {
     }
     // packageSplit: the new feature package has its own build_runner pass too
     // (riverpod_generator/freezed/json_serializable/go_router_builder/chopper).
+    // Merged into a parent: there's no separate package for it — its own
+    // newly-generated annotated files (repository/usecase providers, freezed
+    // models, etc.) now live inside the *parent's* package instead, so that's
+    // what needs the pass.
     if (packageSplit) {
-      onLog('[▶] Running build_runner in packages/$featurePackageName...');
-      await _runBuildRunner(dart, '${project.path}/packages/$featurePackageName', onLog);
+      final pkg = mergeIntoParent ? parentPackageName : featurePackageName;
+      onLog('[▶] Running build_runner in packages/$pkg...');
+      await _runBuildRunner(dart, '${project.path}/packages/$pkg', onLog);
     }
-    // packageSplit + child route + go_router_builder: the *parent* package's
-    // own <parent>_routes.dart was just edited too (a new nested
-    // TypedGoRoute<ChildRoute> + ChildRoute class needing a generated
-    // `$ChildRoute` mixin) — its build_runner pass has to re-run, or the
-    // parent package won't compile.
-    if (packageSplit && asChild && hasGoRouterBuilder) {
+    // packageSplit + child route + go_router_builder (non-merged only — the
+    // merge case's parent build_runner pass above already covers the parent
+    // package entirely): the *parent* package's own <parent>_routes.dart was
+    // just edited too (a new nested TypedGoRoute<ChildRoute> + ChildRoute
+    // class needing a generated `$ChildRoute` mixin) — its build_runner pass
+    // has to re-run, or the parent package won't compile.
+    if (packageSplit && asChild && hasGoRouterBuilder && !mergeIntoParent) {
       onLog('[▶] Running build_runner in packages/$parentPackageName...');
       await _runBuildRunner(dart, '${project.path}/packages/$parentPackageName', onLog);
     }
@@ -406,17 +478,25 @@ class GenerateFeatureUsecase {
   /// (`AppTemplates.bootstrap`). No-op if the project predates these anchors.
   Future<void> _registerChopperDecoderSplit(
     String projectPath,
+    // The split feature's own package — or, when merged, the *parent's* own
+    // package (the caller passes the right one; see FeatureGenOptions
+    // .mergeIntoParent).
     String featurePackageName,
-    String featureName,
-  ) async {
+    String featureName, {
+    // Opt-in: the repository providers file lives nested at
+    // data/$featureName/repositories/... inside featurePackageName (the
+    // parent's package) instead of at that package's own root.
+    bool mergeIntoParent = false,
+  }) async {
     final file = File('$projectPath/lib/core/bootstrap.dart');
     if (!file.existsSync()) return;
     final p = _pascal(featureName);
     var s = await file.readAsString();
+    final dataPrefix = mergeIntoParent ? 'data/$featureName' : 'data';
     s = _insertBefore(
       s,
       '// neat:chopper-register-imports',
-      "import 'package:$featurePackageName/data/repositories/${featureName}_repository_providers.dart';",
+      "import 'package:$featurePackageName/$dataPrefix/repositories/${featureName}_repository_providers.dart';",
     );
     s = _insertBefore(
       s,
@@ -654,7 +734,13 @@ class GenerateFeatureUsecase {
     String featureName,
     String parentFeature, {
     String? childPackageName,
+    String? parentPackageName,
     String? corePackageName,
+    // Opt-in (Workshop, see FeatureGenOptions.mergeIntoParent): the child's
+    // page lives nested inside the parent's own package/folder instead of a
+    // separate one — see wireChildIntoRoutes's own doc for the import-path
+    // consequence.
+    bool mergeIntoParent = false,
   }) async {
     final camel = _camel(featureName);
 
@@ -681,6 +767,8 @@ class GenerateFeatureUsecase {
       featureName: featureName,
       parentFeature: parentFeature,
       childPackageName: childPackageName,
+      parentPackageName: parentPackageName,
+      mergeIntoParent: mergeIntoParent,
     );
     await routes.writeAsString(s);
   }
@@ -704,6 +792,13 @@ class GenerateFeatureUsecase {
     String? childPackageName,
     String? parentPackageName,
     String? corePackageName,
+    // Opt-in (Workshop, see FeatureGenOptions.mergeIntoParent): the child's
+    // page lives nested inside the parent's own package/folder instead of a
+    // separate one — see wireChildIntoTypedRoutes's own doc for the
+    // import-path consequence. No path: dependency needed either way (step 3
+    // below already only fires when childPackageName is set, which it never
+    // is when merging).
+    bool mergeIntoParent = false,
   }) async {
     final camel = _camel(featureName);
 
@@ -733,6 +828,7 @@ class GenerateFeatureUsecase {
       childFeature: featureName,
       parentFeature: parentFeature,
       childPackageName: childPackageName,
+      mergeIntoParent: mergeIntoParent,
     );
     await parentRoutes.writeAsString(s);
 
@@ -758,6 +854,13 @@ class GenerateFeatureUsecase {
     // import crosses a genuine feature-package boundary, unlike the plain
     // go_router variant (nested inside the app's own shared routes.dart).
     String? childPackageName,
+    // Opt-in (see FeatureGenOptions.mergeIntoParent): the child's page lives
+    // nested inside the parent's own package/folder (presentation/$childFeature
+    // /pages/..., see FeatureScaffolder.writeFeature's mergeBase doc) instead
+    // of a separate package — a plain relative import then works, exactly
+    // like CoreTemplates.featureRoutes' own convention, since routes.dart and
+    // the page are now in the same package regardless of packageSplit.
+    bool mergeIntoParent = false,
   }) {
     final childPascal = _pascal(childFeature);
     final parentPascal = _pascal(parentFeature);
@@ -765,11 +868,16 @@ class GenerateFeatureUsecase {
     var s = parentRoutesSource;
 
     // 1. Import the child page (just before the part directive).
-    final childPkg = childPackageName ?? packageName;
-    final childPathPrefix = childPackageName != null ? '' : 'features/$childFeature/';
-    final childImport =
-        "import 'package:$childPkg/${childPathPrefix}presentation/pages/"
-        "${childFeature}_page.dart';";
+    final String childImport;
+    if (mergeIntoParent) {
+      childImport = "import '../$childFeature/pages/${childFeature}_page.dart';";
+    } else {
+      final childPkg = childPackageName ?? packageName;
+      final childPathPrefix = childPackageName != null ? '' : 'features/$childFeature/';
+      childImport =
+          "import 'package:$childPkg/${childPathPrefix}presentation/pages/"
+          "${childFeature}_page.dart';";
+    }
     if (!s.contains(childImport)) {
       s = _insertBefore(s, "part '", childImport);
     }
@@ -912,14 +1020,17 @@ class GenerateFeatureUsecase {
   /// [corePackageName]: packageSplit — the child registers itself into
   /// core's shell page registry the same way a top-level branch does (see
   /// `_wireShellBranch`), since it's referenced from the same app-owned
-  /// `app_shell_route.dart`.
+  /// `app_shell_route.dart`. [mergeIntoParent]: skips the registry
+  /// entirely — see [wireChildIntoTypedShell]'s own doc.
   Future<void> _wireChildIntoShellBuilder(
     String projectPath,
     String packageName,
     String featureName,
     String parentFeature, {
     String? childPackageName,
+    String? parentPackageName,
     String? corePackageName,
+    bool mergeIntoParent = false,
   }) async {
     final camel = _camel(featureName);
     await _addRouteConstant(
@@ -943,11 +1054,16 @@ class GenerateFeatureUsecase {
       parentFeature: parentFeature,
       childFeature: featureName,
       childPackageName: childPackageName,
+      parentPackageName: parentPackageName,
       corePackageName: corePackageName,
+      mergeIntoParent: mergeIntoParent,
     );
     await shellFile.writeAsString(s);
 
-    if (childPackageName != null && corePackageName != null) {
+    // No registry involvement when merged — the page is imported directly
+    // (see wireChildIntoTypedShell), so there's no <f>_shell_registration.dart
+    // to wire a call-site for.
+    if (!mergeIntoParent && childPackageName != null && corePackageName != null) {
       await _registerShellPageSplit(projectPath, childPackageName, featureName, corePackageName);
     }
   }
@@ -959,7 +1075,9 @@ class GenerateFeatureUsecase {
     String featureName,
     String parentFeature, {
     String? childPackageName,
+    String? parentPackageName,
     String? corePackageName,
+    bool mergeIntoParent = false,
   }) async {
     final camel = _camel(featureName);
     await _addRouteConstant(
@@ -983,11 +1101,13 @@ class GenerateFeatureUsecase {
       parentFeature: parentFeature,
       childFeature: featureName,
       childPackageName: childPackageName,
+      parentPackageName: parentPackageName,
       corePackageName: corePackageName,
+      mergeIntoParent: mergeIntoParent,
     );
     await routes.writeAsString(s);
 
-    if (childPackageName != null && corePackageName != null) {
+    if (!mergeIntoParent && childPackageName != null && corePackageName != null) {
       await _registerShellPageSplit(projectPath, childPackageName, featureName, corePackageName);
     }
   }
@@ -1001,6 +1121,17 @@ class GenerateFeatureUsecase {
   /// the same for a nested child). packageSplit: `build()` reads core's
   /// shell page registry instead of constructing the page directly, same as
   /// a top-level branch (see [CoreTemplates.shellBranchClassesBuilder]).
+  ///
+  /// [mergeIntoParent] (see FeatureGenOptions.mergeIntoParent): the child's
+  /// page lives nested inside the parent's own package/folder instead of a
+  /// separate one — skips the registry entirely and imports the page
+  /// directly from its new nested location (`package:$parentPackageName/
+  /// presentation/$childFeature/pages/...`, or `package:$packageName/
+  /// features/$parentFeature/presentation/$childFeature/pages/...` when not
+  /// packageSplit) — a plain app→feature import the app already has (the
+  /// parent is a top-level shell branch, always a workspace dependency), so
+  /// the registry's reason to exist (avoiding N direct imports into an
+  /// app-owned file) doesn't apply here.
   @visibleForTesting
   static String wireChildIntoTypedShell({
     required String shellSource,
@@ -1008,17 +1139,27 @@ class GenerateFeatureUsecase {
     required String parentFeature,
     required String childFeature,
     String? childPackageName,
+    String? parentPackageName,
     String? corePackageName,
+    bool mergeIntoParent = false,
   }) {
     var s = healShellBranchTyped(shellSource, parentFeature);
     final childPascal = _pascal(childFeature);
     final childCamel = _camel(childFeature);
 
-    final childPkg = childPackageName ?? packageName;
-    final childPathPrefix = childPackageName != null ? '' : 'features/$childFeature/';
-    final childImportLine = childPackageName != null
-        ? "import 'package:${corePackageName!}/core/router/shell_page_registry.dart';"
-        : "import 'package:$childPkg/${childPathPrefix}presentation/pages/${childFeature}_page.dart';";
+    final String childImportLine;
+    if (mergeIntoParent) {
+      childImportLine = parentPackageName != null
+          ? "import 'package:$parentPackageName/presentation/$childFeature/pages/${childFeature}_page.dart';"
+          : "import 'package:$packageName/features/$parentFeature/presentation/$childFeature/pages/"
+              "${childFeature}_page.dart';";
+    } else {
+      final childPkg = childPackageName ?? packageName;
+      final childPathPrefix = childPackageName != null ? '' : 'features/$childFeature/';
+      childImportLine = childPackageName != null
+          ? "import 'package:${corePackageName!}/core/router/shell_page_registry.dart';"
+          : "import 'package:$childPkg/${childPathPrefix}presentation/pages/${childFeature}_page.dart';";
+    }
     if (!s.contains(childImportLine)) {
       s = _insertBefore(s, '// neat:shell-imports', childImportLine);
     }
@@ -1027,9 +1168,11 @@ class GenerateFeatureUsecase {
     s = _insertBefore(s, anchor, "    TypedGoRoute<${childPascal}Route>(path: '$childFeature'),");
 
     if (!s.contains('class ${childPascal}Route extends GoRouteData')) {
-      final buildBody = childPackageName != null
-          ? "lookupShellPage('$childCamel')(context, state)"
-          : 'const ${childPascal}Page()';
+      final buildBody = mergeIntoParent
+          ? 'const ${childPascal}Page()'
+          : childPackageName != null
+              ? "lookupShellPage('$childCamel')(context, state)"
+              : 'const ${childPascal}Page()';
       final childClass = 'class ${childPascal}Route extends GoRouteData with \$${childPascal}Route {\n'
           '  const ${childPascal}Route();\n\n'
           '  @override\n'
@@ -1040,7 +1183,8 @@ class GenerateFeatureUsecase {
     return s;
   }
 
-  /// Plain go_router equivalent of [wireChildIntoTypedShell].
+  /// Plain go_router equivalent of [wireChildIntoTypedShell] — see its
+  /// [mergeIntoParent] doc.
   @visibleForTesting
   static String wireChildIntoPlainShell({
     required String routesSource,
@@ -1048,25 +1192,37 @@ class GenerateFeatureUsecase {
     required String parentFeature,
     required String childFeature,
     String? childPackageName,
+    String? parentPackageName,
     String? corePackageName,
+    bool mergeIntoParent = false,
   }) {
     var s = healShellBranchPlain(routesSource, parentFeature);
     final childPascal = _pascal(childFeature);
     final childCamel = _camel(childFeature);
 
-    final childPkg = childPackageName ?? packageName;
-    final childPathPrefix = childPackageName != null ? '' : 'features/$childFeature/';
-    final childImportLine = childPackageName != null
-        ? "import 'package:${corePackageName!}/core/router/shell_page_registry.dart';"
-        : "import 'package:$childPkg/${childPathPrefix}presentation/pages/${childFeature}_page.dart';";
+    final String childImportLine;
+    if (mergeIntoParent) {
+      childImportLine = parentPackageName != null
+          ? "import 'package:$parentPackageName/presentation/$childFeature/pages/${childFeature}_page.dart';"
+          : "import 'package:$packageName/features/$parentFeature/presentation/$childFeature/pages/"
+              "${childFeature}_page.dart';";
+    } else {
+      final childPkg = childPackageName ?? packageName;
+      final childPathPrefix = childPackageName != null ? '' : 'features/$childFeature/';
+      childImportLine = childPackageName != null
+          ? "import 'package:${corePackageName!}/core/router/shell_page_registry.dart';"
+          : "import 'package:$childPkg/${childPathPrefix}presentation/pages/${childFeature}_page.dart';";
+    }
     if (!s.contains(childImportLine)) {
       s = _insertBefore(s, '// neat:route-imports', childImportLine);
     }
 
     final anchor = '// neat:children:$parentFeature';
-    final builderBody = childPackageName != null
-        ? "(context, state) => lookupShellPage('$childCamel')(context, state)"
-        : '(context, state) => const ${childPascal}Page()';
+    final builderBody = mergeIntoParent
+        ? '(context, state) => const ${childPascal}Page()'
+        : childPackageName != null
+            ? "(context, state) => lookupShellPage('$childCamel')(context, state)"
+            : '(context, state) => const ${childPascal}Page()';
     s = _insertBefore(
       s,
       anchor,
@@ -1111,7 +1267,8 @@ class GenerateFeatureUsecase {
     }
 
     // 2. Shared scaffold: create on the first branch, else add a destination.
-    final scaffold = File('$projectPath/lib/core/router/scaffold_with_nav_bar.dart');
+    // A UI widget, not routing config — its own core/navigation/ folder.
+    final scaffold = File('$projectPath/lib/core/navigation/scaffold_with_nav_bar.dart');
     final firstBranch = !scaffold.existsSync();
     if (firstBranch) {
       onLog('[▶] Creating the navigation shell (first branch)...');
@@ -1184,7 +1341,7 @@ class GenerateFeatureUsecase {
       s = _insertBefore(
         s,
         '// neat:route-imports',
-        "import 'package:$packageName/core/router/scaffold_with_nav_bar.dart';",
+        "import 'package:$packageName/core/navigation/scaffold_with_nav_bar.dart';",
       );
       s = _insertBefore(
         s,
@@ -1308,19 +1465,35 @@ class GenerateFeatureUsecase {
     // (every feature gets a top-level path: dependency), so this only
     // changes the import path, same as _wireRoutes' non-child case.
     String? childPackageName,
+    // packageSplit: the parent's own package — needed (instead of
+    // childPackageName) to locate the child's new merged location. Ignored
+    // unless mergeIntoParent is set.
+    String? parentPackageName,
+    // Opt-in (see FeatureGenOptions.mergeIntoParent): the child's page lives
+    // nested inside the parent's own package/folder (presentation/$featureName
+    // /pages/..., see FeatureScaffolder.writeFeature's mergeBase doc) instead
+    // of a separate one — this file (the app's shared routes.dart) is never
+    // in that same package, so (unlike wireChildIntoTypedRoutes) the import
+    // stays a package: import, just pointed at the parent's package/folder.
+    bool mergeIntoParent = false,
   }) {
     final pascal = _pascal(featureName);
     final parentCamel = _camel(parentFeature);
     var s = routesSource;
 
-    final pkg = childPackageName ?? packageName;
-    final pathPrefix = childPackageName != null ? '' : 'features/$featureName/';
-    s = _insertBefore(
-      s,
-      '// neat:route-imports',
-      "import 'package:$pkg/${pathPrefix}presentation/pages/"
-          "${featureName}_page.dart';",
-    );
+    final String childImport;
+    if (mergeIntoParent) {
+      final mergedPkg = parentPackageName ?? packageName;
+      final mergedPrefix = parentPackageName != null ? '' : 'features/$parentFeature/';
+      childImport = "import 'package:$mergedPkg/${mergedPrefix}presentation/$featureName/pages/"
+          "${featureName}_page.dart';";
+    } else {
+      final pkg = childPackageName ?? packageName;
+      final pathPrefix = childPackageName != null ? '' : 'features/$featureName/';
+      childImport = "import 'package:$pkg/${pathPrefix}presentation/pages/"
+          "${featureName}_page.dart';";
+    }
+    s = _insertBefore(s, '// neat:route-imports', childImport);
 
     final childAnchor = '// neat:children:$parentFeature';
     if (!s.contains(childAnchor)) {

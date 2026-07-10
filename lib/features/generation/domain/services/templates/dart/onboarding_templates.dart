@@ -218,10 +218,16 @@ class OnboardingPage extends HookConsumerWidget {
   static String onboardingRoutesBuilder({
     required String packageName,
     required String homeRoute,
+    // onboarding_routes.dart/onboarding_page.dart always stay app-level (see
+    // OnboardingTemplates' own doc), but when packageSplit is on the
+    // AppRoutePath import must still cross into the shared core package —
+    // single-sourced there, not duplicated (same redirect as
+    // CoreTemplates.appRouter's own doc).
+    String? corePackageName,
   }) =>
       '''import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:$packageName/core/constants/app_route_path.dart';
+import 'package:${corePackageName ?? packageName}/core/constants/app_route_path.dart';
 import 'package:$packageName/core/onboarding/onboarding_page.dart';
 
 part 'onboarding_routes.g.dart';

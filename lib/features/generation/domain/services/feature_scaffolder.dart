@@ -92,6 +92,15 @@ class FeatureScaffolder {
     // <f>_routes.dart but gains <f>_shell_registration.dart instead, when
     // packageSplit.
     bool needsShellRegistration = false,
+    // Opt-in (Workshop, child routes only — see FeatureGenOptions
+    // .mergeIntoParent): the parent's own lib root (packages/<parent>/lib
+    // when packageSplit, lib/features/<parent> otherwise). When set, this
+    // feature's files nest by name under it — domain/$featureName,
+    // data/$featureName, presentation/$featureName — exactly the
+    // non-feature-first layer-first shape below, just re-rooted at the
+    // parent instead of the app. Checked first: takes priority over
+    // packageSplit/isFeatureFirst, which otherwise decide this.
+    String? mergeBase,
   }) async {
     // The project ships a Drift package → any local source is Drift-backed.
     final localIsDrift = localStoragePackage != null;
@@ -129,7 +138,11 @@ class FeatureScaffolder {
     final String dataBase;
     final String presentationBase;
 
-    if (packageSplit) {
+    if (mergeBase != null) {
+      domainBase = '$mergeBase/domain/$featureName';
+      dataBase = '$mergeBase/data/$featureName';
+      presentationBase = '$mergeBase/presentation/$featureName';
+    } else if (packageSplit) {
       // The package root IS the feature — no features/<name>/ nesting, and
       // no layer-first variant (splitting by feature only makes sense
       // feature-first: layer-first shares lib/domain/ across every feature,
@@ -146,6 +159,19 @@ class FeatureScaffolder {
       dataBase = '$lib/data/$featureName';
       presentationBase = '$lib/presentation/$featureName';
     }
+
+    // Cross-layer relative imports (data/domain, presentation/domain,
+    // presentation/data) hardcode a 2-levels-up prefix ('../../domain',
+    // '../../data') — correct only when domainBase/dataBase/presentationBase
+    // are direct siblings under a shared root (the packageSplit and
+    // isFeatureFirst branches above). The mergeBase and layer-first branches
+    // instead nest an extra `$featureName/` folder *inside* each layer, which
+    // adds one more directory level and moves the sibling layer's own
+    // `$featureName/` folder into the path — see DataTemplates.featureModel's
+    // domainCross doc.
+    final crossLayerNested = mergeBase != null || (!packageSplit && !isFeatureFirst);
+    final domainCross = crossLayerNested ? '../../../domain/$featureName' : '../../domain';
+    final dataCross = crossLayerNested ? '../../../data/$featureName' : '../../data';
 
     if (useCustomEndpoints) {
       // domain/usecases — one per endpoint, calling the ApiSource directly
@@ -243,6 +269,7 @@ class FeatureScaffolder {
             hasFreezed: hasFreezed,
             hasJsonSerializable: hasJsonSerializable,
             fields: fields,
+            domainCross: domainCross,
           ),
         );
 
@@ -260,6 +287,7 @@ class FeatureScaffolder {
             fields: fields,
             apiPath: apiPath,
             corePackageName: corePackageName,
+            domainCross: domainCross,
           ),
         );
       }
@@ -278,6 +306,7 @@ class FeatureScaffolder {
             hasSync: hasSync,
             localStoragePackage: localStoragePackage,
             corePackageName: corePackageName,
+            domainCross: domainCross,
           ),
         );
       }
@@ -323,6 +352,7 @@ class FeatureScaffolder {
         fields: fields,
         includeCrudUi: includeCrudUi,
         corePackageName: corePackageName,
+        domainCross: domainCross,
       ),
     );
 
@@ -337,6 +367,8 @@ class FeatureScaffolder {
           realtime: liveList,
           includeCrudUi: includeCrudUi,
           fields: fields,
+          domainCross: domainCross,
+          dataCross: dataCross,
         ),
       );
       // Usecase-level DI wires the usecases to the repository → only emit it
@@ -349,6 +381,8 @@ class FeatureScaffolder {
           '$presentationBase/providers/${featureName}_usecase_providers.dart',
           PresentationTemplates.featureUsecaseProviders(
             featureName: featureName,
+            domainCross: domainCross,
+            dataCross: dataCross,
           ),
         );
       }
