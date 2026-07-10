@@ -19,18 +19,21 @@ void main() {
   });
 
   bool exists(String rel) => File('$lib/$rel').existsSync();
+  String read(String rel) => File('$lib/$rel').readAsStringSync();
 
   Future<void> scaffold({
     required bool hasHttpClient,
     required bool includeLocalSource,
     required bool includeUseCases,
     String? localStoragePackage,
+    bool isFeatureFirst = true,
+    String? mergeBase,
   }) {
     return const FeatureScaffolder().writeFeature(
       lib: lib,
       featureName: 'orders',
       packageName: 'demo',
-      isFeatureFirst: true,
+      isFeatureFirst: isFeatureFirst,
       mirrorTestStructure: false,
       hasRiverpod: true,
       hasBloc: false,
@@ -45,6 +48,7 @@ void main() {
       localStoragePackage: localStoragePackage,
       includeLocalSource: includeLocalSource,
       includeUseCases: includeUseCases,
+      mergeBase: mergeBase,
     );
   }
 
@@ -114,5 +118,64 @@ void main() {
     expect(exists(repoProviders), isFalse,
         reason: 'repository-level DI wires into the usecase graph — skipped when they are off');
     expect(exists(di), isFalse, reason: 'the DI graph wires usecases — skipped when they are off');
+  });
+
+  // ── mergeIntoParent (Workshop opt-in, child routes only) ────────────────────
+  // Nests the feature's own entity/repository/datasource under a `<name>/`
+  // subfolder per layer, inside the parent's own root — instead of a separate
+  // feature — see FeatureGenOptions.mergeIntoParent / GenerateFeatureUsecase's
+  // mergeBase computation.
+
+  test(
+    'mergeBase re-roots domain/data/presentation under it, nested in an '
+    'orders/ subfolder per layer, instead of lib/features/orders/',
+    () async {
+      await scaffold(
+        hasHttpClient: true,
+        includeLocalSource: true,
+        includeUseCases: true,
+        localStoragePackage: 'demo_local_storage',
+        mergeBase: '$lib/features/profile',
+      );
+      expect(exists('features/profile/data/orders/sources/orders_api_source.dart'), isTrue);
+      expect(exists('features/profile/data/orders/sources/orders_local_source.dart'), isTrue);
+      expect(exists('features/profile/data/orders/repositories/orders_repository_impl.dart'), isTrue);
+      expect(exists('features/profile/domain/orders/entities/orders_entity.dart'), isTrue);
+      expect(exists('features/profile/presentation/orders/pages/orders_page.dart'), isTrue);
+      // Not written at the old, non-merged top-level location.
+      expect(exists(api), isFalse);
+      expect(exists(repo), isFalse);
+
+      // Cross-layer relative imports must account for the extra orders/
+      // subfolder nested inside each layer (one more `../` than the default
+      // 'lib/features/orders/data/...' shape, plus orders/ re-inserted on
+      // the target side) — the real bug an existence-only check would miss.
+      expect(
+        read('features/profile/data/orders/models/orders_model.dart'),
+        contains("import '../../../domain/orders/entities/orders_entity.dart';"),
+      );
+      expect(
+        read('features/profile/data/orders/repositories/orders_repository_impl.dart'),
+        contains("import '../../../domain/orders/entities/orders_entity.dart';"),
+      );
+      expect(
+        read('features/profile/presentation/orders/pages/orders_page.dart'),
+        contains("import '../../../domain/orders/entities/orders_entity.dart';"),
+      );
+    },
+  );
+
+  test('mergeBase takes priority over isFeatureFirst when both are set', () async {
+    await scaffold(
+      hasHttpClient: true,
+      includeLocalSource: false,
+      includeUseCases: true,
+      isFeatureFirst: false,
+      mergeBase: '$lib/features/profile',
+    );
+    expect(exists('features/profile/domain/orders/entities/orders_entity.dart'), isTrue);
+    // Neither the isFeatureFirst nor the layer-first (non-merged) shape.
+    expect(exists('features/orders/domain/entities/orders_entity.dart'), isFalse);
+    expect(exists('domain/orders/entities/orders_entity.dart'), isFalse);
   });
 }

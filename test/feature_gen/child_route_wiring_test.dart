@@ -97,6 +97,49 @@ final List<RouteBase> appRoutes = [
     },
   );
 
+  test(
+    'mergeIntoParent + packageSplit: child page import points at the parent\'s '
+    'own package/folder (presentation/<child>/pages/…), not a separate child '
+    'package — no new package is created when merging',
+    () {
+      final out = GenerateFeatureUsecase.wireChildIntoRoutes(
+        routesSource: routesWithParent(),
+        packageName: 'demo',
+        featureName: 'settings',
+        parentFeature: 'dashboard',
+        parentPackageName: 'dashboard',
+        mergeIntoParent: true,
+      );
+      expect(
+        out,
+        contains("import 'package:dashboard/presentation/settings/pages/settings_page.dart';"),
+      );
+      expect(out, isNot(contains('demo_settings')));
+      expect(out, contains("path: 'settings',"));
+    },
+  );
+
+  test(
+    'mergeIntoParent without packageSplit: child page import stays a '
+    'package:<app>/features/<parent>/… import, nested under the parent',
+    () {
+      final out = GenerateFeatureUsecase.wireChildIntoRoutes(
+        routesSource: routesWithParent(),
+        packageName: 'demo',
+        featureName: 'settings',
+        parentFeature: 'dashboard',
+        mergeIntoParent: true,
+      );
+      expect(
+        out,
+        contains(
+          "import 'package:demo/features/dashboard/presentation/settings/pages/settings_page.dart';",
+        ),
+      );
+      expect(out, contains("path: 'settings',"));
+    },
+  );
+
   // ── go_router_builder (typed routes) ────────────────────────────────────────
 
   // A parent's `<parent>_routes.dart` exactly as NEAT generates it (builder).
@@ -177,6 +220,25 @@ class DashboardsRoute extends GoRouteData with \$DashboardsRoute {
       );
       expect(out, contains("import 'package:demo_settings/presentation/pages/settings_page.dart';"));
       expect(out, isNot(contains('features/settings/')));
+      expect(out, contains("TypedGoRoute<SettingsRoute>(path: 'settings')"));
+    },
+  );
+
+  test(
+    'mergeIntoParent: typed child page import is a relative import into the '
+    "parent's own presentation/<child>/pages/ folder — routes.dart and the "
+    'child page are now in the same package/folder regardless of packageSplit',
+    () {
+      final out = GenerateFeatureUsecase.wireChildIntoTypedRoutes(
+        parentRoutesSource: typedParentRoutes(),
+        packageName: 'demo',
+        childFeature: 'settings',
+        parentFeature: 'dashboards',
+        mergeIntoParent: true,
+      );
+      expect(out, contains("import '../settings/pages/settings_page.dart';"));
+      expect(out, isNot(contains('features/settings/')));
+      expect(out, isNot(contains('demo_settings')));
       expect(out, contains("TypedGoRoute<SettingsRoute>(path: 'settings')"));
     },
   );
@@ -315,6 +377,29 @@ class UsersRoute extends GoRouteData with \$UsersRoute {
     expect(out, contains("import 'package:core/core/router/shell_page_registry.dart';"));
   });
 
+  test(
+    'typed: mergeIntoParent under a shell branch skips the registry entirely — '
+    'imports the page directly from the parent package\'s own nested location',
+    () {
+      final out = GenerateFeatureUsecase.wireChildIntoTypedShell(
+        shellSource: newShellSource(),
+        packageName: 'demo',
+        parentFeature: 'product',
+        childFeature: 'reviews',
+        parentPackageName: 'product',
+        mergeIntoParent: true,
+      );
+      expect(
+        out,
+        contains("import 'package:product/presentation/reviews/pages/reviews_page.dart';"),
+      );
+      expect(out, isNot(contains('shell_page_registry.dart')));
+      expect(out, isNot(contains('lookupShellPage')));
+      expect(out, contains('const ReviewsPage()'));
+      expect(out, contains("TypedGoRoute<ReviewsRoute>(path: 'reviews')"));
+    },
+  );
+
   // A fresh, 2-branch plain go_router shell (built via the real production
   // templates), mirroring _wireShellBranchPlain's own insertion for the
   // second branch.
@@ -431,4 +516,27 @@ final List<RouteBase> appRoutes = [
     expect(out, isNot(contains('reviews/presentation/pages/reviews_page.dart')));
     expect(out, contains("import 'package:core/core/router/shell_page_registry.dart';"));
   });
+
+  test(
+    'plain: mergeIntoParent under a shell branch skips the registry entirely — '
+    'imports the page directly from the parent package\'s own nested location',
+    () {
+      final out = GenerateFeatureUsecase.wireChildIntoPlainShell(
+        routesSource: newPlainRoutesSource(),
+        packageName: 'demo',
+        parentFeature: 'product',
+        childFeature: 'reviews',
+        parentPackageName: 'product',
+        mergeIntoParent: true,
+      );
+      expect(
+        out,
+        contains("import 'package:product/presentation/reviews/pages/reviews_page.dart';"),
+      );
+      expect(out, isNot(contains('shell_page_registry.dart')));
+      expect(out, isNot(contains('lookupShellPage')));
+      expect(out, contains('const ReviewsPage()'));
+      expect(out, contains("path: 'reviews',"));
+    },
+  );
 }

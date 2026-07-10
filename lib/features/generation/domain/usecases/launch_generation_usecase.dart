@@ -218,8 +218,9 @@ class LaunchGenerationUsecase {
     // itself, no app-name prefix (only the extracted UI package keeps one —
     // see uiPackage above). The app name adds nothing here; it's already
     // implied by being in this workspace.
-    final featurePackageName =
-        packageSplitSupported && architecture.generateFirstFeature ? featureName : null;
+    final featurePackageName = packageSplitSupported && architecture.generateFirstFeature
+        ? featureName
+        : null;
     // Auth becomes its own workspace package too when split — same
     // package-root shape as any other split feature (screens included), just
     // depending on corePackageName for Result/Failure/UseCase instead of
@@ -631,11 +632,15 @@ class LaunchGenerationUsecase {
         hasI18n: hasI18n,
         chopperRegisterFeaturePackage: httpClient == 'chopper' ? featurePackageName : null,
         chopperRegisterFeatureName: httpClient == 'chopper' ? featureName : null,
-        shellRegisterFeaturePackage: useShell && featurePackageName != null ? featurePackageName : null,
+        shellRegisterFeaturePackage: useShell && featurePackageName != null
+            ? featurePackageName
+            : null,
         shellRegisterFeatureName: useShell && featurePackageName != null ? featureName : null,
         corePackageName: corePackageName,
         bridgesApiBaseUrl:
-            hasEnvied && corePackageName != null && (httpClient == 'dio' || httpClient == 'chopper'),
+            hasEnvied &&
+            corePackageName != null &&
+            (httpClient == 'dio' || httpClient == 'chopper'),
         hasOnboarding: autoWireOnboarding,
       ),
     );
@@ -692,15 +697,23 @@ class LaunchGenerationUsecase {
     }
 
     // ── core/constants ────────────────────────────────────────────────────
-    await _write(
-      '$lib/core/constants/app_route_path.dart',
-      CoreTemplates.appRoutePath(
-        featureName: featureName,
-        hasAuth: hasAuth,
-        hasFirstFeature: architecture.generateFirstFeature,
-        hasOnboarding: autoWireOnboarding,
-      ),
-    );
+    // packageSplit: AppRoutePath is single-sourced in packages/$corePackageName
+    // instead (see _writeCorePackage) — every app-level consumer (app_router.dart,
+    // app_shell_route.dart, router_notifier.dart, onboarding_routes.dart, routesManual*)
+    // now redirects its import there, so the app keeping its own copy would just
+    // be a second, driftable source of truth for no reason (see ROADMAP.md's
+    // onboarding entry for the bug this exact drift caused once already).
+    if (corePackageName == null) {
+      await _write(
+        '$lib/core/constants/app_route_path.dart',
+        CoreTemplates.appRoutePath(
+          featureName: featureName,
+          hasAuth: hasAuth,
+          hasFirstFeature: architecture.generateFirstFeature,
+          hasOnboarding: autoWireOnboarding,
+        ),
+      );
+    }
 
     // No first feature → a placeholder welcome screen owns the root route
     // until one is added via the Workshop.
@@ -731,9 +744,6 @@ class LaunchGenerationUsecase {
       );
     }
 
-    // ── core/utils ────────────────────────────────────────────────────────
-    await _write('$lib/core/utils/extensions.dart', CoreTemplates.extensions());
-
     // ── core/utils + observers (observability) ──────────────────────────────
     // packageSplit: AppLogger is stateless (no singleton-sharing correctness
     // issue, unlike theme_mode_controller), but the app no longer keeps its
@@ -741,6 +751,9 @@ class LaunchGenerationUsecase {
     // bootstrap.dart all redirect to corePackageName's copy instead, so
     // there's exactly one AppLogger for the whole workspace.
     if (corePackageName == null) {
+      // ── core/utils ────────────────────────────────────────────────────────
+      await _write('$lib/core/utils/extensions.dart', CoreTemplates.extensions());
+
       await _write(
         '$lib/core/utils/app_logger.dart',
         CoreTemplates.appLogger(
@@ -999,7 +1012,9 @@ class LaunchGenerationUsecase {
     // import if the feature read the app's copy instead — the exact cycle
     // packageSplit exists to avoid).
     if (hasI18n) {
-      final i18nRoot = corePackageName != null ? '${projectDir.path}/packages/$corePackageName' : projectDir.path;
+      final i18nRoot = corePackageName != null
+          ? '${projectDir.path}/packages/$corePackageName'
+          : projectDir.path;
       final i18nLib = corePackageName != null ? '$i18nRoot/lib' : lib;
       final i18nPackageName = corePackageName ?? packageName;
       if (i18nFromCsv) {
@@ -1015,10 +1030,7 @@ class LaunchGenerationUsecase {
         // toggleI18nLocale).
         final locales = architecture.i18nLocales;
         final baseLocale = locales.contains('en') ? 'en' : locales.first;
-        await _write(
-          '$i18nRoot/slang.yaml',
-          I18nTemplates.slangConfig(baseLocale: baseLocale),
-        );
+        await _write('$i18nRoot/slang.yaml', I18nTemplates.slangConfig(baseLocale: baseLocale));
         // Non-namespace mode → files are named `<locale>.i18n.json`.
         if (locales.contains('en')) {
           await _write('$i18nLib/i18n/en.i18n.json', I18nTemplates.baseTranslations(featureName));
@@ -1049,10 +1061,7 @@ class LaunchGenerationUsecase {
       );
       await _write(
         '$lib/core/onboarding/onboarding_page.dart',
-        OnboardingTemplates.onboardingPage(
-          packageName: packageName,
-          autoWired: autoWireOnboarding,
-        ),
+        OnboardingTemplates.onboardingPage(packageName: packageName, autoWired: autoWireOnboarding),
       );
       if (autoWireOnboarding) {
         final onboardingHomeRoute = 'AppRoutePath.${_camelCase(featureName)}';
@@ -1061,6 +1070,7 @@ class LaunchGenerationUsecase {
           OnboardingTemplates.onboardingRoutesBuilder(
             packageName: packageName,
             homeRoute: onboardingHomeRoute,
+            corePackageName: corePackageName,
           ),
         );
 
@@ -1603,6 +1613,7 @@ dev_dependencies:
         backend: backend,
         authPackageName: authPackageName,
         hasOnboarding: hasOnboarding,
+        corePackageName: corePackageName,
       ),
     );
 
@@ -1711,11 +1722,13 @@ dev_dependencies:
               hasAuth: hasAuth,
               hasFirstFeature: hasFirstFeature,
               hasOnboarding: hasOnboarding,
+              corePackageName: corePackageName,
             )
           : CoreTemplates.appRouter(
               packageName: packageName,
               featureName: featureName,
               hasFirstFeature: hasFirstFeature,
+              corePackageName: corePackageName,
             ),
     );
 
@@ -1723,13 +1736,22 @@ dev_dependencies:
     // in execute()): the welcome placeholder owns routes.dart instead.
     if (!hasFirstFeature) {
       if (hasGoRouterBuilder) {
-        await _write('$r/welcome_route.dart', CoreTemplates.welcomeRoute(packageName: packageName));
+        await _write(
+          '$r/welcome_route.dart',
+          CoreTemplates.welcomeRoute(packageName: packageName, corePackageName: corePackageName),
+        );
         await _write(
           '$r/routes.dart',
           CoreTemplates.routesAggregatorWelcome(packageName: packageName),
         );
       } else {
-        await _write('$r/routes.dart', CoreTemplates.routesManualWelcome(packageName: packageName));
+        await _write(
+          '$r/routes.dart',
+          CoreTemplates.routesManualWelcome(
+            packageName: packageName,
+            corePackageName: corePackageName,
+          ),
+        );
       }
       return;
     }
@@ -1737,8 +1759,10 @@ dev_dependencies:
     if (useShell) {
       // The bottom-nav scaffold + the shell route, with the first feature as
       // branch 0. routes.dart aggregates the shell instead of a flat route.
+      // A UI widget, not routing config — its own core/navigation/ folder,
+      // not nested inside core/router/.
       await _write(
-        '$r/scaffold_with_nav_bar.dart',
+        '$lib/core/navigation/scaffold_with_nav_bar.dart',
         CoreTemplates.scaffoldWithNavBar(firstIcon: shellIcon, firstLabel: shellLabel),
       );
       if (hasGoRouterBuilder) {
@@ -1781,6 +1805,7 @@ dev_dependencies:
               packageName: packageName,
               featureName: featureName,
               featurePackageName: featurePackageName,
+              corePackageName: corePackageName,
             ),
     );
   }
@@ -2158,6 +2183,7 @@ dev_dependencies:
       '$root/lib/core/utils/future_extensions.dart',
       CorePackageTemplates.futureExtensions(),
     );
+    await _write('$root/lib/core/utils/extensions.dart', CoreTemplates.extensions());
     await _write(
       '$root/lib/core/constants/app_route_path.dart',
       // hasAuth: the split Auth package's screens/routes import AppRoutePath
@@ -2370,9 +2396,7 @@ dev_dependencies:
     // Onboarding: shared_preferences for the "seen it" flag — same package
     // LocaleStore uses for locale persistence, so guard against addSlang
     // already having added it (avoid a duplicate line).
-    if (addOnboarding &&
-        !addSlang &&
-        !uniquePackages.any((p) => p.name == 'shared_preferences')) {
+    if (addOnboarding && !addSlang && !uniquePackages.any((p) => p.name == 'shared_preferences')) {
       deps.write('  shared_preferences: ^2.3.3\n');
     }
     // Branding tooling: app icons + splash from the uploaded logo.
@@ -2419,7 +2443,8 @@ dev_dependencies:
     // here (a pub workspace resolves one version of everything) until
     // drift_dev bumps its own sqlparser constraint past the break.
     if (addConnectivity) {
-      content = '${content.trimRight()}\n\n'
+      content =
+          '${content.trimRight()}\n\n'
           'dependency_overrides:\n'
           '  sqlparser: ">=0.44.0 <0.44.6"\n';
     }

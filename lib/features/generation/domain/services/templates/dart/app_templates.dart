@@ -95,9 +95,11 @@ void main() => $call;
         ..writeln("import 'package:firebase_core/firebase_core.dart';");
     }
     if (hasRiverpod) {
-      imports.writeln(useAnnotations
-          ? "import 'package:hooks_riverpod/hooks_riverpod.dart';"
-          : "import 'package:flutter_riverpod/flutter_riverpod.dart';");
+      imports.writeln(
+        useAnnotations
+            ? "import 'package:hooks_riverpod/hooks_riverpod.dart';"
+            : "import 'package:flutter_riverpod/flutter_riverpod.dart';",
+      );
     }
     imports.writeln("import 'package:$packageName/app.dart';");
     if (hasFirebase) {
@@ -119,47 +121,56 @@ void main() => $call;
       imports.writeln("import 'package:$corePackageName/core/network/api_config.dart';");
     }
     imports.writeln("import 'package:$packageName/core/error/error_handler.dart';");
-    imports.writeln("import 'package:${corePackageName ?? packageName}/core/utils/app_logger.dart';");
+    imports.writeln(
+      "import 'package:${corePackageName ?? packageName}/core/utils/app_logger.dart';",
+    );
+    imports.writeln(
+      "import 'package:${corePackageName ?? packageName}/core/utils/extensions.dart';",
+    );
     if (hasRiverpod) {
       imports.writeln("import 'package:$packageName/core/observers/provider_observer.dart';");
     }
     if (registersChopper) {
       imports
         ..writeln(
-            "import 'package:$chopperRegisterFeaturePackage/data/repositories/${chopperRegisterFeatureName}_repository_providers.dart';")
+          "import 'package:$chopperRegisterFeaturePackage/data/repositories/${chopperRegisterFeatureName}_repository_providers.dart';",
+        )
         ..writeln('// neat:chopper-register-imports');
     }
     if (registersShell) {
       imports
         ..writeln(
-            "import 'package:$shellRegisterFeaturePackage/presentation/routes/${shellRegisterFeatureName}_shell_registration.dart';")
+          "import 'package:$shellRegisterFeaturePackage/presentation/routes/${shellRegisterFeatureName}_shell_registration.dart';",
+        )
         ..writeln('// neat:shell-register-imports');
     }
     if (hasOnboarding) {
       imports.writeln(
-          "import 'package:$packageName/core/onboarding/onboarding_seen_provider.dart';");
+        "import 'package:$packageName/core/onboarding/onboarding_seen_provider.dart';",
+      );
     }
 
-    final sig =
-        useEnvied ? 'Future<void> bootstrap(AppEnv env) async' : 'Future<void> bootstrap() async';
+    final sig = useEnvied
+        ? 'Future<void> bootstrap(AppEnv env) async'
+        : 'Future<void> bootstrap() async';
     final apiConfigLine = bridgesApiBaseUrl ? '  ApiConfig.baseUrl = env.apiBaseUrl;\n' : '';
     final setEnv = useEnvied ? '  AppEnv.setEnv(env);\n$apiConfigLine' : '';
     final pathUrl = isWeb ? '\n      usePathUrlStrategy();' : '';
     final supaInit = hasSupabase
         ? (useEnvied
-            ? '\n      await Supabase.initialize(\n'
-                '        url: AppEnv.current.supabaseUrl,\n'
-                '        publishableKey: AppEnv.current.supabasePublishableKey,\n'
-                '      );'
-            : "\n      await Supabase.initialize(url: '', publishableKey: ''); // TODO: set URL + publishable key")
+              ? '\n      await Supabase.initialize(\n'
+                    '        url: AppEnv.current.supabaseUrl,\n'
+                    '        publishableKey: AppEnv.current.supabasePublishableKey,\n'
+                    '      );'
+              : "\n      await Supabase.initialize(url: '', publishableKey: ''); // TODO: set URL + publishable key")
         : '';
     final firebaseInit = hasFirebase
         ? '\n      await Firebase.initializeApp(\n'
-            '        options: DefaultFirebaseOptions.currentPlatform,\n'
-            '      );\n'
-            '      // Firestore ships its own offline cache (no extra Drift layer needed).\n'
-            '      FirebaseFirestore.instance.settings =\n'
-            '          const Settings(persistenceEnabled: true);'
+              '        options: DefaultFirebaseOptions.currentPlatform,\n'
+              '      );\n'
+              '      // Firestore ships its own offline cache (no extra Drift layer needed).\n'
+              '      FirebaseFirestore.instance.settings =\n'
+              '          const Settings(persistenceEnabled: true);'
         : '';
     // Apply the persisted locale (falls back to the device locale) before runApp.
     final i18nInit = hasI18n ? '\n      await LocaleStore.init();' : '';
@@ -172,13 +183,13 @@ void main() => $call;
     // ProviderScope, so the loaded state carries into the running app.
     final onboardingInit = hasOnboarding
         ? '\n      final container = ProviderContainer(observers: [RiverpodObserver()]);'
-            '\n      await container.read(onboardingSeenProvider.notifier).load();'
+              '\n      await container.read(onboardingSeenProvider.notifier).load();'
         : '';
     final baseRoot = hasOnboarding
         ? 'UncontrolledProviderScope(container: container, child: const App())'
         : hasRiverpod
-            ? 'ProviderScope(observers: [RiverpodObserver()], child: const App())'
-            : 'const App()';
+        ? 'ProviderScope(observers: [RiverpodObserver()], child: const App())'
+        : 'const App()';
     // slang's TranslationProvider must sit above MaterialApp so context.t works.
     final root = hasI18n ? 'TranslationProvider(child: $baseRoot)' : baseRoot;
 
@@ -192,11 +203,11 @@ void main() => $call;
     // hit the shared ChopperClient — must run before runApp.
     final chopperRegisterCalls = registersChopper
         ? '\n      register${pascal(chopperRegisterFeatureName!)}ChopperDecoders();'
-            '\n      // neat:chopper-register-calls'
+              '\n      // neat:chopper-register-calls'
         : '';
     final shellRegisterCalls = registersShell
         ? '\n      register${pascal(shellRegisterFeatureName!)}ShellPage();'
-            '\n      // neat:shell-register-calls'
+              '\n      // neat:shell-register-calls'
         : '';
 
     return '''${imports.toString()}
@@ -250,34 +261,42 @@ $setEnv  await runZonedGuarded(
       imports.writeln("import 'package:flutter_screenutil/flutter_screenutil.dart';");
     }
     // AppTheme lives in the <app>_ui package when UI is extracted, else in the app.
-    imports.writeln(themePackage != null
-        ? "import 'package:$themePackage/$themePackage.dart';"
-        : "import 'core/theme/app_theme.dart';");
+    imports.writeln(
+      themePackage != null
+          ? "import 'package:$themePackage/$themePackage.dart';"
+          : "import 'core/theme/app_theme.dart';",
+    );
     if (hasGoRouter) imports.writeln("import 'core/router/app_router.dart';");
     if (hasRiverpod) {
       imports
-        ..writeln(useAnnotations
-            ? "import 'package:hooks_riverpod/hooks_riverpod.dart';"
-            : "import 'package:flutter_riverpod/flutter_riverpod.dart';")
-        ..writeln(corePackageName != null
-            ? "import 'package:$corePackageName/core/theme/theme_mode_controller.dart';"
-            : "import 'core/theme/theme_mode_controller.dart';");
+        ..writeln(
+          useAnnotations
+              ? "import 'package:hooks_riverpod/hooks_riverpod.dart';"
+              : "import 'package:flutter_riverpod/flutter_riverpod.dart';",
+        )
+        ..writeln(
+          corePackageName != null
+              ? "import 'package:$corePackageName/core/theme/theme_mode_controller.dart';"
+              : "import 'core/theme/theme_mode_controller.dart';",
+        );
     }
     if (hasBloc || useCubit) {
       imports.writeln("import 'package:flutter_bloc/flutter_bloc.dart';");
-      imports.writeln(useCubit
-          ? "import 'core/theme/brightness_theme/brightness_cubit.dart';"
-          : "import 'core/theme/brightness_theme/brightness_bloc.dart';");
+      imports.writeln(
+        useCubit
+            ? "import 'core/theme/brightness_theme/brightness_cubit.dart';"
+            : "import 'core/theme/brightness_theme/brightness_bloc.dart';",
+      );
     }
 
     // themeMode argument (depends on state management).
     final themeModeArg = hasRiverpod
         ? 'themeMode: ref.watch(themeModeControllerProvider),'
         : useCubit
-            ? 'themeMode: context.watch<BrightnessCubit>().themeMode,'
-            : hasBloc
-                ? 'themeMode: context.watch<BrightnessBloc>().themeMode,'
-                : '';
+        ? 'themeMode: context.watch<BrightnessCubit>().themeMode,'
+        : hasBloc
+        ? 'themeMode: context.watch<BrightnessBloc>().themeMode,'
+        : '';
 
     // slang locale wiring: drive MaterialApp from TranslationProvider so a
     // LocaleSettings.setLocale rebuild flows to the whole app.
@@ -294,7 +313,8 @@ $setEnv  await runZonedGuarded(
       // The router is only a Riverpod provider when go_router_builder + riverpod
       // annotations are both on; otherwise it's a top-level `appRouter` global.
       final router = routerIsProvider ? 'ref.watch(appRouterProvider)' : 'appRouter';
-      materialApp = '''MaterialApp.router(
+      materialApp =
+          '''MaterialApp.router(
       title: '$name',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
@@ -303,7 +323,8 @@ $setEnv  await runZonedGuarded(
       routerConfig: $router,
     )''';
     } else {
-      materialApp = '''MaterialApp(
+      materialApp =
+          '''MaterialApp(
       title: '$name',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,

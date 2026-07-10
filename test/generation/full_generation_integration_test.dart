@@ -1760,11 +1760,11 @@ void main() {
         contains(r'mixin $ReviewsRoute'),
       );
 
-      // AppRoutePath gained the nested '/home/reviews' constant, both in the
-      // app's own copy and core's mirrored copy.
+      // AppRoutePath gained the nested '/home/reviews' constant. Single-sourced
+      // in core (packageSplit) — the app keeps no copy of its own at all.
       expect(
-        read('${projectDir.path}/lib/core/constants/app_route_path.dart'),
-        contains("static const String reviews = '/home/reviews';"),
+        File('${projectDir.path}/lib/core/constants/app_route_path.dart').existsSync(),
+        isFalse,
       );
       expect(
         read('${projectDir.path}/packages/core/lib/core/constants/app_route_path.dart'),
@@ -1775,6 +1775,294 @@ void main() {
       expect(File('$reviewsRoot/lib/presentation/pages/reviews_page.dart').existsSync(), isTrue);
 
       // The whole (now 4-package) workspace analyzes cleanly.
+      final analyze = await Process.run(
+        'flutter',
+        ['analyze', '--no-pub'],
+        workingDirectory: projectDir.path,
+      );
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      expect(
+        RegExp(r'(\d+ issues? found|No issues found)').hasMatch(out),
+        isTrue,
+        reason: 'flutter analyze did not run as expected:\n$out',
+      );
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason: 'flutter analyze reported errors:\n${errorLines.join('\n')}\n\n'
+            '--- full analyze output ---\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
+
+  test(
+    'packageSplit=true + go_router_builder + chopper + child route + '
+    'mergeIntoParent: the new feature gets its own entity/repository/'
+    'datasource but nests them under a reviews/ subfolder inside the '
+    'parent\'s own package instead of a separate one — no new package, '
+    'workspace member, or path: dependency, and the parent\'s routes file '
+    'imports the child page with a plain relative import (same package '
+    'now) — chopper specifically, since its own decoder registration (real '
+    'bug: crashed on a null featurePackageName! when merged) needs it',
+    () async {
+      const projectName = 'neat_pkgsplit_childroute_merge_test';
+      final logs = <String>[];
+      // chopper, not dio (mirrors the "packageSplit + chopper" test above) —
+      // exercises the decoder-registration path this test is really about.
+      final builderPackages = <PubPackage>[
+        _dep('hooks_riverpod', '3.3.1'),
+        _dep('flutter_hooks', '0.21.3+1'),
+        _dep('riverpod_annotation', '4.0.2'),
+        _dep('json_annotation', '4.11.0'),
+        _dep('freezed_annotation', '3.1.0'),
+        _dep('chopper', '8.6.0'),
+        _dep('go_router', '17.2.3'),
+        _dev('go_router_builder', '4.3.0'),
+        _dev('riverpod_generator', '4.0.3'),
+        _dev('riverpod_lint', '3.1.3'),
+        _dev('json_serializable', '6.13.0'),
+        _dev('build_runner', '2.15.0'),
+        _dev('freezed', '3.2.5'),
+        _dev('chopper_generator', '8.6.2'),
+      ];
+
+      final identity = IdentityState(
+        name: projectName,
+        organization: 'com.neat.test',
+        projectPath: tempRoot.path,
+        description: 'NEAT packageSplit + go_router_builder + mergeIntoParent integration test',
+        targetPlatforms: const ['macos'],
+      );
+      const architecture = ArchitectureState(packageSplit: true); // splits 'home'
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: identity,
+          packages: builderPackages,
+          architecture: architecture,
+          cicd: const CicdState(),
+          theme: const ThemeEngineState(approach: ThemeApproach.customM3),
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('Base generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+      final project = await const ProjectLoader().load(projectDir.path);
+      expect(project!.contract.packageSplit, isTrue);
+
+      // Add "reviews" as a child of "home", merged into home's own package.
+      await const GenerateFeatureUsecase().execute(
+        project: project,
+        options: const FeatureGenOptions(
+          name: 'reviews',
+          routing: FeatureRouting.child,
+          parentFeature: 'home',
+          mergeIntoParent: true,
+        ),
+        onLog: logs.add,
+      );
+
+      String read(String p) => File(p).readAsStringSync();
+      final homeRoot = '${projectDir.path}/packages/home';
+
+      // No separate 'reviews' package was created at all.
+      expect(Directory('${projectDir.path}/packages/reviews').existsSync(), isFalse);
+
+      // Own entity/repository/datasource, nested under a reviews/ subfolder
+      // per layer inside home's own package.
+      expect(
+        File('$homeRoot/lib/domain/reviews/entities/reviews_entity.dart').existsSync(),
+        isTrue,
+      );
+      expect(
+        File('$homeRoot/lib/domain/reviews/repositories/i_reviews_repository.dart').existsSync(),
+        isTrue,
+      );
+      expect(
+        File('$homeRoot/lib/data/reviews/repositories/reviews_repository_impl.dart').existsSync(),
+        isTrue,
+      );
+      expect(
+        File('$homeRoot/lib/presentation/reviews/pages/reviews_page.dart').existsSync(),
+        isTrue,
+      );
+      // home's own (pre-existing) files are untouched, still at the
+      // non-nested location.
+      expect(
+        File('$homeRoot/lib/domain/entities/home_entity.dart').existsSync(),
+        isTrue,
+      );
+
+      // The parent package's own routes file gains a plain relative import —
+      // no cross-package dependency was introduced by merging.
+      final parentRoutes = read('$homeRoot/lib/presentation/routes/home_routes.dart');
+      expect(parentRoutes, contains("import '../reviews/pages/reviews_page.dart';"));
+      expect(parentRoutes, isNot(contains('package:reviews')));
+      expect(parentRoutes, contains("TypedGoRoute<ReviewsRoute>(path: 'reviews')"));
+
+      // No new path: dependency and no new workspace member.
+      expect(read('$homeRoot/pubspec.yaml'), isNot(contains('reviews:')));
+      expect(read('${projectDir.path}/pubspec.yaml'), isNot(contains('packages/reviews')));
+
+      // AppRoutePath still gains the nested '/home/reviews' constant, single
+      // -sourced in core exactly as for a non-merged child.
+      expect(
+        read('${projectDir.path}/packages/core/lib/core/constants/app_route_path.dart'),
+        contains("static const String reviews = '/home/reviews';"),
+      );
+
+      // Chopper decoder registration: bootstrap.dart imports the merged
+      // child's repository providers from *home's* package, nested under
+      // data/reviews/ — not a (nonexistent) 'reviews' package (real bug:
+      // this used to crash on featurePackageName! being null when merged).
+      final bootstrap = read('${projectDir.path}/lib/core/bootstrap.dart');
+      expect(
+        bootstrap,
+        contains("import 'package:home/data/reviews/repositories/reviews_repository_providers.dart';"),
+      );
+      expect(bootstrap, contains('registerReviewsChopperDecoders();'));
+
+      // The workspace still analyzes cleanly (no 4th package this time).
+      final analyze = await Process.run(
+        'flutter',
+        ['analyze', '--no-pub'],
+        workingDirectory: projectDir.path,
+      );
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      expect(
+        RegExp(r'(\d+ issues? found|No issues found)').hasMatch(out),
+        isTrue,
+        reason: 'flutter analyze did not run as expected:\n$out',
+      );
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason: 'flutter analyze reported errors:\n${errorLines.join('\n')}\n\n'
+            '--- full analyze output ---\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
+
+  test(
+    'non-split (feature-first) + plain go_router + child route + '
+    'mergeIntoParent: the new feature nests under the parent\'s own '
+    'lib/features/<parent>/ tree (own entity/repository/datasource, in a '
+    'reviews/ subfolder per layer) instead of getting its own '
+    'lib/features/reviews/ — the app\'s shared routes.dart import points at '
+    'the new nested location',
+    () async {
+      const projectName = 'neat_gen_childroute_merge_nonsplit_test';
+      final logs = <String>[];
+      // Plain go_router (no go_router_builder), dio, no chopper — same combo
+      // as the Phase 1 packageSplit core-package test's noBuilderPackages.
+      final plainPackages = <PubPackage>[
+        _dep('hooks_riverpod', '3.3.1'),
+        _dep('flutter_hooks', '0.21.3+1'),
+        _dep('riverpod_annotation', '4.0.2'),
+        _dep('json_annotation', '4.11.0'),
+        _dep('freezed_annotation', '3.1.0'),
+        _dep('dio', '5.9.2'),
+        _dep('go_router', '17.2.3'),
+        _dev('riverpod_generator', '4.0.3'),
+        _dev('riverpod_lint', '3.1.3'),
+        _dev('json_serializable', '6.13.0'),
+        _dev('build_runner', '2.15.0'),
+        _dev('freezed', '3.2.5'),
+      ];
+
+      final identity = IdentityState(
+        name: projectName,
+        organization: 'com.neat.test',
+        projectPath: tempRoot.path,
+        description: 'NEAT non-split + mergeIntoParent integration test',
+        targetPlatforms: const ['macos'],
+      );
+      const architecture = ArchitectureState(); // non-split, feature-first, plain go_router
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: identity,
+          packages: plainPackages,
+          architecture: architecture,
+          cicd: const CicdState(),
+          theme: const ThemeEngineState(approach: ThemeApproach.customM3),
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('Base generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+      final project = await const ProjectLoader().load(projectDir.path);
+      expect(project!.contract.packageSplit, isFalse);
+
+      // Add "reviews" as a child of "home", merged into home's own tree.
+      await const GenerateFeatureUsecase().execute(
+        project: project,
+        options: const FeatureGenOptions(
+          name: 'reviews',
+          routing: FeatureRouting.child,
+          parentFeature: 'home',
+          mergeIntoParent: true,
+        ),
+        onLog: logs.add,
+      );
+
+      String read(String p) => File(p).readAsStringSync();
+      final homeRoot = '${projectDir.path}/lib/features/home';
+
+      // No separate lib/features/reviews/ was created at all.
+      expect(Directory('${projectDir.path}/lib/features/reviews').existsSync(), isFalse);
+
+      // Own entity/repository/datasource, nested under a reviews/ subfolder
+      // per layer inside home's own feature-first tree.
+      expect(
+        File('$homeRoot/domain/reviews/entities/reviews_entity.dart').existsSync(),
+        isTrue,
+      );
+      expect(
+        File('$homeRoot/data/reviews/repositories/reviews_repository_impl.dart').existsSync(),
+        isTrue,
+      );
+      expect(
+        File('$homeRoot/presentation/reviews/pages/reviews_page.dart').existsSync(),
+        isTrue,
+      );
+      // home's own (pre-existing) files are untouched.
+      expect(File('$homeRoot/domain/entities/home_entity.dart').existsSync(), isTrue);
+
+      // The app's shared routes.dart nests the child under home's GoRoute,
+      // importing straight into the new merged location (a package: import —
+      // routes.dart lives in a different folder than the parent's own tree).
+      final routes = read('${projectDir.path}/lib/core/router/routes.dart');
+      expect(
+        routes,
+        contains(
+          "import 'package:$projectName/features/home/presentation/reviews/pages/reviews_page.dart';",
+        ),
+      );
+      expect(routes, contains("path: 'reviews',"));
+      expect(routes, contains('// neat:children:home'));
+
+      // AppRoutePath gains the nested '/home/reviews' constant, exactly as
+      // for a non-merged child (single app-level copy, no packageSplit here).
+      expect(
+        read('${projectDir.path}/lib/core/constants/app_route_path.dart'),
+        contains("static const String reviews = '/home/reviews';"),
+      );
+
       final analyze = await Process.run(
         'flutter',
         ['analyze', '--no-pub'],
@@ -1962,11 +2250,11 @@ void main() {
         isFalse,
       );
 
-      // AppRoutePath gained the nested '/product/reviews' constant, both in
-      // the app's own copy and core's mirrored copy.
+      // AppRoutePath gained the nested '/product/reviews' constant. Single-sourced
+      // in core (packageSplit) — the app keeps no copy of its own at all.
       expect(
-        read('${projectDir.path}/lib/core/constants/app_route_path.dart'),
-        contains("static const String reviews = '/product/reviews';"),
+        File('${projectDir.path}/lib/core/constants/app_route_path.dart').existsSync(),
+        isFalse,
       );
       expect(
         read('${projectDir.path}/packages/core/lib/core/constants/app_route_path.dart'),
@@ -1989,6 +2277,165 @@ void main() {
       // $ReviewsRoute mixin generated correctly from app_shell_route.dart's
       // own build_runner pass (a cross-package codegen dependency direction
       // not exercised before this feature).
+      final analyze = await Process.run(
+        'flutter',
+        ['analyze', '--no-pub'],
+        workingDirectory: projectDir.path,
+      );
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      expect(
+        RegExp(r'(\d+ issues? found|No issues found)').hasMatch(out),
+        isTrue,
+        reason: 'flutter analyze did not run as expected:\n$out',
+      );
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason: 'flutter analyze reported errors:\n${errorLines.join('\n')}\n\n'
+            '--- full analyze output ---\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
+
+  test(
+    'packageSplit=true + go_router_builder + chopper + shell branch + child + '
+    'mergeIntoParent (real project: a "recepies" shell branch merging in an '
+    '"ingredient" child): the merged child skips the shell page registry '
+    'entirely — app_shell_route.dart imports its page directly from the '
+    'parent\'s own nested package location, and chopper decoder registration '
+    'points there too',
+    () async {
+      const projectName = 'neat_pkgsplit_shell_merge_test';
+      final logs = <String>[];
+      final builderPackages = <PubPackage>[
+        _dep('hooks_riverpod', '3.3.1'),
+        _dep('flutter_hooks', '0.21.3+1'),
+        _dep('riverpod_annotation', '4.0.2'),
+        _dep('json_annotation', '4.11.0'),
+        _dep('freezed_annotation', '3.1.0'),
+        _dep('chopper', '8.6.0'),
+        _dep('go_router', '17.2.3'),
+        _dev('go_router_builder', '4.3.0'),
+        _dev('riverpod_generator', '4.0.3'),
+        _dev('riverpod_lint', '3.1.3'),
+        _dev('json_serializable', '6.13.0'),
+        _dev('build_runner', '2.15.0'),
+        _dev('freezed', '3.2.5'),
+        _dev('chopper_generator', '8.6.2'),
+      ];
+
+      final identity = IdentityState(
+        name: projectName,
+        organization: 'com.neat.test',
+        projectPath: tempRoot.path,
+        description: 'NEAT packageSplit + shell + mergeIntoParent integration test',
+        targetPlatforms: const ['macos'],
+      );
+      const architecture = ArchitectureState(
+        packageSplit: true,
+        firstFeatureName: 'recepies',
+        useNavigationShell: true,
+        shellIcon: 'restaurant',
+        shellLabel: 'Recepies',
+      );
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: identity,
+          packages: builderPackages,
+          architecture: architecture,
+          cicd: const CicdState(),
+          theme: const ThemeEngineState(approach: ThemeApproach.customM3),
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('Base generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+      final project = await const ProjectLoader().load(projectDir.path);
+      expect(project!.contract.packageSplit, isTrue);
+
+      // Merge "ingredient" into the "recepies" shell branch.
+      await const GenerateFeatureUsecase().execute(
+        project: project,
+        options: const FeatureGenOptions(
+          name: 'ingredient',
+          routing: FeatureRouting.child,
+          parentFeature: 'recepies',
+          mergeIntoParent: true,
+        ),
+        onLog: logs.add,
+      );
+
+      String read(String p) => File(p).readAsStringSync();
+      final recepiesRoot = '${projectDir.path}/packages/recepies';
+
+      // No separate 'ingredient' package was created at all.
+      expect(Directory('${projectDir.path}/packages/ingredient').existsSync(), isFalse);
+
+      // Own entity/repository/datasource, nested under an ingredient/
+      // subfolder per layer inside recepies' own package.
+      expect(
+        File('$recepiesRoot/lib/domain/ingredient/entities/ingredient_entity.dart').existsSync(),
+        isTrue,
+      );
+      expect(
+        File('$recepiesRoot/lib/presentation/ingredient/pages/ingredient_page.dart').existsSync(),
+        isTrue,
+      );
+
+      // app_shell_route.dart imports the merged child's page directly — no
+      // registry lookup at all for it (unlike a non-merged shell child).
+      final shellRoutePath = '${projectDir.path}/lib/core/router/app_shell_route.dart';
+      final shellRouteContent = read(shellRoutePath);
+      expect(
+        shellRouteContent,
+        contains("import 'package:recepies/presentation/ingredient/pages/ingredient_page.dart';"),
+      );
+      expect(shellRouteContent, contains("TypedGoRoute<IngredientRoute>(path: 'ingredient')"));
+      expect(shellRouteContent, contains('const IngredientPage()'));
+      expect(shellRouteContent, isNot(contains("lookupShellPage('ingredient')")));
+
+      // No <f>_shell_registration.dart file, and bootstrap.dart never
+      // references one for the merged child.
+      expect(
+        File(
+          '$recepiesRoot/lib/presentation/ingredient/routes/ingredient_shell_registration.dart',
+        ).existsSync(),
+        isFalse,
+      );
+      final bootstrap = read('${projectDir.path}/lib/core/bootstrap.dart');
+      expect(bootstrap, isNot(contains('registerIngredientShellPage();')));
+
+      // Chopper decoder registration: bootstrap.dart imports the merged
+      // child's repository providers from *recepies'* package, nested under
+      // data/ingredient/ — the exact crash this scenario originally hit
+      // (featurePackageName! was null when merged).
+      expect(
+        bootstrap,
+        contains(
+          "import 'package:recepies/data/ingredient/repositories/"
+          "ingredient_repository_providers.dart';",
+        ),
+      );
+      expect(bootstrap, contains('registerIngredientChopperDecoders();'));
+
+      // No new path: dependency and no new workspace member.
+      expect(read('$recepiesRoot/pubspec.yaml'), isNot(contains('ingredient:')));
+      expect(read('${projectDir.path}/pubspec.yaml'), isNot(contains('packages/ingredient')));
+
+      // AppRoutePath still gains the nested '/recepies/ingredient' constant.
+      expect(
+        read('${projectDir.path}/packages/core/lib/core/constants/app_route_path.dart'),
+        contains("static const String ingredient = '/recepies/ingredient';"),
+      );
+
       final analyze = await Process.run(
         'flutter',
         ['analyze', '--no-pub'],
@@ -2376,9 +2823,10 @@ void main() {
         contains('orders:\n    path: packages/orders'),
       );
 
-      // routes.dart crosses into the new package; AppRoutePath gained the
-      // constant both in the app's own copy and the core package's mirrored
-      // copy (split features import AppRoutePath from core, not the app).
+      // routes.dart crosses into the new package; AppRoutePath is
+      // single-sourced in the core package's copy (packageSplit) — the app
+      // keeps no copy of its own, and routes.dart's own import already
+      // redirects there (see CoreTemplates.routesManual's corePackageName doc).
       final routes = read('${projectDir.path}/lib/core/router/routes.dart');
       expect(
         routes,
@@ -2386,14 +2834,14 @@ void main() {
       );
       expect(routes, contains('AppRoutePath.orders'));
       expect(
-        read('${projectDir.path}/lib/core/constants/app_route_path.dart'),
-        contains("static const String orders = '/orders';"),
+        File('${projectDir.path}/lib/core/constants/app_route_path.dart').existsSync(),
+        isFalse,
       );
       expect(
         read('${projectDir.path}/packages/core/lib/core/constants/app_route_path.dart'),
         contains("static const String orders = '/orders';"),
         reason: 'the split feature imports AppRoutePath from core, not the app — core\'s '
-            'mirrored copy must gain the constant too',
+            'single copy must gain the constant too',
       );
 
       // Reload sees both features; non-destructive guard still holds.
@@ -2431,7 +2879,7 @@ void main() {
       expect(routesAfterChild, contains("path: 'reviews',"));
       expect(routesAfterChild, contains('// neat:children:home'));
       expect(
-        read('${projectDir.path}/lib/core/constants/app_route_path.dart'),
+        read('${projectDir.path}/packages/core/lib/core/constants/app_route_path.dart'),
         contains("static const String reviews = '/home/reviews';"),
       );
 
@@ -4487,7 +4935,7 @@ void main() {
       final projectDir = Directory('${tempRoot.path}/$projectName');
 
       // The shell scaffold + typed shell route exist.
-      final scaffold = File('${projectDir.path}/lib/core/router/scaffold_with_nav_bar.dart');
+      final scaffold = File('${projectDir.path}/lib/core/navigation/scaffold_with_nav_bar.dart');
       expect(scaffold.existsSync(), isTrue, reason: 'scaffold_with_nav_bar.dart missing');
       expect(scaffold.readAsStringSync(), contains('NavigationBar('));
       expect(
@@ -6260,26 +6708,39 @@ void main() {
 
       final projectDir = Directory('${tempRoot.path}/$projectName');
 
-      // The app's own copy has it (already covered by the non-split test,
-      // re-asserted here since this is a different generation path).
-      final appCopy = File(
-        '${projectDir.path}/lib/core/constants/app_route_path.dart',
-      ).readAsStringSync();
-      expect(appCopy, contains("static const String onboarding = '/onboarding';"));
+      // AppRoutePath is single-sourced in packages/core — the app no longer
+      // keeps its own (driftable, duplicate) copy at all.
+      expect(
+        File('${projectDir.path}/lib/core/constants/app_route_path.dart').existsSync(),
+        isFalse,
+        reason: 'the app should no longer write its own AppRoutePath copy when packageSplit is on '
+            '— everything redirects to packages/core instead',
+      );
 
-      // The bug this test exists for: the core package's *mirrored* copy
-      // must have it too — a split feature (e.g. one added later via the
-      // Workshop) can only ever import AppRoutePath from here, never from
-      // the app directly (see _writeCorePackage's hasOnboarding doc).
       final coreCopy = File(
         '${projectDir.path}/packages/core/lib/core/constants/app_route_path.dart',
       ).readAsStringSync();
       expect(
         coreCopy,
         contains("static const String onboarding = '/onboarding';"),
-        reason: 'packages/core\'s AppRoutePath mirror is missing onboarding — any split feature '
-            'referencing it would fail to compile',
+        reason: 'the single core copy must have onboarding — any split feature referencing it '
+            '(e.g. one added later via the Workshop) would otherwise fail to compile',
       );
+
+      // Every app-level consumer redirects its import there instead of
+      // keeping/expecting a local copy.
+      for (final relPath in [
+        'lib/core/router/app_router.dart',
+        'lib/core/router/app_shell_route.dart',
+        'lib/core/onboarding/onboarding_routes.dart',
+      ]) {
+        final content = File('${projectDir.path}/$relPath').readAsStringSync();
+        expect(
+          content,
+          contains("import 'package:core/core/constants/app_route_path.dart';"),
+          reason: '$relPath should import AppRoutePath from packages/core, not a local app copy',
+        );
+      }
 
       final analyze = await Process.run(
         'flutter',

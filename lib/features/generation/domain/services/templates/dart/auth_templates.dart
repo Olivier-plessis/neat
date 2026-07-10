@@ -246,6 +246,11 @@ IAuthRepository authRepository(Ref ref) =>
     String backend = 'supabase',
     String? authPackageName,
     bool hasOnboarding = false,
+    // router_notifier.dart itself always stays app-level (see below), but
+    // when packageSplit is on its AppRoutePath import must still cross into
+    // the shared core package — single-sourced there, not duplicated (same
+    // redirect as CoreTemplates.appRouter's own doc).
+    String? corePackageName,
   }) {
     final authProviderImport = authPackageName != null
         ? "import 'package:$authPackageName/presentation/providers/auth_provider.dart';"
@@ -271,7 +276,7 @@ IAuthRepository authRepository(Ref ref) =>
 import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:${backend == 'firebase' ? 'firebase_auth/firebase_auth.dart' : 'supabase_flutter/supabase_flutter.dart'}';
-import 'package:$packageName/core/constants/app_route_path.dart';
+import 'package:${corePackageName ?? packageName}/core/constants/app_route_path.dart';
 $authProviderImport$onboardingImport
 
 part 'router_notifier.g.dart';

@@ -14,13 +14,19 @@ class DataTemplates {
     required bool hasFreezed,
     required bool hasJsonSerializable,
     List<FieldSpec> fields = FieldSpec.idName,
-  }) {
-    final p = pascal(featureName);
     // Relative, not `package:` — works unchanged whether the feature lives
     // flat under lib/features/<name>/ or split into its own workspace
     // package (packageSplit — see ROADMAP.md §6a): the nesting depth between
-    // data/models/ and domain/entities/ is identical either way.
-    final entityImport = "import '../../domain/entities/${featureName}_entity.dart';";
+    // data/models/ and domain/entities/ is identical either way ('../../domain'
+    // — the default). Only a feature nested *inside* another (mergeIntoParent,
+    // or the layer-first non-featureFirst pattern — see FeatureScaffolder's
+    // crossLayerNested) adds an extra `<name>/` folder inside each layer,
+    // changing both the depth (one more `../`) and the target path (domain's
+    // own `<name>/` subfolder) — the caller computes the right value.
+    String domainCross = '../../domain',
+  }) {
+    final p = pascal(featureName);
+    final entityImport = "import '$domainCross/entities/${featureName}_entity.dart';";
     // Nested objects (and list-element objects) each become their own sub-model.
     final objects = collectObjectSpecs(fields);
 
@@ -178,6 +184,8 @@ $classes
     // rationale. Only the offlineFirst branch's core/ imports use this; the
     // remote-only branch below has none (nothing to redirect).
     String? corePackageName,
+    // See featureModel's doc.
+    String domainCross = '../../domain',
   }) {
     final p = pascal(featureName);
     final isChopper = httpClient == 'chopper';
@@ -292,8 +300,8 @@ $classes
 import 'package:$corePkg/core/network/network_info.dart';
 import 'package:$corePkg/core/result/result.dart';
 import 'package:$corePkg/core/utils/app_logger.dart';
-import '../../domain/entities/${featureName}_entity.dart';
-import '../../domain/repositories/i_${featureName}_repository.dart';
+import '$domainCross/entities/${featureName}_entity.dart';
+import '$domainCross/repositories/i_${featureName}_repository.dart';
 import '../models/${featureName}_model.dart';
 import '../sources/${featureName}_api_source.dart';
 import '../sources/${featureName}_local_source.dart';
@@ -350,8 +358,8 @@ class ${p}RepositoryImpl implements I${p}Repository {
 
     // ── Remote-only, full CRUD ────────────────────────────────────────────────
     if (hasHttpClient) {
-      return '''${chopperImport}import '../../domain/entities/${featureName}_entity.dart';
-import '../../domain/repositories/i_${featureName}_repository.dart';
+      return '''${chopperImport}import '$domainCross/entities/${featureName}_entity.dart';
+import '$domainCross/repositories/i_${featureName}_repository.dart';
 import '../models/${featureName}_model.dart';
 import '../sources/${featureName}_api_source.dart';
 
@@ -399,8 +407,8 @@ class ${p}RepositoryImpl implements I${p}Repository {
     }
 
     // ── No HTTP client: read-only local stub ──────────────────────────────────
-    return '''import '../../domain/entities/${featureName}_entity.dart';
-import '../../domain/repositories/i_${featureName}_repository.dart';
+    return '''import '$domainCross/entities/${featureName}_entity.dart';
+import '$domainCross/repositories/i_${featureName}_repository.dart';
 import '../sources/${featureName}_local_source.dart';
 
 class ${p}RepositoryImpl implements I${p}Repository {
@@ -734,6 +742,8 @@ class ${p}LocalSource {
     // dio and chopper branches below are redirected: supabase/firebase client
     // providers aren't part of the core package yet.
     String? corePackageName,
+    // See featureModel's doc.
+    String domainCross = '../../domain',
   }) {
     final p = pascal(featureName);
     final c = camel(featureName);
@@ -770,7 +780,7 @@ class ${p}LocalSource {
           "import 'package:${corePackageName ?? packageName}/core/sync/sync_service.dart';");
     }
     imports
-      ..writeln("import '../../domain/repositories/i_${featureName}_repository.dart';")
+      ..writeln("import '$domainCross/repositories/i_${featureName}_repository.dart';")
       ..writeln("import '${featureName}_repository_impl.dart';")
       ..writeln("import '../sources/${featureName}_api_source.dart';");
     if (hasSync || registersChopperDecoder) {
