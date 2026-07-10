@@ -21,4 +21,5 @@ class CicdNotifier extends _$CicdNotifier {
   void toggleAnalyze(bool val) => state = state.copyWith(runAnalyze: val);
   void toggleTests(bool val) => state = state.copyWith(runTests: val);
   void toggleAutoDeploy(bool val) => state = state.copyWith(autoDeploy: val);
+  void setSentryDsn(String dsn) => state = state.copyWith(sentryDsn: dsn.trim());
 }

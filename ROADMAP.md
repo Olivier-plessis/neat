@@ -1548,6 +1548,66 @@ bloc/cubit were gated too — both unlocked instead, see § below.)
     verified by deleting the duplicate directly in the reporter's own
     packageSplit test project and fixing its 3 redirected imports — 0/0
     analyze. Full suite still green.
+- ✅ **Sentry (CI/CD screen, opt-in) — done**. A new `CiTool.sentry` "Monitoring"
+  card (added directly by the user) plus a DSN `TextField` gated behind
+  `CicdState.hasSentryDelivery`. The interesting design decision wasn't the
+  toggle — it was two things that don't generalize from the existing
+  Auth/Realtime/Storage opt-ins: (1) the DSN is a secret, so it needed to
+  flow through the existing envied/`AppEnv` mechanism (a new single
+  `sentryDsn` field, same shape as `supabaseUrl` but *not* varying per
+  flavor, unlike `apiBaseUrl` — one Sentry project per app, not per
+  environment) rather than ever being a literal in checked-in
+  `bootstrap.dart`; without envied, it's left blank with a `// TODO` instead
+  of embedding the typed value (mirrors Supabase's own non-envied fallback).
+  (2) `SentryFlutter.init` doesn't add an init *line* the way Supabase/
+  Firebase do — it takes `runApp` itself as its `appRunner` callback and
+  installs its own `FlutterError.onError`/`PlatformDispatcher.onError`
+  hooks, which would otherwise **stack** with NEAT's existing
+  `runZonedGuarded` + `registerErrorHandler()` + `AppLogger.f` fallback —
+  the same "don't stack two guards" lesson as Onboarding's redirect merging
+  into Auth's `RouterNotifier` rather than attaching a second
+  `refreshListenable`. Resolved by calling `registerErrorHandler()` *before*
+  `SentryFlutter.init` (so Sentry chains onto AppLogger's hooks instead of
+  competing with them) and wrapping only the final `runApp($root)` call in
+  `SentryFlutter.init(...)`, leaving the outer `runZonedGuarded`/`AppLogger.f`
+  as the last-resort catch for anything before Sentry initializes. A real
+  bug caught by actually printing the generated output rather than assuming
+  the string shape: the non-envied fallback's `// TODO` comment sat on the
+  same line as the DSN argument's trailing comma, silently swallowing it
+  into the comment and producing a syntax error — fixed by putting the TODO
+  on its own line above the argument. `sentry_flutter` is injected into
+  pubspec via a new `addSentry` flag (mirrors `addSlang`/`addOnboarding`'s
+  "derived from a toggle, not the packages list" shape). Harness-proven: new
+  unit tests for `CoreTemplates.appEnv`/`flavorEnv`/`envFile`'s `hasSentry`
+  branch and `AppTemplates.bootstrap`'s wrapping (both with and without
+  envied — the second one is exactly what caught the comma bug), and a new
+  integration test generating a real project with Sentry enabled, asserting
+  the pubspec dependency, the DSN landing in `.env` (never as a literal in
+  `bootstrap.dart`), `SentryFlutter.init` wrapping `runApp`, and `flutter
+  analyze` 0/0. Full suite green (245 fast tests).
+  - ✅ **Follow-up: disabled in debug mode — done**. A second-opinion review
+    (Gemini) suggested a Chopper/Dio interceptor that reports every `>=400`
+    response to Sentry — rejected: real Sentry usage widely considers
+    blanket status-code reporting an anti-pattern (a handled 401 refresh, a
+    422 shown as a form error, etc. aren't bugs), it would need a separate
+    implementation per HTTP client (chopper/dio; never supabase/firebase),
+    and it bypasses NEAT's own `NetworkErrorHandler`/`Failure`/`UseCase
+    .call()` pipeline that already normalizes and decides what's worth
+    surfacing — the right hook (deferred, see Backlog) is `AppLogger.e`/`.f`
+    itself, which every backend's errors already funnel through. Separately,
+    local dev iteration shouldn't spam a real Sentry project or burn its
+    quota — gated on `kDebugMode` (not the dev/staging/prod *flavor*, which
+    would only work for named-"dev" environments and not at all for a
+    single-environment project with no envied flavors configured): `options
+    .dsn = kDebugMode ? '' : AppEnv.current.sentryDsn` — Sentry treats an
+    empty DSN as disabled, so no extra if/else is needed around the init
+    call. Harness-proven: the existing envied unit test and integration test
+    updated to assert the `kDebugMode` guard; a new unit test confirms the
+    non-envied branch (DSN unconditionally blank) never references
+    `kDebugMode` and skips the `flutter/foundation.dart` import entirely
+    (would otherwise be an unused import) — verified by actually printing
+    both branches' output rather than assuming the string shape, same
+    discipline that caught the comma bug above. Full suite green.
 
 ## Backlog — not yet scheduled
 
@@ -1564,6 +1624,40 @@ bloc/cubit were gated too — both unlocked instead, see § below.)
   and how would the Workshop even surface "this feature needs that feature's
   type" as a choice? No concrete, currently-blocked use case to anchor a
   design pass on (unlike child routes) — revisit if one shows up.
+
+- **Sentry: forward `AppLogger.e`/`.f` to `Sentry.captureException` —
+  deferred**. Flagged during the Sentry feature's own design pass (see the
+  entry above) as the right integration point for actually *reporting*
+  errors — one hook, works across all four backends (dio/chopper/supabase/
+  firebase) since they already funnel through `AppLogger`/`NetworkErrorHandler`,
+  and respects the log-level distinction already baked into offline-first's
+  fallback path (`.w` for an expected, recovered-from network blip vs `.f`/
+  `.e` for a real uncaught error) — no separate allow-list of "reportable"
+  status codes to invent. Not built yet: `AppLogger`'s own template
+  (`CoreTemplates.appLogger`) doesn't currently take a `hasSentry` param, and
+  doing this properly should also decide whether `.w` ever forwards (as a
+  breadcrumb, not a full event) — a real design question, not just a
+  one-line change. Revisit alongside (or instead of) a Chopper/Dio
+  interceptor if request-level breadcrumbs are wanted later; Sentry's own
+  official Dio integration is likely a better fit than a hand-rolled
+  interceptor for that specific need if it comes up.
+
+- **Sentry User Feedback (`SentryFeedbackWidget`/`Sentry.captureFeedback()`) —
+  deferred, sequenced after the `AppLogger` hook above**. Considered (second
+  opinion, Gemini) after shipping the base Sentry integration. Real feedback
+  is always tied to a specific captured event (`associatedEventId`), so it
+  can't be wired at all until the `AppLogger.e`/`.f` → `Sentry.captureException`
+  hook above exists to actually produce an event id to attach to. Also a
+  genuine UX-design question, not a generator-plumbing default the way the
+  DSN/`kDebugMode` gate were: the pre-built `SentryFeedbackWidget` needs a
+  `navigatorKey`/valid `BuildContext` to present, but NEAT's fatal-error path
+  (`PlatformDispatcher.instance.onError`, the outer `runZonedGuarded` handler)
+  fires exactly when the app may already be in a broken state with no
+  guaranteed valid widget tree to show a modal over — auto-popping a feedback
+  dialog straight out of a crash handler is the risky version of this
+  feature. If revisited, lean towards a manually-triggered "Send Feedback"
+  affordance (e.g. a Settings/About screen button using `Sentry.lastEventId`)
+  over an automatic post-crash popup — same request, safer context.
 
 - **Modular Monorepo (packageSplit) for manual Riverpod / Bloc-Cubit — not
   planned unless real demand shows up**. `canPackageSplit` requires

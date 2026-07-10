@@ -15,6 +15,7 @@ class CicdScreen extends HookConsumerWidget {
     final notifier = ref.read(cicdProvider.notifier);
     final files = const GenerateYamlUsecase().execute(state);
     final previewIndex = useState(0);
+    final sentryDsnCtrl = useTextEditingController(text: state.sentryDsn);
 
     // Reset tab index when file count changes
     if (previewIndex.value >= files.length && files.isNotEmpty) {
@@ -126,10 +127,52 @@ class CicdScreen extends HookConsumerWidget {
                                 onTap: () => notifier.toggleTool(CiTool.shorebird),
                               ),
                             ),
-                            const Expanded(child: SizedBox()),
+                            const Expanded(child: SizedBox.shrink()),
                           ],
                         ),
                       ),
+                      24.gapH,
+                      SectionHeader(fontSize: 15, label: 'Monitoring'),
+                      const SizedBox(height: 12),
+                      IntrinsicHeight(
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: _ToolCard(
+                                icon: Icons.rocket_launch_outlined,
+                                title: 'Sentry',
+                                description: 'Crash Report app.',
+                                tags: const ['Monitoring', 'Crash-reporting'],
+                                badge: 'CR',
+                                badgeColor: const Color(0xFF6A1B9A),
+                                isSelected: state.isSelected(CiTool.sentry),
+                                onTap: () => notifier.toggleTool(CiTool.sentry),
+                              ),
+                            ),
+                            const Expanded(child: SizedBox.shrink()),
+                          ],
+                        ),
+                      ),
+                      if (state.hasSentryDelivery) ...[
+                        const SizedBox(height: 24),
+                        SectionHeader(fontSize: 15, label: 'Sentry DSN', icon: Icons.dns_outlined),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: sentryDsnCtrl,
+                          onChanged: notifier.setSentryDsn,
+                          style: const TextStyle(color: Colors.white, fontSize: 14),
+                          decoration: const InputDecoration(
+                            labelText: 'DSN',
+                            hintText: 'https://examplePublicKey@o0.ingest.sentry.io/0',
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Stored in .env (never hardcoded) — read back via AppEnv.current.sentryDsn '
+                          'in bootstrap().',
+                          style: TextStyle(color: Colors.grey[600], fontSize: 11),
+                        ),
+                      ],
 
                       if (state.hasCiRunner) ...[
                         const SizedBox(height: 24),

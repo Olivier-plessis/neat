@@ -7,13 +7,7 @@ part 'cicd_state.freezed.dart';
 /// Pure domain value object — no Flutter/Riverpod imports — so it can be
 /// consumed by domain usecases (e.g. generation) without depending on the
 /// presentation layer.
-enum CiTool {
-  githubActions,
-  gitlabCi,
-  codemagic,
-  fastlane,
-  shorebird,
-}
+enum CiTool { githubActions, gitlabCi, codemagic, fastlane, shorebird, sentry }
 
 @freezed
 abstract class CicdState with _$CicdState {
@@ -24,11 +18,19 @@ abstract class CicdState with _$CicdState {
     @Default(true) bool runAnalyze,
     @Default(true) bool runTests,
     @Default(false) bool autoDeploy,
+
+    /// The Sentry project DSN, only meaningful when [hasSentryDelivery]. Flows
+    /// into the generated app's `.env` (via envied, alongside apiBaseUrl) —
+    /// never embedded as a literal in `bootstrap.dart` — and is read back by
+    /// `SentryFlutter.init` there.
+    @Default('') String sentryDsn,
   }) = _CicdState;
 
   bool isSelected(CiTool tool) => selectedTools.contains(tool);
 
   bool get hasCiRunner => selectedTools.any(
-        (t) => t == CiTool.githubActions || t == CiTool.gitlabCi || t == CiTool.codemagic,
-      );
+    (t) => t == CiTool.githubActions || t == CiTool.gitlabCi || t == CiTool.codemagic,
+  );
+
+  bool get hasSentryDelivery => selectedTools.any((t) => t == CiTool.sentry);
 }
