@@ -63,6 +63,51 @@ string_interpolation: braces
 ''';
   }
 
+  // ── lib/i18n/de.i18n.json ─────────────────────────────────────────────────
+  static String deTranslations(String featureName) {
+    final key = camel(featureName);
+    return '''{
+  "appName": "Meine App",
+  "hello": "Hallo",
+  "language": "Sprache",
+  "$key": {
+    "title": "Startseite",
+    "greeting": "Willkommen in Ihrer App"
+  }
+}
+''';
+  }
+
+  // ── lib/i18n/de.i18n.json ─────────────────────────────────────────────────
+  static String itTranslations(String featureName) {
+    final key = camel(featureName);
+    return '''{
+  "appName": "La mia app",
+  "hello": "Buongiorno",
+  "language": "Lingua",
+  "$key": {
+    "title": "Home",
+    "greeting": "Benvenuto nella tua app"
+  }
+}
+''';
+  }
+
+  // ── lib/i18n/de.i18n.json ─────────────────────────────────────────────────
+  static String spTranslations(String featureName) {
+    final key = camel(featureName);
+    return '''{
+  "appName": "Mi aplicación",
+  "hello": "Buenos días",
+  "language": "Idioma",
+  "$key": {
+    "title": "Inicio",
+    "greeting": "Bienvenido a tu aplicación"
+  }
+}
+''';
+  }
+
   // ── core/i18n/locale_store.dart (persistence) ─────────────────────────────
   /// Persists the chosen locale in shared_preferences so it survives restarts.
   static String localeStore({required String packageName}) =>

@@ -5759,6 +5759,90 @@ void main() {
   );
 
   test(
+    'i18n: all 5 locales each write a filename matching their own locale code '
+    '(real bug: Italian used to write to pt.i18n.json, breaking slang codegen '
+    'for it), analyzes cleanly',
+    () async {
+      const projectName = 'neat_i18n_all_locales_test';
+      final logs = <String>[];
+
+      final pkgs = <PubPackage>[
+        _dep('hooks_riverpod', '3.3.1'),
+        _dep('flutter_hooks', '0.21.3+1'),
+        _dep('riverpod_annotation', '4.0.2'),
+        _dep('go_router', '17.2.3'),
+        _dep('json_annotation', '4.11.0'),
+        _dep('freezed_annotation', '3.1.0'),
+        _dev('riverpod_generator', '4.0.3'),
+        _dev('build_runner', '2.15.0'),
+        _dev('freezed', '3.2.5'),
+        _dev('json_serializable', '6.13.0'),
+      ];
+
+      final identity = IdentityState(
+        name: projectName,
+        organization: 'com.neat.test',
+        projectPath: tempRoot.path,
+        description: 'NEAT i18n all-locales integration test',
+        targetPlatforms: const ['macos'],
+      );
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: identity,
+          packages: pkgs,
+          architecture: const ArchitectureState(
+            generateI18n: true,
+            i18nLocales: {'en', 'fr', 'de', 'es', 'it'},
+          ),
+          cicd: const CicdState(),
+          theme: const ThemeEngineState(approach: ThemeApproach.customM3),
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('i18n all-locales generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+      final i18nDir = '${projectDir.path}/lib/i18n';
+
+      for (final code in ['en', 'fr', 'de', 'es', 'it']) {
+        expect(
+          File('$i18nDir/$code.i18n.json').existsSync(),
+          isTrue,
+          reason: '$code.i18n.json missing — a locale must write to its own matching filename',
+        );
+      }
+      // The old bug's filename must never be written.
+      expect(File('$i18nDir/pt.i18n.json').existsSync(), isFalse);
+
+      expect(
+        File('$i18nDir/strings.g.dart').existsSync(),
+        isTrue,
+        reason: 'slang codegen did not run — a mismatched filename (the old pt/it bug) would '
+            'make slang silently ignore the declared it locale instead',
+      );
+
+      final analyze = await Process.run(
+        'flutter',
+        ['analyze', '--no-pub'],
+        workingDirectory: projectDir.path,
+      );
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason: 'all-locales i18n project analyze reported issues:\n${errorLines.join('\n')}\n\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
+
+  test(
     'i18n CSV upload: compact CSV becomes the slang source, analyzes cleanly',
     () async {
       const projectName = 'neat_i18n_csv_test';
@@ -6039,6 +6123,101 @@ void main() {
         errorLines,
         isEmpty,
         reason: 'single-env project analyze reported issues:\n${errorLines.join('\n')}\n\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
+
+  test(
+    'Sentry (CI/CD screen, opt-in): sentry_flutter dependency, DSN in .env (never a literal in '
+    'bootstrap.dart), SentryFlutter.init wraps runApp, analyzes cleanly',
+    () async {
+      const projectName = 'neat_sentry_test';
+      final logs = <String>[];
+
+      final pkgs = <PubPackage>[
+        _dep('hooks_riverpod', '3.3.1'),
+        _dep('flutter_hooks', '0.21.3+1'),
+        _dep('riverpod_annotation', '4.0.2'),
+        _dep('chopper', '8.6.0'),
+        _dep('envied', '1.3.5'),
+        _dev('riverpod_generator', '4.0.3'),
+        _dev('build_runner', '2.15.0'),
+        _dev('envied_generator', '1.3.5'),
+        _dev('chopper_generator', '8.6.2'),
+      ];
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: IdentityState(
+            name: projectName,
+            organization: 'com.neat.test',
+            projectPath: tempRoot.path,
+            description: 'NEAT Sentry integration test',
+            targetPlatforms: const ['macos'],
+          ),
+          packages: pkgs,
+          architecture: const ArchitectureState(),
+          cicd: const CicdState(
+            selectedTools: {CiTool.sentry},
+            sentryDsn: 'https://examplePublicKey@o0.ingest.sentry.io/0',
+          ),
+          theme: const ThemeEngineState(approach: ThemeApproach.customM3),
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('Sentry generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+      String read(String p) => File('${projectDir.path}/$p').readAsStringSync();
+
+      // pubspec: sentry_flutter injected (not from the packages list — it's
+      // driven by the CI/CD screen's toggle, see buildPubspecContent's
+      // addSentry).
+      expect(read('pubspec.yaml'), contains('sentry_flutter: ^'));
+
+      // The DSN lives in .env (single env, no flavors here), never as a
+      // literal in checked-in source.
+      expect(read('.env'), contains('SENTRY_DSN=https://examplePublicKey@o0.ingest.sentry.io/0'));
+      expect(
+        read('lib/core/env/app_env.dart'),
+        contains('abstract final String sentryDsn;'),
+      );
+
+      // bootstrap.dart: SentryFlutter.init wraps runApp, reads the DSN from
+      // AppEnv (never the literal DSN itself), and the existing zone-guard/
+      // registerErrorHandler stay in place (chained onto, not replaced).
+      final bootstrap = read('lib/core/bootstrap.dart');
+      expect(bootstrap, contains("import 'package:flutter/foundation.dart';"));
+      expect(bootstrap, contains("import 'package:sentry_flutter/sentry_flutter.dart';"));
+      expect(bootstrap, contains('await SentryFlutter.init('));
+      // Disabled in debug mode (kDebugMode) — local dev iteration shouldn't
+      // spam a real Sentry project or burn its quota.
+      expect(bootstrap, contains("options.dsn = kDebugMode ? '' : AppEnv.current.sentryDsn"));
+      expect(bootstrap, isNot(contains('examplePublicKey')));
+      expect(bootstrap, contains('appRunner: () => runApp('));
+      expect(bootstrap, contains('registerErrorHandler();'));
+      expect(bootstrap, contains('runZonedGuarded'));
+      expect(
+        bootstrap.indexOf('registerErrorHandler();'),
+        lessThan(bootstrap.indexOf('SentryFlutter.init(')),
+      );
+
+      final analyze = await Process.run(
+        'flutter',
+        ['analyze', '--no-pub'],
+        workingDirectory: projectDir.path,
+      );
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason: 'Sentry project analyze reported issues:\n${errorLines.join('\n')}\n\n$out',
       );
     },
     timeout: const Timeout(Duration(minutes: 12)),

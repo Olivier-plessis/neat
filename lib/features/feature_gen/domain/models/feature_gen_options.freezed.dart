@@ -17,9 +17,10 @@ mixin _$FeatureGenOptions {
  String get name; FeatureRouting get routing; String get parentFeature;// only when routing == child
 /// Opt-in, only when routing == child: instead of a separate
 /// feature/package, the new feature's files nest inside the parent's own
-/// package/folder (data/domain/presentation/<name>/...), like a settings
-/// sub-page — no new pubspec, workspace member, or path: dependency.
-/// Mirrors maxit-front-flutter's `page/<sub-feature>/` pattern.
+/// package/folder (`data`/`domain`/`presentation`, each gaining a
+/// `<name>/` subfolder), like a settings sub-page — no new pubspec,
+/// workspace member, or path: dependency. Mirrors maxit-front-flutter's
+/// `page/<sub-feature>/` pattern.
  bool get mergeIntoParent; String get shellIcon;// Material icon name, only when shell
  String get shellLabel;// NavigationBar label, only when shell
  bool get includeRemoteDataSource; bool get includeLocalDataSource; bool get includeUseCase; bool get includeMapper;/// Entity fields (inferred from a pasted Response JSON, or the id/name
@@ -252,9 +253,10 @@ class _FeatureGenOptions extends FeatureGenOptions {
 // only when routing == child
 /// Opt-in, only when routing == child: instead of a separate
 /// feature/package, the new feature's files nest inside the parent's own
-/// package/folder (data/domain/presentation/<name>/...), like a settings
-/// sub-page — no new pubspec, workspace member, or path: dependency.
-/// Mirrors maxit-front-flutter's `page/<sub-feature>/` pattern.
+/// package/folder (`data`/`domain`/`presentation`, each gaining a
+/// `<name>/` subfolder), like a settings sub-page — no new pubspec,
+/// workspace member, or path: dependency. Mirrors maxit-front-flutter's
+/// `page/<sub-feature>/` pattern.
 @override@JsonKey() final  bool mergeIntoParent;
 @override@JsonKey() final  String shellIcon;
 // Material icon name, only when shell
