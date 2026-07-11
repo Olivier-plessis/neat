@@ -1116,6 +1116,152 @@ void main() {
   );
 
   test(
+    'packageSplit=true + generateFirstFeature=false: the shared core package '
+    'still gets created with zero feature packages, and the Workshop can '
+    'then add the real first feature as its own split package — the UI\'s '
+    'own canPackageSplit requires a first feature, but the generator\'s '
+    'packageSplitSupported never checks that, so this combo should already '
+    'work end to end; proving it rather than trusting the reasoning',
+    () async {
+      const projectName = 'neat_gen_pkgsplit_nofeature_test';
+      final logs = <String>[];
+      final noBuilderPackages = <PubPackage>[
+        _dep('hooks_riverpod', '3.3.1'),
+        _dep('flutter_hooks', '0.21.3+1'),
+        _dep('riverpod_annotation', '4.0.2'),
+        _dep('json_annotation', '4.11.0'),
+        _dep('freezed_annotation', '3.1.0'),
+        _dep('dio', '5.9.2'),
+        _dep('go_router', '17.2.3'),
+        _dev('riverpod_generator', '4.0.3'),
+        _dev('riverpod_lint', '3.1.3'),
+        _dev('json_serializable', '6.13.0'),
+        _dev('build_runner', '2.15.0'),
+        _dev('freezed', '3.2.5'),
+      ];
+
+      final identity = IdentityState(
+        name: projectName,
+        organization: 'com.neat.test',
+        projectPath: tempRoot.path,
+        description: 'NEAT packageSplit + no-first-feature integration test',
+        targetPlatforms: const ['macos'],
+      );
+      const architecture = ArchitectureState(packageSplit: true, generateFirstFeature: false);
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: identity,
+          packages: noBuilderPackages,
+          architecture: architecture,
+          cicd: const CicdState(),
+          theme: const ThemeEngineState(approach: ThemeApproach.customM3),
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('Generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+      final coreRoot = '${projectDir.path}/packages/core';
+      String read(String p) => File(p).readAsStringSync();
+
+      // The shared core package exists — this doesn't depend on a first
+      // feature (see _writeCorePackage's own gate: `if (corePackageName !=
+      // null)`, computed purely from packageSplitSupported).
+      expect(Directory(coreRoot).existsSync(), isTrue, reason: 'packages/core missing');
+      expect(read('$coreRoot/pubspec.yaml'), contains('name: core'));
+      expect(File('$coreRoot/lib/core/error/failure.dart').existsSync(), isTrue);
+      expect(File('$coreRoot/lib/core/usecases/use_case.dart').existsSync(), isTrue);
+
+      // No feature package at all — lib/features/ never existed either (the
+      // no-first-feature precedent), and packages/ has nothing beyond core.
+      expect(
+        Directory('${projectDir.path}/lib/features').existsSync(),
+        isFalse,
+      );
+      // core + the extracted UI package (theme.extractUiPackage defaults to
+      // true, independent of packageSplit/generateFirstFeature) — but no
+      // feature package, since none was requested yet.
+      final packageDirs = Directory('${projectDir.path}/packages')
+          .listSync()
+          .whereType<Directory>()
+          .map((d) => d.path.split(Platform.pathSeparator).last)
+          .toList();
+      expect(packageDirs, containsAll(['core', '${projectName}_ui']));
+      expect(packageDirs, hasLength(2), reason: 'no feature package should exist yet');
+
+      // Welcome placeholder, same as the non-split no-first-feature case.
+      expect(
+        File('${projectDir.path}/lib/core/pages/welcome_page.dart').existsSync(),
+        isTrue,
+      );
+      final routes = read('${projectDir.path}/lib/core/router/routes.dart');
+      expect(routes, contains('WelcomePage'));
+
+      // Root workspace wires only core in — no feature member/path dependency.
+      final rootPubspec = read('${projectDir.path}/pubspec.yaml');
+      expect(rootPubspec, contains('workspace:'));
+      expect(rootPubspec, contains('- packages/core'));
+      expect(rootPubspec, contains('core:\n    path: packages/core'));
+
+      // Reload sees packageSplit + zero features — ready for the Workshop.
+      final loaded = await const ProjectLoader().load(projectDir.path);
+      expect(loaded!.contract.packageSplit, isTrue);
+      expect(loaded.features, isEmpty);
+
+      // ── The Workshop adds the *real* first feature ──────────────────────
+      // GenerateFeatureUsecase never distinguishes "1st feature" from "5th
+      // feature" — every packageSplit feature-add creates its own package
+      // the same way, so this should already work without any special-casing.
+      await const GenerateFeatureUsecase().execute(
+        project: loaded,
+        options: const FeatureGenOptions(name: 'home'),
+        onLog: logs.add,
+      );
+
+      final homeRoot = '${projectDir.path}/packages/home';
+      expect(Directory(homeRoot).existsSync(), isTrue, reason: 'packages/home missing');
+      expect(read('$homeRoot/pubspec.yaml'), contains('name: home'));
+      expect(
+        read('$homeRoot/pubspec.yaml'),
+        contains('core:\n    path: ../core'),
+        reason: 'the Workshop-added feature depends on core via a sibling path dep',
+      );
+      expect(File('$homeRoot/lib/presentation/pages/home_page.dart').existsSync(), isTrue);
+      expect(
+        read('${projectDir.path}/pubspec.yaml'),
+        contains('home:\n    path: packages/home'),
+      );
+      expect(
+        read('${projectDir.path}/lib/core/router/routes.dart'),
+        contains("import 'package:home/presentation/pages/home_page.dart';"),
+      );
+
+      final reloaded = await const ProjectLoader().load(projectDir.path);
+      expect(reloaded!.features, ['home']);
+
+      final analyze = await Process.run(
+        'flutter',
+        ['analyze', '--no-pub'],
+        workingDirectory: projectDir.path,
+      );
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason: 'flutter analyze reported errors:\n${errorLines.join('\n')}\n\n'
+            '--- full analyze output ---\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
+
+  test(
     'packageSplit=true (Phase 1): shared <app>_core workspace package plus a '
     'split first feature package are generated, wired, and analyze cleanly',
     () async {
@@ -6831,6 +6977,101 @@ void main() {
         errorLines,
         isEmpty,
         reason: 'onboarding+auth project analyze reported issues:\n${errorLines.join('\n')}\n\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
+
+  test(
+    'onboarding + Auth + generateFirstFeature=false (real bug: both the '
+    "onboarding onDone redirect and the auth guard's post-login redirect "
+    'hardcoded AppRoutePath.<the leftover wizard default firstFeatureName> '
+    "instead of AppRoutePath.welcome — found in a real user's generated "
+    'project via a routing reference to the unused default feature name)',
+    () async {
+      const projectName = 'neat_onboarding_auth_nofeature_test';
+      final logs = <String>[];
+
+      final pkgs = <PubPackage>[
+        _dep('hooks_riverpod', '3.3.1'),
+        _dep('flutter_hooks', '0.21.3+1'),
+        _dep('riverpod_annotation', '4.0.2'),
+        _dep('supabase_flutter', '2.14.1'),
+        _dep('go_router', '17.2.3'),
+        _dep('json_annotation', '4.11.0'),
+        _dep('freezed_annotation', '3.1.0'),
+        _dev('riverpod_generator', '4.0.3'),
+        _dev('build_runner', '2.15.0'),
+        _dev('freezed', '3.2.5'),
+        _dev('json_serializable', '6.13.0'),
+        _dev('go_router_builder', '4.3.0'),
+      ];
+
+      final identity = IdentityState(
+        name: projectName,
+        organization: 'com.neat.test',
+        projectPath: tempRoot.path,
+        description: 'NEAT onboarding + auth + no-first-feature integration test',
+        targetPlatforms: const ['macos'],
+      );
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: identity,
+          packages: pkgs,
+          architecture: const ArchitectureState(
+            generateAuth: true,
+            generateOnboarding: true,
+            generateFirstFeature: false,
+          ),
+          cicd: const CicdState(),
+          theme: const ThemeEngineState(approach: ThemeApproach.customM3),
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('Onboarding + Auth + no-first-feature generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+
+      // onboarding's "done" redirect targets the welcome placeholder, not a
+      // nonexistent AppRoutePath.<default firstFeatureName> getter.
+      final routes = File(
+        '${projectDir.path}/lib/core/onboarding/onboarding_routes.dart',
+      ).readAsStringSync();
+      expect(routes, contains('context.go(AppRoutePath.welcome)'));
+
+      // The post-login auth guard redirects there too.
+      final notifier = File(
+        '${projectDir.path}/lib/core/router/router_notifier.dart',
+      ).readAsStringSync();
+      expect(notifier, contains('AppRoutePath.welcome'));
+
+      // app.dart's MaterialApp title is the project's own package name, never
+      // the wizard's leftover default first-feature name.
+      final app = File('${projectDir.path}/lib/app.dart').readAsStringSync();
+      expect(app, contains("title: '$projectName'"));
+
+      final analyze = await Process.run(
+        'flutter',
+        ['analyze', '--no-pub'],
+        workingDirectory: projectDir.path,
+      );
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      expect(
+        RegExp(r'(\d+ issues? found|No issues found)').hasMatch(out),
+        isTrue,
+        reason: 'flutter analyze did not run as expected:\n$out',
+      );
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where((l) => (l.contains(' error •') || l.contains(' warning •')) && !l.contains('• build/'))
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason: 'onboarding+auth+no-first-feature project analyze reported issues:\n'
+            '${errorLines.join('\n')}\n\n$out',
       );
     },
     timeout: const Timeout(Duration(minutes: 12)),
