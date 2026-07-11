@@ -38,6 +38,7 @@ dependencies:
   flex_color_scheme: ^8.0.2
   neat_ui:
     path: packages/neat_ui
+  desktop_drop: ^0.7.1
 
 
 dev_dependencies:

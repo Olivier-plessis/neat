@@ -28,8 +28,10 @@ class InfrastructureScreen extends ConsumerWidget {
       InfrastructureTab.management => 'Choose a state management system.',
       InfrastructureTab.backend =>
         'Pick a backend to seed your stack — its preset packages appear on the right.',
-      InfrastructureTab.navigation => 'Pick a navigation engine and how routes are declared.',
-      InfrastructureTab.localization => 'Pick which languages your app ships with.',
+      InfrastructureTab.navigation =>
+        'Pick a navigation engine and how routes are declared.',
+      InfrastructureTab.localization =>
+        'Pick which languages your app ships with.',
     };
     return ScreenForScaffold(
       title: title,
@@ -60,7 +62,8 @@ class _ManagementTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isBloc =
-        ref.watch(selectedPackagesProvider.select(stateManagementOf)) == StateManagementKind.bloc;
+        ref.watch(selectedPackagesProvider.select(stateManagementOf)) ==
+        StateManagementKind.bloc;
     final isRiverpod =
         ref.watch(selectedPackagesProvider.select(stateManagementOf)) ==
         StateManagementKind.riverpod;
@@ -128,7 +131,9 @@ class _StateManagementSelector extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final active = ref.watch(selectedPackagesProvider.select(stateManagementOf));
+    final active = ref.watch(
+      selectedPackagesProvider.select(stateManagementOf),
+    );
     final notifier = ref.read(selectedPackagesProvider.notifier);
 
     void pick(StateManagementKind kind) =>
@@ -273,13 +278,20 @@ class _BackendCard extends StatelessWidget {
               ),
             ),
             4.gapH,
-            Text(subtitle, style: TextStyle(color: Colors.grey[500], fontSize: 12)),
+            Text(
+              subtitle,
+              style: TextStyle(color: Colors.grey[500], fontSize: 12),
+            ),
             const SizedBox(height: 12),
             if (active)
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: const [
-                  Icon(Icons.check_circle, color: Palette.colorPrimaryCyan, size: 14),
+                  Icon(
+                    Icons.check_circle,
+                    color: Palette.colorPrimaryCyan,
+                    size: 14,
+                  ),
                   SizedBox(width: 6),
                   Text(
                     'SELECTED',
@@ -398,7 +410,12 @@ class _CompactOptionCard extends StatelessWidget {
                 ),
               ),
             ),
-            if (active) const Icon(Icons.check_circle, color: Palette.colorPrimaryCyan, size: 16),
+            if (active)
+              const Icon(
+                Icons.check_circle,
+                color: Palette.colorPrimaryCyan,
+                size: 16,
+              ),
           ],
         ),
       ),
@@ -419,7 +436,8 @@ class _BackendConfig extends ConsumerWidget {
       allowedExtensions: const ['json'],
     );
     final path = result?.files.single.path;
-    if (path != null) ref.read(architectureProvider.notifier).setFirebaseConfigPath(path);
+    if (path != null)
+      ref.read(architectureProvider.notifier).setFirebaseConfigPath(path);
   }
 
   @override
@@ -429,7 +447,9 @@ class _BackendConfig extends ConsumerWidget {
     final packagesNotifier = ref.read(selectedPackagesProvider.notifier);
     final arch = ref.watch(architectureProvider);
     final notifier = ref.read(architectureProvider.notifier);
-    final platforms = ref.watch(identityProvider.select((s) => s.targetPlatforms));
+    final platforms = ref.watch(
+      identityProvider.select((s) => s.targetPlatforms),
+    );
     final label = switch (backend) {
       BackendKind.rest => 'REST API',
       BackendKind.supabase => 'Supabase',
@@ -522,7 +542,9 @@ class _BackendConfig extends ConsumerWidget {
                   onPressed: notifier.addEnv,
                   icon: const Icon(Icons.add, size: 16),
                   label: const Text('Add environment'),
-                  style: TextButton.styleFrom(foregroundColor: Palette.colorPrimaryCyan),
+                  style: TextButton.styleFrom(
+                    foregroundColor: Palette.colorPrimaryCyan,
+                  ),
                 ),
             ],
             16.gapH,
@@ -555,7 +577,9 @@ class _NavigationTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final routingStyle = ref.watch(selectedPackagesProvider.select(routingStyleOf));
+    final routingStyle = ref.watch(
+      selectedPackagesProvider.select(routingStyleOf),
+    );
     final packagesNotifier = ref.read(selectedPackagesProvider.notifier);
     final arch = ref.watch(architectureProvider);
     final notifier = ref.read(architectureProvider.notifier);
@@ -564,7 +588,10 @@ class _NavigationTab extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _SectionLabel('Navigation provider', icon: Icons.alt_route_outlined),
+          const _SectionLabel(
+            'Navigation provider',
+            icon: Icons.alt_route_outlined,
+          ),
           12.gapH,
           const Row(
             spacing: 16,
@@ -618,7 +645,8 @@ class _NavigationTab extends ConsumerWidget {
                   title: 'Manual',
                   active: routingStyle == RoutingStyle.manual,
                   tooltip: 'Hand-written GoRoute list.',
-                  onTap: () => packagesNotifier.setRoutingStyle(RoutingStyle.manual),
+                  onTap: () =>
+                      packagesNotifier.setRoutingStyle(RoutingStyle.manual),
                 ),
               ),
               Expanded(
@@ -628,7 +656,8 @@ class _NavigationTab extends ConsumerWidget {
                   title: 'Typed',
                   active: routingStyle == RoutingStyle.typed,
                   tooltip: 'go_router_builder codegen.',
-                  onTap: () => packagesNotifier.setRoutingStyle(RoutingStyle.typed),
+                  onTap: () =>
+                      packagesNotifier.setRoutingStyle(RoutingStyle.typed),
                 ),
               ),
             ],
@@ -636,7 +665,10 @@ class _NavigationTab extends ConsumerWidget {
           24.gapH,
           const Divider(color: Colors.white10, height: 1),
           24.gapH,
-          const _SectionLabel('Navigation shell', icon: Icons.space_dashboard_outlined),
+          const _SectionLabel(
+            'Navigation shell',
+            icon: Icons.space_dashboard_outlined,
+          ),
           12.gapH,
           _ToggleRow(
             title: 'Bottom navigation shell',
@@ -737,9 +769,18 @@ class _ShellTabConfigState extends State<_ShellTabConfig> {
                         value: e.key,
                         child: Row(
                           children: [
-                            Icon(e.value, size: 16, color: Palette.colorPrimaryCyan),
+                            Icon(
+                              e.value,
+                              size: 16,
+                              color: Palette.colorPrimaryCyan,
+                            ),
                             const SizedBox(width: 8),
-                            Expanded(child: Text(e.key, overflow: TextOverflow.ellipsis)),
+                            Expanded(
+                              child: Text(
+                                e.key,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -757,7 +798,9 @@ class _ShellTabConfigState extends State<_ShellTabConfig> {
             style: const TextStyle(color: Colors.white, fontSize: 14),
             decoration: InputDecoration(
               labelText: 'First tab label',
-              hintText: widget.labelHint.isEmpty ? 'e.g. Home' : widget.labelHint,
+              hintText: widget.labelHint.isEmpty
+                  ? 'e.g. Home'
+                  : widget.labelHint,
             ),
           ),
         ),
@@ -777,7 +820,8 @@ class _LocalizationTab extends ConsumerWidget {
       allowedExtensions: const ['csv'],
     );
     final path = result?.files.single.path;
-    if (path != null) ref.read(architectureProvider.notifier).setI18nCsvPath(path);
+    if (path != null)
+      ref.read(architectureProvider.notifier).setI18nCsvPath(path);
   }
 
   @override
@@ -852,6 +896,8 @@ class _LocalizationTab extends ConsumerWidget {
                     'spreadsheet. Replaces the default scaffold above.',
                 onPick: () => _pickCsv(ref),
                 onRemove: () => notifier.setI18nCsvPath(''),
+                allowedExtensions: const ['csv'],
+                onFilePicked: notifier.setI18nCsvPath,
               ),
             ],
           ],
@@ -864,7 +910,10 @@ class _LocalizationTab extends ConsumerWidget {
 // ── File upload card (Firebase config / i18n CSV) ────────────────────────────
 
 /// A reusable "upload a file" row: title + hint (or the picked file name) + an
-/// Upload/Change button and a clear button.
+/// Upload/Change button and a clear button. Also a [DropZone] — dropping a
+/// file matching [allowedExtensions] calls [onFilePicked] directly (it
+/// already has the path, no picker dialog needed), same allow-list the
+/// click-to-browse [onPick] handler passes to `FilePicker.pickFiles`.
 class _UploadFileCard extends StatelessWidget {
   const _UploadFileCard({
     required this.title,
@@ -873,6 +922,8 @@ class _UploadFileCard extends StatelessWidget {
     required this.emptyHint,
     required this.onPick,
     required this.onRemove,
+    required this.allowedExtensions,
+    required this.onFilePicked,
   });
 
   final String title;
@@ -881,62 +932,77 @@ class _UploadFileCard extends StatelessWidget {
   final String emptyHint;
   final VoidCallback onPick;
   final VoidCallback onRemove;
+  final List<String> allowedExtensions;
+  final ValueChanged<String> onFilePicked;
 
   @override
   Widget build(BuildContext context) {
     final hasFile = filePath.isNotEmpty;
-    final fileName = hasFile ? filePath.split(Platform.pathSeparator).last : null;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF18181C),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white10),
+    final fileName = hasFile
+        ? filePath.split(Platform.pathSeparator).last
+        : null;
+    return DropZone(
+      allowedExtensions: allowedExtensions,
+      onFilePicked: onFilePicked,
+      onRejected: () => neatSnack(
+        context,
+        'Drop a .${allowedExtensions.join('/.')}  file',
+        success: false,
       ),
-      child: Row(
-        children: [
-          Icon(
-            hasFile ? Icons.check_circle_outline : icon,
-            color: hasFile ? Palette.colorPrimaryCyan : Colors.grey[500],
-            size: 20,
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        decoration: BoxDecoration(
+          color: const Color(0xFF18181C),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.white10),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              hasFile ? Icons.check_circle_outline : icon,
+              color: hasFile ? Palette.colorPrimaryCyan : Colors.grey[500],
+              size: 20,
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
+                  const SizedBox(height: 4),
+                  Text(
+                    fileName ?? emptyHint,
+                    style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            if (hasFile)
+              IconButton(
+                icon: const Icon(Icons.close, size: 18, color: Colors.white54),
+                onPressed: onRemove,
+                tooltip: 'Remove',
+              ),
+            OutlinedButton(
+              onPressed: onPick,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Palette.colorPrimaryCyan,
+                side: BorderSide(
+                  color: Palette.colorPrimaryCyan.withValues(alpha: 0.5),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  fileName ?? emptyHint,
-                  style: TextStyle(color: Colors.grey[500], fontSize: 12),
-                ),
-              ],
+              ),
+              child: Text(hasFile ? 'Change' : 'Upload'),
             ),
-          ),
-          const SizedBox(width: 12),
-          if (hasFile)
-            IconButton(
-              icon: const Icon(Icons.close, size: 18, color: Colors.white54),
-              onPressed: onRemove,
-              tooltip: 'Remove',
-            ),
-          OutlinedButton(
-            onPressed: onPick,
-            style: OutlinedButton.styleFrom(
-              foregroundColor: Palette.colorPrimaryCyan,
-              side: BorderSide(color: Palette.colorPrimaryCyan.withValues(alpha: 0.5)),
-            ),
-            child: Text(hasFile ? 'Change' : 'Upload'),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -981,7 +1047,9 @@ class _EnvFieldRow extends StatelessWidget {
     ),
     focusedBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(8),
-      borderSide: BorderSide(color: Palette.colorPrimaryCyan.withValues(alpha: 0.5)),
+      borderSide: BorderSide(
+        color: Palette.colorPrimaryCyan.withValues(alpha: 0.5),
+      ),
     ),
   );
 
@@ -1020,9 +1088,14 @@ class _EnvFieldRow extends StatelessWidget {
                 onTap: isBase ? null : onMakeBase,
                 borderRadius: BorderRadius.circular(4),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
-                    color: isBase ? Palette.colorPrimaryCyan.withValues(alpha: 0.12) : null,
+                    color: isBase
+                        ? Palette.colorPrimaryCyan.withValues(alpha: 0.12)
+                        : null,
                     border: Border.all(
                       color: isBase
                           ? Palette.colorPrimaryCyan.withValues(alpha: 0.5)
@@ -1044,7 +1117,9 @@ class _EnvFieldRow extends StatelessWidget {
           ),
           const SizedBox(width: 10),
           if (backend == BackendKind.supabase) ...[
-            Expanded(child: _field(env.supabaseUrl, 'Supabase URL', onSupabaseUrl)),
+            Expanded(
+              child: _field(env.supabaseUrl, 'Supabase URL', onSupabaseUrl),
+            ),
             const SizedBox(width: 8),
             Expanded(
               child: _field(
@@ -1055,7 +1130,13 @@ class _EnvFieldRow extends StatelessWidget {
               ),
             ),
           ] else
-            Expanded(child: _field(env.apiBaseUrl, 'API base URL (optional)', onApiUrl)),
+            Expanded(
+              child: _field(
+                env.apiBaseUrl,
+                'API base URL (optional)',
+                onApiUrl,
+              ),
+            ),
           if (onRemove != null)
             IconButton(
               icon: const Icon(Icons.close, size: 16, color: Colors.white38),
@@ -1100,10 +1181,17 @@ class _ToggleRow extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: TextStyle(color: titleColor, fontSize: 13, fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                    color: titleColor,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 const SizedBox(height: 2),
-                Text(description, style: TextStyle(color: Colors.grey[500], fontSize: 11)),
+                Text(
+                  description,
+                  style: TextStyle(color: Colors.grey[500], fontSize: 11),
+                ),
               ],
             ),
           ),
@@ -1119,7 +1207,11 @@ class _ToggleRow extends StatelessWidget {
 }
 
 class _FirebaseConfigUpload extends StatelessWidget {
-  const _FirebaseConfigUpload({required this.path, required this.onPick, required this.onClear});
+  const _FirebaseConfigUpload({
+    required this.path,
+    required this.onPick,
+    required this.onClear,
+  });
 
   final String path;
   final VoidCallback onPick;
@@ -1141,7 +1233,9 @@ class _FirebaseConfigUpload extends StatelessWidget {
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                hasFile ? path.split('/').last : 'Firebase config (JSON) — optional',
+                hasFile
+                    ? path.split('/').last
+                    : 'Firebase config (JSON) — optional',
                 style: TextStyle(color: Colors.grey[300], fontSize: 13),
                 overflow: TextOverflow.ellipsis,
               ),
@@ -1155,7 +1249,9 @@ class _FirebaseConfigUpload extends StatelessWidget {
               onPressed: onPick,
               style: OutlinedButton.styleFrom(
                 foregroundColor: Palette.colorPrimaryCyan,
-                side: BorderSide(color: Palette.colorPrimaryCyan.withValues(alpha: 0.5)),
+                side: BorderSide(
+                  color: Palette.colorPrimaryCyan.withValues(alpha: 0.5),
+                ),
               ),
               child: Text(hasFile ? 'Change' : 'Upload'),
             ),
@@ -1193,7 +1289,11 @@ class _ManagedPackagesPanel extends ConsumerWidget {
             padding: const EdgeInsets.all(16),
             child: Row(
               children: [
-                const Icon(Icons.inventory_2_outlined, color: Palette.colorPrimaryCyan, size: 16),
+                const Icon(
+                  Icons.inventory_2_outlined,
+                  color: Palette.colorPrimaryCyan,
+                  size: 16,
+                ),
                 const SizedBox(width: 8),
                 Text(
                   '${packages.length} SELECTED PACKAGES',
@@ -1211,7 +1311,10 @@ class _ManagedPackagesPanel extends ConsumerWidget {
           if (packages.isEmpty)
             const Expanded(
               child: Center(
-                child: Text('No packages added yet.', style: TextStyle(color: Colors.grey)),
+                child: Text(
+                  'No packages added yet.',
+                  style: TextStyle(color: Colors.grey),
+                ),
               ),
             )
           else
@@ -1257,7 +1360,9 @@ class _SheetPackageTileState extends ConsumerState<_SheetPackageTile> {
   }
 
   void _commit() {
-    ref.read(selectedPackagesProvider.notifier).setVersion(widget.package.name, _ctrl.text);
+    ref
+        .read(selectedPackagesProvider.notifier)
+        .setVersion(widget.package.name, _ctrl.text);
     setState(() => _editing = false);
   }
 
@@ -1293,7 +1398,10 @@ class _SheetPackageTileState extends ConsumerState<_SheetPackageTile> {
                             child: TextField(
                               controller: _ctrl,
                               autofocus: true,
-                              style: const TextStyle(color: Colors.white, fontSize: 12),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                              ),
                               decoration: InputDecoration(
                                 isDense: true,
                                 contentPadding: const EdgeInsets.symmetric(
@@ -1304,11 +1412,15 @@ class _SheetPackageTileState extends ConsumerState<_SheetPackageTile> {
                                 fillColor: const Color(0xFF2A2A2E),
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(4),
-                                  borderSide: const BorderSide(color: Palette.colorPrimaryCyan),
+                                  borderSide: const BorderSide(
+                                    color: Palette.colorPrimaryCyan,
+                                  ),
                                 ),
                                 focusedBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(4),
-                                  borderSide: const BorderSide(color: Palette.colorPrimaryCyan),
+                                  borderSide: const BorderSide(
+                                    color: Palette.colorPrimaryCyan,
+                                  ),
                                 ),
                               ),
                               onSubmitted: (_) => _commit(),
@@ -1321,7 +1433,10 @@ class _SheetPackageTileState extends ConsumerState<_SheetPackageTile> {
                               setState(() => _editing = true);
                             },
                             child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
                               decoration: BoxDecoration(
                                 color: const Color(0xFF2A2A2E),
                                 borderRadius: BorderRadius.circular(4),
@@ -1340,7 +1455,10 @@ class _SheetPackageTileState extends ConsumerState<_SheetPackageTile> {
                     Container(
                       width: 3,
                       height: 3,
-                      decoration: BoxDecoration(color: Colors.grey[600], shape: BoxShape.circle),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[600],
+                        shape: BoxShape.circle,
+                      ),
                     ),
                     const SizedBox(width: 8),
                     Text(
