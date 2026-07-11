@@ -1151,6 +1151,56 @@ Harness-proven: `pubspec_builder_test.dart` gained two cases (override present
 >     and `flutter analyze` 0/0 across the workspace. The pre-existing (non-
 >     merged) shell-child integration tests re-verified green, unaffected.
 >     Full suite green.
+> - ✅ **packageSplit without a first feature — done** (user noticed:
+>     turning off "Generate example feature" grayed out the packageSplit
+>     toggle, and since packageSplit can't be turned on retroactively on an
+>     existing project, skipping it at launch meant losing access to it
+>     forever — even though the Workshop treats every feature-add identically
+>     regardless of whether it's the 1st or 5th). The UI's own
+>     `canPackageSplit` required `generateFirstFeature`, but the generator's
+>     own `packageSplitSupported` never did — an unnecessary UI restriction,
+>     confirmed by reading both gates side by side. Proved the combo with a
+>     new integration test rather than trusting that reasoning alone, which
+>     surfaced two real bugs:
+>   - **Bug 1**: `_writeCorePackage`'s own `CoreTemplates.appRoutePath(...)`
+>     call never passed `hasFirstFeature`, so it always defaulted to `true`
+>     and wrote `AppRoutePath.home` — while the app's router files (which do
+>     respect `generateFirstFeature`) referenced `AppRoutePath.welcome`,
+>     producing an `undefined_getter` error. Then, when the Workshop later
+>     added the real "home" feature, its own `AppRoutePath.home` insertion
+>     collided with the stale one core already had, producing a
+>     `duplicate_definition` error too. Fixed by threading a new
+>     `hasFirstFeature` param through `_writeCorePackage`, set from
+>     `architecture.generateFirstFeature` at its call site.
+>   - **Bug 2** (pre-existing, only ever masked): `CorePackageTemplates.pubspec`
+>     hardcoded stale `riverpod_annotation: ^4.0.2` / `riverpod_generator:
+>     ^4.0.3` floors, while `featurePackagePubspec` (the split feature
+>     package) hardcodes newer `^4.0.3`/`^4.0.4`. In a pub workspace, a
+>     feature package's higher floor always dragged the whole workspace up to
+>     a mutually-compatible version — silently hiding that core's own pins
+>     were stale, in every packageSplit combo tested until now. With no
+>     first feature, nothing raises the floor, so the workspace resolved
+>     `riverpod_generator: 4.0.3` paired with a `riverpod` core version whose
+>     `AnyNotifier.runBuild` signature had already moved on (`WhenComplete
+>     Function()`, not `void`), producing an `invalid_override` error on the
+>     generated `theme_mode_controller.g.dart`. Found by generating both
+>     combos side by side and diffing the actual resolved `pubspec.lock`
+>     versions and generated `.g.dart` output, not by reasoning alone. Fixed
+>     by bumping `CorePackageTemplates.pubspec`'s floors to match
+>     `featurePackagePubspec`'s.
+>   - `canPackageSplit` (`architecture_screen.dart`) no longer requires
+>     `generateFirstFeature`; the toggle's description branches on whether a
+>     first feature is present (mentions the Workshop when it isn't) instead
+>     of listing it as a requirement.
+>   - Harness-proven: a new integration test generates `packageSplit: true` +
+>     `generateFirstFeature: false`, asserts the core package exists with
+>     zero feature packages, `lib/features/` never existed, the welcome
+>     placeholder owns the root route, then drives the Workshop to add "home"
+>     as the real first feature and asserts it lands as its own split
+>     package depending on core — `flutter analyze` 0/0 for the whole
+>     sequence. All 16 packageSplit integration tests green (the 15
+>     pre-existing combos + this new one), full fast suite (245 tests) and a
+>     project-wide `flutter analyze` green.
 
 ### 7. JSON-driven feature generation — big bet, high value
 
@@ -1240,6 +1290,35 @@ overlap — pick deliberately. → Phased:
       fakestoreapi.com for real, proving the absolute-URL override) and the
       zero-feature path for both plain go_router and go_router_builder routing
       shapes, plus the zero-table Drift case — all build_runner + analyze 0/0.
+    - ✅ **Follow-up: onboarding/auth redirects and the app title still leaked
+      the wizard's leftover default feature name — done**, found in a real
+      user's generated project (`packages/core/lib/core/constants/
+      app_route_path.dart` correctly had `welcome` with no first feature, but
+      `onboarding_routes.dart` referenced the nonexistent
+      `AppRoutePath.product` — `'product'` being `ArchitectureState`'s
+      default `firstFeatureName`, left over from the wizard even with the
+      toggle off). Root cause: two call sites in
+      `launch_generation_usecase.dart` built the "go home" redirect as
+      `'AppRoutePath.${_camelCase(featureName)}'` unconditionally — the
+      onboarding page's `onDone` callback, and the post-login auth guard in
+      `router_notifier.dart` — neither checked `generateFirstFeature`, unlike
+      `CoreTemplates.appRoutePath` itself (which already branches on
+      `hasFirstFeature` correctly) or `_writeRouter` (which already routes
+      `app_router.dart`/`routes.dart` to the welcome placeholder). Fixed with
+      one shared `_homeRouteExpr({featureName, hasFirstFeature})` helper
+      (`AppRoutePath.welcome` when `!hasFirstFeature`, mirroring
+      `CoreTemplates.appRoutePath`'s own branch) used at both sites, with
+      `hasFirstFeature` threaded into `_writeAuth`'s params. Also fixed in
+      passing, a real bug independent of this toggle: `app.dart`'s
+      `MaterialApp(.router)` `title:` was wired to `featureName` too — the
+      app's window/task-switcher title was always the example feature's
+      name, not the app's own — now uses `packageName`. Harness-proven: a new
+      integration test generates onboarding + auth + `generateFirstFeature:
+      false` together (the exact combo that exposed this — neither existing
+      onboarding test nor the no-first-feature tests combined the two) and
+      asserts both redirects target `AppRoutePath.welcome`, the app title is
+      the project's own package name, and `flutter analyze` 0/0. Full
+      onboarding suite (5 tests) and fast suite (245 tests) still green.
 - ✅ **Phase 2 — Typed endpoints ("Custom Endpoints")** — **done**, scoped down
   from the full vision on purpose. A new opt-in Workshop mode, **alongside**
   (not replacing) Entity + CRUD: a feature is N arbitrary

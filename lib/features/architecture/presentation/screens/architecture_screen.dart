@@ -48,14 +48,19 @@ class ArchitectureScreen extends ConsumerWidget {
     // packageSplit combo (see ROADMAP.md §6a): dio/chopper/supabase/firebase,
     // any storage strategy (remote-only, offline-first read, or offline-first
     // + sync/Outbox), Riverpod annotations, manual or typed (go_router_builder)
-    // routing, and a first feature to split. Auth/realtime/storage all work
-    // too (Auth stays app-level even when split — see AuthTemplates). Mirrors
+    // routing. A first feature is *not* required — packageSplitSupported
+    // (launch_generation_usecase.dart) never checked for one, and an
+    // integration test now proves the shared core package generates cleanly
+    // with zero feature packages, with the Workshop adding the real first
+    // feature as its own split package afterwards (previously the only way
+    // to get packageSplit at all, since it can't be turned on retroactively
+    // on an existing project). Auth/realtime/storage all work too (Auth
+    // stays app-level even when split — see AuthTemplates). Mirrors
     // launch_generation_usecase.dart's packageSplitSupported — the generator
     // re-derives this independently rather than trusting the raw flag, so
     // keeping the toggle disabled outside this combo is a UX courtesy, not
     // the only safety net.
     final canPackageSplit =
-        state.generateFirstFeature &&
         hasRiverpod &&
         state.useRiverpodAnnotations &&
         hasGoRouter &&
@@ -218,15 +223,20 @@ class ArchitectureScreen extends ConsumerWidget {
                       ToggleTile(
                         title: 'Split first feature into its own package',
                         description: canPackageSplit
-                            ? 'Team workflow: the first feature moves into its own workspace '
-                                  'package (packages/'
-                                  '${state.firstFeatureName.isEmpty ? '<feature>' : state.firstFeatureName}/), '
-                                  'depending only on a shared core package (Result/Failure/'
-                                  'UseCase/networking) — never on the app itself, so multiple devs '
-                                  'can own separate features without touching a shared lib/.'
-                            : 'Requires: a first feature, dio/chopper/Supabase/Firebase, and '
-                                  'Riverpod with @riverpod annotations — not yet available for '
-                                  'manual Notifier or Bloc/Cubit projects. See ROADMAP.md §6a.',
+                            ? (state.generateFirstFeature
+                                  ? 'Team workflow: the first feature moves into its own workspace '
+                                        'package (packages/'
+                                        '${state.firstFeatureName.isEmpty ? '<feature>' : state.firstFeatureName}/), '
+                                        'depending only on a shared core package (Result/Failure/'
+                                        'UseCase/networking) — never on the app itself, so multiple devs '
+                                        'can own separate features without touching a shared lib/.'
+                                  : 'Team workflow: the shared core package (Result/Failure/'
+                                        'UseCase/networking) is generated with zero feature packages — '
+                                        'add your first one later from the Workshop, already split into '
+                                        'its own packages/<feature>/, depending only on core.')
+                            : 'Requires: dio/chopper/Supabase/Firebase, and Riverpod with '
+                                  '@riverpod annotations — not yet available for manual Notifier or '
+                                  'Bloc/Cubit projects. See ROADMAP.md §6a.',
                         value: canPackageSplit && state.packageSplit,
                         disabled: !canPackageSplit,
                         onChanged: notifier.togglePackageSplit,

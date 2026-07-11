@@ -307,6 +307,7 @@ class LaunchGenerationUsecase {
         useShell: useShell,
         featurePackageName: featurePackageName,
         hasOnboarding: autoWireOnboarding,
+        hasFirstFeature: architecture.generateFirstFeature,
       );
       onLog('[✓] packages/$corePackageName created.');
     }
@@ -677,7 +678,7 @@ class LaunchGenerationUsecase {
     await _write(
       '$lib/app.dart',
       AppTemplates.appDart(
-        name: featureName,
+        name: packageName,
         hasGoRouter: hasGoRouter,
         hasRiverpod: hasRiverpod,
         useAnnotations: useAnnotations,
@@ -1014,6 +1015,7 @@ class LaunchGenerationUsecase {
         corePackageName: corePackageName,
         authPackageName: authPackageName,
         hasOnboarding: autoWireOnboarding,
+        hasFirstFeature: architecture.generateFirstFeature,
       );
     }
 
@@ -1083,7 +1085,10 @@ class LaunchGenerationUsecase {
         OnboardingTemplates.onboardingPage(packageName: packageName, autoWired: autoWireOnboarding),
       );
       if (autoWireOnboarding) {
-        final onboardingHomeRoute = 'AppRoutePath.${_camelCase(featureName)}';
+        final onboardingHomeRoute = _homeRouteExpr(
+          featureName: featureName,
+          hasFirstFeature: architecture.generateFirstFeature,
+        );
         await _write(
           '$lib/core/onboarding/onboarding_routes.dart',
           OnboardingTemplates.onboardingRoutesBuilder(
@@ -1554,6 +1559,7 @@ dev_dependencies:
     String? corePackageName,
     String? authPackageName,
     bool hasOnboarding = false,
+    bool hasFirstFeature = true,
   }) async {
     final a = authPackageName != null
         ? '${projectDir.path}/packages/$authPackageName/lib'
@@ -1640,7 +1646,7 @@ dev_dependencies:
 
     // The go_router guard. Logged-in users on an auth route go to the first
     // feature's route ('/'). router_notifier.dart always stays app-level.
-    final homeRoute = 'AppRoutePath.${_camelCase(featureName)}';
+    final homeRoute = _homeRouteExpr(featureName: featureName, hasFirstFeature: hasFirstFeature);
     await _write(
       '$lib/core/router/router_notifier.dart',
       AuthTemplates.routerNotifier(
@@ -1719,6 +1725,14 @@ dev_dependencies:
     final pascal = parts.map((w) => w.isEmpty ? '' : w[0].toUpperCase() + w.substring(1)).join();
     return pascal.isEmpty ? pascal : pascal[0].toLowerCase() + pascal.substring(1);
   }
+
+  // No first feature → there's no `AppRoutePath.<feature>` constant to land
+  // on (see CoreTemplates.appRoutePath's own hasFirstFeature branch) — every
+  // "go home" redirect (onboarding's onDone, the post-login auth guard) must
+  // target the welcome placeholder instead, or it references a getter that
+  // was never generated.
+  static String _homeRouteExpr({required String featureName, required bool hasFirstFeature}) =>
+      'AppRoutePath.${hasFirstFeature ? _camelCase(featureName) : 'welcome'}';
 
   Future<void> _writeRouter({
     required String lib,
@@ -2116,6 +2130,10 @@ dev_dependencies:
     // "Replay onboarding" settings action — and can only reach it through
     // this mirrored copy, never the app's own.
     bool hasOnboarding = false,
+    // Same rationale as hasAuth/hasOnboarding above: a Workshop-added feature
+    // package reads AppRoutePath from here too, so it must mirror whichever
+    // entry (first-feature vs welcome placeholder) the app itself resolved to.
+    bool hasFirstFeature = true,
   }) async {
     final root = '${projectDir.path}/packages/$corePackageName';
     await _write(
@@ -2232,6 +2250,7 @@ dev_dependencies:
       // doc above.
       CoreTemplates.appRoutePath(
         featureName: featureName,
+        hasFirstFeature: hasFirstFeature,
         hasAuth: hasAuth,
         hasOnboarding: hasOnboarding,
       ),

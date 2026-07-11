@@ -12,6 +12,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  desktop_drop: ^0.7.1
 
 dev_dependencies:
   flutter_test:

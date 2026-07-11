@@ -79,13 +79,13 @@ resolution: workspace
 dependencies:
   flutter:
     sdk: flutter
-  riverpod_annotation: ^4.0.2
+  riverpod_annotation: ^4.0.3
 $clientDep$offlineDeps$i18nDeps$shellDep  logger: ^2.7.0
 
 dev_dependencies:
   flutter_lints: ^6.0.0
   build_runner: ^2.15.0
-  riverpod_generator: ^4.0.3
+  riverpod_generator: ^4.0.4
 ''';
   }
 
