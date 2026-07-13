@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:neat/features/dependencies/domain/models/pub_package.dart';
 import 'package:neat/features/generation/domain/services/templates/core_templates.dart';
-import 'package:neat/features/generation/domain/usecases/launch_generation_usecase.dart';
+import 'package:neat/features/generation/domain/usecases/writers/pubspec_writer.dart';
 import 'package:neat/features/theme_engine/domain/services/theme_templates.dart';
 
 void main() {
@@ -72,7 +72,7 @@ dev_dependencies:
 ''';
 
     test('addBranding injects the icon + splash dev deps', () {
-      final out = LaunchGenerationUsecase.buildPubspecContent(
+      final out = PubspecWriter.buildPubspecContent(
         base,
         const <PubPackage>[],
         addBranding: true,
@@ -82,7 +82,7 @@ dev_dependencies:
     });
 
     test('no branding deps when addBranding is false', () {
-      final out = LaunchGenerationUsecase.buildPubspecContent(base, const <PubPackage>[]);
+      final out = PubspecWriter.buildPubspecContent(base, const <PubPackage>[]);
       expect(out, isNot(contains('flutter_launcher_icons')));
       expect(out, isNot(contains('flutter_native_splash')));
     });

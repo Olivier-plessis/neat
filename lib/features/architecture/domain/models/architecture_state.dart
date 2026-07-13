@@ -178,12 +178,14 @@ abstract class ArchitectureState with _$ArchitectureState {
   }
 
   /// The production base environment (index clamped to a valid range).
-  EnvConfig get baseEnv => environments[baseEnvIndex.clamp(0, environments.length - 1)];
+  EnvConfig get baseEnv =>
+      environments[baseEnvIndex.clamp(0, environments.length - 1)];
 
   /// The first tab's label (falls back to the feature name, capitalised).
   String get effectiveShellLabel {
     if (shellLabel.trim().isNotEmpty) return shellLabel.trim();
     if (firstFeatureName.isEmpty) return '';
-    return firstFeatureName[0].toUpperCase() + firstFeatureName.substring(1).replaceAll('_', ' ');
+    return firstFeatureName[0].toUpperCase() +
+        firstFeatureName.substring(1).replaceAll('_', ' ');
   }
 }
