@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:neat/core/app_info/app_version_provider.dart';
 import 'package:neat/features/architecture/presentation/providers/architecture_provider.dart';
+import 'package:neat/features/architecture/presentation/providers/architecture_tab_provider.dart';
 import 'package:neat/features/architecture/presentation/screens/architecture_screen.dart';
 import 'package:neat/features/cicd/presentation/screens/cicd_screen.dart';
 import 'package:neat/features/dependencies/domain/models/pub_package.dart';
@@ -45,7 +46,9 @@ class MainLayout extends ConsumerWidget {
               children: [
                 // Logo + version (click → back to the Hub)
                 InkWell(
-                  onTap: () => ref.read(currentStepProvider.notifier).setStep(NeatStep.hub),
+                  onTap: () => ref
+                      .read(currentStepProvider.notifier)
+                      .setStep(NeatStep.hub),
                   child: Padding(
                     padding: const .fromLTRB(20, 28, 20, 24),
                     child: Row(
@@ -56,9 +59,17 @@ class MainLayout extends ConsumerWidget {
                           decoration: BoxDecoration(
                             color: context.neatColors.mainDark,
                             borderRadius: .circular(10),
-                            border: .all(color: Palette.colorPrimaryCyan.withValues(alpha: 0.4)),
+                            border: .all(
+                              color: Palette.colorPrimaryCyan.withValues(
+                                alpha: 0.4,
+                              ),
+                            ),
                           ),
-                          child: const Icon(Icons.bolt, color: Palette.colorPrimaryCyan, size: 22),
+                          child: const Icon(
+                            Icons.bolt,
+                            color: Palette.colorPrimaryCyan,
+                            size: 22,
+                          ),
                         ),
                         12.gapW,
                         Column(
@@ -74,15 +85,23 @@ class MainLayout extends ConsumerWidget {
                               ),
                             ),
                             Container(
-                              padding: const .symmetric(horizontal: 6, vertical: 1),
+                              padding: const .symmetric(
+                                horizontal: 6,
+                                vertical: 1,
+                              ),
                               decoration: BoxDecoration(
-                                border: .all(color: context.neatColors.surface10),
+                                border: .all(
+                                  color: context.neatColors.surface10,
+                                ),
                                 borderRadius: .circular(3),
                               ),
                               child: Text(
                                 ref
                                     .watch(appVersionProvider)
-                                    .maybeWhen(data: (v) => v.toUpperCase(), orElse: () => '…'),
+                                    .maybeWhen(
+                                      data: (v) => v.toUpperCase(),
+                                      orElse: () => '…',
+                                    ),
                                 style: TextStyle(
                                   color: context.neatColors.mainFont,
                                   fontSize: 9,
@@ -101,8 +120,18 @@ class MainLayout extends ConsumerWidget {
                 16.gapH,
 
                 // Wizard steps (featureGen / Workshop is reached from the Hub).
-                _buildItem(ref, NeatStep.identity, 'IDENTITY', Icons.fingerprint_outlined),
-                _buildItem(ref, NeatStep.themeEngine, 'THEME ENGINE', Icons.palette_outlined),
+                _buildItem(
+                  ref,
+                  NeatStep.identity,
+                  'IDENTITY',
+                  Icons.fingerprint_outlined,
+                ),
+                _buildItem(
+                  ref,
+                  NeatStep.themeEngine,
+                  'THEME ENGINE',
+                  Icons.palette_outlined,
+                ),
                 // Sub-tabs only apply to the Custom M3 editor (FlexColorScheme
                 // and the entry point have no sub-tabs of their own).
                 if (currentStep == NeatStep.themeEngine &&
@@ -111,14 +140,26 @@ class MainLayout extends ConsumerWidget {
                   Column(
                     crossAxisAlignment: .start,
                     children: [
-                      _buildThemeEngineSubItem(ref, ThemeEngineTab.colors, 'COLORS'),
-                      _buildThemeEngineSubItem(ref, ThemeEngineTab.typography, 'TYPOGRAPHY'),
+                      _buildThemeEngineSubItem(
+                        ref,
+                        ThemeEngineTab.colors,
+                        'COLORS',
+                      ),
+                      _buildThemeEngineSubItem(
+                        ref,
+                        ThemeEngineTab.typography,
+                        'TYPOGRAPHY',
+                      ),
                       _buildThemeEngineSubItem(
                         ref,
                         ThemeEngineTab.buttonsShapes,
                         'BUTTONS & SHAPES',
                       ),
-                      _buildThemeEngineSubItem(ref, ThemeEngineTab.icons, 'COMPONENTS & ICONS'),
+                      _buildThemeEngineSubItem(
+                        ref,
+                        ThemeEngineTab.icons,
+                        'COMPONENTS & ICONS',
+                      ),
                     ],
                   ),
                 ],
@@ -128,8 +169,16 @@ class MainLayout extends ConsumerWidget {
                   Column(
                     crossAxisAlignment: .start,
                     children: [
-                      _buildThemeEngineSubItem(ref, ThemeEngineTab.colors, 'PLAYGROUND'),
-                      _buildThemeEngineSubItem(ref, ThemeEngineTab.icons, 'COMPONENTS & ICONS'),
+                      _buildThemeEngineSubItem(
+                        ref,
+                        ThemeEngineTab.colors,
+                        'PLAYGROUND',
+                      ),
+                      _buildThemeEngineSubItem(
+                        ref,
+                        ThemeEngineTab.icons,
+                        'COMPONENTS & ICONS',
+                      ),
                     ],
                   ),
                 ],
@@ -143,15 +192,59 @@ class MainLayout extends ConsumerWidget {
                   Column(
                     crossAxisAlignment: .start,
                     children: [
-                      _buildSubItem(ref, InfrastructureTab.management, 'STATE MANAGEMENT'),
+                      _buildSubItem(
+                        ref,
+                        InfrastructureTab.management,
+                        'STATE MANAGEMENT',
+                      ),
                       _buildSubItem(ref, InfrastructureTab.backend, 'BACKEND'),
-                      _buildSubItem(ref, InfrastructureTab.navigation, 'NAVIGATION'),
-                      _buildSubItem(ref, InfrastructureTab.localization, 'LOCALIZATION'),
+                      _buildSubItem(
+                        ref,
+                        InfrastructureTab.navigation,
+                        'NAVIGATION',
+                      ),
+                      _buildSubItem(
+                        ref,
+                        InfrastructureTab.localization,
+                        'LOCALIZATION',
+                      ),
                     ],
                   ),
                 ],
-                _buildItem(ref, NeatStep.packages, 'DEPENDENCIES', Icons.extension_outlined),
-                _buildItem(ref, NeatStep.architecture, 'ARCHITECTURE', Icons.account_tree_outlined),
+                _buildItem(
+                  ref,
+                  NeatStep.packages,
+                  'DEPENDENCIES',
+                  Icons.extension_outlined,
+                ),
+                _buildItem(
+                  ref,
+                  NeatStep.architecture,
+                  'ARCHITECTURE',
+                  Icons.account_tree_outlined,
+                ),
+                if (currentStep == NeatStep.architecture) ...[
+                  Column(
+                    crossAxisAlignment: .start,
+                    children: [
+                      _buildArchitectureSubItem(
+                        ref,
+                        ArchitectureTab.structure,
+                        'STRUCTURE',
+                      ),
+                      _buildArchitectureSubItem(
+                        ref,
+                        ArchitectureTab.storage,
+                        'STORAGE',
+                      ),
+                      _buildArchitectureSubItem(
+                        ref,
+                        ArchitectureTab.features,
+                        'FEATURES',
+                      ),
+                    ],
+                  ),
+                ],
                 _buildItem(ref, NeatStep.cicd, 'CI/CD', Icons.rocket_outlined),
 
                 const Spacer(),
@@ -169,7 +262,9 @@ class MainLayout extends ConsumerWidget {
                           children: [
                             Text(
                               'PROGRESS',
-                              style: context.textTheme.labelMedium!.copyWith(letterSpacing: 1.2),
+                              style: context.textTheme.labelMedium!.copyWith(
+                                letterSpacing: 1.2,
+                              ),
                             ),
                             Text(
                               '${currentStep.wizardIndex + 1}/${NeatStepX.wizardTotal}',
@@ -181,9 +276,13 @@ class MainLayout extends ConsumerWidget {
                         ClipRRect(
                           borderRadius: .circular(4),
                           child: LinearProgressIndicator(
-                            value: (currentStep.wizardIndex + 1) / NeatStepX.wizardTotal,
+                            value:
+                                (currentStep.wizardIndex + 1) /
+                                NeatStepX.wizardTotal,
                             backgroundColor: context.neatColors.surface10,
-                            valueColor: const AlwaysStoppedAnimation(Palette.colorPrimaryCyan),
+                            valueColor: const AlwaysStoppedAnimation(
+                              Palette.colorPrimaryCyan,
+                            ),
                             minHeight: 4,
                           ),
                         ),
@@ -226,13 +325,17 @@ class MainLayout extends ConsumerWidget {
     final reachable = _canNavigateTo(step, current, ref);
 
     return InkWell(
-      onTap: reachable ? () => ref.read(currentStepProvider.notifier).setStep(step) : null,
+      onTap: reachable
+          ? () => ref.read(currentStepProvider.notifier).setStep(step)
+          : null,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         margin: const .symmetric(horizontal: 12, vertical: 2),
         padding: const .symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: isSelected ? Palette.colorPrimaryCyan.withValues(alpha: 0.08) : Colors.transparent,
+          color: isSelected
+              ? Palette.colorPrimaryCyan.withValues(alpha: 0.08)
+              : Colors.transparent,
           borderRadius: .circular(8),
           border: .all(
             color: isSelected
@@ -285,13 +388,52 @@ class MainLayout extends ConsumerWidget {
     final isSelected = current == tab;
 
     return InkWell(
-      onTap: () => ref.read(currentInfrastructureTabProvider.notifier).setTab(tab),
+      onTap: () =>
+          ref.read(currentInfrastructureTabProvider.notifier).setTab(tab),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         margin: const .fromLTRB(28, 1, 12, 1),
         padding: const .symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? Palette.colorPrimaryCyan.withValues(alpha: 0.06) : Colors.transparent,
+          color: isSelected
+              ? Palette.colorPrimaryCyan.withValues(alpha: 0.06)
+              : Colors.transparent,
+          borderRadius: .circular(6),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? Palette.colorPrimaryCyan : Colors.grey[600],
+            fontSize: 11,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            letterSpacing: 0.6,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// A sub-item nested under [NeatStep.architecture] (Structure/Storage/
+  /// Features). Mirrors [_buildSubItem] exactly.
+  Widget _buildArchitectureSubItem(
+    WidgetRef ref,
+    ArchitectureTab tab,
+    String label,
+  ) {
+    final current = ref.watch(currentArchitectureTabProvider);
+    final isSelected = current == tab;
+
+    return InkWell(
+      onTap: () =>
+          ref.read(currentArchitectureTabProvider.notifier).setTab(tab),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        margin: const .fromLTRB(28, 1, 12, 1),
+        padding: const .symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? Palette.colorPrimaryCyan.withValues(alpha: 0.06)
+              : Colors.transparent,
           borderRadius: .circular(6),
         ),
         child: Text(
@@ -309,7 +451,11 @@ class MainLayout extends ConsumerWidget {
 
   /// A sub-item nested under [NeatStep.themeEngine] (Custom M3 only — see
   /// its call site). Mirrors [_buildSubItem] exactly.
-  Widget _buildThemeEngineSubItem(WidgetRef ref, ThemeEngineTab tab, String label) {
+  Widget _buildThemeEngineSubItem(
+    WidgetRef ref,
+    ThemeEngineTab tab,
+    String label,
+  ) {
     final current = ref.watch(currentThemeEngineTabProvider);
     final isSelected = current == tab;
 
@@ -320,7 +466,9 @@ class MainLayout extends ConsumerWidget {
         margin: const .fromLTRB(28, 1, 12, 1),
         padding: const .symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? Palette.colorPrimaryCyan.withValues(alpha: 0.06) : Colors.transparent,
+          color: isSelected
+              ? Palette.colorPrimaryCyan.withValues(alpha: 0.06)
+              : Colors.transparent,
           borderRadius: .circular(6),
         ),
         child: Text(
@@ -362,7 +510,10 @@ class _WorkshopMode extends ConsumerWidget {
       body: Column(
         children: [
           const Expanded(
-            child: Padding(padding: EdgeInsets.fromLTRB(40, 16, 40, 0), child: FeatureGenScreen()),
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(40, 16, 40, 0),
+              child: FeatureGenScreen(),
+            ),
           ),
         ],
       ),
@@ -382,6 +533,12 @@ class _NavBar extends ConsumerWidget {
     InfrastructureTab.backend,
     InfrastructureTab.navigation,
     InfrastructureTab.localization,
+  ];
+
+  static final _architectureTabs = [
+    ArchitectureTab.structure,
+    ArchitectureTab.storage,
+    ArchitectureTab.features,
   ];
 
   static final _themeTabs = [
@@ -409,7 +566,20 @@ class _NavBar extends ConsumerWidget {
         ? ref.watch(currentInfrastructureTabProvider)
         : null;
     final infraTabIndex = infraTab == null ? -1 : _infraTabs.indexOf(infraTab);
-    final infraTabNotifier = ref.read(currentInfrastructureTabProvider.notifier);
+    final infraTabNotifier = ref.read(
+      currentInfrastructureTabProvider.notifier,
+    );
+
+    // Same idea for Architecture's 3 sub-tabs (Structure/Storage/Features).
+    final architectureTab = step == NeatStep.architecture
+        ? ref.watch(currentArchitectureTabProvider)
+        : null;
+    final architectureTabIndex = architectureTab == null
+        ? -1
+        : _architectureTabs.indexOf(architectureTab);
+    final architectureTabNotifier = ref.read(
+      currentArchitectureTabProvider.notifier,
+    );
 
     // Same idea for Theme Engine's sub-tabs — Custom M3 has 4 (colors,
     // typography, buttons & shapes, icons), FlexColorScheme has 2 (playground,
@@ -421,10 +591,13 @@ class _NavBar extends ConsumerWidget {
         ? _themeTabsFlex
         : _themeTabs;
     final themeTab =
-        themeApproach == ThemeApproach.customM3 || themeApproach == ThemeApproach.flexColorScheme
+        themeApproach == ThemeApproach.customM3 ||
+            themeApproach == ThemeApproach.flexColorScheme
         ? ref.watch(currentThemeEngineTabProvider)
         : null;
-    final themeTabIndex = themeTab == null ? -1 : activeThemeTabs.indexOf(themeTab);
+    final themeTabIndex = themeTab == null
+        ? -1
+        : activeThemeTabs.indexOf(themeTab);
     final themeTabNotifier = ref.read(currentThemeEngineTabProvider.notifier);
 
     final bool canGoNext = _isStepValid(step, ref);
@@ -440,19 +613,29 @@ class _NavBar extends ConsumerWidget {
         infraTabNotifier.setTab(_infraTabs[infraTabIndex + 1]);
         return;
       }
+      if (architectureTab != null &&
+          architectureTabIndex < _architectureTabs.length - 1) {
+        architectureTabNotifier.setTab(
+          _architectureTabs[architectureTabIndex + 1],
+        );
+        return;
+      }
       if (themeTab != null && themeTabIndex < activeThemeTabs.length - 1) {
         themeTabNotifier.setTab(activeThemeTabs[themeTabIndex + 1]);
         return;
       }
       // Lazy: add flex dep here if user chose FlexColorScheme
       if (step == NeatStep.themeEngine) {
-        final approach = ref.read(themeEngineProvider.select((s) => s.approach));
+        final approach = ref.read(
+          themeEngineProvider.select((s) => s.approach),
+        );
         if (approach == ThemeApproach.flexColorScheme) {
           ref.read(selectedPackagesProvider.notifier).addAll([
             const PubPackage(
               name: 'flex_color_scheme',
               version: '8.0.2',
-              description: 'Advanced Flutter theming with Material 3 surface blending.',
+              description:
+                  'Advanced Flutter theming with Material 3 surface blending.',
               pubPoints: 160,
               popularity: 95,
             ),
@@ -470,6 +653,12 @@ class _NavBar extends ConsumerWidget {
         infraTabNotifier.setTab(_infraTabs[infraTabIndex - 1]);
         return;
       }
+      if (architectureTab != null && architectureTabIndex > 0) {
+        architectureTabNotifier.setTab(
+          _architectureTabs[architectureTabIndex - 1],
+        );
+        return;
+      }
       if (themeTab != null && themeTabIndex > 0) {
         themeTabNotifier.setTab(activeThemeTabs[themeTabIndex - 1]);
         return;
@@ -477,10 +666,16 @@ class _NavBar extends ConsumerWidget {
       if (prev != null) notifier.setStep(prev);
     }
 
-    final showBack = prev != null || infraTabIndex > 0 || themeTabIndex > 0;
+    final showBack =
+        prev != null ||
+        infraTabIndex > 0 ||
+        architectureTabIndex > 0 ||
+        themeTabIndex > 0;
     final showNext =
         next != null ||
         (infraTab != null && infraTabIndex < _infraTabs.length - 1) ||
+        (architectureTab != null &&
+            architectureTabIndex < _architectureTabs.length - 1) ||
         (themeTab != null && themeTabIndex < activeThemeTabs.length - 1);
 
     return Container(
@@ -531,7 +726,9 @@ class _NavBar extends ConsumerWidget {
 bool _isStepValid(NeatStep step, WidgetRef ref) {
   return switch (step) {
     NeatStep.identity => ref.watch(
-      identityProvider.select((s) => s.isIdentityValid && s.projectPath.isNotEmpty),
+      identityProvider.select(
+        (s) => s.isIdentityValid && s.projectPath.isNotEmpty,
+      ),
     ),
 
     NeatStep.themeEngine => ref.watch(
