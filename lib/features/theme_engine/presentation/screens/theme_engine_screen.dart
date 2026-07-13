@@ -74,7 +74,7 @@ class ThemeEngineScreen extends ConsumerWidget {
               onTapFlex: () => notifier.setApproach(ThemeApproach.flexColorScheme),
             )
           : Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: .start,
               children: [
                 Clickable(
                   onTap: () {
@@ -82,7 +82,7 @@ class ThemeEngineScreen extends ConsumerWidget {
                     ref.read(selectedPackagesProvider.notifier).remove('flex_color_scheme');
                   },
                   child: const Padding(
-                    padding: EdgeInsets.only(bottom: 16),
+                    padding: .only(bottom: 16),
                     child: Text(
                       '← Change approach',
                       style: TextStyle(
@@ -96,10 +96,10 @@ class ThemeEngineScreen extends ConsumerWidget {
                 ),
                 Expanded(
                   child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: .start,
+                    spacing: 28,
                     children: [
                       Expanded(flex: 3, child: editor),
-                      const SizedBox(width: 28),
                       const SizedBox(width: 272, child: LivePreviewCard()),
                     ],
                   ),

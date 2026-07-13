@@ -15,7 +15,12 @@ class GenerateTreeUsecase {
     bool packageSplit = false,
   }) {
     return state.pattern == StructuralPattern.featureFirst
-        ? _featureFirst(state, hasRiverpod: hasRiverpod, hasBloc: hasBloc, packageSplit: packageSplit)
+        ? _featureFirst(
+            state,
+            hasRiverpod: hasRiverpod,
+            hasBloc: hasBloc,
+            packageSplit: packageSplit,
+          )
         : _layerFirst(state, hasRiverpod: hasRiverpod, hasBloc: hasBloc);
   }
 
@@ -36,7 +41,9 @@ class GenerateTreeUsecase {
       // Workshop after generation).
       return lines.join('\n');
     }
-    final f = state.firstFeatureName.isEmpty ? 'feature' : state.firstFeatureName;
+    final f = state.firstFeatureName.isEmpty
+        ? 'feature'
+        : state.firstFeatureName;
 
     // packageSplit: the feature lives in its own workspace package (package
     // root == feature root), not nested under lib/ at all — shown as its own
@@ -56,8 +63,11 @@ class GenerateTreeUsecase {
       lines.add('│   └── usecases/');
       lines.add('└── presentation/');
       lines.add('    ├── pages/');
-      for (final folder
-          in _stateManagementFolders(hasRiverpod: hasRiverpod, hasBloc: hasBloc, useCubit: state.useCubit)) {
+      for (final folder in _stateManagementFolders(
+        hasRiverpod: hasRiverpod,
+        hasBloc: hasBloc,
+        useCubit: state.useCubit,
+      )) {
         lines.add('    ├── $folder/');
       }
       lines.add('    ├── routes/');
@@ -110,7 +120,11 @@ class GenerateTreeUsecase {
     return lines.join('\n');
   }
 
-  String _layerFirst(ArchitectureState state, {required bool hasRiverpod, required bool hasBloc}) {
+  String _layerFirst(
+    ArchitectureState state, {
+    required bool hasRiverpod,
+    required bool hasBloc,
+  }) {
     final lines = <String>[];
     lines.add('lib/');
     lines.add(state.generateFirstFeature ? '├── core/' : '└── core/');
@@ -120,7 +134,9 @@ class GenerateTreeUsecase {
     if (!state.generateFirstFeature) {
       return lines.join('\n');
     }
-    final f = state.firstFeatureName.isEmpty ? 'feature' : state.firstFeatureName;
+    final f = state.firstFeatureName.isEmpty
+        ? 'feature'
+        : state.firstFeatureName;
     lines.add('├── data/');
     lines.add('│   └── $f/');
     lines.add('│       ├── models/');
