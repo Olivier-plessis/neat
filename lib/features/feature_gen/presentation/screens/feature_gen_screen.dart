@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:neat/core/contract/neat_contract.dart';
-import 'package:neat/features/architecture/presentation/widgets/entity_fields_editor.dart';
 import 'package:neat/features/feature_gen/domain/models/feature_gen_options.dart';
 import 'package:neat/features/feature_gen/presentation/providers/workshop_controller.dart';
+import 'package:neat/features/feature_gen/presentation/widgets/entity_fields_editor.dart';
 import 'package:neat/features/generation/domain/models/endpoint_spec.dart';
 import 'package:neat/features/generation/domain/models/field_spec.dart';
 import 'package:neat/features/generation/domain/services/json_entity_inferencer.dart';
@@ -41,7 +41,7 @@ class FeatureGenScreen extends HookConsumerWidget {
                     width: 40,
                     height: 40,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF111416),
+                      color: context.neatColors.colorSurfaceCard,
                       borderRadius: .circular(10),
                       border: .all(color: Palette.colorPrimaryCyan.withValues(alpha: 0.4)),
                     ),
@@ -49,22 +49,19 @@ class FeatureGenScreen extends HookConsumerWidget {
                   ),
                 ),
 
-                const Text(
-                  'Feature Workshop',
-                  style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white),
-                ),
+                Text('Feature Workshop', style: context.textTheme.headlineLarge),
               ],
             ),
           ),
         ),
 
-        8.gapH,
+        4.gapH,
         Text(
           'Generate production-ready features for your existing project. '
           'Select layers and routing strategy.',
-          style: TextStyle(color: Colors.grey[400], fontSize: 14),
+          style: context.textTheme.bodyLarge,
         ),
-        12.gapH,
+        16.gapH,
         Expanded(
           child: project == null
               ? _OpenProjectPanel(error: state.error, onOpen: () => _pickAndOpen(notifier))
@@ -203,6 +200,235 @@ class _Workshop extends HookWidget {
 
     void set(FeatureGenOptions v) => options.value = v;
 
+    // Stepper: Custom Endpoints has no separate "Entity Fields" step (the
+    // endpoints editor already carries its own request/response field
+    // editors inline). Feature Shape can only be flipped from step 0, so a
+    // step count shrinking never strands the current step out of range.
+    final step = useState(0);
+    final stepLabels = opts.useCustomEndpoints
+        ? const ['Identity & Routing', 'Endpoints']
+        : const ['Identity & Routing', 'Architecture Layers', 'Entity Fields'];
+    final totalSteps = stepLabels.length;
+    final step1Valid = nameCtrl.text.isNotEmpty && nameError == null && !parentMissing;
+
+    Widget step1Content() => Column(
+      crossAxisAlignment: .start,
+      children: [
+        // "Custom Endpoints" (ROADMAP.md §7 Phase 2) — an opt-in alternative
+        // to Entity + CRUD, only offered when the project's stack can
+        // actually support it (chopper, non-packageSplit).
+        const _SectionTitle(Icons.edit_note, 'Feature Identity'),
+        10.gapH,
+        TextField(
+          controller: nameCtrl,
+          enabled: !state.isGenerating,
+          style: const TextStyle(color: Colors.white),
+          decoration: _fieldDecoration('e.g. user_profile, auth_login', nameError),
+        ),
+        if (canCustomEndpoints) ...[
+          10.gapH,
+          const _SectionTitle(Icons.api_outlined, 'Feature Shape'),
+          10.gapH,
+          _FeatureShapeRow(
+            useCustomEndpoints: opts.useCustomEndpoints,
+            enabled: !state.isGenerating,
+            onSelect: (v) => set(opts.copyWith(useCustomEndpoints: v)),
+          ),
+          24.gapH,
+        ],
+        if (hasNav) ...[
+          24.gapH,
+          const _SectionTitle(Icons.alt_route, 'Navigation & Routing'),
+          10.gapH,
+          _RoutingRow(
+            selected: opts.routing,
+            enabled: !state.isGenerating,
+            routingEnabled: routingEnabled,
+            onSelect: (r) => set(opts.copyWith(routing: r)),
+          ),
+          if (needsParent) ...[
+            12.gapH,
+            _ParentSelector(
+              features: project.features,
+              selected: opts.parentFeature.isEmpty ? null : opts.parentFeature,
+              enabled: !state.isGenerating,
+              error: parentMissing ? 'Choose the parent feature.' : null,
+              onSelect: (f) => set(opts.copyWith(parentFeature: f ?? '')),
+            ),
+            if (opts.parentFeature.isNotEmpty) ...[
+              4.gapH,
+              _LayerToggle(
+                title: 'Merge into parent',
+                subtitle:
+                    'Nests this feature inside "${opts.parentFeature}" '
+                    '(its own entity/repository/datasource, in a '
+                    '"${opts.name.isEmpty ? 'feature_name' : opts.name}/" '
+                    'subfolder per layer) instead of a separate feature — '
+                    'no new package, workspace member, or path: dependency. '
+                    'Works for a shell-branch parent too (imports the page '
+                    'directly, skipping the shell page registry).',
+                value: opts.mergeIntoParent,
+                enabled: !state.isGenerating,
+                onChanged: (v) => set(opts.copyWith(mergeIntoParent: v)),
+              ),
+            ],
+          ],
+
+          if (isShell) ...[
+            12.gapH,
+            _ShellBranchFields(
+              icon: opts.shellIcon,
+              labelCtrl: labelCtrl,
+              labelHint: opts.effectiveShellLabel,
+              enabled: !state.isGenerating,
+              onIcon: (i) => set(opts.copyWith(shellIcon: i)),
+            ),
+          ],
+        ],
+      ],
+    );
+
+    Widget step2Content() => opts.useCustomEndpoints
+        ? Column(
+            crossAxisAlignment: .start,
+            children: [
+              const _SectionTitle(Icons.api_outlined, 'Endpoints'),
+              10.gapH,
+              _EndpointsEditor(
+                endpoints: opts.endpoints,
+                enabled: !state.isGenerating,
+                onChange: (eps) => set(opts.copyWith(endpoints: eps)),
+              ),
+            ],
+          )
+        : Column(
+            crossAxisAlignment: .start,
+            children: [
+              const _SectionTitle(Icons.layers, 'Architecture Layers'),
+              10.gapH,
+              _LayerToggle(
+                title: 'Remote Data Source',
+                subtitle: projectHasHttp
+                    ? 'Generates the ${c.httpClient} API source & CRUD.'
+                    : 'Project has no HTTP client — unavailable.',
+                value: projectHasHttp && opts.includeRemoteDataSource,
+                enabled: projectHasHttp && !state.isGenerating,
+                onChanged: (v) => set(opts.copyWith(includeRemoteDataSource: v)),
+              ),
+              if (projectHasHttp && opts.includeRemoteDataSource) ...[
+                10.gapH,
+                TextField(
+                  controller: apiPathCtrl,
+                  enabled: !state.isGenerating,
+                  style: const TextStyle(color: Colors.white, fontFamily: 'monospace'),
+                  decoration: _fieldDecoration('API Path (optional) — e.g. /products', null),
+                ),
+                4.gapH,
+                Text(
+                  opts.apiPath.isEmpty
+                      ? 'Default REST path: /${opts.name.isEmpty ? '...' : opts.name}s'
+                      : 'A relative path is prepended to the API Base URL; an absolute '
+                            'URL overrides it entirely.',
+                  style: TextStyle(color: Colors.grey[600], fontSize: 11),
+                ),
+              ],
+              _LayerToggle(
+                title: 'Local Data Source',
+                subtitle: c.storageStrategy == 'remoteOnly'
+                    ? 'In-memory cache stub.'
+                    : 'Drift-backed local cache (typed table injected).',
+                value: opts.includeLocalDataSource,
+                enabled: !state.isGenerating,
+                onChanged: (v) => set(opts.copyWith(includeLocalDataSource: v)),
+              ),
+              _LayerToggle(
+                title: 'Domain UseCase',
+                subtitle: 'Business logic classes with Result<T> return type.',
+                value: opts.includeUseCase,
+                enabled: !state.isGenerating,
+                onChanged: (v) => set(opts.copyWith(includeUseCase: v)),
+              ),
+              const _LayerToggle(
+                title: 'Data Mapper',
+                subtitle: 'DTO → Entity conversion (intrinsic to Clean Architecture).',
+                value: true,
+                enabled: false,
+                locked: true,
+              ),
+              if (!opts.hasAnyDataSource) ...[
+                8.gapH,
+                Text(
+                  'No data source selected — a pure entity + '
+                  'presentation feature (no data/ layer at all).',
+                  style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                ),
+              ],
+            ],
+          );
+
+    Widget step3Content() => Column(
+      crossAxisAlignment: .start,
+      children: [
+        const _SectionTitle(Icons.data_object, 'Entity Fields'),
+        10.gapH,
+        EntityFieldsEditor(
+          json: opts.json,
+          fields: opts.fields,
+          warnings: opts.fieldWarnings,
+          onInfer: (j) {
+            if (j.trim().isEmpty) {
+              set(opts.copyWith(json: '', fields: FieldSpec.idName, fieldWarnings: const []));
+              return;
+            }
+            final r = const JsonEntityInferencer().infer(j);
+            set(opts.copyWith(json: j, fields: r.fields, fieldWarnings: r.warnings));
+          },
+          onReset: () =>
+              set(opts.copyWith(json: '', fields: FieldSpec.idName, fieldWarnings: const [])),
+          onAddField: () {
+            final used = opts.fields.map((f) => f.dartName).toSet();
+            var n = 'field';
+            for (var i = 1; used.contains(n); i++) {
+              n = 'field$i';
+            }
+            set(
+              opts.copyWith(
+                fields: [
+                  ...opts.fields,
+                  FieldSpec(jsonKey: n, dartName: n),
+                ],
+              ),
+            );
+          },
+          onName: (i, v) => set(
+            opts.copyWith(
+              fields: _editField(opts.fields, i, (f) => f.copyWith(dartName: v.trim())),
+            ),
+          ),
+          onType: (i, v) => set(
+            opts.copyWith(
+              fields: _editField(opts.fields, i, (f) => f.isId ? f : f.copyWith(dartType: v)),
+            ),
+          ),
+          onNullable: (i, v) => set(
+            opts.copyWith(
+              fields: _editField(opts.fields, i, (f) => f.isId ? f : f.copyWith(nullable: v)),
+            ),
+          ),
+          onRemove: (i) {
+            if (opts.fields[i].isId) return;
+            set(opts.copyWith(fields: [...opts.fields]..removeAt(i)));
+          },
+        ),
+      ],
+    );
+
+    final stepContent = <Widget>[
+      step1Content(),
+      step2Content(),
+      if (!opts.useCustomEndpoints) step3Content(),
+    ];
+
     return Column(
       crossAxisAlignment: .start,
       children: [
@@ -261,244 +487,56 @@ class _Workshop extends HookWidget {
           child: Row(
             crossAxisAlignment: .start,
             children: [
-              // Left: the form.
+              // Left: the stepper form.
               Expanded(
                 flex: 8,
-                child: ScrollConfiguration(
-                  behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
-                  child: SingleChildScrollView(
-                    child: Column(
-                      crossAxisAlignment: .start,
+                child: Column(
+                  crossAxisAlignment: .start,
+                  children: [
+                    _StepIndicator(
+                      current: step.value,
+                      labels: stepLabels,
+                      onSelect: state.isGenerating ? null : (i) => step.value = i,
+                    ),
+                    16.gapH,
+                    Expanded(
+                      child: ScrollConfiguration(
+                        behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+                        child: SingleChildScrollView(child: stepContent[step.value]),
+                      ),
+                    ),
+                    16.gapH,
+                    Row(
+                      mainAxisAlignment: .spaceBetween,
                       children: [
-                        const _SectionTitle(Icons.edit_note, 'Feature Identity'),
-                        10.gapH,
-                        TextField(
-                          controller: nameCtrl,
-                          enabled: !state.isGenerating,
-                          style: const TextStyle(color: Colors.white),
-                          decoration: _fieldDecoration('e.g. user_profile, auth_login', nameError),
-                        ),
-
-                        // "Custom Endpoints" (ROADMAP.md §7 Phase 2) — an
-                        // opt-in alternative to Entity + CRUD, only offered
-                        // when the project's stack can actually support it
-                        // (chopper, non-packageSplit).
-                        if (canCustomEndpoints) ...[
-                          24.gapH,
-                          const _SectionTitle(Icons.api_outlined, 'Feature Shape'),
-                          10.gapH,
-                          _FeatureShapeRow(
-                            useCustomEndpoints: opts.useCustomEndpoints,
-                            enabled: !state.isGenerating,
-                            onSelect: (v) => set(opts.copyWith(useCustomEndpoints: v)),
+                        if (step.value > 0)
+                          OutlinedButton.icon(
+                            onPressed: state.isGenerating ? null : () => step.value--,
+                            icon: const Icon(Icons.arrow_back, size: 16),
+                            label: const Text('Back'),
+                            style: TextButton.styleFrom(foregroundColor: Colors.white54),
+                          )
+                        else
+                          const SizedBox(),
+                        if (step.value < totalSteps - 1)
+                          OutlinedButton.icon(
+                            onPressed: (step.value == 0 && !step1Valid) || state.isGenerating
+                                ? null
+                                : () => step.value++,
+                            icon: const Icon(Icons.arrow_forward, size: 16),
+                            label: const Text('Next'),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: Palette.colorPrimaryCyan,
+                              foregroundColor: const Color(0xFF0E0E0E),
+                            ),
                           ),
-                        ],
-
-                        24.gapH,
-                        if (hasNav) ...[
-                          const _SectionTitle(Icons.alt_route, 'Navigation & Routing'),
-                          10.gapH,
-                          _RoutingRow(
-                            selected: opts.routing,
-                            enabled: !state.isGenerating,
-                            routingEnabled: routingEnabled,
-                            onSelect: (r) => set(opts.copyWith(routing: r)),
-                          ),
-                          if (needsParent) ...[
-                            12.gapH,
-                            _ParentSelector(
-                              features: project.features,
-                              selected: opts.parentFeature.isEmpty ? null : opts.parentFeature,
-                              enabled: !state.isGenerating,
-                              error: parentMissing ? 'Choose the parent feature.' : null,
-                              onSelect: (f) => set(opts.copyWith(parentFeature: f ?? '')),
-                            ),
-                            if (opts.parentFeature.isNotEmpty) ...[
-                              4.gapH,
-                              _LayerToggle(
-                                title: 'Merge into parent',
-                                subtitle:
-                                    'Nests this feature inside "${opts.parentFeature}" '
-                                    '(its own entity/repository/datasource, in a '
-                                    '"${opts.name.isEmpty ? 'feature_name' : opts.name}/" '
-                                    'subfolder per layer) instead of a separate feature — '
-                                    'no new package, workspace member, or path: dependency. '
-                                    'Works for a shell-branch parent too (imports the page '
-                                    'directly, skipping the shell page registry).',
-                                value: opts.mergeIntoParent,
-                                enabled: !state.isGenerating,
-                                onChanged: (v) => set(opts.copyWith(mergeIntoParent: v)),
-                              ),
-                            ],
-                          ],
-                          if (isShell) ...[
-                            12.gapH,
-                            _ShellBranchFields(
-                              icon: opts.shellIcon,
-                              labelCtrl: labelCtrl,
-                              labelHint: opts.effectiveShellLabel,
-                              enabled: !state.isGenerating,
-                              onIcon: (i) => set(opts.copyWith(shellIcon: i)),
-                            ),
-                          ],
-                          24.gapH,
-                        ],
-                        if (opts.useCustomEndpoints) ...[
-                          const _SectionTitle(Icons.api_outlined, 'Endpoints'),
-                          10.gapH,
-                          _EndpointsEditor(
-                            endpoints: opts.endpoints,
-                            enabled: !state.isGenerating,
-                            onChange: (eps) => set(opts.copyWith(endpoints: eps)),
-                          ),
-                        ] else ...[
-                          const _SectionTitle(Icons.layers, 'Architecture Layers'),
-                          10.gapH,
-                          _LayerToggle(
-                            title: 'Remote Data Source',
-                            subtitle: projectHasHttp
-                                ? 'Generates the ${c.httpClient} API source & CRUD.'
-                                : 'Project has no HTTP client — unavailable.',
-                            value: projectHasHttp && opts.includeRemoteDataSource,
-                            enabled: projectHasHttp && !state.isGenerating,
-                            onChanged: (v) => set(opts.copyWith(includeRemoteDataSource: v)),
-                          ),
-                          if (projectHasHttp && opts.includeRemoteDataSource) ...[
-                            10.gapH,
-                            TextField(
-                              controller: apiPathCtrl,
-                              enabled: !state.isGenerating,
-                              style: const TextStyle(color: Colors.white, fontFamily: 'monospace'),
-                              decoration: _fieldDecoration(
-                                'API Path (optional) — e.g. /products',
-                                null,
-                              ),
-                            ),
-                            4.gapH,
-                            Text(
-                              opts.apiPath.isEmpty
-                                  ? 'Default REST path: /${opts.name.isEmpty ? '...' : opts.name}s'
-                                  : 'A relative path is prepended to the API Base URL; an absolute '
-                                        'URL overrides it entirely.',
-                              style: TextStyle(color: Colors.grey[600], fontSize: 11),
-                            ),
-                          ],
-                          _LayerToggle(
-                            title: 'Local Data Source',
-                            subtitle: c.storageStrategy == 'remoteOnly'
-                                ? 'In-memory cache stub.'
-                                : 'Drift-backed local cache (typed table injected).',
-                            value: opts.includeLocalDataSource,
-                            enabled: !state.isGenerating,
-                            onChanged: (v) => set(opts.copyWith(includeLocalDataSource: v)),
-                          ),
-                          _LayerToggle(
-                            title: 'Domain UseCase',
-                            subtitle: 'Business logic classes with Result<T> return type.',
-                            value: opts.includeUseCase,
-                            enabled: !state.isGenerating,
-                            onChanged: (v) => set(opts.copyWith(includeUseCase: v)),
-                          ),
-                          const _LayerToggle(
-                            title: 'Data Mapper',
-                            subtitle: 'DTO → Entity conversion (intrinsic to Clean Architecture).',
-                            value: true,
-                            enabled: false,
-                            locked: true,
-                          ),
-                          if (!opts.hasAnyDataSource) ...[
-                            8.gapH,
-                            Text(
-                              'No data source selected — a pure entity + '
-                              'presentation feature (no data/ layer at all).',
-                              style: TextStyle(color: Colors.grey[500], fontSize: 12),
-                            ),
-                          ],
-                          24.gapH,
-                          const _SectionTitle(Icons.data_object, 'Entity Fields'),
-                          10.gapH,
-                          EntityFieldsEditor(
-                            json: opts.json,
-                            fields: opts.fields,
-                            warnings: opts.fieldWarnings,
-                            onInfer: (j) {
-                              if (j.trim().isEmpty) {
-                                set(
-                                  opts.copyWith(
-                                    json: '',
-                                    fields: FieldSpec.idName,
-                                    fieldWarnings: const [],
-                                  ),
-                                );
-                                return;
-                              }
-                              final r = const JsonEntityInferencer().infer(j);
-                              set(
-                                opts.copyWith(json: j, fields: r.fields, fieldWarnings: r.warnings),
-                              );
-                            },
-                            onReset: () => set(
-                              opts.copyWith(
-                                json: '',
-                                fields: FieldSpec.idName,
-                                fieldWarnings: const [],
-                              ),
-                            ),
-                            onAddField: () {
-                              final used = opts.fields.map((f) => f.dartName).toSet();
-                              var n = 'field';
-                              for (var i = 1; used.contains(n); i++) {
-                                n = 'field$i';
-                              }
-                              set(
-                                opts.copyWith(
-                                  fields: [
-                                    ...opts.fields,
-                                    FieldSpec(jsonKey: n, dartName: n),
-                                  ],
-                                ),
-                              );
-                            },
-                            onName: (i, v) => set(
-                              opts.copyWith(
-                                fields: _editField(
-                                  opts.fields,
-                                  i,
-                                  (f) => f.copyWith(dartName: v.trim()),
-                                ),
-                              ),
-                            ),
-                            onType: (i, v) => set(
-                              opts.copyWith(
-                                fields: _editField(
-                                  opts.fields,
-                                  i,
-                                  (f) => f.isId ? f : f.copyWith(dartType: v),
-                                ),
-                              ),
-                            ),
-                            onNullable: (i, v) => set(
-                              opts.copyWith(
-                                fields: _editField(
-                                  opts.fields,
-                                  i,
-                                  (f) => f.isId ? f : f.copyWith(nullable: v),
-                                ),
-                              ),
-                            ),
-                            onRemove: (i) {
-                              if (opts.fields[i].isId) return;
-                              set(opts.copyWith(fields: [...opts.fields]..removeAt(i)));
-                            },
-                          ),
-                        ],
                       ],
                     ),
-                  ),
+                  ],
                 ),
               ),
               24.gapW,
-              // Right: blueprint + generate + logs.
+              // Right: blueprint + generate + logs (fixed across every step).
               Expanded(
                 flex: 6,
                 child: Column(
@@ -506,22 +544,14 @@ class _Workshop extends HookWidget {
                   children: [
                     const _SectionTitle(Icons.visibility_outlined, 'Blueprint Overview'),
                     10.gapH,
-                    Expanded(
-                      child: _BlueprintTree(options: opts, contract: c, hasHttp: projectHasHttp),
-                    ),
-                    12.gapH,
-                    if (state.error != null) ...[
-                      Text(
-                        state.error!,
-                        style: TextStyle(color: Colors.redAccent[100], fontSize: 12),
-                      ),
-                      8.gapH,
-                    ],
-                    if (state.logs.isNotEmpty) ...[_LogsConsole(logs: state.logs), 12.gapH],
+                    _BlueprintTree(options: opts, contract: c, hasHttp: projectHasHttp),
+                    16.gapH,
                     SizedBox(
                       width: .infinity,
-                      child: FilledButton.icon(
-                        onPressed: canGenerate ? () => onGenerate(opts) : null,
+                      child: OutlinedButton.icon(
+                        onPressed: canGenerate && step.value == totalSteps - 1
+                            ? () => onGenerate(opts)
+                            : null,
                         icon: state.isGenerating
                             ? const SizedBox(
                                 width: 14,
@@ -531,15 +561,27 @@ class _Workshop extends HookWidget {
                                   color: Color(0xFF0E0E0E),
                                 ),
                               )
-                            : const Icon(Icons.auto_awesome, size: 16),
+                            : const Icon(Icons.auto_awesome, size: 18),
                         label: Text(state.isGenerating ? 'Generating…' : 'Generate Feature'),
                         style: FilledButton.styleFrom(
-                          backgroundColor: Palette.colorPrimaryCyan,
+                          backgroundColor: context.neatColors.colorPrimaryCyan,
                           foregroundColor: const Color(0xFF0E0E0E),
-                          padding: const .symmetric(vertical: 16),
+                          padding: const .symmetric(vertical: 18),
+                          textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
                         ),
                       ),
                     ),
+                    if (state.error != null) ...[
+                      12.gapH,
+                      Text(
+                        state.error!,
+                        style: TextStyle(color: Colors.redAccent[100], fontSize: 12),
+                      ),
+                    ],
+                    if (state.logs.isNotEmpty) ...[
+                      16.gapH,
+                      _LogsConsole(logs: state.logs, isGenerating: state.isGenerating),
+                    ],
                   ],
                 ),
               ),
@@ -581,6 +623,84 @@ class _Workshop extends HookWidget {
     if (c.storageStrategy != 'remoteOnly') c.storageStrategy,
     if (c.extractUiPackage) 'ui-package',
   ];
+}
+
+// ── Step indicator (Identity+Routing / Layers / Entity Fields) ─────────────────
+
+/// Clickable step breadcrumb for the Workshop form — jumping to any step
+/// directly is always allowed (nothing here blocks navigation the way the
+/// "Next" button's validation does; the Generate button on the right is the
+/// single gate that actually matters).
+class _StepIndicator extends StatelessWidget {
+  const _StepIndicator({required this.current, required this.labels, required this.onSelect});
+
+  final int current;
+  final List<String> labels;
+  final ValueChanged<int>? onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        for (var i = 0; i < labels.length; i++) ...[
+          if (i > 0)
+            Expanded(
+              child: Container(
+                height: 1,
+                margin: const EdgeInsets.symmetric(horizontal: 8),
+                color: Colors.white12,
+              ),
+            ),
+          InkWell(
+            onTap: onSelect == null ? null : () => onSelect!(i),
+            borderRadius: BorderRadius.circular(20),
+            child: Padding(
+              padding: const .symmetric(vertical: 4, horizontal: 2),
+              child: Row(
+                mainAxisSize: .min,
+                children: [
+                  Container(
+                    width: 22,
+                    height: 22,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: i == current
+                          ? Palette.colorPrimaryCyan
+                          : i < current
+                          ? Palette.colorPrimaryCyan.withValues(alpha: 0.25)
+                          : Colors.white10,
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      '${i + 1}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: i == current
+                            ? const Color(0xFF0E0E0E)
+                            : i < current
+                            ? Palette.colorPrimaryCyan
+                            : Colors.grey[500],
+                      ),
+                    ),
+                  ),
+                  8.gapW,
+                  Text(
+                    labels[i],
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      color: i == current ? Colors.white : Colors.grey[500],
+                      fontWeight: i == current ? FontWeight.w600 : FontWeight.normal,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
 }
 
 // ── Feature Shape cards (Entity + CRUD vs Custom Endpoints) ────────────────────
@@ -1349,17 +1469,22 @@ class _BlueprintTree extends StatelessWidget {
 
     return Container(
       width: double.infinity,
+      constraints: const BoxConstraints(maxHeight: 260),
       decoration: BoxDecoration(
         color: const Color(0xFF0B0B0D),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.white10),
       ),
+      // Sizes to the tree's actual content (not stretched to fill whatever
+      // space the parent offers) — capped at maxHeight above, scrolling
+      // internally past that.
       child: Column(
+        mainAxisSize: .min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Terminal chrome.
           Container(
-            padding: const .symmetric(horizontal: 14, vertical: 12),
+            padding: const .symmetric(horizontal: 12, vertical: 9),
             child: Row(
               children: [
                 _dot(const Color(0xFFFF5F56)),
@@ -1367,15 +1492,15 @@ class _BlueprintTree extends StatelessWidget {
                 _dot(const Color(0xFFFFBD2E)),
                 6.gapW,
                 _dot(const Color(0xFF27C93F)),
-                14.gapW,
-                Text('feature.tree', style: TextStyle(color: Colors.grey[500], fontSize: 12)),
+                8.gapW,
+                Text('feature.tree', style: TextStyle(color: Colors.grey[500], fontSize: 11)),
               ],
             ),
           ),
           const Divider(height: 1, color: Colors.white10),
-          Expanded(
+          Flexible(
             child: SingleChildScrollView(
-              padding: const .fromLTRB(18, 14, 14, 14),
+              padding: const .fromLTRB(14, 12, 14, 12),
               child: Column(
                 crossAxisAlignment: .start,
                 children: lines
@@ -1388,7 +1513,7 @@ class _BlueprintTree extends StatelessWidget {
                             color: l.startsWith('lib/')
                                 ? Colors.white
                                 : Palette.colorPrimaryCyan.withValues(alpha: 0.85),
-                            fontSize: 12.5,
+                            fontSize: 11.5,
                             fontFamily: 'monospace',
                             height: 1.2,
                           ),
@@ -1405,8 +1530,8 @@ class _BlueprintTree extends StatelessWidget {
   }
 
   Widget _dot(Color c) => Container(
-    width: 12,
-    height: 12,
+    width: 9,
+    height: 9,
     decoration: BoxDecoration(color: c, shape: BoxShape.circle),
   );
 
@@ -1511,9 +1636,10 @@ class _BlueprintTree extends StatelessWidget {
 // ── Logs console ───────────────────────────────────────────────────────────────
 
 class _LogsConsole extends StatelessWidget {
-  const _LogsConsole({required this.logs});
+  const _LogsConsole({required this.logs, required this.isGenerating});
 
   final List<String> logs;
+  final bool isGenerating;
 
   // Mirrors GenerateFeatureUsecase/LaunchGenerationUsecase's own onLog
   // prefixes: [▶] in progress, [✓]/[✓✓] done, [i] informational note, [!]
@@ -1531,37 +1657,79 @@ class _LogsConsole extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: .infinity,
-      constraints: const BoxConstraints(maxHeight: 140),
-      padding: const .all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFF0D0D0F),
-        borderRadius: .circular(8),
-        border: .all(color: Colors.white10),
+        color: const Color(0xFF0B0B0D),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.white10),
       ),
-      child: SingleChildScrollView(
-        reverse: true,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            for (final line in logs)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 1),
-                child: Text(
-                  line,
-                  style: TextStyle(
-                    color: _colorFor(line),
-                    fontSize: 11,
-                    fontFamily: 'monospace',
-                    fontWeight: line.startsWith('[✓✓]') ? FontWeight.bold : FontWeight.normal,
-                    height: 1.5,
+      child: Column(
+        mainAxisSize: .min,
+        crossAxisAlignment: .start,
+        children: [
+          // Same terminal chrome as _BlueprintTree, for visual consistency
+          // between the two right-panel cards.
+          Padding(
+            padding: const .symmetric(horizontal: 12, vertical: 9),
+            child: Row(
+              children: [
+                _dot(const Color(0xFFFF5F56)),
+                6.gapW,
+                _dot(const Color(0xFFFFBD2E)),
+                6.gapW,
+                _dot(const Color(0xFF27C93F)),
+                8.gapW,
+                Text('System output', style: TextStyle(color: Colors.grey[500], fontSize: 11)),
+                const Spacer(),
+                if (isGenerating)
+                  const SizedBox(
+                    width: 11,
+                    height: 11,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 1.5,
+                      color: Palette.colorPrimaryCyan,
+                    ),
                   ),
-                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: Colors.white10),
+          Container(
+            width: .infinity,
+            constraints: const BoxConstraints(maxHeight: 110),
+            padding: const .all(12),
+            child: SingleChildScrollView(
+              reverse: true,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (final line in logs)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 1),
+                      child: Text(
+                        line,
+                        style: TextStyle(
+                          color: _colorFor(line),
+                          fontSize: 11,
+                          fontFamily: 'monospace',
+                          fontWeight: line.startsWith('[✓✓]') ? FontWeight.bold : FontWeight.normal,
+                          height: 1.5,
+                        ),
+                      ),
+                    ),
+                ],
               ),
-          ],
-        ),
+            ),
+          ),
+        ],
       ),
     );
   }
+
+  Widget _dot(Color c) => Container(
+    width: 9,
+    height: 9,
+    decoration: BoxDecoration(color: c, shape: BoxShape.circle),
+  );
 }
 
 // ── Small shared bits ──────────────────────────────────────────────────────────
