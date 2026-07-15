@@ -1,15 +1,15 @@
 import 'package:neat/core/network/network_error_handler.dart';
 import 'package:neat/core/result/result.dart';
 
-/// UseCase de base pour l'application principale.
-/// Il utilise [NetworkErrorHandler] pour transformer les erreurs Dio en [Failure].
+/// Base UseCase for the application.
+/// Uses [NetworkErrorHandler] to map exceptions into [Failure] results.
 abstract class UseCase<Params, T> {
   const UseCase();
 
-  /// Logique métier du UseCase. Doit être implémentée par les sous-classes.
+  /// The core logic of the UseCase. Must be implemented by subclasses.
   Future<T> execute(Params params);
 
-  /// Point d'entrée sécurisé qui capture les erreurs et renvoie un [Result].
+  /// Secure entry point that catches errors and returns a [Result].
   Future<Result<T>> call(Params params) async {
     try {
       final result = await execute(params);
@@ -20,7 +20,7 @@ abstract class UseCase<Params, T> {
   }
 }
 
-/// Version sans paramètres du UseCase.
+/// Parameterless version of the UseCase.
 abstract class NoParamsUseCase<T> extends UseCase<Unit, T> {
   const NoParamsUseCase();
 

@@ -307,7 +307,7 @@ class _StorageTab extends StatelessWidget {
       title: 'Offline-First',
       subtitle: 'Local-first reads',
       description:
-          'Workspace + Drift `_local_storage` package: local-first reads with a cache '
+          'Workspace + Drift `_database` package: local-first reads with a cache '
           'fallback. The app stays usable offline for browsing.',
     ),
     (
@@ -730,7 +730,6 @@ class _TreePreview extends StatelessWidget {
                         tree,
                         style: const TextStyle(
                           color: Color(0xFF9ECE6A),
-                          fontFamily: 'monospace',
                           fontSize: 12,
                           height: 1.7,
                         ),

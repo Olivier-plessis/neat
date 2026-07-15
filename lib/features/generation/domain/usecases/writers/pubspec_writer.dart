@@ -220,7 +220,7 @@ abstract final class PubspecWriter {
         devDeps.write('  flutter_native_splash: ^2.4.6\n');
       }
     }
-    // Path deps on local workspace packages (e.g. <app>_ui, local_storage).
+    // Path deps on local workspace packages (e.g. <app>_ui, <app>_database).
     for (final pkg in pathPackages) {
       deps.write('  $pkg:\n    path: packages/$pkg\n');
     }

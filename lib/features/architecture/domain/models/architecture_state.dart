@@ -13,7 +13,7 @@ enum StructuralPattern { featureFirst, layerFirst }
 /// How the data layer persists data.
 ///
 /// Anything other than [remoteOnly] flips the project into a Dart **workspace**
-/// with a dedicated `packages/<name>_local_storage` package (Drift).
+/// with a dedicated `packages/<name>_database` package (Drift).
 /// - [offlineFirstRead]: local-first reads + cache fallback.
 /// - [offlineFirstSync]: read + the Outbox write path (queued writes replayed
 ///   by a SyncService when connectivity returns).

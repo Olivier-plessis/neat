@@ -10,6 +10,7 @@ import 'package:neat/features/generation/domain/services/i18n_importer.dart';
 import 'package:neat/features/generation/domain/services/templates/agents_md_template.dart';
 import 'package:neat/features/generation/domain/services/templates/config_templates.dart';
 import 'package:neat/features/generation/domain/services/templates/core_package_templates.dart';
+import 'package:neat/features/generation/domain/services/templates/core_templates.dart';
 import 'package:neat/features/generation/domain/usecases/writers/auth_writer.dart';
 import 'package:neat/features/generation/domain/usecases/writers/backend_writer.dart';
 import 'package:neat/features/generation/domain/usecases/writers/branding_writer.dart';
@@ -201,20 +202,25 @@ class LaunchGenerationUsecase {
     final hasSentry = cicd.hasSentryDelivery;
 
     // Offline-first turns the project into a Dart workspace with a dedicated
-    // local-storage package (Drift). null when remote-only. Firestore ships its
+    // database package (Drift). null when remote-only. Firestore ships its
     // own offline persistence, so a Firebase backend disables the Drift layer
     // (enabled in bootstrap via Settings(persistenceEnabled: true)) to avoid two
     // competing caches.
     final offlineFirst =
         architecture.storageStrategy.isOfflineFirst && !hasFirebase;
-    final localStoragePackage = offlineFirst ? 'local_storage' : null;
+    // Named `<app>_database`, not the generic `local_storage` — the package
+    // only ever contains Drift (a typed SQL database + DAOs), never
+    // SharedPreferences/secure-storage/cache, so the generic name read as
+    // misleading. Prefixed like uiPackage below (unlike core/auth/feature)
+    // since "database" alone is ambiguous across projects in a monorepo.
+    final localStoragePackage = offlineFirst ? '${packageName}_database' : null;
     // Sync strategy adds the Outbox table + SyncService + repository write path.
     final hasSync = architecture.storageStrategy.hasSync;
 
     // Opt-in: extract theme + tokens + components into a <app>_ui workspace
-    // package — the one package that keeps the app-name prefix (every other
-    // split package below — core/local_storage/auth/feature — doesn't; see
-    // corePackageName/featurePackageName's comments).
+    // package — prefixed with the app name, same as the database package
+    // above (every other split package below — core/auth/feature — doesn't;
+    // see corePackageName/featurePackageName's comments).
     final uiPackage = theme.extractUiPackage ? '${packageName}_ui' : null;
     // Widgetbook becomes a workspace member when the UI package is on.
     final widgetbookIsMember = uiPackage != null && theme.generateWidgetbook;
@@ -244,10 +250,10 @@ class LaunchGenerationUsecase {
         hasGoRouter;
     final corePackageName = packageSplitSupported ? 'core' : null;
     // The split first feature — only meaningful when there is one. Like
-    // core/local_storage/auth, a feature package is named after the feature
-    // itself, no app-name prefix (only the extracted UI package keeps one —
-    // see uiPackage above). The app name adds nothing here; it's already
-    // implied by being in this workspace.
+    // core/auth, a feature package is named after the feature itself, no
+    // app-name prefix (only the extracted UI and database packages keep
+    // one — see uiPackage/localStoragePackage above). The app name adds
+    // nothing here; it's already implied by being in this workspace.
     final featurePackageName =
         packageSplitSupported && architecture.generateFirstFeature
         ? featureName
@@ -351,8 +357,17 @@ class LaunchGenerationUsecase {
         hasSync: hasSync,
         fields: architecture.firstFeatureFields,
         includeFirstTable: architecture.generateFirstFeature,
+        isWeb: isWeb,
       );
       onLog('[✓] packages/$localStoragePackage created.');
+      if (isWeb) {
+        // sqlite3.wasm + drift_worker.dart.js are prebuilt release binaries,
+        // not generatable template text — see CoreTemplates.driftWebSetupDoc.
+        await _write(
+          '${projectDir.path}/docs/DRIFT_WEB_SETUP.md',
+          CoreTemplates.driftWebSetupDoc(localStoragePackage: localStoragePackage),
+        );
+      }
     }
 
     // 2c. Per-env wiring — VS Code run configs + a doc (and, on mobile with the
@@ -890,6 +905,22 @@ class LaunchGenerationUsecase {
         packageSplit: featurePackageName != null,
         corePackageName: corePackageName,
         i18n: hasI18nSample,
+      );
+
+      // A feature isn't self-contained in its own folder — see
+      // CoreTemplates.removeFirstFeatureDoc's doc for why a plain `rm -rf`
+      // leaves dangling references, and exactly what to revert instead.
+      await _write(
+        '${projectDir.path}/docs/REMOVE_FIRST_FEATURE.md',
+        CoreTemplates.removeFirstFeatureDoc(
+          featureName: featureName,
+          httpClient: httpClient,
+          corePackageName: corePackageName,
+          featurePackageName: featurePackageName,
+          localStoragePackage: localStoragePackage,
+          hasSync: hasSync,
+          useShell: useShell,
+        ),
       );
     }
   }

@@ -355,6 +355,148 @@ Harness-proven: `pubspec_builder_test.dart` gained two cases (override present
   workspace (1 unrelated pre-existing unused-import warning aside). Full suite
   green.
 
+### 5h. Drift DAO separation + downgrade safety — ✅ (maxit-front-flutter comparison)
+
+> Prompted by reading `maxit-front-flutter` (a real team-split monorepo) to see how a
+> production project structures its Drift layer differently from NEAT. Found three
+> differences; the user decided per-point: skip the per-feature-database split
+> (keep one shared `AppDatabase` — not worth the design cost against packageSplit's
+> team-autonomy goal), but adopt downgrade safety and per-table DAO files.
+
+- **Downgrade safety**: `AppDatabase`'s `MigrationStrategy` only ever handled
+  upgrades (`onUpgrade`, see 5e) — a schema **downgrade** (older app build opened
+  against a newer on-disk database, e.g. after a rollback) hit no handling at all
+  and Drift would leave the mismatched schema in place. Every generated
+  `database.dart` now also sets `beforeOpen`: if `details.versionBefore! >
+  schemaVersion`, it drops every table (`DROP TABLE IF EXISTS
+  ${table.actualTableName}` for all of `allTables`, wrapped in `PRAGMA
+  foreign_keys = OFF/ON`) and recreates them via `createMigrator().createAll()` —
+  same pattern maxit uses identically across both of its databases.
+  `GenerateFeatureUsecase._ensureMigrationStrategy`'s self-heal block for
+  pre-5e projects was updated to insert this too, so old projects catch up in
+  one pass.
+- **Per-table DAO files**: every CRUD method used to be inlined directly onto the
+  monolithic `AppDatabase` class via anchor insertion (`// neat:daos`). Now each
+  table gets its own `@DriftAccessor` DAO class in its own file
+  (`packages/<app>_database/lib/src/dao/<feature>_dao.dart`,
+  `.../dao/outbox_dao.dart` for the Outbox), registered via `@DriftDatabase(...,
+  daos: [FooDao, OutboxDao])` and reached as `_db.fooDao.xxx()` /
+  `_db.outboxDao.xxx()` from `FeatureLocalSource` and `SyncService` — mirroring
+  maxit's actual file-per-table convention instead of one growing god-class.
+  Deliberately scoped: `FeatureLocalSource`/`SyncService` stay typed to
+  `AppDatabase` (no new DI providers or barrel exports) — file separation was the
+  ask, not a DI restructure. `GenerateFeatureUsecase._injectDriftTable` now writes
+  the new DAO file directly and inserts both an import at `// neat:dao-imports`
+  and the class name at `// neat:daos`, instead of inlining methods. Old
+  already-generated projects aren't retrofitted (no anchor exists yet in their
+  `database.dart`) — accepted, same as every other new `// neat:` anchor.
+- **Package renamed `local_storage` → `<app>_database`**: verified against a real
+  generated project (`neat_test/liza`) while checking that Point 1 actually
+  landed there — it did, but the user flagged the package name itself as
+  confusing, since after this refactor it contains **only** Drift (a typed SQL
+  database + DAOs), never a generic cache/SharedPreferences/secure-storage mix.
+  Renamed to `<app>_database`, prefixed like the extracted UI package (unlike
+  `core`/`auth`/feature packages, which stay unprefixed — see the naming
+  rationale comments at each call site). `ProjectLoader.scanFeatures` and
+  `GenerateFeatureUsecase` both detect the package name from disk (checking for
+  `<app>_database` first, falling back to the old `local_storage`) so projects
+  generated before the rename keep working in the Workshop without a migration
+  step — the generator itself only ever writes the new name going forward.
+- Harness-proven: the chopper+offline-sync full-generation test now asserts
+  `database.dart` has no inlined Outbox methods and a new
+  `packages/<app>_database/lib/src/dao/outbox_dao.dart` contains them; the
+  Workshop Drift-injection test asserts `database.dart` has no inlined
+  `upsertOrders`, contains the `OrdersDao` import/registration, and a new
+  `orders_dao.dart` has the real method; every package-name assertion across
+  the integration suite (imports, pubspecs, workspace members) was updated to
+  the new `<app>_database` name. Full fast suite (245 tests) and every
+  offline/sync/packageSplit integration test green.
+- **Follow-up — table definitions split the same way**: the user asked
+  specifically whether NEAT matched maxit's `table/<name>_table.dart` files
+  (a plain `class FooTable extends Table` in its own file, imported by both
+  the database and its DAO) — it didn't yet; the Table classes were still
+  inlined in `database.dart`. Added `LocalStorageTemplates.featureTableFile`/
+  `outboxTableFile` (mirrors `featureDaoFile`/`outboxDaoFile` exactly) and
+  `LocalStoragePackageWriter` now writes
+  `packages/<app>_database/lib/src/table/<feature>_table.dart` (and
+  `.../table/outbox_table.dart` when sync is on). `database.dart` shrinks to
+  imports (`// neat:table-imports` anchor, new) + the `@DriftDatabase(tables:
+  [...], daos: [...])` registration — no table or DAO bodies at all now. Each
+  DAO file imports its table file directly (`import '../table/<feature>_table.dart';`)
+  in addition to `../database.dart`, matching maxit's own DAO imports exactly —
+  confirmed by reading `quick_action_dao.dart`/`quick_action_dao.g.dart` in
+  `maxit-front-flutter` directly: the row data class (e.g. `QuickActionTableData`)
+  is generated once, into the *database's* own `.g.dart`, never duplicated by the
+  DAO's `.g.dart` — proving a table can safely live in its own file without
+  drift_dev generating conflicting output. `GenerateFeatureUsecase._injectDriftTable`
+  writes the new table file and wires `// neat:table-imports` the same way it
+  already wired `// neat:dao-imports`. `agents_md_template.dart` and
+  `CoreTemplates.removeFirstFeatureDoc` updated to reference the new anchor/files.
+  Harness-proven: every test asserting on inline table-class text in
+  `database.dart` (the sync test's `class OutboxEntries`, the Workshop
+  Drift-injection test's `class OrdersRows`, both JSON-entity tests' column
+  lines) now asserts its **absence** from `database.dart` and its presence in
+  the new `table/*.dart` file instead. Full fast suite (245 tests) + all 58
+  integration tests green, including real `build_runner`/`flutter analyze` on
+  every generated combo (proving drift_dev itself accepts the split, not just
+  that the generator emits the right strings).
+
+### 5i. Offline-first + web target — real bug, found running a real project in Chrome
+
+- **The defect**: a project generated with `targetPlatforms` including `web`
+  **and** offline-first storage crashed at runtime — every provider downstream
+  of `appDatabaseProvider` (`productLocalSourceProvider`,
+  `productRepositoryProvider`, `getProductUsecaseProvider`, the first
+  feature's own list provider) failed in cascade with `ProviderException:
+  Tried to use a provider that is in error state`. Root cause, found in the
+  Chrome devtools log of a real generated project (`liza_web`):
+  `drift_flutter`'s `driftDatabase()` throws `Invalid argument(s): When
+  compiling to the web, the \`web\` parameter needs to be set.` unless a
+  `DriftWebOptions` is supplied — `LocalStorageTemplates.database()`'s
+  `_open()` only ever emitted the native-only
+  `driftDatabase(name: 'app_db')` call, with no web branch at all, even
+  though `identity.targetPlatforms` already offers `web` as a real wizard
+  option and `launch_generation_usecase.dart` already computed an `isWeb`
+  flag — just never threaded it as far as the Drift template (only used for
+  `usePathUrlStrategy()` before this fix).
+- **The fix**: `LocalStorageTemplates.database()` gained an `isWeb` param;
+  when true, `_open()` branches on `kIsWeb`
+  (`import 'package:flutter/foundation.dart' show kIsWeb;`) and supplies
+  `web: DriftWebOptions(sqlite3Wasm: Uri.parse('sqlite3.wasm'), driftWorker:
+  Uri.parse('drift_worker.dart.js'))`, falling through to the exact same
+  native one-liner as before on every other platform. `isWeb` threads through
+  `LocalStoragePackageWriter.write` from the flag `launch_generation_usecase.dart`
+  already had at hand.
+- **The one thing that couldn't be templated**: `sqlite3.wasm` and
+  `drift_worker.dart.js` are prebuilt, versioned release binaries (confirmed
+  against drift's own docs, https://drift.simonbinder.eu/platforms/web/ —
+  "No bootstrapping command... files must be manually downloaded and placed
+  in the `web/` folder"), not generatable Dart source, and no local package
+  in the resolved dependency tree ships them reliably enough to copy at
+  generation time. Rather than silently leaving the user to discover this the
+  same way (a browser stack trace), a new `CoreTemplates.driftWebSetupDoc`
+  writes `docs/DRIFT_WEB_SETUP.md` — only when `localStoragePackage != null &&
+  isWeb` — spelling out exactly what to download, from where, and where to
+  put it, plus the `Content-Type: application/wasm` production-serving note.
+  Same "generate a doc instead of a half-solution" precedent as
+  `REMOVE_FIRST_FEATURE.md`.
+- **Verified desktop-only is unaffected**: `drift_flutter`'s own pubspec
+  already depends on `path_provider` + `sqlite3` (native-asset-hooks-based)
+  transitively for macOS/Windows/Linux — confirmed directly by reading
+  `drift_flutter`'s installed `pubspec.yaml`, no NEAT-side dependency was
+  ever missing for native platforms. No changes needed or made there.
+- Harness-proven: a new integration test generates an offline-first + `web`-only
+  project and asserts `database.dart` contains the `kIsWeb` import, the
+  `DriftWebOptions` branch with both exact filenames, and the native fallback
+  line untouched; `docs/DRIFT_WEB_SETUP.md` exists and names the right
+  package path; `flutter analyze` 0/0 (this validates the generated Dart
+  type-checks against the real pinned `drift_flutter`/`flutter/foundation.dart`
+  APIs, though it can't exercise an actual browser run the way the original
+  bug report did). The existing non-web offline-first test gained negative
+  assertions (`kIsWeb`/`DriftWebOptions` absent, no setup doc written) as a
+  regression guard. Full fast suite (245 tests) + all 59 integration tests
+  green.
+
 ### 6. Multiple architectures — later, with caution
 
 - The harness makes **every** architecture a ~3× maintenance cost (each must be proven).
@@ -1319,6 +1461,36 @@ overlap — pick deliberately. → Phased:
       asserts both redirects target `AppRoutePath.welcome`, the app title is
       the project's own package name, and `flutter analyze` 0/0. Full
       onboarding suite (5 tests) and fast suite (245 tests) still green.
+    - ✅ **Follow-up: `docs/REMOVE_FIRST_FEATURE.md` — done** (user question:
+      can the wizard's first feature be deleted later, e.g. to drop the
+      FakeStore Products demo once real features exist?). Investigated
+      building an actual delete-feature capability first — rejected: a
+      feature isn't self-contained in its own folder, it also inserts lines
+      into up to ~12 categories of shared files (routes.dart, AppRoutePath,
+      the chopper decoder registry, the Drift database, root/package
+      `pubspec.yaml` for packageSplit, the shell registry/nav bar...), and
+      neither `NeatContract` nor `ProjectLoader` track which files a given
+      feature touched (features are derived by scanning `lib/features/`/
+      `packages/`, not recorded) — building safe deletion would mean adding
+      that tracking first, disproportionate effort for what's usually a
+      one-time cleanup. Shipped the cheaper alternative instead: a generated
+      `docs/REMOVE_FIRST_FEATURE.md` (written whenever `generateFirstFeature`
+      is on, alongside the feature itself) that spells out every file to
+      revert, computed from the exact same flags the generator used —
+      routing always; the chopper decoder registry only when `httpClient ==
+      'chopper'`; the Drift database only when offline-first (with a
+      migrations-anchor line only when sync is also on); workspace/pubspec
+      wiring only when packageSplit; the nav shell only when a shell branch
+      exists. Also points out the simplest path of all: a fresh project with
+      **"Generate example feature"** off needs no cleanup at all.
+      Harness-proven: added assertions to three already-passing integration
+      tests spanning the full conditional matrix — the main chopper +
+      offline-sync test (chopper + Drift + migrations sections present,
+      packageSplit/shell absent), the plain-go_router no-first-feature test
+      (doc absent entirely), and the packageSplit + shell-branches test
+      (packageSplit + shell sections present, chopper/Drift absent) — rather
+      than standing up a new combo from scratch. Fast suite (245 tests)
+      still green.
 - ✅ **Phase 2 — Typed endpoints ("Custom Endpoints")** — **done**, scoped down
   from the full vision on purpose. A new opt-in Workshop mode, **alongside**
   (not replacing) Entity + CRUD: a feature is N arbitrary

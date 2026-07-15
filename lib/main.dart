@@ -18,7 +18,6 @@ Future<void> bootstrap() async {
     () async {
       WidgetsFlutterBinding.ensureInitialized();
       await windowManager.ensureInitialized();
-      // Configuration de la taille de la fenêtre de NEAT
       WindowOptions windowOptions = const WindowOptions(
         size: Size(1400, 900),
         minimumSize: Size(1200, 800),
@@ -33,7 +32,6 @@ Future<void> bootstrap() async {
 
       final container = ProviderContainer(observers: [RiverpodObserver()]);
 
-      // Le ProviderScope est indispensable pour faire fonctionner Riverpod
       runApp(UncontrolledProviderScope(container: container, child: const NeatApp()));
     },
     (error, stackTrace) {

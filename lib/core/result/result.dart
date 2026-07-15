@@ -1,14 +1,14 @@
-/// Représente le résultat d'une opération : succès ou échec.
+/// Represents the result of an operation: success or failure.
 ///
-/// Retourné par tous les [UseCase] pour éviter la propagation d'exceptions
-/// jusqu'à la couche présentation.
+/// Returned by all [UseCase]s to prevent exception propagation
+/// to the presentation layer.
 ///
-/// Usage :
+/// Usage:
 /// ```dart
 /// final result = await myUseCase(params);
 /// result.fold(
-///   (data)  => // succès,
-///   (error) => // échec,
+///   (data)  => // success,
+///   (error) => // failure,
 /// );
 /// ```
 sealed class Result<T> {
@@ -20,47 +20,47 @@ sealed class Result<T> {
   bool get isSuccess => this is _Success<T>;
   bool get isFailure => this is _Failure<T>;
 
-  /// Retourne la valeur ou lève l'erreur.
+  /// Returns the value or throws the error.
   T getOrThrow() => switch (this) {
     _Success<T>(:final data) => data,
     _Failure<T>(:final error) => throw error,
   };
 
-  /// Retourne la valeur ou `null` en cas d'échec.
+  /// Returns the value or `null` on failure.
   T? getOrNull() => switch (this) {
     _Success<T>(:final data) => data,
     _Failure<T>() => null,
   };
 
-  /// Retourne la valeur ou [defaultValue] en cas d'échec.
+  /// Returns the value or [defaultValue] on failure.
   T getOrDefault(T defaultValue) => switch (this) {
     _Success<T>(:final data) => data,
     _Failure<T>() => defaultValue,
   };
 
-  /// Exécute [action] uniquement en cas de succès.
+  /// Executes [action] only on success.
   void onSuccess(void Function(T data) action) {
     if (this case _Success<T>(:final data)) action(data);
   }
 
-  /// Exécute [action] uniquement en cas d'échec.
+  /// Executes [action] only on failure.
   void onFailure(void Function(Object error) action) {
     if (this case _Failure<T>(:final error)) action(error);
   }
 
-  /// Transforme la valeur en cas de succès, propage l'erreur sinon.
+  /// Transforms the value on success, propagates the error otherwise.
   Result<R> mapSuccess<R>(R Function(T data) mapper) => switch (this) {
     _Success<T>(:final data) => Result.success(mapper(data)),
     _Failure<T>(:final error) => Result.failure(error),
   };
 
-  /// Transforme l'erreur en cas d'échec, propage la valeur sinon.
+  /// Transforms the error on failure, propagates the value otherwise.
   Result<T> mapFailure(Object Function(Object error) mapper) => switch (this) {
     _Success<T>() => this,
     _Failure<T>(:final error) => Result.failure(mapper(error)),
   };
 
-  /// Branche sur les deux cas et retourne une valeur [R].
+  /// Folds both cases into a single value of type [R].
   R fold<R>(R Function(T data) onSuccess, R Function(Object error) onFailure) =>
       switch (this) {
         _Success<T>(:final data) => onSuccess(data),
@@ -78,12 +78,12 @@ final class _Failure<T> extends Result<T> {
   final Object error;
 }
 
-/// Équivalent de [void] pour les [UseCase] qui ne retournent pas de valeur.
-/// Permet de garder [Result] pleinement typé.
+/// Equivalent of [void] for [UseCase]s that do not return a value.
+/// Keeps [Result] fully typed.
 ///
 /// ```dart
 /// class DeleteSomethingUseCase extends UseCase<String, Unit> { ... }
-/// // En cas de succès : Result.success(Unit.instance)
+/// // On success: Result.success(Unit.instance)
 /// ```
 final class Unit {
   const Unit._();

@@ -35,22 +35,30 @@ class ProjectLoader {
   /// Existing features = the directories under `lib/features/` (or, when
   /// `packageSplit` is on, the workspace packages under `packages/` — see
   /// ROADMAP.md §6a Step 2b). A feature package is named after the feature
-  /// itself (no app-name prefix); only the UI package keeps the
-  /// `<projectName>_ui` prefix (avoids reading as generic as "core"/"auth"
-  /// when extracted on its own). The filesystem is the single source of
-  /// truth (never a list stored in the contract), so it stays correct even
-  /// when teammates add features by hand.
+  /// itself (no app-name prefix); only the UI and database packages keep the
+  /// `<projectName>_ui` / `<projectName>_database` prefix (avoids reading as
+  /// generic as "core"/"auth" when extracted on its own). The filesystem is
+  /// the single source of truth (never a list stored in the contract), so it
+  /// stays correct even when teammates add features by hand. `local_storage`
+  /// stays excluded too — the database package's name before its rename —
+  /// so projects generated before the rename still load correctly.
   List<String> scanFeatures(String projectPath, NeatContract contract) {
     if (contract.packageSplit) {
       final packagesDir = Directory('$projectPath/packages');
       if (!packagesDir.existsSync()) return const [];
       final uiPackageName = '${contract.projectName}_ui';
+      final databasePackageName = '${contract.projectName}_database';
       const nonFeatureNames = ['core', 'local_storage', 'auth'];
       return packagesDir
           .listSync()
           .whereType<Directory>()
           .map((d) => d.uri.pathSegments.where((s) => s.isNotEmpty).last)
-          .where((name) => name != uiPackageName && !nonFeatureNames.contains(name))
+          .where(
+            (name) =>
+                name != uiPackageName &&
+                name != databasePackageName &&
+                !nonFeatureNames.contains(name),
+          )
           .toList()
         ..sort();
     }
