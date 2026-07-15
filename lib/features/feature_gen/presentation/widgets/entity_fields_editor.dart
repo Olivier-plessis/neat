@@ -36,9 +36,7 @@ class EntityFieldsEditor extends StatefulWidget {
 }
 
 class _EntityFieldsEditorState extends State<EntityFieldsEditor> {
-  late final TextEditingController _json = TextEditingController(
-    text: widget.json,
-  );
+  late final TextEditingController _json = TextEditingController(text: widget.json);
 
   @override
   void dispose() {
@@ -68,19 +66,10 @@ class _EntityFieldsEditorState extends State<EntityFieldsEditor> {
             controller: _json,
             maxLines: 5,
             minLines: 3,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 12,
-              fontFamily: 'monospace',
-            ),
+            style: const TextStyle(color: Colors.white, fontSize: 12, fontFamily: 'monospace'),
             decoration: InputDecoration(
-              hintText:
-                  '{ "id": 1, "title": "Tee", "price": 9.99, "created_at": "2024-01-31" }',
-              hintStyle: TextStyle(
-                color: Colors.grey[700],
-                fontSize: 12,
-                fontFamily: 'monospace',
-              ),
+              hintText: '{ "id": 1, "title": "Tee", "price": 9.99, "created_at": "2024-01-31" }',
+              hintStyle: TextStyle(color: Colors.grey[700], fontSize: 12, fontFamily: 'monospace'),
               isDense: true,
               contentPadding: const EdgeInsets.all(12),
               enabledBorder: OutlineInputBorder(
@@ -89,9 +78,7 @@ class _EntityFieldsEditorState extends State<EntityFieldsEditor> {
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(
-                  color: Palette.colorPrimaryCyan.withValues(alpha: 0.5),
-                ),
+                borderSide: BorderSide(color: Palette.colorPrimaryCyan.withValues(alpha: 0.5)),
               ),
             ),
           ),
@@ -134,9 +121,7 @@ class _EntityFieldsEditorState extends State<EntityFieldsEditor> {
                 onName: (v) => widget.onName(i, v),
                 onType: (v) => widget.onType(i, v),
                 onNullable: (v) => widget.onNullable(i, v),
-                onRemove: widget.fields[i].isId
-                    ? null
-                    : () => widget.onRemove(i),
+                onRemove: widget.fields[i].isId ? null : () => widget.onRemove(i),
               ),
             ),
           Align(
@@ -145,9 +130,7 @@ class _EntityFieldsEditorState extends State<EntityFieldsEditor> {
               onPressed: widget.onAddField,
               icon: const Icon(Icons.add, size: 16),
               label: const Text('Add field'),
-              style: TextButton.styleFrom(
-                foregroundColor: Palette.colorPrimaryCyan,
-              ),
+              style: TextButton.styleFrom(foregroundColor: Palette.colorPrimaryCyan),
             ),
           ),
           if (widget.warnings.isNotEmpty) ...[
@@ -158,20 +141,10 @@ class _EntityFieldsEditorState extends State<EntityFieldsEditor> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(
-                      Icons.info_outline,
-                      size: 13,
-                      color: Colors.amber[700],
-                    ),
+                    Icon(Icons.info_outline, size: 13, color: Colors.amber[700]),
                     const SizedBox(width: 6),
                     Expanded(
-                      child: Text(
-                        w,
-                        style: TextStyle(
-                          color: Colors.amber[200],
-                          fontSize: 11,
-                        ),
-                      ),
+                      child: Text(w, style: TextStyle(color: Colors.amber[200], fontSize: 11)),
                     ),
                   ],
                 ),
@@ -204,9 +177,7 @@ class _FieldRow extends StatefulWidget {
 }
 
 class _FieldRowState extends State<_FieldRow> {
-  late final TextEditingController _name = TextEditingController(
-    text: widget.field.dartName,
-  );
+  late final TextEditingController _name = TextEditingController(text: widget.field.dartName);
 
   @override
   void didUpdateWidget(_FieldRow old) {
@@ -227,7 +198,7 @@ class _FieldRowState extends State<_FieldRow> {
     final field = widget.field;
     final locked = field.isId;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       decoration: BoxDecoration(
         color: const Color(0xFF0D0D0F),
         borderRadius: BorderRadius.circular(10),
@@ -241,11 +212,11 @@ class _FieldRowState extends State<_FieldRow> {
               controller: _name,
               enabled: !locked,
               onChanged: widget.onName,
-              style: const TextStyle(color: Colors.white, fontSize: 12),
+              style: const TextStyle(color: Colors.white, fontSize: 14),
               decoration: const InputDecoration(
                 isDense: true,
                 border: InputBorder.none,
-                contentPadding: EdgeInsets.zero,
+                // contentPadding: EdgeInsets.zero,
               ),
             ),
           ),
@@ -253,9 +224,7 @@ class _FieldRowState extends State<_FieldRow> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
-                border: Border.all(
-                  color: Palette.colorPrimaryCyan.withValues(alpha: 0.5),
-                ),
+                border: Border.all(color: Palette.colorPrimaryCyan.withValues(alpha: 0.5)),
                 borderRadius: BorderRadius.circular(4),
               ),
               child: const Text(
@@ -278,9 +247,7 @@ class _FieldRowState extends State<_FieldRow> {
                     underline: const SizedBox.shrink(),
                     dropdownColor: const Color(0xFF1A1A1E),
                     style: const TextStyle(color: Colors.white, fontSize: 12),
-                    onChanged: locked
-                        ? null
-                        : (v) => v == null ? null : widget.onType(v),
+                    onChanged: locked ? null : (v) => v == null ? null : widget.onType(v),
                     items: [
                       for (final t in FieldSpec.supportedTypes)
                         DropdownMenuItem(value: t, child: Text(t)),
@@ -290,9 +257,7 @@ class _FieldRowState extends State<_FieldRow> {
                 // comes from `children`/`element`, which this flat row can't
                 // edit, so show what it is instead of a misleading dropdown.
                 : Text(
-                    field.kind == FieldKind.list
-                        ? 'List<${field.objectName}>'
-                        : field.objectName,
+                    field.kind == FieldKind.list ? 'List<${field.objectName}>' : field.objectName,
                     style: TextStyle(color: Colors.grey[500], fontSize: 11),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -307,10 +272,7 @@ class _FieldRowState extends State<_FieldRow> {
                 materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 activeColor: Palette.colorPrimaryCyan,
               ),
-              Text(
-                'null?',
-                style: TextStyle(color: Colors.grey[500], fontSize: 11),
-              ),
+              Text('null?', style: TextStyle(color: Colors.grey[500], fontSize: 11)),
             ],
           ),
           SizedBox(
@@ -318,11 +280,7 @@ class _FieldRowState extends State<_FieldRow> {
             child: widget.onRemove == null
                 ? null
                 : IconButton(
-                    icon: const Icon(
-                      Icons.close,
-                      size: 15,
-                      color: Colors.white38,
-                    ),
+                    icon: const Icon(Icons.close, size: 15, color: Colors.white38),
                     onPressed: widget.onRemove,
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
