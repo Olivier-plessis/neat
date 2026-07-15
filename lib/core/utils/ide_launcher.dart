@@ -4,7 +4,7 @@ import 'dart:io';
 enum IdeTarget {
   vscode(label: 'VS Code', appName: 'Visual Studio Code'),
   androidStudio(label: 'Android Studio', appName: 'Android Studio'),
-  antigravity(label: 'Antigravity', appName: 'Antigravity');
+  antigravity(label: 'Antigravity', appName: 'Antigravity IDE');
 
   const IdeTarget({required this.label, required this.appName});
 

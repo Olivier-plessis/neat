@@ -183,7 +183,8 @@ class _Workshop extends HookWidget {
     // GenerateFeatureUsecase's own validation, which this mirrors so the
     // Workshop never even offers a combination it would reject).
     final canCustomEndpoints = c.httpClient == 'chopper' && !c.packageSplit;
-    final endpointsValid = opts.endpoints.isNotEmpty &&
+    final endpointsValid =
+        opts.endpoints.isNotEmpty &&
         opts.endpoints.every((e) => e.name.isNotEmpty && e.path.isNotEmpty) &&
         opts.endpoints.map((e) => e.name).toSet().length == opts.endpoints.length;
 
@@ -262,7 +263,7 @@ class _Workshop extends HookWidget {
             children: [
               // Left: the form.
               Expanded(
-                flex: 6,
+                flex: 8,
                 child: ScrollConfiguration(
                   behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
                   child: SingleChildScrollView(
@@ -351,145 +352,145 @@ class _Workshop extends HookWidget {
                             onChange: (eps) => set(opts.copyWith(endpoints: eps)),
                           ),
                         ] else ...[
-                        const _SectionTitle(Icons.layers, 'Architecture Layers'),
-                        10.gapH,
-                        _LayerToggle(
-                          title: 'Remote Data Source',
-                          subtitle: projectHasHttp
-                              ? 'Generates the ${c.httpClient} API source & CRUD.'
-                              : 'Project has no HTTP client — unavailable.',
-                          value: projectHasHttp && opts.includeRemoteDataSource,
-                          enabled: projectHasHttp && !state.isGenerating,
-                          onChanged: (v) => set(opts.copyWith(includeRemoteDataSource: v)),
-                        ),
-                        if (projectHasHttp && opts.includeRemoteDataSource) ...[
+                          const _SectionTitle(Icons.layers, 'Architecture Layers'),
                           10.gapH,
-                          TextField(
-                            controller: apiPathCtrl,
-                            enabled: !state.isGenerating,
-                            style: const TextStyle(color: Colors.white, fontFamily: 'monospace'),
-                            decoration: _fieldDecoration(
-                              'API Path (optional) — e.g. /products',
-                              null,
+                          _LayerToggle(
+                            title: 'Remote Data Source',
+                            subtitle: projectHasHttp
+                                ? 'Generates the ${c.httpClient} API source & CRUD.'
+                                : 'Project has no HTTP client — unavailable.',
+                            value: projectHasHttp && opts.includeRemoteDataSource,
+                            enabled: projectHasHttp && !state.isGenerating,
+                            onChanged: (v) => set(opts.copyWith(includeRemoteDataSource: v)),
+                          ),
+                          if (projectHasHttp && opts.includeRemoteDataSource) ...[
+                            10.gapH,
+                            TextField(
+                              controller: apiPathCtrl,
+                              enabled: !state.isGenerating,
+                              style: const TextStyle(color: Colors.white, fontFamily: 'monospace'),
+                              decoration: _fieldDecoration(
+                                'API Path (optional) — e.g. /products',
+                                null,
+                              ),
                             ),
+                            4.gapH,
+                            Text(
+                              opts.apiPath.isEmpty
+                                  ? 'Default REST path: /${opts.name.isEmpty ? '...' : opts.name}s'
+                                  : 'A relative path is prepended to the API Base URL; an absolute '
+                                        'URL overrides it entirely.',
+                              style: TextStyle(color: Colors.grey[600], fontSize: 11),
+                            ),
+                          ],
+                          _LayerToggle(
+                            title: 'Local Data Source',
+                            subtitle: c.storageStrategy == 'remoteOnly'
+                                ? 'In-memory cache stub.'
+                                : 'Drift-backed local cache (typed table injected).',
+                            value: opts.includeLocalDataSource,
+                            enabled: !state.isGenerating,
+                            onChanged: (v) => set(opts.copyWith(includeLocalDataSource: v)),
                           ),
-                          4.gapH,
-                          Text(
-                            opts.apiPath.isEmpty
-                                ? 'Default REST path: /${opts.name.isEmpty ? '...' : opts.name}s'
-                                : 'A relative path is prepended to the API Base URL; an absolute '
-                                      'URL overrides it entirely.',
-                            style: TextStyle(color: Colors.grey[600], fontSize: 11),
+                          _LayerToggle(
+                            title: 'Domain UseCase',
+                            subtitle: 'Business logic classes with Result<T> return type.',
+                            value: opts.includeUseCase,
+                            enabled: !state.isGenerating,
+                            onChanged: (v) => set(opts.copyWith(includeUseCase: v)),
                           ),
-                        ],
-                        _LayerToggle(
-                          title: 'Local Data Source',
-                          subtitle: c.storageStrategy == 'remoteOnly'
-                              ? 'In-memory cache stub.'
-                              : 'Drift-backed local cache (typed table injected).',
-                          value: opts.includeLocalDataSource,
-                          enabled: !state.isGenerating,
-                          onChanged: (v) => set(opts.copyWith(includeLocalDataSource: v)),
-                        ),
-                        _LayerToggle(
-                          title: 'Domain UseCase',
-                          subtitle: 'Business logic classes with Result<T> return type.',
-                          value: opts.includeUseCase,
-                          enabled: !state.isGenerating,
-                          onChanged: (v) => set(opts.copyWith(includeUseCase: v)),
-                        ),
-                        const _LayerToggle(
-                          title: 'Data Mapper',
-                          subtitle: 'DTO → Entity conversion (intrinsic to Clean Architecture).',
-                          value: true,
-                          enabled: false,
-                          locked: true,
-                        ),
-                        if (!opts.hasAnyDataSource) ...[
-                          8.gapH,
-                          Text(
-                            'No data source selected — a pure entity + '
-                            'presentation feature (no data/ layer at all).',
-                            style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                          const _LayerToggle(
+                            title: 'Data Mapper',
+                            subtitle: 'DTO → Entity conversion (intrinsic to Clean Architecture).',
+                            value: true,
+                            enabled: false,
+                            locked: true,
                           ),
-                        ],
-                        24.gapH,
-                        const _SectionTitle(Icons.data_object, 'Entity Fields'),
-                        10.gapH,
-                        EntityFieldsEditor(
-                          json: opts.json,
-                          fields: opts.fields,
-                          warnings: opts.fieldWarnings,
-                          onInfer: (j) {
-                            if (j.trim().isEmpty) {
+                          if (!opts.hasAnyDataSource) ...[
+                            8.gapH,
+                            Text(
+                              'No data source selected — a pure entity + '
+                              'presentation feature (no data/ layer at all).',
+                              style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                            ),
+                          ],
+                          24.gapH,
+                          const _SectionTitle(Icons.data_object, 'Entity Fields'),
+                          10.gapH,
+                          EntityFieldsEditor(
+                            json: opts.json,
+                            fields: opts.fields,
+                            warnings: opts.fieldWarnings,
+                            onInfer: (j) {
+                              if (j.trim().isEmpty) {
+                                set(
+                                  opts.copyWith(
+                                    json: '',
+                                    fields: FieldSpec.idName,
+                                    fieldWarnings: const [],
+                                  ),
+                                );
+                                return;
+                              }
+                              final r = const JsonEntityInferencer().infer(j);
+                              set(
+                                opts.copyWith(json: j, fields: r.fields, fieldWarnings: r.warnings),
+                              );
+                            },
+                            onReset: () => set(
+                              opts.copyWith(
+                                json: '',
+                                fields: FieldSpec.idName,
+                                fieldWarnings: const [],
+                              ),
+                            ),
+                            onAddField: () {
+                              final used = opts.fields.map((f) => f.dartName).toSet();
+                              var n = 'field';
+                              for (var i = 1; used.contains(n); i++) {
+                                n = 'field$i';
+                              }
                               set(
                                 opts.copyWith(
-                                  json: '',
-                                  fields: FieldSpec.idName,
-                                  fieldWarnings: const [],
+                                  fields: [
+                                    ...opts.fields,
+                                    FieldSpec(jsonKey: n, dartName: n),
+                                  ],
                                 ),
                               );
-                              return;
-                            }
-                            final r = const JsonEntityInferencer().infer(j);
-                            set(
-                              opts.copyWith(json: j, fields: r.fields, fieldWarnings: r.warnings),
-                            );
-                          },
-                          onReset: () => set(
-                            opts.copyWith(
-                              json: '',
-                              fields: FieldSpec.idName,
-                              fieldWarnings: const [],
-                            ),
-                          ),
-                          onAddField: () {
-                            final used = opts.fields.map((f) => f.dartName).toSet();
-                            var n = 'field';
-                            for (var i = 1; used.contains(n); i++) {
-                              n = 'field$i';
-                            }
-                            set(
+                            },
+                            onName: (i, v) => set(
                               opts.copyWith(
-                                fields: [
-                                  ...opts.fields,
-                                  FieldSpec(jsonKey: n, dartName: n),
-                                ],
-                              ),
-                            );
-                          },
-                          onName: (i, v) => set(
-                            opts.copyWith(
-                              fields: _editField(
-                                opts.fields,
-                                i,
-                                (f) => f.copyWith(dartName: v.trim()),
+                                fields: _editField(
+                                  opts.fields,
+                                  i,
+                                  (f) => f.copyWith(dartName: v.trim()),
+                                ),
                               ),
                             ),
-                          ),
-                          onType: (i, v) => set(
-                            opts.copyWith(
-                              fields: _editField(
-                                opts.fields,
-                                i,
-                                (f) => f.isId ? f : f.copyWith(dartType: v),
+                            onType: (i, v) => set(
+                              opts.copyWith(
+                                fields: _editField(
+                                  opts.fields,
+                                  i,
+                                  (f) => f.isId ? f : f.copyWith(dartType: v),
+                                ),
                               ),
                             ),
-                          ),
-                          onNullable: (i, v) => set(
-                            opts.copyWith(
-                              fields: _editField(
-                                opts.fields,
-                                i,
-                                (f) => f.isId ? f : f.copyWith(nullable: v),
+                            onNullable: (i, v) => set(
+                              opts.copyWith(
+                                fields: _editField(
+                                  opts.fields,
+                                  i,
+                                  (f) => f.isId ? f : f.copyWith(nullable: v),
+                                ),
                               ),
                             ),
+                            onRemove: (i) {
+                              if (opts.fields[i].isId) return;
+                              set(opts.copyWith(fields: [...opts.fields]..removeAt(i)));
+                            },
                           ),
-                          onRemove: (i) {
-                            if (opts.fields[i].isId) return;
-                            set(opts.copyWith(fields: [...opts.fields]..removeAt(i)));
-                          },
-                        ),
                         ],
                       ],
                     ),
@@ -990,11 +991,7 @@ class _LayerToggle extends StatelessWidget {
 /// this screen. Only the expand/collapse of each endpoint's card is local,
 /// ephemeral UI state (via [ExpansionTile]), never persisted.
 class _EndpointsEditor extends StatelessWidget {
-  const _EndpointsEditor({
-    required this.endpoints,
-    required this.enabled,
-    required this.onChange,
-  });
+  const _EndpointsEditor({required this.endpoints, required this.enabled, required this.onChange});
 
   final List<EndpointSpec> endpoints;
   final bool enabled;
@@ -1023,19 +1020,28 @@ class _EndpointsEditor extends StatelessWidget {
               if (j.trim().isEmpty) {
                 _update(
                   i,
-                  (e) => e.copyWith(requestJson: '', requestFields: const [], requestWarnings: const []),
+                  (e) => e.copyWith(
+                    requestJson: '',
+                    requestFields: const [],
+                    requestWarnings: const [],
+                  ),
                 );
                 return;
               }
               final r = const JsonEntityInferencer().infer(j, requireId: false);
               _update(
                 i,
-                (e) => e.copyWith(requestJson: j, requestFields: r.fields, requestWarnings: r.warnings),
+                (e) => e.copyWith(
+                  requestJson: j,
+                  requestFields: r.fields,
+                  requestWarnings: r.warnings,
+                ),
               );
             },
             onRequestReset: () => _update(
               i,
-              (e) => e.copyWith(requestJson: '', requestFields: const [], requestWarnings: const []),
+              (e) =>
+                  e.copyWith(requestJson: '', requestFields: const [], requestWarnings: const []),
             ),
             onRequestAddField: () => _update(i, (e) {
               final used = e.requestFields.map((f) => f.dartName).toSet();
@@ -1043,12 +1049,21 @@ class _EndpointsEditor extends StatelessWidget {
               for (var k = 1; used.contains(n); k++) {
                 n = 'field$k';
               }
-              return e.copyWith(requestFields: [...e.requestFields, FieldSpec(jsonKey: n, dartName: n)]);
+              return e.copyWith(
+                requestFields: [
+                  ...e.requestFields,
+                  FieldSpec(jsonKey: n, dartName: n),
+                ],
+              );
             }),
             onRequestName: (fi, v) => _update(
               i,
               (e) => e.copyWith(
-                requestFields: _editField(e.requestFields, fi, (f) => f.copyWith(dartName: v.trim())),
+                requestFields: _editField(
+                  e.requestFields,
+                  fi,
+                  (f) => f.copyWith(dartName: v.trim()),
+                ),
               ),
             ),
             onRequestType: (fi, v) => _update(
@@ -1063,29 +1078,37 @@ class _EndpointsEditor extends StatelessWidget {
                 requestFields: _editField(e.requestFields, fi, (f) => f.copyWith(nullable: v)),
               ),
             ),
-            onRequestRemove: (fi) => _update(
-              i,
-              (e) => e.copyWith(requestFields: [...e.requestFields]..removeAt(fi)),
-            ),
+            onRequestRemove: (fi) =>
+                _update(i, (e) => e.copyWith(requestFields: [...e.requestFields]..removeAt(fi))),
             onResponseInfer: (j) {
               if (j.trim().isEmpty) {
                 _update(
                   i,
-                  (e) =>
-                      e.copyWith(responseJson: '', responseFields: const [], responseWarnings: const []),
+                  (e) => e.copyWith(
+                    responseJson: '',
+                    responseFields: const [],
+                    responseWarnings: const [],
+                  ),
                 );
                 return;
               }
               final r = const JsonEntityInferencer().infer(j, requireId: false);
               _update(
                 i,
-                (e) =>
-                    e.copyWith(responseJson: j, responseFields: r.fields, responseWarnings: r.warnings),
+                (e) => e.copyWith(
+                  responseJson: j,
+                  responseFields: r.fields,
+                  responseWarnings: r.warnings,
+                ),
               );
             },
             onResponseReset: () => _update(
               i,
-              (e) => e.copyWith(responseJson: '', responseFields: const [], responseWarnings: const []),
+              (e) => e.copyWith(
+                responseJson: '',
+                responseFields: const [],
+                responseWarnings: const [],
+              ),
             ),
             onResponseAddField: () => _update(i, (e) {
               final used = e.responseFields.map((f) => f.dartName).toSet();
@@ -1094,12 +1117,20 @@ class _EndpointsEditor extends StatelessWidget {
                 n = 'field$k';
               }
               return e.copyWith(
-                  responseFields: [...e.responseFields, FieldSpec(jsonKey: n, dartName: n)]);
+                responseFields: [
+                  ...e.responseFields,
+                  FieldSpec(jsonKey: n, dartName: n),
+                ],
+              );
             }),
             onResponseName: (fi, v) => _update(
               i,
               (e) => e.copyWith(
-                responseFields: _editField(e.responseFields, fi, (f) => f.copyWith(dartName: v.trim())),
+                responseFields: _editField(
+                  e.responseFields,
+                  fi,
+                  (f) => f.copyWith(dartName: v.trim()),
+                ),
               ),
             ),
             onResponseType: (fi, v) => _update(
@@ -1114,10 +1145,8 @@ class _EndpointsEditor extends StatelessWidget {
                 responseFields: _editField(e.responseFields, fi, (f) => f.copyWith(nullable: v)),
               ),
             ),
-            onResponseRemove: (fi) => _update(
-              i,
-              (e) => e.copyWith(responseFields: [...e.responseFields]..removeAt(fi)),
-            ),
+            onResponseRemove: (fi) =>
+                _update(i, (e) => e.copyWith(responseFields: [...e.responseFields]..removeAt(fi))),
             onRemove: () => onChange([...endpoints]..removeAt(i)),
           ),
           10.gapH,
@@ -1245,7 +1274,11 @@ class _EndpointRow extends HookWidget {
                   controller: pathCtrl,
                   enabled: enabled,
                   onChanged: onPath,
-                  style: const TextStyle(color: Colors.white, fontSize: 13, fontFamily: 'monospace'),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontFamily: 'monospace',
+                  ),
                   decoration: const InputDecoration.collapsed(hintText: '/auth/login'),
                 ),
               ),

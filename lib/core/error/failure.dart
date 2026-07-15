@@ -1,4 +1,4 @@
-/// Représente une erreur applicative structurée.
+/// Represents a structured application error.
 class Failure {
   Failure({
     required this.message,
@@ -7,16 +7,16 @@ class Failure {
     this.originalError,
   });
 
-  /// Message lisible par l'utilisateur.
+  /// User-friendly error message.
   final String message;
 
-  /// Code de statut HTTP (ex: 401, 500).
+  /// HTTP status code (e.g. 401, 500).
   final int? statusCode;
 
-  /// Code d'erreur métier renvoyé par l'API (ex: 'USER_NOT_FOUND').
+  /// Business error code returned by the API (e.g. 'USER_NOT_FOUND').
   final String? code;
 
-  /// L'erreur d'origine (exception technique sous-jacente).
+  /// Original error (underlying technical exception).
   final Object? originalError;
 
   @override
