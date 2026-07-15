@@ -14,21 +14,22 @@ class CoreTemplates {
   }) {
     final auth = hasAuth
         ? "\n  static const String login = '/login';\n"
-            "  static const String signup = '/signup';\n"
-            "  static const String forgotPassword = '/forgot-password';\n"
+              "  static const String signup = '/signup';\n"
+              "  static const String forgotPassword = '/forgot-password';\n"
         : '';
     // Only registered when the redirect can actually be auto-wired
     // (go_router_builder — see launch_generation_usecase.dart's
     // autoWireOnboarding) — see ROADMAP.md's onboarding entry for why plain
     // go_router stays unwired.
-    final onboarding =
-        hasOnboarding ? "\n  static const String onboarding = '/onboarding';\n" : '';
+    final onboarding = hasOnboarding
+        ? "\n  static const String onboarding = '/onboarding';\n"
+        : '';
     final entry = hasFirstFeature
         ? '  /// First feature — app entry point.\n'
-            "  static const String ${_camel(featureName)} = '/';\n"
+              "  static const String ${_camel(featureName)} = '/';\n"
         : '  /// No first feature — the welcome placeholder owns the app\'s root\n'
-            '  /// route until you add one via the Workshop.\n'
-            "  static const String welcome = '/';\n";
+              '  /// route until you add one via the Workshop.\n'
+              "  static const String welcome = '/';\n";
     return '''class AppRoutePath {
   AppRoutePath._();
 
@@ -41,7 +42,10 @@ $entry$auth$onboarding  // neat:routes — feature route constants are inserted 
 
   /// Shown at `/` when [ArchitectureState.generateFirstFeature] is off — the
   /// app ships with no features yet, so something has to own the root route.
-  static String welcomePage({required String packageName, required String appName}) =>
+  static String welcomePage({
+    required String packageName,
+    required String appName,
+  }) =>
       '''import 'package:flutter/material.dart';
 
 class WelcomePage extends StatelessWidget {
@@ -126,7 +130,7 @@ abstract interface class AppEnv implements AppEnvFields {
     final partFile = single ? 'env.g.dart' : '${flavor}_env.g.dart';
     final apiField = hasApiBaseUrl
         ? "\n\n  @EnviedField(varName: 'API_BASE_URL')\n"
-            '  static final String apiBaseUrl = _${p}EnvVars.apiBaseUrl;'
+              '  static final String apiBaseUrl = _${p}EnvVars.apiBaseUrl;'
         : '';
     final apiImpl = hasApiBaseUrl
         ? '\n\n  @override\n  final String apiBaseUrl = ${p}EnvVars.apiBaseUrl;'
@@ -151,7 +155,7 @@ abstract interface class AppEnv implements AppEnvFields {
         : '';
     final sentryField = hasSentry
         ? "\n\n  @EnviedField(varName: 'SENTRY_DSN')\n"
-            '  static final String sentryDsn = _${p}EnvVars.sentryDsn;'
+              '  static final String sentryDsn = _${p}EnvVars.sentryDsn;'
         : '';
     final sentryImpl = hasSentry
         ? '\n\n  @override\n  final String sentryDsn = ${p}EnvVars.sentryDsn;'
@@ -188,8 +192,9 @@ class ${p}Env implements AppEnv {
     String sentryDsn = '',
   }) {
     final api = hasApiBaseUrl ? 'API_BASE_URL=$apiBaseUrl\n' : '';
-    final supa =
-        hasSupabase ? 'SUPABASE_URL=$supabaseUrl\nSUPABASE_PUBLISHABLE_KEY=$supabaseKey\n' : '';
+    final supa = hasSupabase
+        ? 'SUPABASE_URL=$supabaseUrl\nSUPABASE_PUBLISHABLE_KEY=$supabaseKey\n'
+        : '';
     final sentry = hasSentry ? 'SENTRY_DSN=$sentryDsn\n' : '';
     return '''APP_NAME=$appName
 $api$supa$sentry''';
@@ -197,7 +202,8 @@ $api$supa$sentry''';
 
   // ── core/network/network_info.dart (offline-first) ───────────────────────
 
-  static String networkInfo() => r'''import 'package:connectivity_plus/connectivity_plus.dart';
+  static String networkInfo() =>
+      r'''import 'package:connectivity_plus/connectivity_plus.dart';
 
 /// Thin wrapper over connectivity_plus used by offline-first repositories to
 /// decide whether to hit the network or serve from the local cache.
@@ -220,7 +226,10 @@ class NetworkInfo {
 
   // ── core/error/error_handler.dart (global error routing) ──────────────────
 
-  static String errorHandler({required String packageName, String? corePackageName}) =>
+  static String errorHandler({
+    required String packageName,
+    String? corePackageName,
+  }) =>
       '''import 'package:flutter/foundation.dart';
 import 'package:${corePackageName ?? packageName}/core/utils/app_logger.dart';
 
@@ -454,13 +463,13 @@ class LoggerInterceptor extends Interceptor {
     final baseUrl = !useEnvied
         ? "''"
         : sharedConfig
-            ? 'ApiConfig.baseUrl'
-            : 'AppEnv.current.apiBaseUrl';
+        ? 'ApiConfig.baseUrl'
+        : 'AppEnv.current.apiBaseUrl';
     final envImport = !useEnvied
         ? ''
         : sharedConfig
-            ? "import 'package:$packageName/core/network/api_config.dart';\n"
-            : "import 'package:$packageName/core/env/app_env.dart';\n";
+        ? "import 'package:$packageName/core/network/api_config.dart';\n"
+        : "import 'package:$packageName/core/env/app_env.dart';\n";
     if (useAnnotations) {
       return '''import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
@@ -508,13 +517,13 @@ final dioProvider = Provider<Dio>((ref) {
     final baseUrl = !useEnvied
         ? "''"
         : sharedConfig
-            ? 'ApiConfig.baseUrl'
-            : 'AppEnv.current.apiBaseUrl';
+        ? 'ApiConfig.baseUrl'
+        : 'AppEnv.current.apiBaseUrl';
     final envImport = !useEnvied
         ? ''
         : sharedConfig
-            ? "import 'package:$packageName/core/network/api_config.dart';\n"
-            : "import 'package:$packageName/core/env/app_env.dart';\n";
+        ? "import 'package:$packageName/core/network/api_config.dart';\n"
+        : "import 'package:$packageName/core/env/app_env.dart';\n";
     if (useAnnotations) {
       return '''import 'package:chopper/chopper.dart';
 import 'package:flutter/foundation.dart';
@@ -563,7 +572,8 @@ final chopperClientProvider = Provider<ChopperClient>((ref) {
   /// .apiBaseUrl` before `runApp` — the exact same "set a static value from
   /// the composition root, read it as ambient state everywhere else" shape
   /// `AppEnv.setEnv(env)` itself already uses.
-  static String apiConfig() => '''/// Bridges the app's envied `AppEnv.apiBaseUrl` into this package: this
+  static String apiConfig() =>
+      '''/// Bridges the app's envied `AppEnv.apiBaseUrl` into this package: this
 /// package sits below the app (which owns `AppEnv`), so it can't import it
 /// back. `bootstrap()` sets [baseUrl] once, before `runApp`.
 class ApiConfig {
@@ -596,8 +606,9 @@ class ApiConfig {
     final witnessImport = featureName != null
         ? "import 'package:$packageName/features/$featureName/data/models/${featureName}_model.dart';\n"
         : '';
-    final witnessDecoder =
-        featureName != null ? '  ${_pascal(featureName)}Model: (json) => ${_pascal(featureName)}Model.fromJson(json),\n' : '';
+    final witnessDecoder = featureName != null
+        ? '  ${_pascal(featureName)}Model: (json) => ${_pascal(featureName)}Model.fromJson(json),\n'
+        : '';
     return '''import 'dart:async';
 
 import 'package:chopper/chopper.dart';
@@ -692,17 +703,27 @@ T unwrapChopperResponse<T>(Response<T> response) {
       ..writeln("import 'package:$packageName/core/error/failure.dart';");
     if (isDioLike) imports.writeln("import 'package:dio/dio.dart';");
     if (isChopper) {
-      imports.writeln("import 'package:$packageName/core/network/chopper_model_converter.dart';");
+      imports.writeln(
+        "import 'package:$packageName/core/network/chopper_model_converter.dart';",
+      );
     }
-    if (isSupabase) imports.writeln("import 'package:supabase_flutter/supabase_flutter.dart';");
-    if (isFirebase) imports.writeln("import 'package:firebase_core/firebase_core.dart';");
+    if (isSupabase)
+      imports.writeln(
+        "import 'package:supabase_flutter/supabase_flutter.dart';",
+      );
+    if (isFirebase)
+      imports.writeln("import 'package:firebase_core/firebase_core.dart';");
 
     final branches = StringBuffer();
     if (isDioLike) {
-      branches.writeln('    if (error is DioException) return _handleDioError(error);');
+      branches.writeln(
+        '    if (error is DioException) return _handleDioError(error);',
+      );
     }
     if (isChopper) {
-      branches.writeln('    if (error is ChopperApiException) return _handleChopperError(error);');
+      branches.writeln(
+        '    if (error is ChopperApiException) return _handleChopperError(error);',
+      );
     }
     if (isSupabase) {
       branches.write('''    if (error is AuthException) {
@@ -844,28 +865,37 @@ final supabaseClientProvider =
   }) {
     final pkgImports = StringBuffer()
       ..writeln("import 'package:cloud_firestore/cloud_firestore.dart';");
-    if (hasAuth) pkgImports.writeln("import 'package:firebase_auth/firebase_auth.dart';");
+    if (hasAuth)
+      pkgImports.writeln("import 'package:firebase_auth/firebase_auth.dart';");
     if (hasStorage) {
-      pkgImports.writeln("import 'package:firebase_storage/firebase_storage.dart';");
+      pkgImports.writeln(
+        "import 'package:firebase_storage/firebase_storage.dart';",
+      );
     }
 
     if (useAnnotations) {
       final providers = StringBuffer()
         ..writeln('@Riverpod(keepAlive: true)')
-        ..write('FirebaseFirestore firestore(Ref ref) => FirebaseFirestore.instance;');
+        ..write(
+          'FirebaseFirestore firestore(Ref ref) => FirebaseFirestore.instance;',
+        );
       if (hasAuth) {
         providers
           ..writeln()
           ..writeln()
           ..writeln('@Riverpod(keepAlive: true)')
-          ..write('FirebaseAuth firebaseAuth(Ref ref) => FirebaseAuth.instance;');
+          ..write(
+            'FirebaseAuth firebaseAuth(Ref ref) => FirebaseAuth.instance;',
+          );
       }
       if (hasStorage) {
         providers
           ..writeln()
           ..writeln()
           ..writeln('@Riverpod(keepAlive: true)')
-          ..write('FirebaseStorage firebaseStorage(Ref ref) => FirebaseStorage.instance;');
+          ..write(
+            'FirebaseStorage firebaseStorage(Ref ref) => FirebaseStorage.instance;',
+          );
       }
       return '''import 'package:riverpod_annotation/riverpod_annotation.dart';
 ${pkgImports.toString().trimRight()}
@@ -879,7 +909,9 @@ ${providers.toString()}
 
     final providers = StringBuffer()
       ..writeln('final firestoreProvider =')
-      ..write('    Provider<FirebaseFirestore>((ref) => FirebaseFirestore.instance);');
+      ..write(
+        '    Provider<FirebaseFirestore>((ref) => FirebaseFirestore.instance);',
+      );
     if (hasAuth) {
       providers
         ..writeln()
@@ -892,7 +924,9 @@ ${providers.toString()}
         ..writeln()
         ..writeln()
         ..writeln('final firebaseStorageProvider =')
-        ..write('    Provider<FirebaseStorage>((ref) => FirebaseStorage.instance);');
+        ..write(
+          '    Provider<FirebaseStorage>((ref) => FirebaseStorage.instance);',
+        );
     }
     return '''import 'package:flutter_riverpod/flutter_riverpod.dart';
 ${pkgImports.toString().trimRight()}
@@ -910,7 +944,12 @@ ${providers.toString()}
   static String firebaseOptions(Map<String, dynamic> config) {
     String esc(Object? v) => (v ?? '').toString().replaceAll("'", r"\'");
     final optional = StringBuffer();
-    for (final key in const ['authDomain', 'storageBucket', 'measurementId', 'databaseURL']) {
+    for (final key in const [
+      'authDomain',
+      'storageBucket',
+      'measurementId',
+      'databaseURL',
+    ]) {
       final value = config[key];
       if (value != null && value.toString().isNotEmpty) {
         optional.writeln("    $key: '${esc(value)}',");
@@ -944,7 +983,10 @@ ${optional.toString().trimRight()}
   /// Firestore Security Rules scaffold. Default-deny, with a per-collection rule
   /// for the first feature. With auth, only signed-in users get access; without
   /// auth, it's wide open (dev only) and loudly flagged.
-  static String firestoreRules({required String featureName, required bool hasAuth}) {
+  static String firestoreRules({
+    required String featureName,
+    required bool hasAuth,
+  }) {
     final collection = '${featureName}s';
     final rule = hasAuth
         ? 'allow read, write: if request.auth != null; // signed-in users only'
@@ -1211,7 +1253,8 @@ class _AvatarUploadFieldState extends ConsumerState<AvatarUploadField> {
   static String syncService({
     required String packageName,
     required String localStoragePackage,
-  }) => '''import 'dart:async';
+  }) =>
+      '''import 'dart:async';
 
 import 'package:$localStoragePackage/$localStoragePackage.dart';
 import 'package:$packageName/core/network/network_info.dart';
@@ -1227,7 +1270,7 @@ enum ReplaySyncResult {
 
   /// The backend rejected the write because the resource changed since it was
   /// queued (e.g. a 409, or a newer `updatedAt`). Parked separately from
-  /// ordinary retries until the app resolves it via [AppDatabase.resolveConflict]
+  /// ordinary retries until the app resolves it via [OutboxDao.resolveConflict]
   /// — a generic sync engine can't safely guess a merge policy on your behalf.
   conflict,
 }
@@ -1288,7 +1331,7 @@ class SyncService {
       if (nextWait == null || wait < nextWait!) nextWait = wait;
     }
 
-    for (final entry in await _db.pendingOutbox()) {
+    for (final entry in await _db.outboxDao.pendingOutbox()) {
       if (entry.retryCount >= maxRetries) continue; // parked — give up
       final due = entry.nextRetryAt;
       if (due != null && due.isAfter(now)) {
@@ -1298,17 +1341,17 @@ class SyncService {
       try {
         switch (await _replay(entry)) {
           case ReplaySyncResult.success:
-            await _db.deleteOutbox(entry.id);
+            await _db.outboxDao.deleteOutbox(entry.id);
           case ReplaySyncResult.retry:
             final backoff = _backoffFor(entry.retryCount + 1);
-            await _db.incrementRetry(entry.id, nextRetryAt: now.add(backoff));
+            await _db.outboxDao.incrementRetry(entry.id, nextRetryAt: now.add(backoff));
             scheduleRetry(backoff);
           case ReplaySyncResult.conflict:
-            await _db.markConflict(entry.id);
+            await _db.outboxDao.markConflict(entry.id);
         }
       } catch (_) {
         final backoff = _backoffFor(entry.retryCount + 1);
-        await _db.incrementRetry(entry.id, nextRetryAt: now.add(backoff));
+        await _db.outboxDao.incrementRetry(entry.id, nextRetryAt: now.add(backoff));
         scheduleRetry(backoff);
       }
     }
@@ -1318,12 +1361,12 @@ class SyncService {
 
   /// Writes that exhausted their retries — surface these to the user / a report.
   Future<List<OutboxEntry>> failedWrites() async =>
-      (await _db.pendingOutbox()).where((e) => e.retryCount >= maxRetries).toList();
+      (await _db.outboxDao.pendingOutbox()).where((e) => e.retryCount >= maxRetries).toList();
 
   /// Writes flagged as conflicting — surface these for the app to resolve
-  /// (see [AppDatabase.resolveConflict]); distinct from [failedWrites], which
+  /// (see [OutboxDao.resolveConflict]); distinct from [failedWrites], which
   /// is exhausted retries rather than a detected conflict.
-  Future<List<OutboxEntry>> conflictedWrites() => _db.conflictedOutbox();
+  Future<List<OutboxEntry>> conflictedWrites() => _db.outboxDao.conflictedOutbox();
 
   Future<void> dispose() async {
     _retryTimer?.cancel();
@@ -1344,7 +1387,9 @@ class SyncService {
     final p = _pascal(featureName);
     final c = _camel(featureName);
     // A representative constructor call for the doc sample (non-compiled prose).
-    final sampleArgs = fields.map((f) => '${f.dartName}: ${f.entityPlaceholder()}').join(', ');
+    final sampleArgs = fields
+        .map((f) => '${f.dartName}: ${f.entityPlaceholder()}')
+        .join(', ');
 
     final syncIntro = hasSync
         ? 'reads are local-first with a cache fallback, and **writes work offline**: they are applied to the local DB immediately and queued in an Outbox that a `SyncService` replays when connectivity returns.'
@@ -1384,7 +1429,7 @@ ref.watch(${c}SyncProvider);
 - A replay that returns `ReplaySyncResult.conflict` (e.g. the backend answered
   409) is set aside from ordinary retries — inspect it via
   `SyncService.conflictedWrites()` and resolve it with
-  `AppDatabase.resolveConflict(id, retry: ...)`. Detecting *what* counts as a
+  `AppDatabase.outboxDao.resolveConflict(id, retry: ...)`. Detecting *what* counts as a
   conflict for your backend is up to the replay callback
   (`core/sync/sync_service.dart`) — a generic engine can't guess your merge
   policy.'''
@@ -1473,6 +1518,172 @@ into the core dio/chopper client provider. The API source's per-resource path
 '''
         '${hasSync ? '\n- **Replay policy**: `SyncService` already backs off exponentially and parks conflicts — wire your backend\'s own conflict detection (e.g. a 409 check) into the replay callback.\n' : '\n'}';
   }
+
+  // ── docs/REMOVE_FIRST_FEATURE.md (usage guide) ────────────────────────────
+
+  /// A feature isn't self-contained in its own folder — generating it also
+  /// inserts lines into several shared files (routing, the chopper decoder
+  /// registry, the Drift database, workspace pubspecs...). `rm -rf` on the
+  /// feature's folder alone leaves those references dangling. This doc spells
+  /// out every file to revert, computed from the exact same flags the
+  /// generator itself used, so it stays accurate for whatever combination of
+  /// options this project was generated with.
+  static String removeFirstFeatureDoc({
+    required String featureName,
+    required String httpClient,
+    String? corePackageName,
+    String? featurePackageName,
+    String? localStoragePackage,
+    bool hasSync = false,
+    bool useShell = false,
+  }) {
+    final camel = _camel(featureName);
+    final packageSplit = corePackageName != null;
+    final featureRoot = featurePackageName != null
+        ? 'packages/$featurePackageName/'
+        : 'lib/features/$featureName/';
+    final routePathFile = packageSplit
+        ? 'packages/$corePackageName/lib/core/constants/app_route_path.dart'
+        : 'lib/core/constants/app_route_path.dart';
+
+    final chopperSection = httpClient == 'chopper'
+        ? '''
+
+## Chopper decoder registry
+
+- `lib/core/network/chopper_model_converter.dart` — remove the `$featureName`
+  model import and its `case` entry in the decoder registry.'''
+              '${packageSplit ? '\n- `lib/core/bootstrap.dart` — remove the `$featureName` self-registration '
+                        'import and call (only present with packageSplit).' : ''}'
+        : '';
+
+    final offlineSection = localStoragePackage != null
+        ? '''
+
+## Drift database
+
+- `packages/$localStoragePackage/lib/src/database.dart` — remove the
+  `$featureName` entries and imports at the `// neat:table-imports`,
+  `// neat:table-names`, `// neat:dao-imports`, `// neat:daos`
+  ${hasSync ? ', `// neat:migrations` ' : ''}anchors, then lower `schemaVersion`
+  back down by 1.
+- Delete `packages/$localStoragePackage/lib/src/table/${featureName}_table.dart`
+  (its table definition) and
+  `packages/$localStoragePackage/lib/src/dao/${featureName}_dao.dart`
+  (its dedicated DAO file).'''
+        : '';
+
+    final packageSplitSection = packageSplit && featurePackageName != null
+        ? '''
+
+## Workspace wiring (packageSplit)
+
+- Root `pubspec.yaml` — remove the `- packages/$featurePackageName` workspace
+  member line, and this dependency block:
+  ```yaml
+  $featurePackageName:
+    path: packages/$featurePackageName
+  ```
+- Delete `packages/$featurePackageName/` entirely (covered by step 1 above).'''
+        : '';
+
+    final shellSection = useShell
+        ? '''
+
+## Navigation shell
+
+- `lib/core/navigation/scaffold_with_nav_bar.dart` — remove the `$featureName`
+  destination.
+- `lib/core/router/app_shell_route.dart` (typed) or the embedded
+  `StatefulShellRoute` in `routes.dart` (plain go_router) — remove its branch.'''
+              '${packageSplit ? '\n- `packages/$corePackageName/lib/core/router/shell_page_registry.dart` — '
+                        'remove its registry entry.' : ''}'
+        : '';
+
+    return '''# Removing `$featureName` (the wizard's first feature)
+
+NEAT generated `$featureName` as this project's first feature. A feature isn't
+fully self-contained in its own folder — generating it also inserted a few
+lines into shared files, so deleting the folder alone will leave dangling
+imports/references. Here's everything to undo, for exactly the options this
+project was generated with.
+
+## 1. Delete the feature's own files
+
+- `$featureRoot`
+
+## 2. Routing
+
+- `lib/core/router/routes.dart` — remove the `$featureName` import and its
+  route entry (between the `// neat:route-imports` / `// neat:route-entries`
+  anchors).
+- `$routePathFile` — remove the `$camel` route constant.
+
+Since `$featureName` was your only feature, the app now has no page for `/`.
+The simplest fix is to add a new first feature from the Workshop — it wires
+into the same `/` route automatically, the same way this one originally did.
+$chopperSection$offlineSection$packageSplitSection$shellSection
+
+## Simplest path of all
+
+If you haven't customized `$featureName` much, it's often less work to start a
+fresh project with **"Generate example feature"** turned off (Architecture
+step) than to hand-revert every anchor above.
+''';
+  }
+
+  // ── docs/DRIFT_WEB_SETUP.md (usage guide) ─────────────────────────────────
+
+  /// Drift's web support needs two prebuilt files NEAT can't generate as
+  /// template text — a compiled `sqlite3.wasm` binary and a
+  /// `drift_worker.dart.js` worker script, each its own versioned release
+  /// artifact, not generatable Dart source. `database.dart`'s `_open()` (see
+  /// `LocalStorageTemplates.database`'s `isWeb` branch) already looks for them
+  /// by these exact filenames — this doc is the one manual step left before
+  /// the app actually runs on web. Only written when the project targets web
+  /// **and** has offline-first storage on.
+  static String driftWebSetupDoc({required String localStoragePackage}) =>
+      '''# Drift on web — one-time setup
+
+This project targets web **and** uses Drift (offline-first storage). Drift's
+web support (https://drift.simonbinder.eu/platforms/web/) needs two files that
+aren't Dart source — NEAT can't generate them, they have to be downloaded once.
+
+## 1. Download the two files
+
+- **`sqlite3.wasm`** — the compiled SQLite WebAssembly module. Grab a build
+  from the sqlite3.dart releases: https://github.com/simolus3/sqlite3.dart/releases
+- **`drift_worker.dart.js`** — a compiled JS worker Drift uses to share one
+  database connection across browser tabs. Grab one from drift's own
+  releases: https://github.com/simolus3/drift/releases (or compile it
+  yourself — see the "Compilation" section on the page linked above).
+
+Match the release to the `drift`/`sqlite3` versions pinned in
+`packages/$localStoragePackage/pubspec.yaml` — an incompatible pair can fail
+at runtime instead of at build time.
+
+## 2. Place them in `web/`
+
+```
+web/
+├── index.html
+├── drift_worker.dart.js   ← add this
+└── sqlite3.wasm           ← add this
+```
+
+## 3. Already wired for you
+
+`packages/$localStoragePackage/lib/src/database.dart`'s `_open()` already
+branches on `kIsWeb` and points at these exact filenames — nothing else to
+change once the two files are in place.
+
+## 4. Deploying to production
+
+Browsers require `sqlite3.wasm` to be served with `Content-Type: application/wasm`.
+`flutter run`/`flutter build web` and most static hosts (Firebase Hosting,
+GitHub Pages, Netlify) infer this from the file extension automatically — only
+worth checking manually on an unusual server config.
+''';
 
   // ── core/error/failure.dart ───────────────────────────────────────────────
 
@@ -1576,7 +1787,8 @@ final appRouter = GoRouter(
           : '';
       final String body;
       if (hasAuth) {
-        body = '''RouterConfig<Object> appRouter(Ref ref) {
+        body =
+            '''RouterConfig<Object> appRouter(Ref ref) {
   // riverpod strips the "Notifier" suffix: RouterNotifier → routerProvider.
   final guard = ref.watch(routerProvider.notifier);
   return GoRouter(
@@ -1588,7 +1800,8 @@ final appRouter = GoRouter(
   );
 }''';
       } else if (hasOnboarding) {
-        body = '''RouterConfig<Object> appRouter(Ref ref) {
+        body =
+            '''RouterConfig<Object> appRouter(Ref ref) {
   final seen = ref.watch(onboardingSeenProvider.notifier);
   return GoRouter(
     initialLocation: AppRoutePath.$c,
@@ -1605,7 +1818,8 @@ final appRouter = GoRouter(
   );
 }''';
       } else {
-        body = '''RouterConfig<Object> appRouter(Ref ref) => GoRouter(
+        body =
+            '''RouterConfig<Object> appRouter(Ref ref) => GoRouter(
   initialLocation: AppRoutePath.$c,
   debugLogDiagnostics: true,
   routes: appRoutes,
@@ -1728,7 +1942,10 @@ final List<RouteBase> appRoutes = [
   /// welcome placeholder owns `/` instead. Same anchors as [routesManual], so
   /// the Workshop's insertion logic is unaffected when a real feature is
   /// added later.
-  static String routesManualWelcome({required String packageName, String? corePackageName}) =>
+  static String routesManualWelcome({
+    required String packageName,
+    String? corePackageName,
+  }) =>
       '''import 'package:go_router/go_router.dart';
 import 'package:${corePackageName ?? packageName}/core/constants/app_route_path.dart';
 import 'package:$packageName/core/pages/welcome_page.dart';
@@ -1749,7 +1966,10 @@ final List<RouteBase> appRoutes = [
   /// Typed-route counterpart to [featureRoutes] for the welcome placeholder —
   /// same `@TypedGoRoute` shape, so [routesAggregatorWelcome] can spread its
   /// generated `\$appRoutes` exactly like a real feature's.
-  static String welcomeRoute({required String packageName, String? corePackageName}) =>
+  static String welcomeRoute({
+    required String packageName,
+    String? corePackageName,
+  }) =>
       '''import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:${corePackageName ?? packageName}/core/constants/app_route_path.dart';
@@ -1937,7 +2157,10 @@ NetworkInfo networkInfo(Ref ref) => NetworkInfo(Connectivity());
   /// config, so it gets its own folder alongside (not inside) `core/router/`.
   /// Created with the first shell branch. Subsequent branches insert a
   /// [NavigationDestination] at the anchor.
-  static String scaffoldWithNavBar({required String firstIcon, required String firstLabel}) =>
+  static String scaffoldWithNavBar({
+    required String firstIcon,
+    required String firstLabel,
+  }) =>
       '''import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -1975,7 +2198,10 @@ class ScaffoldWithNavBar extends StatelessWidget {
 ''';
 
   /// A single `NavigationDestination` line, inserted at the destinations anchor.
-  static String shellDestination({required String icon, required String label}) =>
+  static String shellDestination({
+    required String icon,
+    required String label,
+  }) =>
       "      const NavigationDestination(icon: Icon(Icons.$icon), label: '$label'),";
 
   // ── Shell route — plain go_router ─────────────────────────────────────────
@@ -2072,8 +2298,9 @@ class ScaffoldWithNavBar extends StatelessWidget {
     final pageImport = usesRegistry
         ? "import 'package:${corePackageName!}/core/router/shell_page_registry.dart';"
         : "import 'package:$packageName/features/$featureName/presentation/pages/${featureName}_page.dart';";
-    final buildBody =
-        usesRegistry ? "lookupShellPage('$c')(context, state)" : 'const ${p}Page()';
+    final buildBody = usesRegistry
+        ? "lookupShellPage('$c')(context, state)"
+        : 'const ${p}Page()';
     return '''import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:${corePackageName ?? packageName}/core/constants/app_route_path.dart';
@@ -2155,8 +2382,9 @@ class ${p}Route extends GoRouteData with \$${p}Route {
   }) {
     final p = _pascal(featureName);
     final c = _camel(featureName);
-    final buildBody =
-        featurePackageName != null ? "lookupShellPage('$c')(context, state)" : 'const ${p}Page()';
+    final buildBody = featurePackageName != null
+        ? "lookupShellPage('$c')(context, state)"
+        : 'const ${p}Page()';
     return '''class ${p}BranchData extends StatefulShellBranchData {
   const ${p}BranchData();
 }
@@ -2190,10 +2418,12 @@ class ${p}Route extends GoRouteData with \$${p}Route {
     String? featureName,
   }) {
     final hasWitness = featureName != null && featurePackageName != null;
-    final witnessImport =
-        hasWitness ? "import 'package:$featurePackageName/presentation/pages/${featureName}_page.dart';\n" : '';
-    final witnessEntry =
-        hasWitness ? "  '${_camel(featureName)}': (context, state) => const ${_pascal(featureName)}Page(),\n" : '';
+    final witnessImport = hasWitness
+        ? "import 'package:$featurePackageName/presentation/pages/${featureName}_page.dart';\n"
+        : '';
+    final witnessEntry = hasWitness
+        ? "  '${_camel(featureName)}': (context, state) => const ${_pascal(featureName)}Page(),\n"
+        : '';
     return '''import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 $witnessImport// neat:shell-page-imports
@@ -2227,7 +2457,10 @@ ShellPageBuilder lookupShellPage(String key) {
 
   static String _pascal(String s) => s.isEmpty
       ? s
-      : s.split('_').map((w) => w.isEmpty ? '' : w[0].toUpperCase() + w.substring(1)).join();
+      : s
+            .split('_')
+            .map((w) => w.isEmpty ? '' : w[0].toUpperCase() + w.substring(1))
+            .join();
 
   static String _camel(String s) {
     final p = _pascal(s);

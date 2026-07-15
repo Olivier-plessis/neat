@@ -94,14 +94,11 @@ class LaunchScreen extends HookConsumerWidget {
     return Column(
       crossAxisAlignment: .start,
       children: [
-        const Text(
-          'Ready for Launch',
-          style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white),
-        ),
+        Text('Ready for Launch', style: context.textTheme.headlineLarge),
         8.gapH,
         Text(
           'Review your configuration before initiating the generation sequence. The process will\nscaffold your complete Flutter architecture.',
-          style: TextStyle(color: Colors.grey[400], fontSize: 14, height: 1.5),
+          style: context.textTheme.bodyLarge,
         ),
         24.gapH,
 
@@ -145,15 +142,16 @@ class LaunchScreen extends HookConsumerWidget {
         Container(
           height: 200,
           decoration: BoxDecoration(
-            color: const Color(0xFF0A0A0C),
+            color: context.neatColors.colorSurfaceCard,
             borderRadius: .circular(10),
-            border: .all(color: Colors.white10),
+            border: .all(color: context.neatColors.surface10),
           ),
           child: Column(
             crossAxisAlignment: .start,
             children: [
               Container(
-                padding: const .symmetric(horizontal: 16, vertical: 8),
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 decoration: const BoxDecoration(
                   color: Color(0xFF141416),
                   borderRadius: .vertical(top: Radius.circular(10)),
@@ -197,12 +195,7 @@ class LaunchScreen extends HookConsumerWidget {
                     final line = logs.value[i];
                     return Text(
                       line,
-                      style: TextStyle(
-                        color: _lineColor(line),
-                        fontFamily: 'monospace',
-                        fontSize: 12,
-                        height: 1.6,
-                      ),
+                      style: TextStyle(color: _lineColor(line), fontSize: 12, height: 1.6),
                     );
                   },
                 ),
@@ -541,7 +534,7 @@ class _ActionPanel extends StatelessWidget {
             24.gapH,
             SizedBox(
               width: .infinity,
-              child: FilledButton.icon(
+              child: OutlinedButton.icon(
                 onPressed: onAddFeature,
                 icon: const Icon(Icons.add, size: 18),
                 label: const Text('Add a feature'),
