@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:neat/features/generation/domain/models/crud_endpoint_overrides.dart';
 import 'package:neat/features/generation/domain/models/endpoint_spec.dart';
 import 'package:neat/features/generation/domain/models/field_spec.dart';
 import 'package:neat/features/generation/domain/services/templates/core_templates.dart';
@@ -83,6 +84,11 @@ class FeatureScaffolder {
     // list off of).
     bool useCustomEndpoints = false,
     List<EndpointSpec> endpoints = const [],
+    // Opt-in (Entity + CRUD only, chopper): each of the 5 fixed CRUD
+    // operations gets its own HTTP method + path instead of all 5 being
+    // derived from [apiPath]'s single base — see CrudEndpointOverrides' doc.
+    bool customizeEndpoints = false,
+    CrudEndpointOverrides? endpointOverrides,
     // packageSplit + shell branch, or a child nested under one (see
     // ROADMAP.md §6a): app_shell_route.dart/routes.dart can't import this
     // feature's page directly without the app depending on a page it
@@ -288,6 +294,8 @@ class FeatureScaffolder {
             apiPath: apiPath,
             corePackageName: corePackageName,
             domainCross: domainCross,
+            customizeEndpoints: customizeEndpoints,
+            endpointOverrides: endpointOverrides,
           ),
         );
       }
@@ -320,6 +328,8 @@ class FeatureScaffolder {
             httpClient: httpClient,
             realtime: liveList,
             apiPath: apiPath,
+            customizeEndpoints: customizeEndpoints,
+            endpointOverrides: endpointOverrides,
           ),
         );
       }

@@ -6,6 +6,7 @@ import 'package:neat/core/contract/neat_contract.dart';
 import 'package:neat/features/feature_gen/domain/models/feature_gen_options.dart';
 import 'package:neat/features/feature_gen/presentation/providers/workshop_controller.dart';
 import 'package:neat/features/feature_gen/presentation/widgets/entity_fields_editor.dart';
+import 'package:neat/features/generation/domain/models/crud_endpoint_overrides.dart';
 import 'package:neat/features/generation/domain/models/endpoint_spec.dart';
 import 'package:neat/features/generation/domain/models/field_spec.dart';
 import 'package:neat/features/generation/domain/services/json_entity_inferencer.dart';
@@ -26,7 +27,7 @@ class FeatureGenScreen extends HookConsumerWidget {
     final project = state.project;
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: .start,
       children: [
         DecoratedBox(
           decoration: BoxDecoration(color: Colors.transparent),
@@ -41,11 +42,11 @@ class FeatureGenScreen extends HookConsumerWidget {
                     width: 40,
                     height: 40,
                     decoration: BoxDecoration(
-                      color: context.neatColors.colorSurfaceCard,
+                      color: Palette.colorSurfaceCard,
                       borderRadius: .circular(10),
                       border: .all(color: Palette.colorPrimaryCyan.withValues(alpha: 0.4)),
                     ),
-                    child: const Icon(Icons.bolt, color: Palette.colorPrimaryCyan, size: 22),
+                    child: Icon(Icons.bolt, color: Palette.colorPrimaryCyan, size: 22),
                   ),
                 ),
 
@@ -210,6 +211,24 @@ class _Workshop extends HookWidget {
         : const ['Identity & Routing', 'Architecture Layers', 'Entity Fields'];
     final totalSteps = stepLabels.length;
     final step1Valid = nameCtrl.text.isNotEmpty && nameError == null && !parentMissing;
+    final scrollController = useScrollController();
+    // Same auto-scroll-to-bottom behavior as launch_screen's appendLog: new
+    // log lines arrive via Riverpod state (not a local hook callback), so
+    // this reacts to the list growing instead.
+    final logsLength = state.logs.length;
+    useEffect(() {
+      if (logsLength == 0) return null;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (scrollController.hasClients) {
+          scrollController.animateTo(
+            scrollController.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 150),
+            curve: Curves.easeOut,
+          );
+        }
+      });
+      return null;
+    }, [logsLength]);
 
     Widget step1Content() => Column(
       crossAxisAlignment: .start,
@@ -332,6 +351,174 @@ class _Workshop extends HookWidget {
                   style: TextStyle(color: Colors.grey[600], fontSize: 11),
                 ),
               ],
+              // Opt-in (chopper only): each of the 5 fixed CRUD operations
+              // gets its own method + path instead of all 5 sharing the API
+              // Path above — for APIs like dummyjson's recipes, which create
+              // via POST /recipes/add rather than POST /recipes.
+              if (projectHasHttp && c.httpClient == 'chopper' && opts.includeRemoteDataSource) ...[
+                8.gapH,
+                _LayerToggle(
+                  title: 'Customize endpoints',
+                  subtitle:
+                      'Set each operation\'s own method + path '
+                      '(e.g. POST /products/add to create).',
+                  value: opts.customizeEndpoints,
+                  enabled: !state.isGenerating,
+                  onChanged: (v) {
+                    if (v) {
+                      final base = opts.apiPath.isEmpty
+                          ? '/${opts.name.isEmpty ? 'items' : opts.name}s'
+                          : opts.apiPath;
+                      set(
+                        opts.copyWith(
+                          customizeEndpoints: true,
+                          endpointOverrides: CrudEndpointOverrides.defaultsFor(base),
+                        ),
+                      );
+                    } else {
+                      set(opts.copyWith(customizeEndpoints: false));
+                    }
+                  },
+                ),
+                if (opts.customizeEndpoints) ...[
+                  8.gapH,
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF161619),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.white12),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      child: Column(
+                        children: [
+                          _CrudEndpointRow(
+                            key: const ValueKey('getAll'),
+                            label: 'Get All',
+                            name: opts.endpointOverrides.getAllName,
+                            method: opts.endpointOverrides.getAllMethod,
+                            path: opts.endpointOverrides.getAllPath,
+                            enabled: !state.isGenerating,
+                            onName: (v) => set(
+                              opts.copyWith(
+                                endpointOverrides: opts.endpointOverrides.copyWith(getAllName: v),
+                              ),
+                            ),
+                            onMethod: (m) => set(
+                              opts.copyWith(
+                                endpointOverrides: opts.endpointOverrides.copyWith(getAllMethod: m),
+                              ),
+                            ),
+                            onPath: (v) => set(
+                              opts.copyWith(
+                                endpointOverrides: opts.endpointOverrides.copyWith(getAllPath: v),
+                              ),
+                            ),
+                          ),
+                          const Divider(height: 1, color: Colors.white10),
+                          _CrudEndpointRow(
+                            key: const ValueKey('getById'),
+                            label: 'Get By Id',
+                            name: opts.endpointOverrides.getByIdName,
+                            method: opts.endpointOverrides.getByIdMethod,
+                            path: opts.endpointOverrides.getByIdPath,
+                            enabled: !state.isGenerating,
+                            onName: (v) => set(
+                              opts.copyWith(
+                                endpointOverrides: opts.endpointOverrides.copyWith(getByIdName: v),
+                              ),
+                            ),
+                            onMethod: (m) => set(
+                              opts.copyWith(
+                                endpointOverrides: opts.endpointOverrides.copyWith(
+                                  getByIdMethod: m,
+                                ),
+                              ),
+                            ),
+                            onPath: (v) => set(
+                              opts.copyWith(
+                                endpointOverrides: opts.endpointOverrides.copyWith(getByIdPath: v),
+                              ),
+                            ),
+                          ),
+                          const Divider(height: 1, color: Colors.white10),
+                          _CrudEndpointRow(
+                            key: const ValueKey('create'),
+                            label: 'Create',
+                            name: opts.endpointOverrides.createName,
+                            method: opts.endpointOverrides.createMethod,
+                            path: opts.endpointOverrides.createPath,
+                            enabled: !state.isGenerating,
+                            onName: (v) => set(
+                              opts.copyWith(
+                                endpointOverrides: opts.endpointOverrides.copyWith(createName: v),
+                              ),
+                            ),
+                            onMethod: (m) => set(
+                              opts.copyWith(
+                                endpointOverrides: opts.endpointOverrides.copyWith(createMethod: m),
+                              ),
+                            ),
+                            onPath: (v) => set(
+                              opts.copyWith(
+                                endpointOverrides: opts.endpointOverrides.copyWith(createPath: v),
+                              ),
+                            ),
+                          ),
+                          const Divider(height: 1, color: Colors.white10),
+                          _CrudEndpointRow(
+                            key: const ValueKey('update'),
+                            label: 'Update',
+                            name: opts.endpointOverrides.updateName,
+                            method: opts.endpointOverrides.updateMethod,
+                            path: opts.endpointOverrides.updatePath,
+                            enabled: !state.isGenerating,
+                            onName: (v) => set(
+                              opts.copyWith(
+                                endpointOverrides: opts.endpointOverrides.copyWith(updateName: v),
+                              ),
+                            ),
+                            onMethod: (m) => set(
+                              opts.copyWith(
+                                endpointOverrides: opts.endpointOverrides.copyWith(updateMethod: m),
+                              ),
+                            ),
+                            onPath: (v) => set(
+                              opts.copyWith(
+                                endpointOverrides: opts.endpointOverrides.copyWith(updatePath: v),
+                              ),
+                            ),
+                          ),
+                          const Divider(height: 1, color: Colors.white10),
+                          _CrudEndpointRow(
+                            key: const ValueKey('delete'),
+                            label: 'Delete',
+                            name: opts.endpointOverrides.deleteName,
+                            method: opts.endpointOverrides.deleteMethod,
+                            path: opts.endpointOverrides.deletePath,
+                            enabled: !state.isGenerating,
+                            onName: (v) => set(
+                              opts.copyWith(
+                                endpointOverrides: opts.endpointOverrides.copyWith(deleteName: v),
+                              ),
+                            ),
+                            onMethod: (m) => set(
+                              opts.copyWith(
+                                endpointOverrides: opts.endpointOverrides.copyWith(deleteMethod: m),
+                              ),
+                            ),
+                            onPath: (v) => set(
+                              opts.copyWith(
+                                endpointOverrides: opts.endpointOverrides.copyWith(deletePath: v),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ],
               _LayerToggle(
                 title: 'Local Data Source',
                 subtitle: c.storageStrategy == 'remoteOnly'
@@ -435,7 +622,7 @@ class _Workshop extends HookWidget {
         // Project header.
         Row(
           children: [
-            const Icon(Icons.folder_special_outlined, size: 16, color: Palette.colorPrimaryCyan),
+            Icon(Icons.folder_special_outlined, size: 16, color: Palette.colorPrimaryCyan),
             8.gapW,
             Expanded(
               child: Text(
@@ -564,7 +751,7 @@ class _Workshop extends HookWidget {
                             : const Icon(Icons.auto_awesome, size: 18),
                         label: Text(state.isGenerating ? 'Generating…' : 'Generate Feature'),
                         style: FilledButton.styleFrom(
-                          backgroundColor: context.neatColors.colorPrimaryCyan,
+                          backgroundColor: Palette.colorPrimaryCyan,
                           foregroundColor: const Color(0xFF0E0E0E),
                           padding: const .symmetric(vertical: 18),
                           textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
@@ -580,7 +767,11 @@ class _Workshop extends HookWidget {
                     ],
                     if (state.logs.isNotEmpty) ...[
                       16.gapH,
-                      _LogsConsole(logs: state.logs, isGenerating: state.isGenerating),
+                      FeatureTree(
+                        isGenerating: state.isGenerating,
+                        scrollController: scrollController,
+                        logs: state.logs,
+                      ),
                     ],
                   ],
                 ),
@@ -605,7 +796,7 @@ class _Workshop extends HookWidget {
     filled: true,
     fillColor: const Color(0xFF18181C),
     enabledBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: .circular(8),
       borderSide: const BorderSide(color: Colors.white10),
     ),
     focusedBorder: OutlineInputBorder(
@@ -1101,6 +1292,97 @@ class _LayerToggle extends StatelessWidget {
   }
 }
 
+// ── Customize endpoints (Entity + CRUD, chopper) — one row per fixed op ────────
+
+/// One of the 5 fixed CRUD operations' name + method + path, editable — see
+/// FeatureGenOptions.customizeEndpoints. Close to _EndpointRow's own
+/// name/method/path row (Custom Endpoints mode), minus the expansion and
+/// request/response body editors: every operation shares the feature's one
+/// entity already defined in Entity Fields, so there's nothing to expand.
+/// The role [label] (e.g. "Get All") stays a fixed indicator alongside the
+/// editable [name] — renaming which Dart method gets generated shouldn't
+/// cost the user their bearings on which of the 5 operations a row is.
+class _CrudEndpointRow extends HookWidget {
+  const _CrudEndpointRow({
+    required this.label,
+    required this.name,
+    required this.method,
+    required this.path,
+    required this.enabled,
+    required this.onName,
+    required this.onMethod,
+    required this.onPath,
+    super.key,
+  });
+
+  final String label;
+  final String name;
+  final HttpMethod method;
+  final String path;
+  final bool enabled;
+  final ValueChanged<String> onName;
+  final ValueChanged<HttpMethod> onMethod;
+  final ValueChanged<String> onPath;
+
+  @override
+  Widget build(BuildContext context) {
+    // Own controllers (created once per row, keyed by the parent's fixed
+    // ValueKey per operation) so typing doesn't jump the cursor on every
+    // rebuild — same pattern _EndpointRow itself uses.
+    final nameCtrl = useTextEditingController(text: name);
+    final pathCtrl = useTextEditingController(text: path);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 62,
+            child: Text(label, style: const TextStyle(color: Colors.white38, fontSize: 11)),
+          ),
+          8.gapW,
+          Expanded(
+            child: TextField(
+              controller: nameCtrl,
+              enabled: enabled,
+              onChanged: onName,
+              style: const TextStyle(color: Colors.white, fontSize: 12.5),
+              decoration: const InputDecoration.collapsed(hintText: 'name'),
+            ),
+          ),
+          8.gapW,
+          SizedBox(
+            width: 84,
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<HttpMethod>(
+                value: method,
+                isDense: true,
+                isExpanded: true,
+                dropdownColor: const Color(0xFF18181C),
+                style: TextStyle(color: Palette.colorPrimaryCyan, fontSize: 12),
+                onChanged: enabled ? (m) => onMethod(m ?? method) : null,
+                items: HttpMethod.values
+                    .map((m) => DropdownMenuItem(value: m, child: Text(m.name.toUpperCase())))
+                    .toList(),
+              ),
+            ),
+          ),
+          8.gapW,
+          Expanded(
+            child: TextField(
+              controller: pathCtrl,
+              enabled: enabled,
+              onChanged: onPath,
+              style: const TextStyle(color: Colors.white, fontSize: 12.5, fontFamily: 'monospace'),
+              decoration: const InputDecoration.collapsed(hintText: '/resource'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // ── Endpoints editor (Custom Endpoints mode — ROADMAP.md §7 Phase 2) ───────────
 
 /// The list of [EndpointSpec]s for a "Custom Endpoints" feature — add/remove,
@@ -1286,7 +1568,7 @@ class _EndpointsEditor extends StatelessWidget {
           label: const Text('Add endpoint'),
           style: OutlinedButton.styleFrom(
             foregroundColor: Palette.colorPrimaryCyan,
-            side: const BorderSide(color: Palette.colorPrimaryCyan),
+            side: BorderSide(color: Palette.colorPrimaryCyan),
           ),
         ),
       ],
@@ -1469,7 +1751,7 @@ class _BlueprintTree extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      constraints: const BoxConstraints(maxHeight: 260),
+      constraints: const BoxConstraints(maxHeight: 360),
       decoration: BoxDecoration(
         color: const Color(0xFF0B0B0D),
         borderRadius: BorderRadius.circular(12),
@@ -1633,105 +1915,6 @@ class _BlueprintTree extends StatelessWidget {
   }
 }
 
-// ── Logs console ───────────────────────────────────────────────────────────────
-
-class _LogsConsole extends StatelessWidget {
-  const _LogsConsole({required this.logs, required this.isGenerating});
-
-  final List<String> logs;
-  final bool isGenerating;
-
-  // Mirrors GenerateFeatureUsecase/LaunchGenerationUsecase's own onLog
-  // prefixes: [▶] in progress, [✓]/[✓✓] done, [i] informational note, [!]
-  // warning/failure — see generate_feature_usecase.dart's onLog call sites.
-  Color _colorFor(String line) {
-    if (line.startsWith('[!]')) return Colors.redAccent[100]!;
-    if (line.startsWith('[✓✓]')) return const Color(0xFF4ADE80);
-    if (line.startsWith('[✓]')) return const Color(0xFF86EFAC);
-    if (line.startsWith('[i]')) return Colors.lightBlueAccent[100]!;
-    if (line.startsWith('[▶]')) return Palette.colorPrimaryCyan;
-    return Colors.grey[400]!;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: .infinity,
-      decoration: BoxDecoration(
-        color: const Color(0xFF0B0B0D),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white10),
-      ),
-      child: Column(
-        mainAxisSize: .min,
-        crossAxisAlignment: .start,
-        children: [
-          // Same terminal chrome as _BlueprintTree, for visual consistency
-          // between the two right-panel cards.
-          Padding(
-            padding: const .symmetric(horizontal: 12, vertical: 9),
-            child: Row(
-              children: [
-                _dot(const Color(0xFFFF5F56)),
-                6.gapW,
-                _dot(const Color(0xFFFFBD2E)),
-                6.gapW,
-                _dot(const Color(0xFF27C93F)),
-                8.gapW,
-                Text('System output', style: TextStyle(color: Colors.grey[500], fontSize: 11)),
-                const Spacer(),
-                if (isGenerating)
-                  const SizedBox(
-                    width: 11,
-                    height: 11,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 1.5,
-                      color: Palette.colorPrimaryCyan,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          const Divider(height: 1, color: Colors.white10),
-          Container(
-            width: .infinity,
-            constraints: const BoxConstraints(maxHeight: 110),
-            padding: const .all(12),
-            child: SingleChildScrollView(
-              reverse: true,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  for (final line in logs)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 1),
-                      child: Text(
-                        line,
-                        style: TextStyle(
-                          color: _colorFor(line),
-                          fontSize: 11,
-                          fontFamily: 'monospace',
-                          fontWeight: line.startsWith('[✓✓]') ? FontWeight.bold : FontWeight.normal,
-                          height: 1.5,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _dot(Color c) => Container(
-    width: 9,
-    height: 9,
-    decoration: BoxDecoration(color: c, shape: BoxShape.circle),
-  );
-}
-
 // ── Small shared bits ──────────────────────────────────────────────────────────
 
 class _SectionTitle extends StatelessWidget {
@@ -1771,7 +1954,7 @@ class _Badge extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: const TextStyle(
+        style: TextStyle(
           color: Palette.colorPrimaryCyan,
           fontSize: 11,
           fontWeight: FontWeight.w600,
