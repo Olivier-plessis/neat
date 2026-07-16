@@ -1,3 +1,4 @@
+import 'package:neat/features/generation/domain/models/crud_endpoint_overrides.dart';
 import 'package:neat/features/generation/domain/models/endpoint_spec.dart';
 import 'package:neat/features/generation/domain/models/field_spec.dart';
 import 'package:neat/features/generation/domain/services/templates/dart/_template_utils.dart';
@@ -220,9 +221,21 @@ $classes
     String? corePackageName,
     // See featureModel's doc.
     String domainCross = '../../domain',
+    // See featureApiSource's doc — when true, the 5 fixed operations' remote
+    // call sites below use the same custom method names declared there
+    // instead of the fixed getAll/getById/add/update/delete.
+    bool customizeEndpoints = false,
+    CrudEndpointOverrides? endpointOverrides,
   }) {
     final p = pascal(featureName);
     final isChopper = httpClient == 'chopper';
+    final useCustomNames = isChopper && customizeEndpoints;
+    final ov = endpointOverrides ?? const CrudEndpointOverrides();
+    final getAllName = useCustomNames ? ov.getAllName : 'getAll';
+    final getByIdName = useCustomNames ? ov.getByIdName : 'getById';
+    final createName = useCustomNames ? ov.createName : 'add';
+    final updateName = useCustomNames ? ov.updateName : 'update';
+    final deleteName = useCustomNames ? ov.deleteName : 'delete';
     // Deep entity→model conversion (handles nested objects/lists).
     final modelExpr = '${p}Model.fromEntity(entity)';
     // Outbox replay path (SyncService does `dio.request(e.endpoint, ...)`):
@@ -304,7 +317,7 @@ $classes
       throw const Failure(message: 'No connection.');
     }
     final model = $modelExpr;
-    final created = ${remote('add(model)')};
+    final created = ${remote('$createName(model)')};
     await _local.upsert(created);
     return created.toEntity();
   }
@@ -315,7 +328,7 @@ $classes
       throw const Failure(message: 'No connection.');
     }
     final model = $modelExpr;
-    final updated = ${remote('update(entity.id, model)')};
+    final updated = ${remote('$updateName(entity.id, model)')};
     await _local.upsert(updated);
     return updated.toEntity();
   }
@@ -325,7 +338,7 @@ $classes
     if (!await _network.isConnected) {
       throw const Failure(message: 'No connection.');
     }
-    await _remote.delete(id);
+    await _remote.$deleteName(id);
     await _local.deleteById(id);
     return true;
   }''';
@@ -357,7 +370,7 @@ class ${p}RepositoryImpl implements I${p}Repository {
   Future<Result<List<${p}Entity>>> getAll() async {
     if (await _network.isConnected) {
       try {
-        final fresh = ${remote('getAll()')};
+        final fresh = ${remote('$getAllName()')};
         await _local.cacheAll(fresh);
         return Result.success(fresh.map((m) => m.toEntity()).toList());
       } catch (e, st) {
@@ -375,7 +388,7 @@ class ${p}RepositoryImpl implements I${p}Repository {
   Future<Result<${p}Entity>> getById(String id) async {
     if (await _network.isConnected) {
       try {
-        final fresh = ${remote('getById(id)')};
+        final fresh = ${remote('$getByIdName(id)')};
         return Result.success(fresh.toEntity());
       } catch (e, st) {
         AppLogger.w('$featureName.getById() failed — falling back to cache', error: e, stackTrace: st);
@@ -408,33 +421,33 @@ class ${p}RepositoryImpl implements I${p}Repository {
 
   @override
   Future<List<${p}Entity>> getAll() async {
-    final data = ${remote('getAll()')};
+    final data = ${remote('$getAllName()')};
     return data.map((m) => m.toEntity()).toList();
   }
 
   @override
   Future<${p}Entity> getById(String id) async {
-    final data = ${remote('getById(id)')};
+    final data = ${remote('$getByIdName(id)')};
     return data.toEntity();
   }
 
   @override
   Future<${p}Entity> create(${p}Entity entity) async {
     final model = $modelExpr;
-    final created = ${remote('add(model)')};
+    final created = ${remote('$createName(model)')};
     return created.toEntity();
   }
 
   @override
   Future<${p}Entity> update(${p}Entity entity) async {
     final model = $modelExpr;
-    final updated = ${remote('update(entity.id, model)')};
+    final updated = ${remote('$updateName(entity.id, model)')};
     return updated.toEntity();
   }
 
   @override
   Future<bool> delete(String id) async {
-    await _remote.delete(id);
+    await _remote.$deleteName(id);
     return true;
   }$watchMethod
 }
@@ -477,6 +490,12 @@ class ${p}RepositoryImpl implements I${p}Repository {
     // instead of the fixed 5-method CRUD shape below — chopper-only.
     bool useCustomEndpoints = false,
     List<EndpointSpec> endpoints = const [],
+    // Opt-in (Entity + CRUD only, chopper): each of the 5 fixed operations
+    // gets its own HTTP method + path instead of all 5 being derived from
+    // [apiPath]'s single base — see CrudEndpointOverrides' doc for why
+    // (dummyjson's recipes: POST /recipes/add to create, not POST /recipes).
+    bool customizeEndpoints = false,
+    CrudEndpointOverrides? endpointOverrides,
   }) {
     final p = pascal(featureName);
     // An absolute apiPath (e.g. https://fakestoreapi.com/products) overrides
@@ -506,6 +525,46 @@ abstract class ${p}ApiSource extends ChopperService {
   static ${p}ApiSource create([ChopperClient? client]) => _\$${p}ApiSource(client);
 
 $methods
+}
+''';
+    }
+
+    if (httpClient == 'chopper' && customizeEndpoints) {
+      // Each operation carries its own full path (no shared baseUrl) — same
+      // "no shared prefix" shape as the useCustomEndpoints branch above, just
+      // for the 5 fixed CRUD operations instead of N arbitrary ones. Lets an
+      // API like dummyjson's recipes (POST /recipes/add to create, not
+      // POST /recipes) fit the CRUD shape without lying about its paths.
+      final ov = endpointOverrides ?? const CrudEndpointOverrides();
+      String verb(HttpMethod m) => m.name.toUpperCase();
+      final getAllPath = ov.getAllPath.isNotEmpty ? ov.getAllPath : base;
+      final getByIdPath = ov.getByIdPath.isNotEmpty ? ov.getByIdPath : '$base/{id}';
+      final createPath = ov.createPath.isNotEmpty ? ov.createPath : base;
+      final updatePath = ov.updatePath.isNotEmpty ? ov.updatePath : '$base/{id}';
+      final deletePath = ov.deletePath.isNotEmpty ? ov.deletePath : '$base/{id}';
+      return '''import 'package:chopper/chopper.dart';
+import '../models/${featureName}_model.dart';
+
+part '${featureName}_api_source.chopper.dart';
+
+@ChopperApi(baseUrl: '')
+abstract class ${p}ApiSource extends ChopperService {
+  static ${p}ApiSource create([ChopperClient? client]) => _\$${p}ApiSource(client);
+
+  @${verb(ov.getAllMethod)}(path: '$getAllPath')
+  Future<Response<List<${p}Model>>> ${ov.getAllName}();
+
+  @${verb(ov.getByIdMethod)}(path: '$getByIdPath')
+  Future<Response<${p}Model>> ${ov.getByIdName}(@Path() String id);
+
+  @${verb(ov.createMethod)}(path: '$createPath')
+  Future<Response<${p}Model>> ${ov.createName}(@Body() ${p}Model body);
+
+  @${verb(ov.updateMethod)}(path: '$updatePath')
+  Future<Response<${p}Model>> ${ov.updateName}(@Path() String id, @Body() ${p}Model body);
+
+  @${verb(ov.deleteMethod)}(path: '$deletePath')
+  Future<Response<dynamic>> ${ov.deleteName}(@Path() String id);
 }
 ''';
     }

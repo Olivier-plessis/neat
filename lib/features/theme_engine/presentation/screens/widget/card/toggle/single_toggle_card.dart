@@ -8,6 +8,7 @@ class SimpleToggleCard extends StatelessWidget {
     required this.description,
     required this.enabled,
     required this.onChanged,
+    super.key,
   });
 
   final IconData icon;

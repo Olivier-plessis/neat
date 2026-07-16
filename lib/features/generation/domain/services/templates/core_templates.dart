@@ -707,12 +707,14 @@ T unwrapChopperResponse<T>(Response<T> response) {
         "import 'package:$packageName/core/network/chopper_model_converter.dart';",
       );
     }
-    if (isSupabase)
+    if (isSupabase) {
       imports.writeln(
         "import 'package:supabase_flutter/supabase_flutter.dart';",
       );
-    if (isFirebase)
+    }
+    if (isFirebase) {
       imports.writeln("import 'package:firebase_core/firebase_core.dart';");
+    }
 
     final branches = StringBuffer();
     if (isDioLike) {
@@ -865,8 +867,9 @@ final supabaseClientProvider =
   }) {
     final pkgImports = StringBuffer()
       ..writeln("import 'package:cloud_firestore/cloud_firestore.dart';");
-    if (hasAuth)
+    if (hasAuth) {
       pkgImports.writeln("import 'package:firebase_auth/firebase_auth.dart';");
+    }
     if (hasStorage) {
       pkgImports.writeln(
         "import 'package:firebase_storage/firebase_storage.dart';",

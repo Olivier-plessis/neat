@@ -859,8 +859,9 @@ class LaunchGenerationUsecase {
     }
 
     // ── components ────────────────────────────────────────────────────────
-    if (!architecture.generateFirstFeature)
+    if (!architecture.generateFirstFeature) {
       await _write('$lib/components/.gitkeep', '');
+    }
 
     // ── feature ───────────────────────────────────────────────────────────
     // Off → the app ships with zero features; a placeholder welcome route

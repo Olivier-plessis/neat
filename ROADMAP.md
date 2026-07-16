@@ -497,6 +497,70 @@ Harness-proven: `pubspec_builder_test.dart` gained two cases (override present
   regression guard. Full fast suite (245 tests) + all 59 integration tests
   green.
 
+### 5j. Customize endpoints (Entity + CRUD, chopper) — real gap found via a real project
+
+> Follow-up from a "Custom Endpoints" (§7 Phase 2) design pass that was
+> reverted: the user pointed out `afsv`'s `book` feature (Custom Endpoints)
+> generated three near-identical models (`AllBooksRequestModel`,
+> `AddBookRequestModel`, `UpdateBookRequestModel` — same 6 fields, three
+> names) versus `product`'s (Entity + CRUD) single shared model — real
+> duplication, confirmed by reading the generated files directly. Read
+> dummyjson.com/docs/recipes as a concrete reference API: GET/POST/PUT all
+> return the same `Recipe`, but create is `POST /recipes/add`, not
+> `POST /recipes` — a shape Entity+CRUD's single `apiPath` (one base for all
+> 5 operations) can't express. Rather than fixing Custom Endpoints' model
+> duplication, the better fix was making Entity+CRUD's own fixed 5 operations
+> individually path/verb-configurable, so it can model APIs like this
+> natively instead. Custom Endpoints itself is unchanged (still exists for
+> endpoint *sets* that don't map onto 5 CRUD operations at all, e.g.
+> dummyjson's `/recipes/tags` returning plain strings).
+
+- **New model**: `CrudEndpointOverrides` (hand-written, mirrors
+  `EndpointSpec`'s own style rather than freezed) — a name + method + path
+  per fixed operation (`getAll`/`getById`/`create`/`update`/`delete`, names
+  defaulting to those exact identifiers). `FeatureGenOptions` gained
+  `customizeEndpoints` (off by default) + `endpointOverrides`.
+  `getById`/`update`/`delete` keep a literal `{id}` in their path —
+  chopper's own `@Path()` binding matches it natively, no runtime
+  substitution needed.
+- **Template**: `DataTemplates.featureApiSource`'s chopper branch gets a new
+  `customizeEndpoints` path: `@ChopperApi(baseUrl: '')` (empty, like Custom
+  Endpoints) and each of the 5 methods carries its own full literal
+  `path:` + verb + **method name**, instead of one shared `baseUrl` with
+  fixed per-method suffixes and fixed names. `DataTemplates.featureRepositoryImpl`
+  (offline-first non-sync + remote-only branches) follows the same custom
+  names at its 5 remote call sites, so a rename is load-bearing, not
+  cosmetic — the Outbox-based sync-mode write methods are untouched (they
+  queue by raw `endpoint:`/`operation:` string, replayed later by
+  `SyncService`, never call the `ApiSource` directly). Dio/Supabase/Firebase
+  untouched — chopper-only, same scope discipline as Custom Endpoints itself
+  (no REST path concept for Supabase/Firebase's table/collection
+  addressing).
+- **Workshop UI**: a new "Customize endpoints" toggle in the Architecture
+  Layers step (chopper projects only), collapsed/off by default — the
+  existing single "API Path" field stays the default behavior. Once
+  switched on, 5 fixed rows (Get All/Get By Id/Create/Update/Delete, no
+  add/remove — these are the CRUD operations, not an arbitrary list), each
+  with a fixed role label plus an editable name + HTTP verb + path,
+  pre-filled with the current derived defaults
+  (`CrudEndpointOverrides.defaultsFor`) so the user only has to change what
+  actually differs (e.g. just `createPath`, or rename `add` → `createRecipe`).
+  Same row-editor language as Custom Endpoints' `_EndpointRow` (which itself
+  has a real, functional name field — confirmed via a user screenshot
+  showing "getProduct" being typed live), simplified: no expansion, no
+  request/response body editors (every operation shares the feature's one
+  entity, already defined in Entity Fields). The role label (Get All/Get By
+  Id/etc.) stays visible alongside the editable name so renaming never
+  costs the user their bearings on which of the 5 operations a row is.
+- Harness-proven: an integration test (dummyjson-shaped: `apiPath:
+  '/recipes'`, `createPath: '/recipes/add'`, `createName: 'createRecipe'`,
+  `updateMethod: patch`) asserts the generated `recipe_api_source.dart`
+  carries the exact per-method verb+path+name combination and an empty
+  `baseUrl`, that `recipe_repository_impl.dart`'s call site follows the
+  renamed method (`.createRecipe(model)`, not `.add(model)`), that the
+  entity/model stay singular (not one per operation), and `flutter analyze`
+  0/0. Full fast suite (245 tests) + all integration tests green.
+
 ### 6. Multiple architectures — later, with caution
 
 - The harness makes **every** architecture a ~3× maintenance cost (each must be proven).

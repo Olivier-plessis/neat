@@ -12,6 +12,7 @@ import 'package:neat/features/dependencies/domain/models/pub_package.dart';
 import 'package:neat/features/feature_gen/domain/models/feature_gen_options.dart';
 import 'package:neat/features/feature_gen/domain/services/project_loader.dart';
 import 'package:neat/features/feature_gen/domain/usecases/generate_feature_usecase.dart';
+import 'package:neat/features/generation/domain/models/crud_endpoint_overrides.dart';
 import 'package:neat/features/generation/domain/models/endpoint_spec.dart';
 import 'package:neat/features/generation/domain/models/field_spec.dart';
 import 'package:neat/features/generation/domain/services/json_entity_inferencer.dart';
@@ -5389,6 +5390,143 @@ abstract final class Palette {
           'Custom Endpoints workspace analyze reported issues:\n${errorLines.join('\n')}\n\n$out',
     );
   }, timeout: const Timeout(Duration(minutes: 12)));
+
+  test(
+    'Customize endpoints (Entity + CRUD, chopper): each of the 5 fixed '
+    'operations gets its own method + path instead of sharing one derived '
+    'base (dummyjson-style: POST /recipes/add to create), and the workspace '
+    'analyzes cleanly',
+    () async {
+      const projectName = 'neat_customize_endpoints_test';
+      final logs = <String>[];
+
+      final pkgs = <PubPackage>[
+        _dep('hooks_riverpod', '3.3.1'),
+        _dep('flutter_hooks', '0.21.3+1'),
+        _dep('riverpod_annotation', '4.0.2'),
+        _dep('json_annotation', '4.11.0'),
+        _dep('freezed_annotation', '3.1.0'),
+        _dep('chopper', '8.6.0'),
+        _dep('go_router', '17.2.3'),
+        _dev('riverpod_generator', '4.0.3'),
+        _dev('riverpod_lint', '3.1.3'),
+        _dev('json_serializable', '6.13.0'),
+        _dev('build_runner', '2.15.0'),
+        _dev('freezed', '3.2.5'),
+        _dev('chopper_generator', '8.6.2'),
+      ];
+
+      final identity = IdentityState(
+        name: projectName,
+        organization: 'com.neat.test',
+        projectPath: tempRoot.path,
+        description: 'NEAT customize endpoints integration test',
+        targetPlatforms: const ['macos'],
+      );
+      // No first feature — added via the Workshop, same as a real user would.
+      const architecture = ArchitectureState(generateFirstFeature: false);
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: identity,
+          packages: pkgs,
+          architecture: architecture,
+          cicd: const CicdState(),
+          theme: const ThemeEngineState(approach: ThemeApproach.customM3),
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('Base generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+      final project = await const ProjectLoader().load(projectDir.path);
+      expect(project, isNotNull);
+      expect(project!.contract.httpClient, 'chopper');
+
+      final options = FeatureGenOptions(
+        name: 'recipe',
+        apiPath: '/recipes',
+        customizeEndpoints: true,
+        endpointOverrides: CrudEndpointOverrides.defaultsFor('/recipes').copyWith(
+          createPath: '/recipes/add',
+          createName: 'createRecipe',
+          updateMethod: HttpMethod.patch,
+        ),
+      );
+
+      try {
+        await const GenerateFeatureUsecase().execute(
+          project: project,
+          options: options,
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail(
+          'Customize endpoints generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}',
+        );
+      }
+
+      final apiSource = File(
+        '${projectDir.path}/lib/features/recipe/data/sources/recipe_api_source.dart',
+      ).readAsStringSync();
+      expect(apiSource, contains("@ChopperApi(baseUrl: '')"));
+      expect(apiSource, contains("@GET(path: '/recipes')"));
+      expect(apiSource, contains("@GET(path: '/recipes/{id}')"));
+      expect(apiSource, contains("@POST(path: '/recipes/add')"));
+      expect(apiSource, contains("@PATCH(path: '/recipes/{id}')"));
+      expect(apiSource, contains("@DELETE(path: '/recipes/{id}')"));
+      // The one overridden method name replaces the fixed 'add' — the other
+      // 4 stay their fixed default names since only createName was set.
+      expect(apiSource, contains('Future<Response<RecipeModel>> createRecipe('));
+      expect(apiSource, isNot(contains('Future<Response<RecipeModel>> add(')));
+      expect(apiSource, contains('Future<Response<List<RecipeModel>>> getAll('));
+      // The repository call site follows the renamed method, not the old
+      // fixed one — this is what makes the rename load-bearing rather than
+      // cosmetic.
+      final repositoryImpl = File(
+        '${projectDir.path}/lib/features/recipe/data/repositories/recipe_repository_impl.dart',
+      ).readAsStringSync();
+      expect(repositoryImpl, contains('.createRecipe(model)'));
+      expect(repositoryImpl, isNot(contains('.add(model)')));
+      // Still one shared entity/model — not one per operation (the whole
+      // point vs Custom Endpoints' per-endpoint models).
+      expect(
+        File(
+          '${projectDir.path}/lib/features/recipe/data/models/recipe_model.dart',
+        ).existsSync(),
+        isTrue,
+      );
+      expect(
+        File(
+          '${projectDir.path}/lib/features/recipe/domain/entities/recipe_entity.dart',
+        ).existsSync(),
+        isTrue,
+      );
+
+      final analyze = await Process.run('flutter', [
+        'analyze',
+        '--no-pub',
+      ], workingDirectory: projectDir.path);
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where(
+            (l) =>
+                (l.contains(' error •') || l.contains(' warning •')) &&
+                !l.contains('• build/'),
+          )
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason:
+            'Customize endpoints workspace analyze reported issues:\n'
+            '${errorLines.join('\n')}\n\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
 
   test(
     'feature generation (chopper) registers the new feature in the decoder registry',

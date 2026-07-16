@@ -1,4 +1,5 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:neat/features/generation/domain/models/crud_endpoint_overrides.dart';
 import 'package:neat/features/generation/domain/models/endpoint_spec.dart';
 import 'package:neat/features/generation/domain/models/field_spec.dart';
 
@@ -54,6 +55,16 @@ abstract class FeatureGenOptions with _$FeatureGenOptions {
 
     /// The endpoints when [useCustomEndpoints] is on.
     @Default(<EndpointSpec>[]) List<EndpointSpec> endpoints,
+
+    /// Opt-in (Entity + CRUD only, chopper — Architecture Layers step):
+    /// customize each of the 5 fixed CRUD operations' own HTTP method + path,
+    /// instead of deriving all 5 from [apiPath]'s single base path. Off by
+    /// default — most REST APIs follow the plain convention [apiPath] alone
+    /// already covers.
+    @Default(false) bool customizeEndpoints,
+
+    /// The per-operation overrides when [customizeEndpoints] is on.
+    @Default(CrudEndpointOverrides()) CrudEndpointOverrides endpointOverrides,
   }) = _FeatureGenOptions;
 
   const FeatureGenOptions._();

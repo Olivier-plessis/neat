@@ -436,8 +436,9 @@ class _BackendConfig extends ConsumerWidget {
       allowedExtensions: const ['json'],
     );
     final path = result?.files.single.path;
-    if (path != null)
+    if (path != null) {
       ref.read(architectureProvider.notifier).setFirebaseConfigPath(path);
+    }
   }
 
   @override
@@ -820,8 +821,9 @@ class _LocalizationTab extends ConsumerWidget {
       allowedExtensions: const ['csv'],
     );
     final path = result?.files.single.path;
-    if (path != null)
+    if (path != null) {
       ref.read(architectureProvider.notifier).setI18nCsvPath(path);
+    }
   }
 
   @override
