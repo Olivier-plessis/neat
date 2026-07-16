@@ -4,6 +4,7 @@ import 'package:neat/features/cicd/presentation/providers/cicd_provider.dart';
 import 'package:neat/features/dependencies/presentation/providers/dependencies_provider.dart';
 import 'package:neat/features/identity/presentation/providers/identity_provider.dart';
 import 'package:neat/features/infrastructure/presentation/providers/infrastructure_tab_provider.dart';
+import 'package:neat/features/shell/presentation/providers/launch_controller.dart';
 import 'package:neat/features/theme_engine/presentation/providers/theme_engine_provider.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -88,6 +89,7 @@ class CurrentStep extends _$CurrentStep {
     ref.invalidate(cicdProvider);
     ref.invalidate(currentInfrastructureTabProvider);
     ref.read(furthestStepProvider.notifier).reset();
+    ref.read(launchControllerProvider.notifier).reset();
     state = NeatStep.identity;
   }
 }

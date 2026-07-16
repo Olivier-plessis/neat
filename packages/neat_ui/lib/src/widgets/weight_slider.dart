@@ -1,7 +1,7 @@
 part of 'widgets.dart';
 
 class WeightSlider extends StatelessWidget {
-  const WeightSlider({required this.value, required this.onChanged});
+  const WeightSlider({required this.value, required this.onChanged, super.key});
 
   final int value;
   final ValueChanged<int> onChanged;

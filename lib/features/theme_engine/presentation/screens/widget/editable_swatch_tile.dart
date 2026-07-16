@@ -9,6 +9,7 @@ class EditableSwatchTile extends StatelessWidget {
     required this.currentOverride,
     required this.onColorChanged,
     required this.onReset,
+    super.key,
   });
 
   final String label;

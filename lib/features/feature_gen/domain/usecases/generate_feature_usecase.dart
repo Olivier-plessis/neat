@@ -240,6 +240,8 @@ class GenerateFeatureUsecase {
       corePackageName: corePackageName,
       useCustomEndpoints: options.useCustomEndpoints,
       endpoints: options.endpoints,
+      customizeEndpoints: options.customizeEndpoints,
+      endpointOverrides: options.endpointOverrides,
       // A merged shell-branch child skips the registry entirely (see
       // wireChildIntoTypedShell/wireChildIntoPlainShell's mergeIntoParent
       // branch) — no <f>_shell_registration.dart to write.
@@ -735,8 +737,9 @@ class GenerateFeatureUsecase {
     if (source.contains('MigrationStrategy get migration')) return source;
     const anchor = 'int get schemaVersion => ';
     final idx = source.indexOf(anchor);
-    if (idx < 0)
+    if (idx < 0) {
       return source; // can't self-heal without the getter to anchor on
+    }
     final lineEnd = source.indexOf('\n', idx);
     if (lineEnd < 0) return source;
     const migrationBlock = '''
@@ -1108,8 +1111,9 @@ class GenerateFeatureUsecase {
   /// (not this parent's shape — the caller's own insertion then no-ops too).
   @visibleForTesting
   static String healShellBranchTyped(String shellSource, String parentFeature) {
-    if (shellSource.contains('// neat:typed-children:$parentFeature'))
+    if (shellSource.contains('// neat:typed-children:$parentFeature')) {
       return shellSource;
+    }
     final p = _pascal(parentFeature);
     final c = _camel(parentFeature);
     final flat = 'TypedGoRoute<${p}Route>(path: AppRoutePath.$c)';
@@ -1136,8 +1140,9 @@ class GenerateFeatureUsecase {
     String routesSource,
     String parentFeature,
   ) {
-    if (routesSource.contains('// neat:children:$parentFeature'))
+    if (routesSource.contains('// neat:children:$parentFeature')) {
       return routesSource;
+    }
     final c = _camel(parentFeature);
     final marker = 'path: AppRoutePath.$c,';
     final mIdx = routesSource.indexOf(marker);
@@ -1776,8 +1781,9 @@ class GenerateFeatureUsecase {
   ) async {
     final pubspec = File('$projectPath/pubspec.yaml');
     var s = await pubspec.readAsString();
-    if (s.contains('  $dependencyName:\n    path: packages/$dependencyName'))
+    if (s.contains('  $dependencyName:\n    path: packages/$dependencyName')) {
       return;
+    }
     s = s.replaceFirst(
       'dependencies:\n  flutter:\n    sdk: flutter',
       'dependencies:\n  flutter:\n    sdk: flutter\n  $dependencyName:\n    path: packages/$dependencyName\n',
