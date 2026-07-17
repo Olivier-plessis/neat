@@ -9,7 +9,7 @@ import 'package:neat_ui/neat_ui.dart';
 /// generate a new feature. The project stack is fixed by the contract; the
 /// Workshop only exposes the choices that genuinely vary per feature (routing
 /// shape + which Clean Architecture layers to scaffold).
-class FeatureGenScreen extends HookConsumerWidget {
+class FeatureGenScreen extends ConsumerWidget {
   const FeatureGenScreen({super.key});
 
   @override

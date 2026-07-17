@@ -1,9 +1,10 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:neat/core/contract/neat_contract.dart';
 import 'package:neat/features/architecture/presentation/lines/crud_lines.dart';
 import 'package:neat/features/feature_gen/domain/models/feature_gen_options.dart';
+import 'package:neat/features/feature_gen/presentation/providers/feature_form_controller.dart';
 import 'package:neat/features/feature_gen/presentation/providers/workshop_controller.dart';
 import 'package:neat/features/feature_gen/presentation/screens/stepper/architecture_layers_step.dart';
 import 'package:neat/features/feature_gen/presentation/screens/stepper/endpoints_step.dart';
@@ -11,7 +12,7 @@ import 'package:neat/features/feature_gen/presentation/screens/stepper/entity_fi
 import 'package:neat/features/feature_gen/presentation/screens/stepper/identity_routing_step.dart';
 import 'package:neat_ui/neat_ui.dart';
 
-class Workshop extends HookWidget {
+class Workshop extends ConsumerStatefulWidget {
   const Workshop({
     required this.state,
     required this.onGenerate,
@@ -26,23 +27,68 @@ class Workshop extends HookWidget {
   final Future<void> Function(String csvPath) onImportTranslations;
 
   @override
-  Widget build(BuildContext context) {
-    final project = state.project!;
-    final c = project.contract;
-    final nameCtrl = useTextEditingController();
-    final labelCtrl = useTextEditingController();
-    final apiPathCtrl = useTextEditingController();
-    final options = useState(_defaultsFor(c));
+  ConsumerState<Workshop> createState() => _WorkshopState();
+}
 
-    // Re-read on every keystroke so validation + blueprint stay live.
-    useListenable(nameCtrl);
-    useListenable(labelCtrl);
-    useListenable(apiPathCtrl);
-    final opts = options.value.copyWith(
-      name: nameCtrl.text.trim(),
-      shellLabel: labelCtrl.text.trim(),
-      apiPath: apiPathCtrl.text.trim(),
-    );
+class _WorkshopState extends ConsumerState<Workshop> {
+  late final NeatContract _contract;
+  late final TextEditingController _nameCtrl;
+  late final TextEditingController _labelCtrl;
+  late final TextEditingController _apiPathCtrl;
+  late final ScrollController _logsScrollController;
+
+  @override
+  void initState() {
+    super.initState();
+    _contract = widget.state.project!.contract;
+    final notifier = ref.read(featureFormControllerProvider(_contract).notifier);
+    final initialOpts = ref.read(featureFormControllerProvider(_contract)).opts;
+    // Own controllers (this State's, not the provider's) so typing doesn't
+    // jump the cursor on every rebuild — each just forwards its raw text to
+    // the notifier, which owns all the "what else needs to change" logic
+    // (see FeatureFormController.setApiPath).
+    _nameCtrl = TextEditingController(text: initialOpts.name)
+      ..addListener(() => notifier.setName(_nameCtrl.text.trim()));
+    _labelCtrl = TextEditingController(text: initialOpts.shellLabel)
+      ..addListener(() => notifier.setShellLabel(_labelCtrl.text.trim()));
+    _apiPathCtrl = TextEditingController(text: initialOpts.apiPath)
+      ..addListener(() => notifier.setApiPath(_apiPathCtrl.text.trim()));
+    _logsScrollController = ScrollController();
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _labelCtrl.dispose();
+    _apiPathCtrl.dispose();
+    _logsScrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final project = widget.state.project!;
+    final c = project.contract;
+    final formState = ref.watch(featureFormControllerProvider(c));
+    final formNotifier = ref.read(featureFormControllerProvider(c).notifier);
+    final opts = formState.opts;
+
+    // Auto-scroll the System Output panel to the bottom whenever a new log
+    // line arrives — Riverpod's own mechanism for reacting to a value
+    // changing (no useEffect/hooks needed).
+    ref.listen(workshopControllerProvider, (previous, next) {
+      if (next.logs.length > (previous?.logs.length ?? 0)) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_logsScrollController.hasClients) {
+            _logsScrollController.animateTo(
+              _logsScrollController.position.maxScrollExtent,
+              duration: const Duration(milliseconds: 150),
+              curve: Curves.easeOut,
+            );
+          }
+        });
+      }
+    });
 
     final projectHasHttp = c.httpClient != 'none';
     final hasNav = c.navigation != 'none';
@@ -61,58 +107,37 @@ class Workshop extends HookWidget {
         opts.endpoints.every((e) => e.name.isNotEmpty && e.path.isNotEmpty) &&
         opts.endpoints.map((e) => e.name).toSet().length == opts.endpoints.length;
 
-    final nameError = nameCtrl.text.isEmpty
+    final nameError = opts.name.isEmpty
         ? null
         : (opts.validateName() ??
               (project.features.contains(opts.name)
                   ? 'feature "${opts.name}" already exists'
                   : null));
     final canGenerate =
-        nameCtrl.text.isNotEmpty &&
+        opts.name.isNotEmpty &&
         nameError == null &&
         !parentMissing &&
         (!opts.useCustomEndpoints || endpointsValid) &&
-        !state.isGenerating;
-
-    void set(FeatureGenOptions v) => options.value = v;
+        !widget.state.isGenerating;
 
     // Stepper: Custom Endpoints has no separate "Entity Fields" step (the
     // endpoints editor already carries its own request/response field
     // editors inline). Feature Shape can only be flipped from step 0, so a
     // step count shrinking never strands the current step out of range.
-    final step = useState(0);
     final stepLabels = opts.useCustomEndpoints
         ? const ['Identity & Routing', 'Endpoints']
         : const ['Identity & Routing', 'Architecture Layers', 'Entity Fields'];
     final totalSteps = stepLabels.length;
-    final step1Valid = nameCtrl.text.isNotEmpty && nameError == null && !parentMissing;
-    final scrollController = useScrollController();
-    // Same auto-scroll-to-bottom behavior as launch_screen's appendLog: new
-    // log lines arrive via Riverpod state (not a local hook callback), so
-    // this reacts to the list growing instead.
-    final logsLength = state.logs.length;
-    useEffect(() {
-      if (logsLength == 0) return null;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (scrollController.hasClients) {
-          scrollController.animateTo(
-            scrollController.position.maxScrollExtent,
-            duration: const Duration(milliseconds: 150),
-            curve: Curves.easeOut,
-          );
-        }
-      });
-      return null;
-    }, [logsLength]);
+    final step1Valid = opts.name.isNotEmpty && nameError == null && !parentMissing;
 
     final stepContent = <Widget>[
       IdentityRoutingStep(
         opts: opts,
-        onChanged: set,
-        nameCtrl: nameCtrl,
-        labelCtrl: labelCtrl,
+        onChanged: formNotifier.update,
+        nameCtrl: _nameCtrl,
+        labelCtrl: _labelCtrl,
         nameError: nameError,
-        enabled: !state.isGenerating,
+        enabled: !widget.state.isGenerating,
         canCustomEndpoints: canCustomEndpoints,
         hasNav: hasNav,
         routingEnabled: routingEnabled,
@@ -121,17 +146,21 @@ class Workshop extends HookWidget {
         features: project.features,
       ),
       opts.useCustomEndpoints
-          ? EndpointsStep(opts: opts, onChanged: set, enabled: !state.isGenerating)
+          ? EndpointsStep(
+              opts: opts,
+              onChanged: formNotifier.update,
+              enabled: !widget.state.isGenerating,
+            )
           : ArchitectureLayersStep(
               opts: opts,
-              onChanged: set,
-              apiPathCtrl: apiPathCtrl,
-              enabled: !state.isGenerating,
+              onChanged: formNotifier.update,
+              apiPathCtrl: _apiPathCtrl,
+              enabled: !widget.state.isGenerating,
               projectHasHttp: projectHasHttp,
               httpClient: c.httpClient,
               storageStrategy: c.storageStrategy,
             ),
-      if (!opts.useCustomEndpoints) EntityFieldsStep(opts: opts, onChanged: set),
+      if (!opts.useCustomEndpoints) EntityFieldsStep(opts: opts, onChanged: formNotifier.update),
     ];
 
     return Column(
@@ -165,7 +194,7 @@ class Workshop extends HookWidget {
             if (c.generateI18n) ...[
               12.gapW,
               TextButton.icon(
-                onPressed: state.isGenerating
+                onPressed: widget.state.isGenerating
                     ? null
                     : () async {
                         final result = await FilePicker.pickFiles(
@@ -173,7 +202,7 @@ class Workshop extends HookWidget {
                           allowedExtensions: const ['csv'],
                         );
                         final path = result?.files.single.path;
-                        if (path != null) await onImportTranslations(path);
+                        if (path != null) await widget.onImportTranslations(path);
                       },
                 icon: const Icon(Icons.translate, size: 14),
                 label: const Text('Import i18n', style: TextStyle(fontSize: 12)),
@@ -182,7 +211,7 @@ class Workshop extends HookWidget {
             ],
             12.gapW,
             TextButton.icon(
-              onPressed: state.isGenerating ? null : onClose,
+              onPressed: widget.state.isGenerating ? null : widget.onClose,
               icon: const Icon(Icons.close, size: 14),
               label: const Text('Close', style: TextStyle(fontSize: 12)),
               style: TextButton.styleFrom(foregroundColor: Colors.white54),
@@ -203,35 +232,38 @@ class Workshop extends HookWidget {
                   crossAxisAlignment: .start,
                   children: [
                     _StepIndicator(
-                      current: step.value,
+                      current: formState.step,
                       labels: stepLabels,
-                      onSelect: state.isGenerating ? null : (i) => step.value = i,
+                      onSelect: widget.state.isGenerating ? null : formNotifier.setStep,
                     ),
                     16.gapH,
                     Expanded(
                       child: ScrollConfiguration(
                         behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
-                        child: SingleChildScrollView(child: stepContent[step.value]),
+                        child: SingleChildScrollView(child: stepContent[formState.step]),
                       ),
                     ),
                     16.gapH,
                     Row(
                       mainAxisAlignment: .spaceBetween,
                       children: [
-                        if (step.value > 0)
+                        if (formState.step > 0)
                           OutlinedButton.icon(
-                            onPressed: state.isGenerating ? null : () => step.value--,
+                            onPressed: widget.state.isGenerating
+                                ? null
+                                : () => formNotifier.setStep(formState.step - 1),
                             icon: const Icon(Icons.arrow_back, size: 16),
                             label: const Text('Back'),
                             style: TextButton.styleFrom(foregroundColor: Colors.white54),
                           )
                         else
                           const SizedBox.shrink(),
-                        if (step.value < totalSteps - 1)
+                        if (formState.step < totalSteps - 1)
                           OutlinedButton.icon(
-                            onPressed: (step.value == 0 && !step1Valid) || state.isGenerating
+                            onPressed:
+                                (formState.step == 0 && !step1Valid) || widget.state.isGenerating
                                 ? null
-                                : () => step.value++,
+                                : () => formNotifier.setStep(formState.step + 1),
                             icon: const Icon(Icons.arrow_forward, size: 16),
                             label: const Text('Next'),
                             style: FilledButton.styleFrom(
@@ -256,10 +288,10 @@ class Workshop extends HookWidget {
                     SizedBox(
                       width: .infinity,
                       child: OutlinedButton.icon(
-                        onPressed: canGenerate && step.value == totalSteps - 1
-                            ? () => onGenerate(opts)
+                        onPressed: canGenerate && formState.step == totalSteps - 1
+                            ? () => widget.onGenerate(opts)
                             : null,
-                        icon: state.isGenerating
+                        icon: widget.state.isGenerating
                             ? const SizedBox(
                                 width: 14,
                                 height: 14,
@@ -269,7 +301,7 @@ class Workshop extends HookWidget {
                                 ),
                               )
                             : const Icon(Icons.auto_awesome, size: 18),
-                        label: Text(state.isGenerating ? 'Generating…' : 'Generate Feature'),
+                        label: Text(widget.state.isGenerating ? 'Generating…' : 'Generate Feature'),
                         style: FilledButton.styleFrom(
                           backgroundColor: context.neatColors.colorPrimaryCyan,
                           foregroundColor: context.neatColors.colorSurfaceCard,
@@ -278,19 +310,19 @@ class Workshop extends HookWidget {
                         ),
                       ),
                     ),
-                    if (state.error != null) ...[
+                    if (widget.state.error != null) ...[
                       12.gapH,
                       Text(
-                        state.error!,
+                        widget.state.error!,
                         style: TextStyle(color: Colors.redAccent[100], fontSize: 12),
                       ),
                     ],
-                    if (state.logs.isNotEmpty) ...[
+                    if (widget.state.logs.isNotEmpty) ...[
                       16.gapH,
                       FeatureTree(
-                        isGenerating: state.isGenerating,
-                        scrollController: scrollController,
-                        logs: state.logs,
+                        isGenerating: widget.state.isGenerating,
+                        scrollController: _logsScrollController,
+                        logs: widget.state.logs,
                       ),
                     ],
                   ],
@@ -302,12 +334,6 @@ class Workshop extends HookWidget {
       ],
     );
   }
-
-  /// Sensible per-feature defaults derived from the project stack.
-  static FeatureGenOptions _defaultsFor(NeatContract c) => FeatureGenOptions(
-    includeRemoteDataSource: c.httpClient != 'none',
-    includeLocalDataSource: c.storageStrategy != 'remoteOnly',
-  );
 
   static List<String> _stackBadges(NeatContract c) => [
     c.architecture == 'feature_first' ? 'Feature-First' : 'Layer-First',
