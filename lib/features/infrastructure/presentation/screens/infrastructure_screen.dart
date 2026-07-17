@@ -519,7 +519,7 @@ class _BackendConfig extends ConsumerWidget {
                 onClear: () => notifier.setFirebaseConfigPath(''),
               ),
             ] else ...[
-              for (var i = 0; i < arch.environments.length; i++)
+              for (final (i, env) in arch.environments.indexed)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 10),
                   // Key by backend so switching REST↔Supabase re-seeds each
@@ -527,7 +527,7 @@ class _BackendConfig extends ConsumerWidget {
                   // leaking the previous backend's text into the new fields).
                   child: _EnvFieldRow(
                     key: ValueKey('cfg_${backend.name}_$i'),
-                    env: arch.environments[i],
+                    env: env,
                     backend: backend,
                     isBase: i == arch.baseEnvIndex,
                     onMakeBase: () => notifier.setBaseEnv(i),

@@ -1,4 +1,4 @@
-part of 'widgets.dart';
+part of '../widgets.dart';
 
 class FeatureTree extends StatelessWidget {
   const FeatureTree({
@@ -33,13 +33,12 @@ class FeatureTree extends StatelessWidget {
               borderRadius: .vertical(top: Radius.circular(10)),
             ),
             child: Row(
+              spacing: 6,
               children: [
-                _TrafficDot(color: const Color(0xFFFF5F57)),
-                6.gapW,
-                _TrafficDot(color: const Color(0xFFFFBD2E)),
-                6.gapW,
-                _TrafficDot(color: const Color(0xFF28C840)),
-                16.gapW,
+                Dot(color: Palette.errorColor),
+                Dot(color: Palette.colorYellow),
+                Dot(color: Palette.colorGreen),
+                4.gapW,
 
                 const Text(
                   'System Output',
@@ -98,20 +97,5 @@ class FeatureTree extends StatelessWidget {
     if (line.startsWith('[▶')) return Palette.colorPrimaryCyan;
     if (line.startsWith('neat@')) return Colors.grey;
     return const Color(0xFF9ECE6A);
-  }
-}
-
-class _TrafficDot extends StatelessWidget {
-  const _TrafficDot({required this.color});
-
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 11,
-      height: 11,
-      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-    );
   }
 }
