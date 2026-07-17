@@ -807,7 +807,7 @@ class _DevToggle extends StatelessWidget {
                     color: isDev ? const Color(0xFFFFA726) : Palette.colorPrimaryCyan,
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
-                    fontFamily: 'monospace',
+                    
                   ),
                 ),
                 const SizedBox(height: 2),

@@ -109,16 +109,16 @@ class EndpointSpec {
 
   static bool _listEq(List<FieldSpec> a, List<FieldSpec> b) {
     if (a.length != b.length) return false;
-    for (var i = 0; i < a.length; i++) {
-      if (a[i] != b[i]) return false;
+    for (final (i, item) in a.indexed) {
+      if (item != b[i]) return false;
     }
     return true;
   }
 
   static bool _strListEq(List<String> a, List<String> b) {
     if (a.length != b.length) return false;
-    for (var i = 0; i < a.length; i++) {
-      if (a[i] != b[i]) return false;
+    for (final (i, item) in a.indexed) {
+      if (item != b[i]) return false;
     }
     return true;
   }

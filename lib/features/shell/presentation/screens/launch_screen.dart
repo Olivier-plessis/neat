@@ -250,7 +250,7 @@ class _ConfigPanel extends StatelessWidget {
                           cicdTools,
                           style: const TextStyle(
                             color: Colors.white70,
-                            fontFamily: 'monospace',
+                            
                             fontSize: 13,
                           ),
                         ),
@@ -381,7 +381,6 @@ class _Chip extends StatelessWidget {
               ? Colors.white30
               : Colors.white70,
           fontSize: 11,
-          fontFamily: 'monospace',
         ),
       ),
     );

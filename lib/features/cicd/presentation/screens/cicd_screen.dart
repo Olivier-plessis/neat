@@ -320,7 +320,7 @@ class CicdScreen extends HookConsumerWidget {
                                   style: TextStyle(
                                     color: selected ? Palette.colorPrimaryCyan : Colors.grey[600],
                                     fontSize: 11,
-                                    fontFamily: 'monospace',
+                                    
                                   ),
                                 ),
                               ),
@@ -346,7 +346,7 @@ class CicdScreen extends HookConsumerWidget {
                               files[previewIndex.value].content,
                               style: const TextStyle(
                                 color: Color(0xFF9ECE6A),
-                                fontFamily: 'monospace',
+                                
                                 fontSize: 11.5,
                                 height: 1.55,
                               ),

@@ -189,8 +189,7 @@ class JsonEntityInferencer {
     final parts = key.split(RegExp(r'[^a-zA-Z0-9]+')).where((p) => p.isNotEmpty).toList();
     if (parts.isEmpty) return 'field';
     final buf = StringBuffer();
-    for (var i = 0; i < parts.length; i++) {
-      final w = parts[i];
+    for (final (i, w) in parts.indexed) {
       buf.write(i == 0 ? w[0].toLowerCase() + w.substring(1) : w[0].toUpperCase() + w.substring(1));
     }
     var id = buf.toString();
