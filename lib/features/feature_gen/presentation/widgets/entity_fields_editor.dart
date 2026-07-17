@@ -66,10 +66,10 @@ class _EntityFieldsEditorState extends State<EntityFieldsEditor> {
             controller: _json,
             maxLines: 5,
             minLines: 3,
-            style: const TextStyle(color: Colors.white, fontSize: 12, fontFamily: 'monospace'),
+            style: const TextStyle(color: Colors.white, fontSize: 12),
             decoration: InputDecoration(
               hintText: '{ "id": 1, "title": "Tee", "price": 9.99, "created_at": "2024-01-31" }',
-              hintStyle: TextStyle(color: Colors.grey[700], fontSize: 12, fontFamily: 'monospace'),
+              hintStyle: TextStyle(color: Colors.grey[700], fontSize: 12),
               isDense: true,
               contentPadding: const EdgeInsets.all(12),
               enabledBorder: OutlineInputBorder(
@@ -109,7 +109,7 @@ class _EntityFieldsEditorState extends State<EntityFieldsEditor> {
             ],
           ),
           const SizedBox(height: 16),
-          for (var i = 0; i < widget.fields.length; i++)
+          for (final (i, field) in widget.fields.indexed)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
               // Keyed by index (not name) so typing in the name field doesn't
@@ -117,11 +117,11 @@ class _EntityFieldsEditorState extends State<EntityFieldsEditor> {
               // (infer/reset) via didUpdateWidget.
               child: _FieldRow(
                 key: ValueKey('field_$i'),
-                field: widget.fields[i],
+                field: field,
                 onName: (v) => widget.onName(i, v),
                 onType: (v) => widget.onType(i, v),
                 onNullable: (v) => widget.onNullable(i, v),
-                onRemove: widget.fields[i].isId ? null : () => widget.onRemove(i),
+                onRemove: field.isId ? null : () => widget.onRemove(i),
               ),
             ),
           Align(

@@ -93,7 +93,7 @@ class FlexColorSchemeTab extends HookConsumerWidget {
                   maxLines: 14,
                   style: const TextStyle(
                     color: Color(0xFF9ECE6A),
-                    fontFamily: 'monospace',
+                    
                     fontSize: 12,
                     height: 1.6,
                   ),
@@ -113,7 +113,7 @@ class FlexColorSchemeTab extends HookConsumerWidget {
                         '}',
                     hintStyle: const TextStyle(
                       color: Colors.white12,
-                      fontFamily: 'monospace',
+                      
                       fontSize: 12,
                       height: 1.6,
                     ),
