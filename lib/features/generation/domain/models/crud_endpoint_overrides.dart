@@ -38,9 +38,9 @@ class CrudEndpointOverrides {
   });
 
   /// Sensible starting point when the "Customize endpoints" toggle is first
-  /// switched on — the exact names/paths today's fixed derivation already
-  /// uses, so the user only has to change what actually differs (e.g. just
-  /// `createPath`) instead of retyping every operation from scratch.
+  /// switched on — the exact paths today's fixed derivation already uses, so
+  /// the user only has to retype the operation(s) that genuinely differ
+  /// (e.g. just `createPath`) instead of every one of the 5 from scratch.
   factory CrudEndpointOverrides.defaultsFor(String base) => CrudEndpointOverrides(
     getAllPath: base,
     getByIdPath: '$base/{id}',

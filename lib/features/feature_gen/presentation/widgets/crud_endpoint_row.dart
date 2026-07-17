@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:neat/features/feature_gen/presentation/utils/field_decoration.dart';
 import 'package:neat/features/generation/domain/models/endpoint_spec.dart';
 import 'package:neat_ui/neat_ui.dart';
 
@@ -21,6 +22,7 @@ class CrudEndpointRow extends HookWidget {
     required this.onName,
     required this.onMethod,
     required this.onPath,
+    required this.pathHint,
     super.key,
   });
 
@@ -33,6 +35,12 @@ class CrudEndpointRow extends HookWidget {
   final ValueChanged<HttpMethod> onMethod;
   final ValueChanged<String> onPath;
 
+  /// Shown as ghost text when [path] is empty — the route this operation
+  /// falls back to at generation time (derived from the API Path field),
+  /// so leaving the field blank stays a deliberate, informed choice rather
+  /// than an unexplained empty box.
+  final String pathHint;
+
   @override
   Widget build(BuildContext context) {
     // Own controllers (created once per row, keyed by the parent's fixed
@@ -40,9 +48,29 @@ class CrudEndpointRow extends HookWidget {
     // rebuild — same pattern EndpointRow itself uses.
     final nameCtrl = useTextEditingController(text: name);
     final pathCtrl = useTextEditingController(text: path);
+    // ArchitectureLayersStep can push a new [path] programmatically (syncing
+    // this row to the shared API Path field) — useTextEditingController only
+    // applies its initial value once, so without this the controller stays
+    // stale and the pushed value only ever shows as ghost hint text, never as
+    // real, selectable input. The equality guard means the user's own typing
+    // in this exact field (which already updated pathCtrl.text directly)
+    // doesn't get redundantly reassigned — only genuinely external changes do.
+    useEffect(() {
+      if (pathCtrl.text != path) {
+        pathCtrl.text = path;
+      }
+      return null;
+    }, [path]);
 
+    final apiPathError =
+        path.isNotEmpty &&
+            !path.startsWith('/') &&
+            !path.startsWith('http://') &&
+            !path.startsWith('https://')
+        ? 'Relative paths must start with a slash'
+        : null;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+      padding: const .symmetric(vertical: 6),
       child: Row(
         children: [
           SizedBox(
@@ -56,7 +84,7 @@ class CrudEndpointRow extends HookWidget {
               enabled: enabled,
               onChanged: onName,
               style: const TextStyle(color: Colors.white, fontSize: 12.5),
-              decoration: const InputDecoration.collapsed(hintText: 'name'),
+              decoration: fieldDecoration(name, null, context),
             ),
           ),
           8.gapW,
@@ -83,7 +111,7 @@ class CrudEndpointRow extends HookWidget {
               enabled: enabled,
               onChanged: onPath,
               style: const TextStyle(color: Colors.white, fontSize: 12.5),
-              decoration: const .collapsed(hintText: '/resource'),
+              decoration: fieldDecoration(pathHint, apiPathError, context),
             ),
           ),
         ],

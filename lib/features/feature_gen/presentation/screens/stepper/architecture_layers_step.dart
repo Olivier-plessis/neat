@@ -10,6 +10,13 @@ import 'package:neat_ui/neat_ui.dart';
 /// (Remote/Local Data Source, Domain UseCase, Data Mapper — always on), the
 /// API path, and the opt-in "Customize endpoints" per-operation method+path
 /// (chopper only — see CrudEndpointOverrides' own doc for why).
+///
+/// Purely presentational — the "keep the 5 operations' paths synced to the
+/// shared API Path field" logic used to live here as a reactive useEffect
+/// (which could fire mid-build and crash); it's now a direct event handler
+/// on the API Path TextField's own controller listener, in
+/// FeatureFormController.setApiPath, so this widget has nothing left to
+/// synchronize itself.
 class ArchitectureLayersStep extends StatelessWidget {
   const ArchitectureLayersStep({
     required this.opts,
@@ -32,6 +39,27 @@ class ArchitectureLayersStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Deliberately doesn't fall back to the feature name here (unlike the
+    // "Default REST path" hint below, which describes the *generated*
+    // fallback for the non-customized case) — with nothing typed in API
+    // Path, these 5 fields show a plain, generic "type something" hint
+    // instead of a guessed value, so nothing here is derived from the
+    // feature name.
+    final hasApiPath = opts.apiPath.isNotEmpty;
+    final pathHint = hasApiPath ? opts.apiPath : '/endpoint';
+    final idPathHint = hasApiPath ? '${opts.apiPath}/{id}' : '/endpoint/{id}';
+
+    // Only relative paths need the leading slash — an absolute URL (see the
+    // hint text below) overrides the API Base URL entirely and has its own
+    // scheme instead.
+    final apiPathError =
+        opts.apiPath.isNotEmpty &&
+            !opts.apiPath.startsWith('/') &&
+            !opts.apiPath.startsWith('http://') &&
+            !opts.apiPath.startsWith('https://')
+        ? 'Relative paths must start with a slash, e.g. /products'
+        : null;
+
     return Column(
       crossAxisAlignment: .start,
       children: [
@@ -52,7 +80,11 @@ class ArchitectureLayersStep extends StatelessWidget {
             controller: apiPathCtrl,
             enabled: enabled,
             style: const TextStyle(color: Colors.white),
-            decoration: fieldDecoration('API Path (optional) — e.g. /products', null, context),
+            decoration: fieldDecoration(
+              'API Path (optional) — e.g. /products',
+              apiPathError,
+              context,
+            ),
           ),
           4.gapH,
           Text(
@@ -76,21 +108,21 @@ class ArchitectureLayersStep extends StatelessWidget {
                 '(e.g. POST /products/add to create).',
             value: opts.customizeEndpoints,
             enabled: enabled,
-            onChanged: (v) {
-              if (v) {
-                final base = opts.apiPath.isEmpty
-                    ? '/${opts.name.isEmpty ? 'items' : opts.name}s'
-                    : opts.apiPath;
-                onChanged(
-                  opts.copyWith(
-                    customizeEndpoints: true,
-                    endpointOverrides: CrudEndpointOverrides.defaultsFor(base),
-                  ),
-                );
-              } else {
-                onChanged(opts.copyWith(customizeEndpoints: false));
-              }
-            },
+            onChanged: (v) => onChanged(
+              v
+                  // Pre-fill real, editable values when there's an API Path
+                  // to derive them from — otherwise every operation that
+                  // doesn't actually differ still needs retyping by hand.
+                  // With nothing typed yet, leave paths blank (just the
+                  // hint shows) rather than guessing from the feature name.
+                  ? opts.copyWith(
+                      customizeEndpoints: true,
+                      endpointOverrides: hasApiPath
+                          ? CrudEndpointOverrides.defaultsFor(opts.apiPath)
+                          : const CrudEndpointOverrides(),
+                    )
+                  : opts.copyWith(customizeEndpoints: false),
+            ),
           ),
           if (opts.customizeEndpoints) ...[
             8.gapH,
@@ -110,6 +142,7 @@ class ArchitectureLayersStep extends StatelessWidget {
                       name: opts.endpointOverrides.getAllName,
                       method: opts.endpointOverrides.getAllMethod,
                       path: opts.endpointOverrides.getAllPath,
+                      pathHint: pathHint,
                       enabled: enabled,
                       onName: (v) => onChanged(
                         opts.copyWith(
@@ -134,6 +167,7 @@ class ArchitectureLayersStep extends StatelessWidget {
                       name: opts.endpointOverrides.getByIdName,
                       method: opts.endpointOverrides.getByIdMethod,
                       path: opts.endpointOverrides.getByIdPath,
+                      pathHint: idPathHint,
                       enabled: enabled,
                       onName: (v) => onChanged(
                         opts.copyWith(
@@ -158,6 +192,7 @@ class ArchitectureLayersStep extends StatelessWidget {
                       name: opts.endpointOverrides.createName,
                       method: opts.endpointOverrides.createMethod,
                       path: opts.endpointOverrides.createPath,
+                      pathHint: pathHint,
                       enabled: enabled,
                       onName: (v) => onChanged(
                         opts.copyWith(
@@ -182,6 +217,7 @@ class ArchitectureLayersStep extends StatelessWidget {
                       name: opts.endpointOverrides.updateName,
                       method: opts.endpointOverrides.updateMethod,
                       path: opts.endpointOverrides.updatePath,
+                      pathHint: idPathHint,
                       enabled: enabled,
                       onName: (v) => onChanged(
                         opts.copyWith(
@@ -206,6 +242,7 @@ class ArchitectureLayersStep extends StatelessWidget {
                       name: opts.endpointOverrides.deleteName,
                       method: opts.endpointOverrides.deleteMethod,
                       path: opts.endpointOverrides.deletePath,
+                      pathHint: idPathHint,
                       enabled: enabled,
                       onName: (v) => onChanged(
                         opts.copyWith(

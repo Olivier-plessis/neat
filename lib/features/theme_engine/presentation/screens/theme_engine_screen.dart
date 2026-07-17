@@ -6,7 +6,7 @@ import 'package:neat/features/theme_engine/presentation/providers/theme_engine_p
 import 'package:neat/features/theme_engine/presentation/providers/theme_engine_tab_provider.dart';
 import 'package:neat/features/theme_engine/presentation/screens/tabs/buttons_shapes_tab.dart';
 import 'package:neat/features/theme_engine/presentation/screens/tabs/color_tab.dart';
-import 'package:neat/features/theme_engine/presentation/screens/tabs/flex_colorScheme_tab.dart';
+import 'package:neat/features/theme_engine/presentation/screens/tabs/flex_color_scheme_tab.dart';
 import 'package:neat/features/theme_engine/presentation/screens/tabs/splash_icon_tab.dart';
 import 'package:neat/features/theme_engine/presentation/screens/tabs/typography_tab.dart';
 import 'package:neat/features/theme_engine/presentation/screens/widget/card/live_preview_card.dart';
