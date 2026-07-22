@@ -80,6 +80,22 @@ class IdentityRoutingStep extends StatelessWidget {
             routingEnabled: routingEnabled,
             onSelect: (r) => onChanged(opts.copyWith(routing: r)),
           ),
+          // Only offered for the project's actual first feature — a launch
+          // with no first feature scaffolds a "welcome" placeholder owning
+          // the root route (see AppRoutePath.welcome's own doc), which
+          // nothing later ever replaces on its own.
+          if (features.isEmpty) ...[
+            8.gapH,
+            LayerToggle(
+              title: 'Set as home page',
+              subtitle:
+                  'Replaces the placeholder "Welcome" screen — this feature '
+                  'becomes the app\'s root route instead.',
+              value: opts.setAsHomePage,
+              enabled: enabled,
+              onChanged: (v) => onChanged(opts.copyWith(setAsHomePage: v)),
+            ),
+          ],
           if (needsParent) ...[
             24.gapH,
             ParentRoutingSelector(

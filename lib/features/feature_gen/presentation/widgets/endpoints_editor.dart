@@ -109,6 +109,18 @@ class EndpointsEditor extends StatelessWidget {
             ),
             onRequestRemove: (fi) =>
                 _update(i, (e) => e.copyWith(requestFields: [...e.requestFields]..removeAt(fi))),
+            onRequestChildrenChanged: (fi, children) => _update(
+              i,
+              (e) => e.copyWith(
+                requestFields: editField(
+                  e.requestFields,
+                  fi,
+                  (f) => f.kind == FieldKind.list
+                      ? f.copyWith(element: f.element!.copyWith(children: children))
+                      : f.copyWith(children: children),
+                ),
+              ),
+            ),
             onResponseInfer: (j) {
               if (j.trim().isEmpty) {
                 _update(
@@ -176,6 +188,18 @@ class EndpointsEditor extends StatelessWidget {
             ),
             onResponseRemove: (fi) =>
                 _update(i, (e) => e.copyWith(responseFields: [...e.responseFields]..removeAt(fi))),
+            onResponseChildrenChanged: (fi, children) => _update(
+              i,
+              (e) => e.copyWith(
+                responseFields: editField(
+                  e.responseFields,
+                  fi,
+                  (f) => f.kind == FieldKind.list
+                      ? f.copyWith(element: f.element!.copyWith(children: children))
+                      : f.copyWith(children: children),
+                ),
+              ),
+            ),
             onRemove: () => onChange([...endpoints]..removeAt(i)),
           ),
           10.gapH,
@@ -217,6 +241,7 @@ class _EndpointRow extends HookWidget {
     required this.onRequestType,
     required this.onRequestNullable,
     required this.onRequestRemove,
+    required this.onRequestChildrenChanged,
     required this.onResponseInfer,
     required this.onResponseReset,
     required this.onResponseAddField,
@@ -224,6 +249,7 @@ class _EndpointRow extends HookWidget {
     required this.onResponseType,
     required this.onResponseNullable,
     required this.onResponseRemove,
+    required this.onResponseChildrenChanged,
     required this.onRemove,
     super.key,
   });
@@ -240,6 +266,7 @@ class _EndpointRow extends HookWidget {
   final void Function(int, String) onRequestType;
   final void Function(int, bool) onRequestNullable;
   final ValueChanged<int> onRequestRemove;
+  final void Function(int, List<FieldSpec>) onRequestChildrenChanged;
   final ValueChanged<String> onResponseInfer;
   final VoidCallback onResponseReset;
   final VoidCallback onResponseAddField;
@@ -247,6 +274,7 @@ class _EndpointRow extends HookWidget {
   final void Function(int, String) onResponseType;
   final void Function(int, bool) onResponseNullable;
   final ValueChanged<int> onResponseRemove;
+  final void Function(int, List<FieldSpec>) onResponseChildrenChanged;
   final VoidCallback onRemove;
 
   @override
@@ -264,94 +292,113 @@ class _EndpointRow extends HookWidget {
         borderRadius: .circular(10),
         border: .all(color: context.neatColors.surface10),
       ),
-      child: Theme(
-        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-        child: ExpansionTile(
-          initiallyExpanded: endpoint.name.startsWith('endpoint') && endpoint.path.isEmpty,
-          title: Row(
-            children: [
-              Expanded(
-                flex: 2,
-                child: TextField(
-                  controller: nameCtrl,
-                  enabled: enabled,
-                  onChanged: onName,
-                  style: const TextStyle(color: Colors.white, fontSize: 13),
-                  decoration: const .collapsed(hintText: 'name, e.g. login'),
-                ),
-              ),
-              8.gapW,
-              SizedBox(
-                width: 90,
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<HttpMethod>(
-                    value: endpoint.method,
-                    isDense: true,
-                    dropdownColor: context.neatColors.colorSurfaceCard,
-                    style: TextStyle(color: context.neatColors.colorPrimaryCyan, fontSize: 12),
-                    onChanged: enabled ? (m) => onMethod(m ?? HttpMethod.get) : null,
-                    items: HttpMethod.values
-                        .map((m) => DropdownMenuItem(value: m, child: Text(m.name.toUpperCase())))
-                        .toList(),
+      // ExpansionTile's header is a ListTile, which paints its own
+      // background/ink on the nearest Material ancestor — without this, that
+      // ancestor is whatever Material sits behind this DecoratedBox's own
+      // background, so the ink/splash would be invisible underneath it.
+      child: Material(
+        color: Colors.transparent,
+        child: Theme(
+          data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+          child: ExpansionTile(
+            initiallyExpanded: endpoint.name.startsWith('endpoint') && endpoint.path.isEmpty,
+            title: Row(
+              children: [
+                Expanded(
+                  flex: 2,
+                  child: TextField(
+                    controller: nameCtrl,
+                    enabled: enabled,
+                    onChanged: onName,
+                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                    decoration: const .collapsed(hintText: 'name, e.g. login'),
                   ),
                 ),
-              ),
-              8.gapW,
-              Expanded(
-                flex: 3,
-                child: TextField(
-                  controller: pathCtrl,
-                  enabled: enabled,
-                  onChanged: onPath,
-                  style: const TextStyle(color: Colors.white, fontSize: 13),
-                  decoration: const .collapsed(hintText: '/auth/login'),
+                8.gapW,
+                SizedBox(
+                  width: 90,
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<HttpMethod>(
+                      value: endpoint.method,
+                      isDense: true,
+                      dropdownColor: context.neatColors.colorSurfaceCard,
+                      style: TextStyle(color: context.neatColors.colorPrimaryCyan, fontSize: 12),
+                      onChanged: enabled ? (m) => onMethod(m ?? HttpMethod.get) : null,
+                      items: HttpMethod.values
+                          .map(
+                            (m) => DropdownMenuItem(value: m, child: Text(m.name.toUpperCase())),
+                          )
+                          .toList(),
+                    ),
+                  ),
+                ),
+                8.gapW,
+                Expanded(
+                  flex: 3,
+                  child: TextField(
+                    controller: pathCtrl,
+                    enabled: enabled,
+                    onChanged: onPath,
+                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                    decoration: const .collapsed(hintText: '/auth/login'),
+                  ),
+                ),
+                IconButton(
+                  onPressed: enabled ? onRemove : null,
+                  icon: const Icon(Icons.delete_outline, size: 18, color: Colors.white54),
+                  tooltip: 'Remove endpoint',
+                ),
+              ],
+            ),
+            childrenPadding: const .fromLTRB(14, 0, 14, 14),
+            children: [
+              Text(
+                'Request body (optional)',
+                style: TextStyle(
+                  color: Colors.grey[500],
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
-              IconButton(
-                onPressed: enabled ? onRemove : null,
-                icon: const Icon(Icons.delete_outline, size: 18, color: Colors.white54),
-                tooltip: 'Remove endpoint',
+              8.gapH,
+              EntityFieldsEditor(
+                json: endpoint.requestJson,
+                fields: endpoint.requestFields,
+                warnings: endpoint.requestWarnings,
+                onInfer: onRequestInfer,
+                onReset: onRequestReset,
+                onAddField: onRequestAddField,
+                onName: onRequestName,
+                onType: onRequestType,
+                onNullable: onRequestNullable,
+                onRemove: onRequestRemove,
+                onChildrenChanged: onRequestChildrenChanged,
+              ),
+              16.gapH,
+              Text(
+                'Response body (optional)',
+                style: TextStyle(
+                  color: Colors.grey[500],
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              8.gapH,
+              EntityFieldsEditor(
+                json: endpoint.responseJson,
+                fields: endpoint.responseFields,
+                warnings: endpoint.responseWarnings,
+                onInfer: onResponseInfer,
+                onReset: onResponseReset,
+                onAddField: onResponseAddField,
+                onName: onResponseName,
+                onType: onResponseType,
+                onNullable: onResponseNullable,
+                onRemove: onResponseRemove,
+                onChildrenChanged: onResponseChildrenChanged,
               ),
             ],
           ),
-          childrenPadding: const .fromLTRB(14, 0, 14, 14),
-          children: [
-            Text(
-              'Request body (optional)',
-              style: TextStyle(color: Colors.grey[500], fontSize: 11, fontWeight: FontWeight.bold),
-            ),
-            8.gapH,
-            EntityFieldsEditor(
-              json: endpoint.requestJson,
-              fields: endpoint.requestFields,
-              warnings: endpoint.requestWarnings,
-              onInfer: onRequestInfer,
-              onReset: onRequestReset,
-              onAddField: onRequestAddField,
-              onName: onRequestName,
-              onType: onRequestType,
-              onNullable: onRequestNullable,
-              onRemove: onRequestRemove,
-            ),
-            16.gapH,
-            Text(
-              'Response body (optional)',
-              style: TextStyle(color: Colors.grey[500], fontSize: 11, fontWeight: FontWeight.bold),
-            ),
-            8.gapH,
-            EntityFieldsEditor(
-              json: endpoint.responseJson,
-              fields: endpoint.responseFields,
-              warnings: endpoint.responseWarnings,
-              onInfer: onResponseInfer,
-              onReset: onResponseReset,
-              onAddField: onResponseAddField,
-              onName: onResponseName,
-              onType: onResponseType,
-              onNullable: onResponseNullable,
-              onRemove: onResponseRemove,
-            ),
-          ],
         ),
       ),
     );
