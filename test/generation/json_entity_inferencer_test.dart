@@ -40,7 +40,7 @@ void main() {
       expect(id.dartType, 'String');
       expect(id.isId, isTrue);
       expect(id.nullable, isFalse);
-      expect(r.warnings.any((w) => w.contains('coerced to String')), isTrue);
+      expect(r.warnings.any((w) => w.contains('"id" was int → coerced to String')), isTrue);
     });
 
     test('synthesises a String id when absent (placed first)', () {
@@ -53,6 +53,27 @@ void main() {
     test('exactly one id field', () {
       final r = sut.infer('{"id": "1", "name": "x"}');
       expect(r.fields.where((f) => f.isId).length, 1);
+    });
+
+    // Mongo/Mongoose's own convention — a very common real-world id key that
+    // isn't literally "id".
+    test('recognises "_id" as the id key — no duplicate synthetic id', () {
+      final r = sut.infer('{"_id": 1, "title": "Jacket"}');
+      expect(r.fields.where((f) => f.isId).length, 1);
+      final id = field(r.fields, 'id');
+      expect(id.jsonKey, '_id');
+      expect(id.isId, isTrue);
+      expect(id.dartType, 'String');
+      // Names the real source key ("_id"), not a hardcoded "id" that isn't
+      // actually in the pasted JSON.
+      expect(r.warnings.any((w) => w.contains('"_id" was int → coerced to String')), isTrue);
+      expect(r.warnings.any((w) => w.contains('added a String id')), isFalse);
+    });
+
+    test('"_id" is not treated as the id in a nested object', () {
+      final r = sut.infer('{"id": "1", "category": {"_id": 1, "name": "women"}}');
+      final category = field(r.fields, 'category');
+      expect(category.children.where((f) => f.isId).length, 0);
     });
   });
 
@@ -130,6 +151,125 @@ void main() {
       final r = sut.infer('{"id": "1", "is-active": true, "first name": "Ada"}');
       expect(r.fields.any((f) => f.dartName == 'isActive'), isTrue);
       expect(r.fields.any((f) => f.dartName == 'firstName'), isTrue);
+    });
+  });
+
+  group('paginated list wrapper', () {
+    test('unwraps a dummyjson-style envelope and infers from the first item', () {
+      final r = sut.infer('''
+        {
+          "recipes": [
+            {"id": 1, "name": "Classic Margherita Pizza", "ingredients": ["Pizza dough"]}
+          ],
+          "total": 100,
+          "skip": 0,
+          "limit": 30
+        }
+      ''');
+      expect(r.fields.any((f) => f.dartName == 'name'), isTrue);
+      expect(r.fields.any((f) => f.dartName == 'ingredients'), isTrue);
+      // The wrapper's own fields must not leak in as if they were the entity's.
+      expect(r.fields.any((f) => f.dartName == 'recipes'), isFalse);
+      expect(r.fields.any((f) => f.dartName == 'total'), isFalse);
+      expect(r.fields.any((f) => f.dartName == 'skip'), isFalse);
+      expect(r.fields.any((f) => f.dartName == 'limit'), isFalse);
+      expect(r.warnings.any((w) => w.contains('paginated list wrapper')), isTrue);
+      expect(r.warnings.any((w) => w.contains('recipes[0]')), isTrue);
+      // Needed at generation time so getAll() can unwrap this same key
+      // instead of decoding the response as a bare array.
+      expect(r.envelopeKey, 'recipes');
+      // The wrapper's own scalar siblings — used to generate a typed
+      // <Feature>ListModel wrapper alongside the entity, instead of
+      // discarding this pagination metadata.
+      expect(r.envelopeFields.map((f) => f.dartName), ['total', 'skip', 'limit']);
+      expect(r.envelopeFields.every((f) => f.dartType == 'int'), isTrue);
+    });
+
+    // Real-world regression: a "data" wrapper whose item uses Mongo's own
+    // "_id" convention, plus a nested object ("categories") that also has
+    // its own "_id" — must not be mistaken for the entity's own id, and
+    // must not produce a duplicate synthetic id.
+    test('unwraps a "data" envelope with pagination fields and a Mongo-style "_id" item', () {
+      final r = sut.infer('''
+        {
+          "data": [
+            {
+              "_id": 1,
+              "title": "Long sleeve Jacket",
+              "isNew": true,
+              "oldPrice": "200",
+              "price": 150,
+              "size": ["S", "M", "L"],
+              "categories": {"_id": 1, "name": "women", "type": "jacket"},
+              "rating": 4
+            }
+          ],
+          "totalProducts": 30,
+          "totalPages": 2,
+          "currentPage": 1,
+          "perPage": 20
+        }
+      ''');
+      expect(r.fields.where((f) => f.isId).length, 1);
+      final id = field(r.fields, 'id');
+      expect(id.jsonKey, '_id');
+      expect(r.fields.any((f) => f.dartName == 'title'), isTrue);
+      expect(r.fields.any((f) => f.dartName == 'data'), isFalse);
+      expect(r.fields.any((f) => f.dartName == 'totalProducts'), isFalse);
+      expect(r.fields.any((f) => f.dartName == 'totalPages'), isFalse);
+      expect(r.fields.any((f) => f.dartName == 'currentPage'), isFalse);
+      expect(r.fields.any((f) => f.dartName == 'perPage'), isFalse);
+      // The nested "categories._id" is real data, not a second entity id.
+      final categories = field(r.fields, 'categories');
+      expect(categories.children.where((f) => f.isId).length, 0);
+      expect(r.envelopeKey, 'data');
+      expect(r.envelopeFields.map((f) => f.dartName), [
+        'totalProducts',
+        'totalPages',
+        'currentPage',
+        'perPage',
+      ]);
+    });
+
+    test('unwraps a bare wrapper with no sibling metadata fields at all', () {
+      final r = sut.infer('{"items": [{"id": "1", "sku": "A"}]}');
+      expect(r.fields.any((f) => f.dartName == 'sku'), isTrue);
+      expect(r.fields.any((f) => f.dartName == 'items'), isFalse);
+      expect(r.envelopeKey, 'items');
+      // No sibling metadata at all — the wrapper model still generates, just
+      // with only the list field.
+      expect(r.envelopeFields, isEmpty);
+    });
+
+    test('does not unwrap when the object already has its own id', () {
+      final r = sut.infer('{"id": "1", "name": "Team A", "members": [{"name": "Alice"}]}');
+      expect(r.fields.any((f) => f.dartName == 'name'), isTrue);
+      expect(r.fields.any((f) => f.dartName == 'members'), isTrue);
+      expect(r.warnings.any((w) => w.contains('paginated list wrapper')), isFalse);
+      expect(r.envelopeKey, isNull);
+      expect(r.envelopeFields, isEmpty);
+    });
+
+    test('does not unwrap when a nested object sits alongside the array', () {
+      final r = sut.infer('''
+        {"items": [{"sku": "A"}], "meta": {"author": "Ada"}}
+      ''');
+      expect(r.fields.any((f) => f.dartName == 'items'), isTrue);
+      expect(r.fields.any((f) => f.dartName == 'meta'), isTrue);
+      expect(r.warnings.any((w) => w.contains('paginated list wrapper')), isFalse);
+      expect(r.envelopeKey, isNull);
+      expect(r.envelopeFields, isEmpty);
+    });
+
+    test('does not unwrap when there are two array-of-objects fields (ambiguous)', () {
+      final r = sut.infer('''
+        {"items": [{"sku": "A"}], "categories": [{"name": "X"}]}
+      ''');
+      expect(r.fields.any((f) => f.dartName == 'items'), isTrue);
+      expect(r.fields.any((f) => f.dartName == 'categories'), isTrue);
+      expect(r.warnings.any((w) => w.contains('paginated list wrapper')), isFalse);
+      expect(r.envelopeKey, isNull);
+      expect(r.envelopeFields, isEmpty);
     });
   });
 

@@ -27,14 +27,37 @@ class EntityFieldsStep extends StatelessWidget {
           warnings: opts.fieldWarnings,
           onInfer: (j) {
             if (j.trim().isEmpty) {
-              onChanged(opts.copyWith(json: '', fields: FieldSpec.idName, fieldWarnings: const []));
+              onChanged(
+                opts.copyWith(
+                  json: '',
+                  fields: FieldSpec.idName,
+                  fieldWarnings: const [],
+                  listEnvelopeKey: '',
+                  envelopeFields: const [],
+                ),
+              );
               return;
             }
             final r = const JsonEntityInferencer().infer(j);
-            onChanged(opts.copyWith(json: j, fields: r.fields, fieldWarnings: r.warnings));
+            onChanged(
+              opts.copyWith(
+                json: j,
+                fields: r.fields,
+                fieldWarnings: r.warnings,
+                listEnvelopeKey: r.envelopeKey ?? '',
+                envelopeFields: r.envelopeFields,
+              ),
+            );
           },
-          onReset: () =>
-              onChanged(opts.copyWith(json: '', fields: FieldSpec.idName, fieldWarnings: const [])),
+          onReset: () => onChanged(
+            opts.copyWith(
+              json: '',
+              fields: FieldSpec.idName,
+              fieldWarnings: const [],
+              listEnvelopeKey: '',
+              envelopeFields: const [],
+            ),
+          ),
           onAddField: () {
             final used = opts.fields.map((f) => f.dartName).toSet();
             var n = 'field';
@@ -67,6 +90,17 @@ class EntityFieldsStep extends StatelessWidget {
             if (opts.fields[i].isId) return;
             onChanged(opts.copyWith(fields: [...opts.fields]..removeAt(i)));
           },
+          onChildrenChanged: (i, children) => onChanged(
+            opts.copyWith(
+              fields: editField(
+                opts.fields,
+                i,
+                (f) => f.kind == FieldKind.list
+                    ? f.copyWith(element: f.element!.copyWith(children: children))
+                    : f.copyWith(children: children),
+              ),
+            ),
+          ),
         ),
       ],
     );

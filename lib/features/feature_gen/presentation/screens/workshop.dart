@@ -278,54 +278,68 @@ class _WorkshopState extends ConsumerState<Workshop> {
               ),
               24.gapW,
               // Right: blueprint + generate + logs (fixed across every step).
+              // Scrollable, not just a Column: the blueprint card can grow
+              // tall (many files) and the logs panel is a further fixed 200,
+              // so a short window can need more height than this side of
+              // the Row actually has — this scrolls instead of overflowing.
               Expanded(
                 flex: 6,
-                child: Column(
-                  crossAxisAlignment: .start,
-                  children: [
-                    _BlueprintTree(options: opts, contract: c, hasHttp: projectHasHttp),
-                    16.gapH,
-                    SizedBox(
-                      width: .infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: canGenerate && formState.step == totalSteps - 1
-                            ? () => widget.onGenerate(opts)
-                            : null,
-                        icon: widget.state.isGenerating
-                            ? const SizedBox(
-                                width: 14,
-                                height: 14,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Color(0xFF0E0E0E),
-                                ),
-                              )
-                            : const Icon(Icons.auto_awesome, size: 18),
-                        label: Text(widget.state.isGenerating ? 'Generating…' : 'Generate Feature'),
-                        style: FilledButton.styleFrom(
-                          backgroundColor: context.neatColors.colorPrimaryCyan,
-                          foregroundColor: context.neatColors.colorSurfaceCard,
-                          padding: const .symmetric(vertical: 18),
-                          textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                child: ScrollConfiguration(
+                  behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: .start,
+                      children: [
+                        _BlueprintTree(options: opts, contract: c, hasHttp: projectHasHttp),
+                        16.gapH,
+                        SizedBox(
+                          width: .infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: canGenerate && formState.step == totalSteps - 1
+                                ? () => widget.onGenerate(opts)
+                                : null,
+                            icon: widget.state.isGenerating
+                                ? const SizedBox(
+                                    width: 14,
+                                    height: 14,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Color(0xFF0E0E0E),
+                                    ),
+                                  )
+                                : const Icon(Icons.auto_awesome, size: 18),
+                            label: Text(
+                              widget.state.isGenerating ? 'Generating…' : 'Generate Feature',
+                            ),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: context.neatColors.colorPrimaryCyan,
+                              foregroundColor: context.neatColors.colorSurfaceCard,
+                              padding: const .symmetric(vertical: 18),
+                              textStyle: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
+                        if (widget.state.error != null) ...[
+                          12.gapH,
+                          Text(
+                            widget.state.error!,
+                            style: TextStyle(color: Colors.redAccent[100], fontSize: 12),
+                          ),
+                        ],
+                        if (widget.state.logs.isNotEmpty) ...[
+                          16.gapH,
+                          FeatureTree(
+                            isGenerating: widget.state.isGenerating,
+                            scrollController: _logsScrollController,
+                            logs: widget.state.logs,
+                          ),
+                        ],
+                      ],
                     ),
-                    if (widget.state.error != null) ...[
-                      12.gapH,
-                      Text(
-                        widget.state.error!,
-                        style: TextStyle(color: Colors.redAccent[100], fontSize: 12),
-                      ),
-                    ],
-                    if (widget.state.logs.isNotEmpty) ...[
-                      16.gapH,
-                      FeatureTree(
-                        isGenerating: widget.state.isGenerating,
-                        scrollController: _logsScrollController,
-                        logs: widget.state.logs,
-                      ),
-                    ],
-                  ],
+                  ),
                 ),
               ),
             ],

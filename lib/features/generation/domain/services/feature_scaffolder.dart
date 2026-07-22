@@ -89,6 +89,14 @@ class FeatureScaffolder {
     // derived from [apiPath]'s single base — see CrudEndpointOverrides' doc.
     bool customizeEndpoints = false,
     CrudEndpointOverrides? endpointOverrides,
+    // See DataTemplates.featureApiSource/featureRepositoryImpl's own doc —
+    // set when the entity was inferred from a paginated list wrapper, so
+    // getAll() returns a typed <Feature>ListModel instead of a bare array.
+    String listEnvelopeKey = '',
+    // The wrapper's own sibling scalar fields (total/skip/limit-style) — see
+    // DataTemplates.featureModel's own doc. Always empty when listEnvelopeKey
+    // is empty.
+    List<FieldSpec> envelopeFields = const [],
     // packageSplit + shell branch, or a child nested under one (see
     // ROADMAP.md §6a): app_shell_route.dart/routes.dart can't import this
     // feature's page directly without the app depending on a page it
@@ -276,6 +284,8 @@ class FeatureScaffolder {
             hasJsonSerializable: hasJsonSerializable,
             fields: fields,
             domainCross: domainCross,
+            listEnvelopeKey: listEnvelopeKey,
+            envelopeFields: envelopeFields,
           ),
         );
 
@@ -296,6 +306,7 @@ class FeatureScaffolder {
             domainCross: domainCross,
             customizeEndpoints: customizeEndpoints,
             endpointOverrides: endpointOverrides,
+            listEnvelopeKey: listEnvelopeKey,
           ),
         );
       }
@@ -315,6 +326,7 @@ class FeatureScaffolder {
             localStoragePackage: localStoragePackage,
             corePackageName: corePackageName,
             domainCross: domainCross,
+            listEnvelopeKey: listEnvelopeKey,
           ),
         );
       }
@@ -330,6 +342,7 @@ class FeatureScaffolder {
             apiPath: apiPath,
             customizeEndpoints: customizeEndpoints,
             endpointOverrides: endpointOverrides,
+            listEnvelopeKey: listEnvelopeKey,
           ),
         );
       }

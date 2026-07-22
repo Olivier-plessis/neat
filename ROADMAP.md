@@ -561,6 +561,230 @@ Harness-proven: `pubspec_builder_test.dart` gained two cases (override present
   entity/model stay singular (not one per operation), and `flutter analyze`
   0/0. Full fast suite (245 tests) + all integration tests green.
 
+### 5k. "Set as home page" — closes a promise the welcome placeholder's own doc made and nothing delivered
+
+> Found via a real generated project (`liza`): the user added their first
+> feature via the Workshop after launching with no first feature, but the
+> app kept showing the launch-time "Welcome" placeholder — routing was never
+> updated. `AppRoutePath.welcome`'s own doc comment already promised "until
+> you add one via the Workshop", but `GenerateFeatureUsecase` had zero
+> references to "welcome" anywhere — the promise was never implemented.
+> Confirmed by reading the real project: `app_router.dart`'s `redirect:`
+> closure still pointed at the dead `welcome` constant after the user
+> manually edited `initialLocation`. Decision: fully delete the placeholder
+> (not just bypass it) — confirmed with the user, who didn't expect the
+> Welcome page to ever resurface after a real first feature exists.
+
+- **New option**: `FeatureGenOptions.setAsHomePage` (`@Default(true)`) — a
+  `LayerToggle` in the Identity & Routing step, shown only when
+  `features.isEmpty` (the project's actual first feature; meaningless
+  otherwise, so hidden rather than disabled).
+- **`GenerateFeatureUsecase._removeWelcomePlaceholder`**: when the option is
+  on and this is genuinely the first feature, repoints every
+  `AppRoutePath.welcome` reference at the new feature's own route constant
+  and deletes the placeholder's own files. Four steps, each defensive/no-op
+  on content it doesn't find (idempotent — safe to call on a project that
+  never had a welcome placeholder): (1) `routes.dart` — drop the placeholder's
+  own import + aggregator entry outright, via a `RegExp` (not a literal
+  string) tolerant of `dart format`'s line-wrapping for long package names;
+  (2) delete `welcome_route.dart`/`.g.dart`/`welcome_page.dart`; (3) drop the
+  dead `AppRoutePath.welcome` constant (app's own copy + the core package's
+  mirrored copy under packageSplit); (4) a project-wide sweep
+  (`AppRoutePath.welcome` → `AppRoutePath.$feature`) across every `.dart`
+  file — not a fixed list of known call sites, since `homeRouteExpr()`
+  (`generation_io.dart`) reaches `initialLocation`, the onboarding `onDone`
+  redirect, *and* the post-login auth guard redirect, and enumerating every
+  template call site by name would be fragile.
+- Harness-proven: two integration tests (launch with no first feature, then
+  `GenerateFeatureUsecase` add one) — `setAsHomePage: true` (default) asserts
+  the placeholder's files are gone, `routes.dart`/`app_router.dart`/
+  `app_route_path.dart` contain no `welcome` reference and do contain the new
+  feature's, and `flutter analyze` 0/0; `setAsHomePage: false` (opt-out)
+  asserts the placeholder stays untouched, coexisting exactly like before
+  this option existed. Full fast suite (257 tests) green.
+
+### 5l. Paginated list envelope unwrap — closes the gap the envelope-detection heuristic (§7-adjacent) left in codegen
+
+> Follow-up from the same `liza` project diagnosis as §5k, found in the same
+> message: the user manually wired routing to the new "recepies" feature and
+> hit a runtime crash — `FormatException: JsonConverter expected response
+> body to be Iterable<RecepiesModel>, but got Map` — confirmed by reading the
+> generated `recepies_api_source.dart` (`getAll()` declared
+> `Future<Response<List<Model>>>`) against dummyjson.com/recipes' actual
+> shape (a paginated wrapper object, not a bare array). An earlier session
+> had already taught `JsonEntityInferencer` to *detect* this wrapper and
+> infer fields from its first element (avoiding wrong fields), but detection
+> alone didn't fix the HTTP layer — `getAll()` still assumed a bare array.
+> This closes that gap: the detected wrapper key now flows all the way to
+> the generated `getAll()`.
+- **`InferenceResult`** gained `envelopeKey` (the JSON key the entity's own
+  list lives under, e.g. `"recipes"`; `null` when no wrapper was detected).
+  **`FeatureGenOptions`** gained `listEnvelopeKey` (`@Default('')`), set by
+  `EntityFieldsStep.onInfer`/`onReset` from the inference result — no new
+  Workshop UI control; the existing "Detected a paginated list wrapper..."
+  warning already surfaces this to the user.
+- **`DataTemplates.featureApiSource`**: dio's `getAll()` unwraps the key
+  inline, self-contained (`_dio.get<Map<String, dynamic>>` +
+  `response.data?['key']` instead of `_dio.get<List<dynamic>>`) — no
+  repository change needed. Chopper can't do the same (an abstract
+  `@GET()`-annotated interface has no method body): its `getAll()` return
+  type becomes `Response<dynamic>` instead of `Response<List<Model>>` when a
+  key is set — `dynamic` sidesteps `ModelJsonConverter`'s per-Type decoder
+  dispatch entirely, leaving the raw decoded `Map` for the repository layer
+  to unwrap instead. Applies to both the plain and `customizeEndpoints`
+  branches; `getById`/`create`/`update`/`delete` are untouched (only
+  `getAll()`'s response is ever a paginated wrapper in the shapes seen so
+  far). Supabase/Firebase untouched — no pagination-envelope concept in
+  their generated table/collection queries.
+- **`DataTemplates.featureRepositoryImpl`**: a `getAllRemote()` helper
+  swaps in the unwrap-by-key + per-item `fromJson` expression at exactly
+  `getAll()`'s two call sites (offline-first + remote-only chopper
+  branches) — every other operation keeps the plain `unwrapChopperResponse`
+  helper unchanged.
+- Harness-proven: a unit group in `data_templates_test.dart` (chopper +
+  dio, key set vs unset, api source + repository) plus a full integration
+  test — launches with no first feature, adds one via `GenerateFeatureUsecase`
+  from dummyjson's real recipes shape run through the real
+  `JsonEntityInferencer`, then an **executable regression probe**
+  (`flutter test` against a hand-written probe file in the generated
+  project, same technique as the existing chopper-converter probe) proves
+  the actual runtime bug is gone: `ModelJsonConverter.convertResponse` no
+  longer throws decoding the envelope body, and the repository's generated
+  unwrap expression decodes real typed Models — `flutter analyze` can't
+  catch this class of bug (the old code compiled fine; it only failed
+  against a real decoded response). `flutter analyze` 0/0. Full fast suite
+  (263 tests) green.
+
+### 5m. packageSplit + chopper: bootstrap.dart's decoder-registration anchors self-heal too — a real bug from the same envelope-fix testing session
+
+> Found immediately after §5l shipped, verifying it on a second real project
+> (`arth`, packageSplit + chopper): the *same* `FormatException` still hit
+> `dummyjson.com/users` — but this time on every single call, not just
+> `getAll()`. Reading the generated project: `users_repository_providers.dart`
+> had a perfectly-generated `registerUsersChopperDecoders()`, but nothing in
+> the whole project ever called it — `chopperModelDecoders` stayed empty, so
+> chopper's own built-in converter (never NEAT's `ModelJsonConverter`, since
+> the per-Type decoder lookup always missed) tried to decode every response
+> and threw. Root cause: `AppTemplates.bootstrap` only writes `bootstrap.dart`'s
+> `// neat:chopper-register-imports`/`-calls` anchors when the *wizard's own*
+> first feature already uses chopper (`chopperRegisterFeaturePackage != null`)
+> — a project launched with zero features (`generateFirstFeature: false`,
+> the same fully-valid, common combo §5k/§5l both already exercise) never had
+> them to begin with, so `_registerChopperDecoderSplit`'s anchor-insertion
+> silently no-op'd the very first time a chopper feature was added via the
+> Workshop. The exact same class of gap as §5k's welcome-placeholder bug
+> (an assumption baked in at launch time that doesn't hold for "added later
+> via Workshop"), and one this codebase had already solved once before for
+> the sibling shell-branch registration anchors (`healBootstrapShellAnchors`)
+> — its own doc comment even flagged chopper's missing counterpart as "an
+> accepted, pre-existing limitation," believing it was legacy-only. It wasn't.
+- **`GenerateFeatureUsecase.healBootstrapChopperAnchors`** (new,
+  `@visibleForTesting`) mirrors `healBootstrapShellAnchors` exactly: adds
+  `// neat:chopper-register-imports` after the last import line and
+  `// neat:chopper-register-calls` right before `registerErrorHandler();`,
+  idempotent. Called at the top of `_registerChopperDecoderSplit`, same spot
+  `_registerShellPageSplit` already calls its own healer.
+- Harness-proven: 3 new fast unit tests (`anchor_healing_test.dart`) against
+  the exact real `arth` bootstrap.dart shape (anchors added in the right
+  spots, idempotent, a properly-anchored file left untouched) + a new
+  integration test — launches packageSplit+chopper with zero features, adds
+  the first one via `GenerateFeatureUsecase`, asserts both anchors and the
+  actual import/call exist afterward (not just the registration function
+  existing — the exact thing that silently failed) and `flutter analyze`
+  0/0. Full fast suite (266 tests) green.
+- The user's own two real test projects were hit by this in immediate
+  succession while verifying §5l (`liza` first, `arth` second) — `arth`'s
+  `lib/core/bootstrap.dart` was hand-patched directly to the same shape this
+  fix now generates, to unblock testing before a NEAT restart.
+
+### 5n. Typed `<Feature>ListModel` wrapper — replaces §5l's `dynamic`-based envelope unwrap
+
+> Follow-up, same session: verifying §5l on a real project, the user hand-patched
+> `users_api_source.dart`/`users_repository_impl.dart` themselves — added a
+> `UsersListModel` (`{ users, total, skip, limit }`) and typed `getAll()` as
+> `Future<Response<UsersListModel>>` instead of `Response<dynamic>`, asked
+> what I thought. Assessment: genuinely better — zero `dynamic` in the
+> repository, the decoder registry stays uniform (every response type routes
+> through the same `chopperModelDecoders[InnerType]` lookup, no special case
+> for `getAll()`), and pagination metadata (`total`/`skip`/`limit`) survives
+> instead of being discarded. The one real risk (a required field on a
+> hand-inferred wrapper missing from a live response, throwing a *new*
+> `FormatException`) is no worse than the risk the entity model itself
+> already carries everywhere else in NEAT — no principled reason to treat
+> the wrapper specially. `_detectListEnvelope` already parses the wrapper's
+> sibling scalar fields to validate the "exactly one array field" guard, so
+> the data needed was sitting right there, unused. Confirmed with the user
+> before implementing (explicit "oui" — "le but de neat est quand même de
+> faire gagner du temps"), then replaced §5l's `dynamic` approach outright
+> rather than keeping both.
+- **`JsonEntityInferencer`**: `InferenceResult` gained `envelopeFields` — the
+  wrapper's own sibling scalars (e.g. `total`/`skip`/`limit`), inferred via
+  the same `_childrenOf` used for the entity (guaranteed scalar-only by
+  `_detectListEnvelope`'s own "exactly one array field" guard, so no
+  object/list branching needed). `FeatureGenOptions` gained the matching
+  field, wired from `EntityFieldsStep` alongside the existing `listEnvelopeKey`.
+- **`DataTemplates.featureModel`**: new `_listWrapperModelFreezed`/`_listWrapperModelPlain`
+  generate `<Feature>ListModel` (freezed or plain, matching the project's
+  own config) alongside the entity model in the same file — deliberately
+  *not* built on the existing `_modelFreezed`/`_modelPlain` (every other
+  model in that file assumes a domain `Entity` counterpart with
+  `fromEntity`/`toEntity`; the wrapper is a pure transport shape with
+  neither). The list field's Dart name is `camel(envelopeKey)` — `@JsonKey`
+  only when that differs from the raw key (every real-world key seen so far
+  — `recipes`/`users`/`data`/`items` — already matches).
+- **`DataTemplates.featureApiSource`/`featureRepositoryImpl`**: chopper's
+  `getAll()` now returns `Response<<Feature>ListModel>` (routes through
+  `ModelJsonConverter`'s ordinary per-Type registry, same as every other
+  response) instead of `Response<dynamic>`; the repository's `getAllRemote()`
+  simplified from a multi-line unwrap-and-cast expression to a single
+  `.<envelopeFieldName>` property access. Dio decodes the wrapper directly
+  (`<Feature>ListModel.fromJson(response.data!).<envelopeFieldName>`), still
+  self-contained in the ApiSource. `featureRepositoryProviders` registers
+  *both* the entity Model's and the wrapper ListModel's decoders now (split
+  and non-split paths both updated).
+- Harness-proven: unit coverage extended in `data_templates_test.dart`
+  (wrapper generation, `@JsonKey` only-when-renamed, both http clients, both
+  decoder registrations) and `json_entity_inferencer_test.dart`
+  (`envelopeFields` asserted across every existing envelope-detection case).
+  The existing §5l integration test's assertions/probe were rewritten for
+  the typed shape — the probe now drives `ModelJsonConverter.convertResponse`
+  with the *real* registered `RecipeListModel` decoder end to end (stronger
+  than the old dynamic/dynamic pass-through check it replaced). `flutter
+  analyze` 0/0. Full fast suite (271 tests) green.
+
+### 5o. Skeletonizer placeholder hoisted to a top-level `final` — found via a wesioo comparison
+
+> Follow-up, same session: the user pointed at `wesioo`'s
+> `doctor_agenda_page.dart` (`_skeletonState`, a module-level `final`
+> computed once via an IIFE) next to a NEAT-generated `users_page.dart`,
+> asking why NEAT rebuilds the whole placeholder model instead of doing the
+> same. Confirmed the gap: `_riverpodListPage`'s Skeletonizer branch called
+> `List.generate(8, (_) => ${'$'}{p}Entity(...))` **inline inside `build()`** —
+> reconstructing 8 full nested placeholder entities (every field, every
+> nested object) from scratch on *every* rebuild while loading, not once.
+> Not `const`-able (a `DateTime` placeholder isn't a const expression), but
+> a plain top-level `final` gets the same one-time-computation benefit
+> without needing wesioo's IIFE (NEAT's placeholders are fixed values, no
+> `DateTime.now()`-relative setup step to wrap).
+- **`PresentationTemplates._riverpodListPage`**:
+  the placeholder construction moves to a generated top-level
+  `final _<feature>SkeletonItems = List.generate(8, (_) => <Feature>Entity(...));`
+  declared once, right after the imports (mirrors wesioo's own placement — a
+  clearly separated "skeleton data" section before the widget class).
+  `build()`'s Skeletonizer branch shrinks to
+  `Skeletonizer(child: _<Feature>List(items: _<feature>SkeletonItems))`.
+- Harness-proven: new `presentation_templates_test.dart` (3 tests — the
+  hoisted var exists, `build()` references it instead of an inline
+  `List.generate`, and it's positioned before the class/`build()` in the
+  generated source) + full fast suite (274 tests) + full integration suite
+  (64 tests, unaffected — the existing `contains('Skeletonizer(')`
+  assertion holds either way) all green.
+- Applied by hand to the user's own `arth` test project as an immediate
+  reference (their `users_page.dart` had independently converged on
+  wesioo's `?? <fallback>` pattern, using `?? []` — replaced with
+  `?? _usersSkeletonItems` so the shimmer effect actually has skeleton-shaped
+  rows to animate over instead of an empty list).
+
 ### 6. Multiple architectures — later, with caution
 
 - The harness makes **every** architecture a ~3× maintenance cost (each must be proven).
