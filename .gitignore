@@ -1,3 +1,8 @@
+# Environment secrets — never commit a real .env file.
+.env
+.env.*
+!.env.example
+
 # Miscellaneous
 *.class
 *.log
