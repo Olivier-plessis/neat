@@ -785,6 +785,92 @@ Harness-proven: `pubspec_builder_test.dart` gained two cases (override present
   `?? _usersSkeletonItems` so the shimmer effect actually has skeleton-shaped
   rows to animate over instead of an empty list).
 
+### 5p. Widgetbook gets its own `web` target, independent of the app's own platforms
+
+> Follow-up, same session: the user asked why Widgetbook — a component
+> catalog meant to be browsed on a big screen — didn't default to a
+> desktop/web template instead of inheriting whatever platforms the app
+> itself picked (mobile-only, in their case). Confirmed: NEAT never ran
+> `flutter create` for Widgetbook at all. In loose mode (no extracted `<ui>`
+> package) its catalog is a bare file sharing the app's own scaffold, so a
+> mobile-only app meant a mobile-only catalog. In the *extracted* (workspace
+> member) case — the actual default, since `ThemeEngineState.extractUiPackage`
+> defaults to `true` — it's worse: `ThemeWriter` only hand-writes
+> `widgetbook/pubspec.yaml`/`lib/main.dart` as text, `flutter create` never
+> touches that directory, so it has **zero** platform runner folders of its
+> own — not runnable on *any* platform, not just the wrong one. User's own
+> framing: reuse the existing opt-in and auto-add a platform in
+> `LaunchGenerationUsecase` when it's on — right instinct, though the
+> extracted case needed its own fix beyond just appending to
+> `identity.targetPlatforms` (a separate directory `flutter create` never
+> reaches, regardless of what's in that list).
+- Empirically verified before writing any code (not assumed): `flutter
+  create` on a directory that already has a hand-written `pubspec.yaml` +
+  `lib/main.dart` only fills in *missing* platform folders — it doesn't
+  touch either file. Safe to run late, after `ThemeWriter` has already
+  placed the extracted member's own files.
+- **Loose mode** (`generateWidgetbook && !extractUiPackage`): `web` is added
+  to a locally-scoped `requestedPlatforms` set feeding the app's own (only)
+  `flutter create` call — deliberately *not* a mutation of
+  `identity.targetPlatforms` itself, so `isWeb` (computed from that field
+  elsewhere) keeps reflecting the user's actual platform choice, not this
+  widgetbook-driven addition.
+- **Extracted (member) mode** (the default): a **second** `flutter create
+  --platforms web --no-pub` call, scoped to the `widgetbook/` directory,
+  inserted after `PubspecWriter.write()` (so the root workspace's own
+  `workspace:` list already names it — pub's workspace resolution needs
+  that first) and before the workspace-wide `flutter pub get` (`--no-pub`
+  here to avoid a premature, redundant resolution attempt).
+- Harness-proven: extended the existing "extracted UI package + Widgetbook"
+  integration test (asserts `widgetbook/web/` now exists, the app's own
+  `web/` doesn't, and `flutter create` left the hand-written pubspec/
+  main.dart untouched) + fixed the main "chopper + offline-sync" test's
+  widgetbook assertions (it turned out to already be exercising member mode
+  by default, not loose mode as first assumed — `widgetbook/lib/main.dart`,
+  not `widgetbook/main.dart`) + a new dedicated loose-mode test
+  (`extractUiPackage: false`, mobile-only `targetPlatforms`) confirming the
+  app gets a `web/` folder while `isWeb`-gated bootstrap behavior
+  (`usePathUrlStrategy()`) stays off. `flutter analyze` 0/0 on both shapes.
+  Full fast suite (274 tests, unaffected — this is integration-only
+  behavior) + full integration suite green.
+
+### 5q. Widgetbook + ScreenUtil: `ScreenUtilInit` was never run for the catalog — real crash, found running §5p on a real project
+
+> Follow-up, same session, found the moment §5p's fix let the user actually
+> launch the widgetbook catalog for the first time: `LateInitializationError:
+> Field '_minTextAdapt' has not been initialized`, thrown building
+> `WidgetbookApp`. Root cause: the design-system components (`AppGap`,
+> typography) call `.sp`/`.w`/`.h` — flutter_screenutil extensions that
+> require `ScreenUtilInit`'s `builder` to have run at least once — but
+> unlike the app's own `AppTemplates.appDart` (which wraps its `MaterialApp`
+> in exactly that), `ThemeTemplates.widgetbookApp` never did. `useScreenUtil`
+> is the *default* for nearly every project (`!isWebOnly`), so this wasn't a
+> rare combination — any generated project with Widgetbook on would hit it
+> the instant the catalog rendered a single component. `flutter analyze`
+> never caught it in §5o/§5p's own tests because it's a pure runtime failure
+> — the generated code compiles and lints cleanly either way.
+- **`ThemeTemplates.widgetbookApp`**: gained `useScreenUtil` — wraps the
+  `Widgetbook.material(...)` catalog in the same `ScreenUtilInit(designSize:
+  ..., minTextAdapt: true, splitScreenMode: true, builder: ...)` shape
+  `AppTemplates.appDart` already uses, plus the matching
+  `flutter_screenutil` import.
+- **`UiPackageWriter.widgetbookPubspec`**: gained `useScreenUtil` too — pub
+  requires a package to declare its own direct dependency on anything it
+  imports, so the extracted widgetbook member needs its own
+  `flutter_screenutil` entry even though the `<ui>` path-dependency already
+  has one (no implicit transitive re-export). Threaded through
+  `ThemeWriter.write`'s two call sites (both already had `useScreenUtil` in
+  scope).
+- Harness-proven: an **executable regression probe** (same technique as the
+  session's earlier chopper-converter one) — pumps the real generated
+  `WidgetbookApp` in a widget test and asserts no exception — added to the
+  extracted-member integration test. Verified with a genuine negative
+  control before trusting it: reverted the fix via `git stash`, reran, watched
+  the test fail for the right reason (missing `flutter_screenutil` dependency),
+  then restored and reran green — the probe has teeth, not just a
+  plausible-looking assertion. `flutter analyze` 0/0, full fast suite (274
+  tests, unaffected) + full integration suite green.
+
 ### 6. Multiple architectures — later, with caution
 
 - The harness makes **every** architecture a ~3× maintenance cost (each must be proven).

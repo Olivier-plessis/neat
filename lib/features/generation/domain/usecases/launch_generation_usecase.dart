@@ -48,8 +48,23 @@ class LaunchGenerationUsecase {
     // 1. flutter create
     onLog("[▶] Running 'flutter create ${identity.name}'...");
 
+    // Widgetbook (opt-in) is meant to be browsed on a big screen, not a
+    // phone — a `web` target regardless of whatever platforms the app
+    // itself picked. Loose mode (no extracted <ui> package) only: its
+    // catalog lives inside the app project and shares this one `flutter
+    // create` call — the extracted (workspace member) case gets its own,
+    // separate `flutter create` further down (see widgetbookIsMember),
+    // since ThemeWriter writes it into its own directory instead. A locally
+    // -scoped addition, not a mutation of identity.targetPlatforms itself:
+    // isWeb (just below) must still reflect the user's own choice, not this.
+    final needsWidgetbookWeb = theme.generateWidgetbook && !theme.extractUiPackage;
+    final requestedPlatforms = {
+      ...identity.targetPlatforms,
+      if (needsWidgetbookWeb) 'web',
+    };
+
     // Expand "desktop" into the three individual native platforms
-    final platforms = identity.targetPlatforms.expand((p) {
+    final platforms = requestedPlatforms.expand((p) {
       if (p == 'desktop') return ['macos', 'windows', 'linux'];
       return [p];
     }).toList();
@@ -64,7 +79,6 @@ class LaunchGenerationUsecase {
       '--description',
       identity.description,
       '--platforms',
-      // identity.targetPlatforms.join(','),
       platforms.join(','),
       projectDir.path,
     ]);
@@ -424,6 +438,40 @@ class LaunchGenerationUsecase {
       addSentry: hasSentry,
     );
     onLog('[✓] Dependencies added to pubspec.yaml.');
+
+    // 3a. Widgetbook, extracted (workspace member) case only — see
+    // needsWidgetbookWeb's own doc for the loose-mode counterpart.
+    // ThemeWriter already wrote widgetbook/pubspec.yaml + lib/main.dart, but
+    // `flutter create` never touched that directory, so it has zero
+    // platform runner folders of its own (unlike the app, which got one at
+    // the top of this method) — nothing to `flutter run` it against at all,
+    // any platform. `flutter create` on a directory that already has a
+    // pubspec.yaml/lib/main.dart only fills in *missing* platform folders;
+    // it doesn't touch either file (verified directly, not assumed) — safe
+    // to run this late, after the widgetbook member's own files exist.
+    // --no-pub: this directory just got added to the workspace's own
+    // `workspace:` list above (extraWorkspaceMembers) — the workspace-wide
+    // `flutter pub get` below resolves it too; running pub get here as well
+    // would be redundant (and would predate that workspace entry anyway).
+    if (widgetbookIsMember) {
+      onLog("[▶] Running 'flutter create' for the widgetbook catalog (web)...");
+      final widgetbookCreate = await Process.run(flutter, [
+        'create',
+        '--project-name',
+        '${packageName}_widgetbook',
+        '-e',
+        '--org',
+        identity.organization,
+        '--platforms',
+        'web',
+        '--no-pub',
+        '${projectDir.path}/widgetbook',
+      ]);
+      if (widgetbookCreate.exitCode != 0) {
+        throw Exception(widgetbookCreate.stderr.toString().trim());
+      }
+      onLog('[✓] Widgetbook catalog is runnable on web.');
+    }
 
     // 3b. Branding files: copy the logo + write the icon/splash configs.
     if (hasLogo) {
