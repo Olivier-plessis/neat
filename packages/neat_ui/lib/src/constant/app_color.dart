@@ -19,4 +19,5 @@ class Palette {
   static const Color errorColor = Color(0xFFFF6B6B); // Touche Violette (Tertiary)
   static const Color colorYellow = Color(0xFFFFA000); // Touche Jaune
   static const Color colorGreen = Color(0xFF3ECF8E); // Touche Verte
+  static const Color colorLightGreen = Color(0xFF9ECE6A); // Touche Verte
 }

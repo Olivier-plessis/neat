@@ -1,3 +1,4 @@
+import 'package:neat/features/generation/domain/models/crud_endpoint_overrides.dart';
 import 'package:neat/features/generation/domain/models/endpoint_spec.dart';
 import 'package:neat/features/generation/domain/models/field_spec.dart';
 import 'package:neat/features/generation/domain/services/templates/dart/_template_utils.dart';
@@ -24,27 +25,49 @@ class DataTemplates {
     // changing both the depth (one more `../`) and the target path (domain's
     // own `<name>/` subfolder) — the caller computes the right value.
     String domainCross = '../../domain',
+    // See featureApiSource/featureRepositoryImpl's own doc — set when the
+    // entity was inferred from a paginated list wrapper: adds a
+    // `<Feature>ListModel` alongside the entity model, so getAll() can
+    // decode the response fully typed instead of as a bare array or a raw
+    // Map. Always paired with [envelopeFields] (its sibling scalars, e.g.
+    // total/skip/limit — empty when the wrapper had none).
+    String listEnvelopeKey = '',
+    List<FieldSpec> envelopeFields = const [],
   }) {
     final p = pascal(featureName);
-    final entityImport = "import '$domainCross/entities/${featureName}_entity.dart';";
+    final entityImport =
+        "import '$domainCross/entities/${featureName}_entity.dart';";
     // Nested objects (and list-element objects) each become their own sub-model.
     final objects = collectObjectSpecs(fields);
+    final hasEnvelope = listEnvelopeKey.isNotEmpty;
+    final envelopeFieldName = camel(listEnvelopeKey);
 
     if (hasFreezed) {
       // freezed handles JSON serialization internally; json_serializable wires
       // nested model fromJson/toJson automatically. A private constructor (_())
       // is required to add custom methods (toEntity / fromEntity).
-      final partJson = hasJsonSerializable ? "\npart '${featureName}_model.g.dart';" : '';
+      final partJson = hasJsonSerializable
+          ? "\npart '${featureName}_model.g.dart';"
+          : '';
       final classes = [
         _modelFreezed(p, fields, hasJsonSerializable),
-        for (final o in objects) _modelFreezed(o.objectName, o.children, hasJsonSerializable),
+        for (final o in objects)
+          _modelFreezed(o.objectName, o.children, hasJsonSerializable),
+        if (hasEnvelope)
+          _listWrapperModelFreezed(
+            p,
+            listEnvelopeKey,
+            envelopeFieldName,
+            envelopeFields,
+            hasJsonSerializable,
+          ),
       ].join('\n\n');
       // The id converter (see FieldCodegen.idFromJsonName) is only needed once
       // per file — only the top-level entity ever carries an id.
       final idHelper = hasJsonSerializable && fields.any((f) => f.isId)
           ? '\n\n/// A real API may emit an int/num id; NEAT always types id as\n'
-              '/// String, so this converts leniently instead of an unsafe cast.\n'
-              'String _idFromJson(dynamic value) => value.toString();'
+                '/// String, so this converts leniently instead of an unsafe cast.\n'
+                'String _idFromJson(dynamic value) => value.toString();'
           : '';
       return '''import 'package:freezed_annotation/freezed_annotation.dart';
 $entityImport
@@ -57,6 +80,8 @@ $classes$idHelper
     final classes = [
       _modelPlain(p, fields),
       for (final o in objects) _modelPlain(o.objectName, o.children),
+      if (hasEnvelope)
+        _listWrapperModelPlain(p, listEnvelopeKey, envelopeFieldName, envelopeFields),
     ].join('\n\n');
     return '''$entityImport
 
@@ -64,28 +89,107 @@ $classes
 ''';
   }
 
+  /// The paginated-wrapper class (`<Feature>ListModel`) — a pure data/transport
+  /// shape, unlike every other model in this file: no domain `Entity`
+  /// counterpart, no `fromEntity`/`toEntity` (the repository unwraps
+  /// `.$envelopeFieldName` to get the already-mappable `List<${'$'}{p}Model>`).
+  /// [envelopeFieldName] is the Dart-normalised sibling of [envelopeKey]
+  /// (`camel(envelopeKey)`) — only annotated with `@JsonKey` when they differ.
+  static String _listWrapperModelFreezed(
+    String p,
+    String envelopeKey,
+    String envelopeFieldName,
+    List<FieldSpec> envelopeFields,
+    bool hasJson,
+  ) {
+    final listAnn = hasJson && envelopeFieldName != envelopeKey
+        ? "    @JsonKey(name: '$envelopeKey')\n"
+        : '';
+    final listParam = '$listAnn    required List<${p}Model> $envelopeFieldName,';
+    final siblingParams = envelopeFields.map((f) {
+      final ann = hasJson && f.jsonKeyAnnotation.isNotEmpty ? '    ${f.jsonKeyAnnotation}\n' : '';
+      return '$ann    ${f.nullable ? '' : 'required '}${f.type} ${f.dartName},';
+    });
+    final params = [listParam, ...siblingParams].join('\n');
+    final fromJson = hasJson
+        ? '\n\n  factory ${p}ListModel.fromJson(Map<String, dynamic> json) =>\n'
+              '      _\$${p}ListModelFromJson(json);'
+        : '';
+    return '''@freezed
+abstract class ${p}ListModel with _\$${p}ListModel {
+  const factory ${p}ListModel({
+$params
+  }) = _${p}ListModel;$fromJson
+}''';
+  }
+
+  /// Plain (no codegen) variant of [_listWrapperModelFreezed].
+  static String _listWrapperModelPlain(
+    String p,
+    String envelopeKey,
+    String envelopeFieldName,
+    List<FieldSpec> envelopeFields,
+  ) {
+    final ctorParams = [
+      '    required this.$envelopeFieldName,',
+      for (final f in envelopeFields)
+        f.nullable ? '    this.${f.dartName},' : '    required this.${f.dartName},',
+    ].join('\n');
+    final decls = [
+      '  final List<${p}Model> $envelopeFieldName;',
+      for (final f in envelopeFields) '  final ${f.type} ${f.dartName};',
+    ].join('\n');
+    final fromJsonArgs = [
+      "    $envelopeFieldName: (json['$envelopeKey'] as List)\n"
+          '        .map((e) => ${p}Model.fromJson(e as Map<String, dynamic>))\n'
+          '        .toList(),',
+      for (final f in envelopeFields) '    ${f.dartName}: ${f.fromJsonExpr()},',
+    ].join('\n');
+    return '''class ${p}ListModel {
+  const ${p}ListModel({
+$ctorParams
+  });
+
+$decls
+
+  factory ${p}ListModel.fromJson(Map<String, dynamic> json) => ${p}ListModel(
+$fromJsonArgs
+  );
+}''';
+  }
+
   /// One freezed model class with fromJson (when [hasJson]) + fromEntity/toEntity
   /// mappers ([base] → `<base>Model` ↔ `<base>Entity`).
-  static String _modelFreezed(String base, List<FieldSpec> fields, bool hasJson) {
-    final params = fields.map((f) {
-      var ann = '';
-      if (hasJson) {
-        // Combine a rename (if any) with the id's lenient converter (see
-        // FieldCodegen.idFromJsonName) into a single @JsonKey.
-        final parts = <String>[
-          if (f.needsJsonKey) "name: '${f.jsonKey}'",
-          if (f.isId) 'fromJson: ${f.idFromJsonName}',
-        ];
-        if (parts.isNotEmpty) ann = '@JsonKey(${parts.join(', ')})';
-      }
-      final annLine = ann.isEmpty ? '' : '    $ann\n';
-      return '$annLine    ${f.nullable ? '' : 'required '}${f.modelType} ${f.dartName},';
-    }).join('\n');
+  static String _modelFreezed(
+    String base,
+    List<FieldSpec> fields,
+    bool hasJson,
+  ) {
+    final params = fields
+        .map((f) {
+          var ann = '';
+          if (hasJson) {
+            // Combine a rename (if any) with the id's lenient converter (see
+            // FieldCodegen.idFromJsonName) into a single @JsonKey.
+            final parts = <String>[
+              if (f.needsJsonKey) "name: '${f.jsonKey}'",
+              if (f.isId) 'fromJson: ${f.idFromJsonName}',
+            ];
+            if (parts.isNotEmpty) ann = '@JsonKey(${parts.join(', ')})';
+          }
+          final annLine = ann.isEmpty ? '' : '    $ann\n';
+          return '$annLine    ${f.nullable ? '' : 'required '}${f.modelType} ${f.dartName},';
+        })
+        .join('\n');
     final fromJson = hasJson
         ? '\n  factory ${base}Model.fromJson(Map<String, dynamic> json) =>\n      _\$${base}ModelFromJson(json);\n'
         : '';
-    final fromEntityArgs = fields.map((f) => '    ${f.dartName}: ${f.fromEntityValue('e')},').join('\n');
-    final toEntityArgs = fields.map((f) => '    ${f.dartName}: ${f.toEntityValue()},').join('\n');
+    final fromEntityArgs = fields
+        .map((f) => '    ${f.dartName}: ${f.fromEntityValue('e')},')
+        .join('\n');
+    final toEntityArgs = fields
+        .map((f) => '    ${f.dartName}: ${f.toEntityValue()},')
+        .join('\n');
     return '''@freezed
 abstract class ${base}Model with _\$${base}Model {
   const ${base}Model._();
@@ -107,13 +211,27 @@ $toEntityArgs
   /// One plain (no codegen) model class with hand-written JSON + mappers.
   static String _modelPlain(String base, List<FieldSpec> fields) {
     final ctorParams = fields
-        .map((f) => f.nullable ? '    this.${f.dartName},' : '    required this.${f.dartName},')
+        .map(
+          (f) => f.nullable
+              ? '    this.${f.dartName},'
+              : '    required this.${f.dartName},',
+        )
         .join('\n');
-    final decls = fields.map((f) => '  final ${f.modelType} ${f.dartName};').join('\n');
-    final fromJsonArgs = fields.map((f) => '    ${f.dartName}: ${f.fromJsonExpr()},').join('\n');
-    final toJsonEntries = fields.map((f) => "    '${f.jsonKey}': ${f.toJsonValue()},").join('\n');
-    final fromEntityArgs = fields.map((f) => '    ${f.dartName}: ${f.fromEntityValue('e')},').join('\n');
-    final toEntityArgs = fields.map((f) => '    ${f.dartName}: ${f.toEntityValue()},').join('\n');
+    final decls = fields
+        .map((f) => '  final ${f.modelType} ${f.dartName};')
+        .join('\n');
+    final fromJsonArgs = fields
+        .map((f) => '    ${f.dartName}: ${f.fromJsonExpr()},')
+        .join('\n');
+    final toJsonEntries = fields
+        .map((f) => "    '${f.jsonKey}': ${f.toJsonValue()},")
+        .join('\n');
+    final fromEntityArgs = fields
+        .map((f) => '    ${f.dartName}: ${f.fromEntityValue('e')},')
+        .join('\n');
+    final toEntityArgs = fields
+        .map((f) => '    ${f.dartName}: ${f.toEntityValue()},')
+        .join('\n');
     return '''class ${base}Model {
   const ${base}Model({
 $ctorParams
@@ -147,9 +265,15 @@ $toEntityArgs
     final objects = collectObjectSpecs(fields);
     String cls(String base, List<FieldSpec> fs) {
       final ctorParams = fs
-          .map((f) => f.nullable ? '    this.${f.dartName},' : '    required this.${f.dartName},')
+          .map(
+            (f) => f.nullable
+                ? '    this.${f.dartName},'
+                : '    required this.${f.dartName},',
+          )
           .join('\n');
-      final decls = fs.map((f) => '  final ${f.modelType} ${f.dartName};').join('\n');
+      final decls = fs
+          .map((f) => '  final ${f.modelType} ${f.dartName};')
+          .join('\n');
       return '''class ${base}Model {
   const ${base}Model({
 $ctorParams
@@ -186,9 +310,27 @@ $classes
     String? corePackageName,
     // See featureModel's doc.
     String domainCross = '../../domain',
+    // See featureApiSource's doc — when true, the 5 fixed operations' remote
+    // call sites below use the same custom method names declared there
+    // instead of the fixed getAll/getById/add/update/delete.
+    bool customizeEndpoints = false,
+    CrudEndpointOverrides? endpointOverrides,
+    // See featureApiSource/featureModel's own doc — dio unwraps the envelope
+    // inside its own getAll() body (self-contained), but chopper's getAll()
+    // returns the generated <Feature>ListModel wrapper when this is set, so
+    // this repository accesses its list field to get the plain typed list
+    // every other call site already expects.
+    String listEnvelopeKey = '',
   }) {
     final p = pascal(featureName);
     final isChopper = httpClient == 'chopper';
+    final useCustomNames = isChopper && customizeEndpoints;
+    final ov = endpointOverrides ?? const CrudEndpointOverrides();
+    final getAllName = useCustomNames ? ov.getAllName : 'getAll';
+    final getByIdName = useCustomNames ? ov.getByIdName : 'getById';
+    final createName = useCustomNames ? ov.createName : 'add';
+    final updateName = useCustomNames ? ov.updateName : 'update';
+    final deleteName = useCustomNames ? ov.deleteName : 'delete';
     // Deep entity→model conversion (handles nested objects/lists).
     final modelExpr = '${p}Model.fromEntity(entity)';
     // Outbox replay path (SyncService does `dio.request(e.endpoint, ...)`):
@@ -200,8 +342,17 @@ $classes
     // default — unwrapChopperResponse throws ChopperApiException instead of a
     // blind `.body!` (which just gives "Null check operator used on a null
     // value" with no status code). Other clients throw natively already.
-    String remote(String call) =>
-        isChopper ? 'unwrapChopperResponse(await _remote.$call)' : 'await _remote.$call';
+    String remote(String call) => isChopper
+        ? 'unwrapChopperResponse(await _remote.$call)'
+        : 'await _remote.$call';
+    final hasEnvelope = isChopper && listEnvelopeKey.isNotEmpty;
+    // getAll()'s own remote call: normally the same as remote('$getAllName()')
+    // (already the plain List<Model>), but with a wrapper the response
+    // decodes to <Feature>ListModel instead — its list field access reduces
+    // it right back to the same List<Model> every other call site expects.
+    String getAllRemote() =>
+        hasEnvelope ? '${remote('$getAllName()')}.${camel(listEnvelopeKey)}' : remote('$getAllName()');
+
     final chopperImport = isChopper
         ? "import 'package:${corePackageName ?? packageName}/core/network/chopper_model_converter.dart';\n"
         : '';
@@ -269,7 +420,7 @@ $classes
       throw const Failure(message: 'No connection.');
     }
     final model = $modelExpr;
-    final created = ${remote('add(model)')};
+    final created = ${remote('$createName(model)')};
     await _local.upsert(created);
     return created.toEntity();
   }
@@ -280,7 +431,7 @@ $classes
       throw const Failure(message: 'No connection.');
     }
     final model = $modelExpr;
-    final updated = ${remote('update(entity.id, model)')};
+    final updated = ${remote('$updateName(entity.id, model)')};
     await _local.upsert(updated);
     return updated.toEntity();
   }
@@ -290,7 +441,7 @@ $classes
     if (!await _network.isConnected) {
       throw const Failure(message: 'No connection.');
     }
-    await _remote.delete(id);
+    await _remote.$deleteName(id);
     await _local.deleteById(id);
     return true;
   }''';
@@ -322,7 +473,7 @@ class ${p}RepositoryImpl implements I${p}Repository {
   Future<Result<List<${p}Entity>>> getAll() async {
     if (await _network.isConnected) {
       try {
-        final fresh = ${remote('getAll()')};
+        final fresh = ${getAllRemote()};
         await _local.cacheAll(fresh);
         return Result.success(fresh.map((m) => m.toEntity()).toList());
       } catch (e, st) {
@@ -340,7 +491,7 @@ class ${p}RepositoryImpl implements I${p}Repository {
   Future<Result<${p}Entity>> getById(String id) async {
     if (await _network.isConnected) {
       try {
-        final fresh = ${remote('getById(id)')};
+        final fresh = ${remote('$getByIdName(id)')};
         return Result.success(fresh.toEntity());
       } catch (e, st) {
         AppLogger.w('$featureName.getById() failed — falling back to cache', error: e, stackTrace: st);
@@ -373,33 +524,33 @@ class ${p}RepositoryImpl implements I${p}Repository {
 
   @override
   Future<List<${p}Entity>> getAll() async {
-    final data = ${remote('getAll()')};
+    final data = ${getAllRemote()};
     return data.map((m) => m.toEntity()).toList();
   }
 
   @override
   Future<${p}Entity> getById(String id) async {
-    final data = ${remote('getById(id)')};
+    final data = ${remote('$getByIdName(id)')};
     return data.toEntity();
   }
 
   @override
   Future<${p}Entity> create(${p}Entity entity) async {
     final model = $modelExpr;
-    final created = ${remote('add(model)')};
+    final created = ${remote('$createName(model)')};
     return created.toEntity();
   }
 
   @override
   Future<${p}Entity> update(${p}Entity entity) async {
     final model = $modelExpr;
-    final updated = ${remote('update(entity.id, model)')};
+    final updated = ${remote('$updateName(entity.id, model)')};
     return updated.toEntity();
   }
 
   @override
   Future<bool> delete(String id) async {
-    await _remote.delete(id);
+    await _remote.$deleteName(id);
     return true;
   }$watchMethod
 }
@@ -442,6 +593,18 @@ class ${p}RepositoryImpl implements I${p}Repository {
     // instead of the fixed 5-method CRUD shape below — chopper-only.
     bool useCustomEndpoints = false,
     List<EndpointSpec> endpoints = const [],
+    // Opt-in (Entity + CRUD only, chopper): each of the 5 fixed operations
+    // gets its own HTTP method + path instead of all 5 being derived from
+    // [apiPath]'s single base — see CrudEndpointOverrides' doc for why
+    // (dummyjson's recipes: POST /recipes/add to create, not POST /recipes).
+    bool customizeEndpoints = false,
+    CrudEndpointOverrides? endpointOverrides,
+    // Set when the entity was inferred from a paginated list wrapper (e.g.
+    // dummyjson's `{ "recipes": [...], "total": ... }` — see
+    // JsonEntityInferencer's envelope detection): getAll() unwraps this JSON
+    // key instead of decoding the response as a bare array. Empty (the
+    // default) keeps the original bare-array behaviour unchanged.
+    String listEnvelopeKey = '',
   }) {
     final p = pascal(featureName);
     // An absolute apiPath (e.g. https://fakestoreapi.com/products) overrides
@@ -449,6 +612,8 @@ class ${p}RepositoryImpl implements I${p}Repository {
     // their base URL when the request path is already absolute, so no second
     // HTTP client is needed to target a different host.
     final base = apiPath ?? '/${featureName}s';
+    final hasEnvelope = listEnvelopeKey.isNotEmpty;
+    final envelopeFieldName = camel(listEnvelopeKey);
 
     if (useCustomEndpoints) {
       // No shared resource path across arbitrary endpoints (unlike the CRUD
@@ -458,7 +623,9 @@ class ${p}RepositoryImpl implements I${p}Repository {
           .where((e) => e.hasRequestBody || e.hasResponseBody)
           .map((e) => "import '../models/${e.name}_model.dart';")
           .join('\n');
-      final methods = endpoints.map(EndpointTemplates.apiSourceMethod).join('\n\n');
+      final methods = endpoints
+          .map(EndpointTemplates.apiSourceMethod)
+          .join('\n\n');
       return '''import 'package:chopper/chopper.dart';
 $modelImports
 
@@ -473,7 +640,54 @@ $methods
 ''';
     }
 
+    if (httpClient == 'chopper' && customizeEndpoints) {
+      // Each operation carries its own full path (no shared baseUrl) — same
+      // "no shared prefix" shape as the useCustomEndpoints branch above, just
+      // for the 5 fixed CRUD operations instead of N arbitrary ones. Lets an
+      // API like dummyjson's recipes (POST /recipes/add to create, not
+      // POST /recipes) fit the CRUD shape without lying about its paths.
+      final ov = endpointOverrides ?? const CrudEndpointOverrides();
+      String verb(HttpMethod m) => m.name.toUpperCase();
+      final getAllPath = ov.getAllPath.isNotEmpty ? ov.getAllPath : base;
+      final getByIdPath = ov.getByIdPath.isNotEmpty ? ov.getByIdPath : '$base/{id}';
+      final createPath = ov.createPath.isNotEmpty ? ov.createPath : base;
+      final updatePath = ov.updatePath.isNotEmpty ? ov.updatePath : '$base/{id}';
+      final deletePath = ov.deletePath.isNotEmpty ? ov.deletePath : '$base/{id}';
+      // A List<Model>-typed return can't decode a wrapper object — see
+      // DataTemplates.featureModel's own doc on the generated <Feature>
+      // ListModel this decodes into instead when a wrapper was detected.
+      final getAllReturn = hasEnvelope ? 'Response<${p}ListModel>' : 'Response<List<${p}Model>>';
+      return '''import 'package:chopper/chopper.dart';
+import '../models/${featureName}_model.dart';
+
+part '${featureName}_api_source.chopper.dart';
+
+@ChopperApi(baseUrl: '')
+abstract class ${p}ApiSource extends ChopperService {
+  static ${p}ApiSource create([ChopperClient? client]) => _\$${p}ApiSource(client);
+
+  @${verb(ov.getAllMethod)}(path: '$getAllPath')
+  Future<$getAllReturn> ${ov.getAllName}();
+
+  @${verb(ov.getByIdMethod)}(path: '$getByIdPath')
+  Future<Response<${p}Model>> ${ov.getByIdName}(@Path() String id);
+
+  @${verb(ov.createMethod)}(path: '$createPath')
+  Future<Response<${p}Model>> ${ov.createName}(@Body() ${p}Model body);
+
+  @${verb(ov.updateMethod)}(path: '$updatePath')
+  Future<Response<${p}Model>> ${ov.updateName}(@Path() String id, @Body() ${p}Model body);
+
+  @${verb(ov.deleteMethod)}(path: '$deletePath')
+  Future<Response<dynamic>> ${ov.deleteName}(@Path() String id);
+}
+''';
+    }
+
     if (httpClient == 'chopper') {
+      // See the customizeEndpoints branch above's getAllReturn doc — same
+      // reasoning, just for the fixed (non-customized) getAll() signature.
+      final getAllReturn = hasEnvelope ? 'Response<${p}ListModel>' : 'Response<List<${p}Model>>';
       return '''import 'package:chopper/chopper.dart';
 import '../models/${featureName}_model.dart';
 
@@ -484,7 +698,7 @@ abstract class ${p}ApiSource extends ChopperService {
   static ${p}ApiSource create([ChopperClient? client]) => _\$${p}ApiSource(client);
 
   @GET()
-  Future<Response<List<${p}Model>>> getAll();
+  Future<$getAllReturn> getAll();
 
   @GET(path: '/{id}')
   Future<Response<${p}Model>> getById(@Path() String id);
@@ -596,7 +810,21 @@ ${realtime ? '''
 ''';
     }
 
-    // Dio plain
+    // Dio plain — self-contained decode (no JsonConverter registry to route
+    // through, unlike chopper), so the envelope unwrap lives right here
+    // instead of leaking into the repository.
+    final dioGetAll = hasEnvelope
+        ? '''  Future<List<${p}Model>> getAll() async {
+    final response = await _dio.get<Map<String, dynamic>>('$base');
+    return ${p}ListModel.fromJson(response.data!).$envelopeFieldName;
+  }'''
+        : '''  Future<List<${p}Model>> getAll() async {
+    final response = await _dio.get<List<dynamic>>('$base');
+    return (response.data ?? [])
+        .cast<Map<String, dynamic>>()
+        .map(${p}Model.fromJson)
+        .toList();
+  }''';
     return '''import 'package:dio/dio.dart';
 import '../models/${featureName}_model.dart';
 
@@ -605,13 +833,7 @@ class ${p}ApiSource {
 
   final Dio _dio;
 
-  Future<List<${p}Model>> getAll() async {
-    final response = await _dio.get<List<dynamic>>('$base');
-    return (response.data ?? [])
-        .cast<Map<String, dynamic>>()
-        .map(${p}Model.fromJson)
-        .toList();
-  }
+$dioGetAll
 
   Future<${p}Model> getById(String id) async {
     final response = await _dio.get<Map<String, dynamic>>('$base/\$id');
@@ -654,13 +876,20 @@ class ${p}ApiSource {
     // Complex fields are stored as serialised JSON in the Drift row → encode on
     // write, decode on read. Scalars pass through unchanged.
     final hasComplex = fields.any((f) => f.isComplex);
-    final toModelArgs = fields.map((f) => '${f.dartName}: ${f.driftDecode('row')}').join(', ');
-    final toRowArgs = fields.map((f) => '${f.dartName}: ${f.driftEncode('model')}').join(', ');
+    final toModelArgs = fields
+        .map((f) => '${f.dartName}: ${f.driftDecode('row')}')
+        .join(', ');
+    final toRowArgs = fields
+        .map((f) => '${f.dartName}: ${f.driftEncode('model')}')
+        .join(', ');
     final convertImport = hasComplex ? "import 'dart:convert';\n\n" : '';
 
     // Offline-first: back the local source with the typed Drift table, mapping
-    // rows to/from the model for full local CRUD.
+    // rows to/from the model for full local CRUD. Reaches the table through
+    // its own dedicated DAO (${p}Dao — see LocalStorageTemplates.featureDaoFile)
+    // rather than calling AppDatabase directly.
     if (offlineFirst && localStoragePackage != null) {
+      final c = camel(featureName);
       // Sync mode adds an Outbox enqueue helper for offline writes.
       final enqueue = hasSync
           ? '''
@@ -671,7 +900,7 @@ class ${p}ApiSource {
     required String endpoint,
     String? payload,
   }) =>
-      _db.enqueueOutbox(operation: operation, endpoint: endpoint, payload: payload);'''
+      _db.outboxDao.enqueueOutbox(operation: operation, endpoint: endpoint, payload: payload);'''
           : '';
 
       return '''${convertImport}import 'package:$localStoragePackage/$localStoragePackage.dart';
@@ -683,19 +912,19 @@ class ${p}LocalSource {
   final AppDatabase _db;
 
   Future<List<${p}Model>> getAll() async =>
-      (await _db.getAll${p}s()).map(_toModel).toList();
+      (await _db.${c}Dao.getAll${p}s()).map(_toModel).toList();
 
   Future<${p}Model?> getById(String id) async {
-    final row = await _db.get$p(id);
+    final row = await _db.${c}Dao.get$p(id);
     return row == null ? null : _toModel(row);
   }
 
   Future<void> cacheAll(List<${p}Model> models) =>
-      _db.upsertAll${p}s(models.map(_toRow).toList());
+      _db.${c}Dao.upsertAll${p}s(models.map(_toRow).toList());
 
-  Future<void> upsert(${p}Model model) => _db.upsert$p(_toRow(model));
+  Future<void> upsert(${p}Model model) => _db.${c}Dao.upsert$p(_toRow(model));
 
-  Future<void> deleteById(String id) => _db.delete$p(id);
+  Future<void> deleteById(String id) => _db.${c}Dao.delete$p(id);
 
   ${p}Model _toModel(${p}Row row) => ${p}Model($toModelArgs);
 
@@ -744,6 +973,10 @@ class ${p}LocalSource {
     String? corePackageName,
     // See featureModel's doc.
     String domainCross = '../../domain',
+    // See featureModel's own doc — when set, the generated <Feature>ListModel
+    // wrapper needs its own decoder registered too (getAll() decodes into it,
+    // not the entity Model directly).
+    String listEnvelopeKey = '',
   }) {
     final p = pascal(featureName);
     final c = camel(featureName);
@@ -751,16 +984,20 @@ class ${p}LocalSource {
     // core's chopperModelDecoders itself — core can't import it back the
     // other way (that would be the same forbidden app←feature cycle this
     // whole packageSplit mechanism exists to avoid). See ROADMAP.md §6a.
-    final registersChopperDecoder = httpClient == 'chopper' && corePackageName != null;
+    final registersChopperDecoder =
+        httpClient == 'chopper' && corePackageName != null;
 
     final imports = StringBuffer();
     if (hasSync) imports.writeln("import 'dart:convert';\n");
-    imports.writeln("import 'package:riverpod_annotation/riverpod_annotation.dart';");
+    imports.writeln(
+      "import 'package:riverpod_annotation/riverpod_annotation.dart';",
+    );
     if (offlineFirst) {
       // Shared app-wide singletons (Drift db + connectivity) live in core, not
       // per feature, so every feature reuses the same instances.
       imports.writeln(
-          "import 'package:${corePackageName ?? packageName}/core/providers/infrastructure_providers.dart';");
+        "import 'package:${corePackageName ?? packageName}/core/providers/infrastructure_providers.dart';",
+      );
     }
     imports.writeln(switch (httpClient) {
       'chopper' =>
@@ -769,18 +1006,23 @@ class ${p}LocalSource {
         "import 'package:${corePackageName ?? packageName}/core/network/supabase_provider.dart';",
       'firebase' =>
         "import 'package:${corePackageName ?? packageName}/core/network/firebase_provider.dart';",
-      _ => "import 'package:${corePackageName ?? packageName}/core/network/dio_provider.dart';",
+      _ =>
+        "import 'package:${corePackageName ?? packageName}/core/network/dio_provider.dart';",
     });
     if (registersChopperDecoder) {
       imports.writeln(
-          "import 'package:$corePackageName/core/network/chopper_model_converter.dart';");
+        "import 'package:$corePackageName/core/network/chopper_model_converter.dart';",
+      );
     }
     if (hasSync) {
       imports.writeln(
-          "import 'package:${corePackageName ?? packageName}/core/sync/sync_service.dart';");
+        "import 'package:${corePackageName ?? packageName}/core/sync/sync_service.dart';",
+      );
     }
     imports
-      ..writeln("import '$domainCross/repositories/i_${featureName}_repository.dart';")
+      ..writeln(
+        "import '$domainCross/repositories/i_${featureName}_repository.dart';",
+      )
       ..writeln("import '${featureName}_repository_impl.dart';")
       ..writeln("import '../sources/${featureName}_api_source.dart';");
     if (hasSync || registersChopperDecoder) {
@@ -845,12 +1087,15 @@ SyncService ${c}Sync(Ref ref) {
 
     // Called once from the app's bootstrap (see AppTemplates.bootstrap's
     // chopper-register anchors) before anything can hit the shared
-    // ChopperClient — populates core's registry with this feature's decoder.
+    // ChopperClient — populates core's registry with this feature's decoder(s).
+    final listDecoderLine = listEnvelopeKey.isNotEmpty
+        ? '\n  chopperModelDecoders[${p}ListModel] = ${p}ListModel.fromJson;'
+        : '';
     final chopperRegisterFn = registersChopperDecoder
         ? '''
 
 void register${p}ChopperDecoders() {
-  chopperModelDecoders[${p}Model] = ${p}Model.fromJson;
+  chopperModelDecoders[${p}Model] = ${p}Model.fromJson;$listDecoderLine
 }'''
         : '';
 

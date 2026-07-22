@@ -1,7 +1,7 @@
 name: neat
 description: "A Flutter Clean Architecture project generator with a Workshop that adds features to existing projects."
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.1+20260722
 
 environment:
   sdk: ^3.11.5
@@ -13,11 +13,7 @@ dependencies:
     sdk: flutter
   flutter_hooks: ^0.21.3+1
   hooks_riverpod: ^3.3.1
-  # Pulls screen_retriever_macos, which lacks Swift Package Manager support →
-  # harmless "plugins do not support SPM" warning at startup (Flutter 3.44).
-  # Disabling SPM does NOT silence it. Bump when screen_retriever ships SPM
-  # support, then the warning disappears. Tracking: window_manager / screen_retriever.
-  window_manager: ^0.5.1
+  window_manager: ^0.5.2
   file_picker: ^11.0.2
   path_provider: ^2.1.4
   riverpod_lint: ^3.1.3
@@ -38,6 +34,7 @@ dependencies:
   flex_color_scheme: ^8.0.2
   neat_ui:
     path: packages/neat_ui
+  desktop_drop: ^0.7.1
 
 
 dev_dependencies:
