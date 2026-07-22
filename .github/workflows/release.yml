@@ -6,6 +6,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   release:
@@ -13,37 +14,60 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # full history so we can merge into main & develop
+          fetch-depth: 0
 
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: 3.44.0
           channel: stable
 
-      # ── Gate: the release must be healthy before it touches main/develop ──
+      # ── Gate: the release must be healthy before it even opens a PR ──
       - name: Install dependencies
         run: flutter pub get
 
       - name: Analyze
         run: flutter analyze
 
-      # ── Integrate the tagged release into main and develop ──
-      - name: Configure git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+      # bump_version.sh strips the tag's +build suffix when naming the
+      # release branch (see its own release_branch_name) — re-derive the
+      # same name here, e.g. tag v1.3.11+20260722 -> releases/v1.3.11.
+      - name: Resolve release branch
+        id: release_branch
+        run: echo "name=releases/${GITHUB_REF_NAME%%+*}" >> "$GITHUB_OUTPUT"
 
-      - name: Merge tag into main
+      # ── Integrate the tagged release into main and develop via a PR ──
+      # main/develop require a pull request before merging (branch ruleset),
+      # so this opens one instead of pushing directly, then turns on GitHub's
+      # native auto-merge: each PR merges itself once its required checks
+      # pass — same automated end result as the old direct push, just routed
+      # through a PR. Requires "Allow auto-merge" enabled once in Settings ->
+      # General -> Pull Requests. Idempotent: reuses an existing PR for the
+      # same head/base pair instead of failing on a re-run.
+      - name: Open + auto-merge PR into main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_BRANCH: ${{ steps.release_branch.outputs.name }}
         run: |
-          git checkout main
-          git merge --no-ff "$GITHUB_REF_NAME" -m "ci: merge ${GITHUB_REF_NAME} into main"
-          git push origin main
+          pr_url=$(gh pr list --head "$HEAD_BRANCH" --base main --json url -q '.[0].url')
+          if [ -z "$pr_url" ]; then
+            pr_url=$(gh pr create --base main --head "$HEAD_BRANCH" \
+              --title "ci: merge ${GITHUB_REF_NAME} into main" \
+              --body "Automated release merge for ${GITHUB_REF_NAME}.")
+          fi
+          gh pr merge "$pr_url" --auto --merge
 
-      - name: Merge tag into develop
+      - name: Open + auto-merge PR into develop
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_BRANCH: ${{ steps.release_branch.outputs.name }}
         run: |
-          git checkout develop
-          git merge --no-ff "$GITHUB_REF_NAME" -m "ci: merge ${GITHUB_REF_NAME} into develop"
-          git push origin develop
+          pr_url=$(gh pr list --head "$HEAD_BRANCH" --base develop --json url -q '.[0].url')
+          if [ -z "$pr_url" ]; then
+            pr_url=$(gh pr create --base develop --head "$HEAD_BRANCH" \
+              --title "ci: merge ${GITHUB_REF_NAME} into develop" \
+              --body "Automated release merge for ${GITHUB_REF_NAME}.")
+          fi
+          gh pr merge "$pr_url" --auto --merge
 
       # ── Publish the GitHub Release ──
       - name: Create GitHub Release
