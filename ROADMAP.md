@@ -355,6 +355,522 @@ Harness-proven: `pubspec_builder_test.dart` gained two cases (override present
   workspace (1 unrelated pre-existing unused-import warning aside). Full suite
   green.
 
+### 5h. Drift DAO separation + downgrade safety — ✅ (maxit-front-flutter comparison)
+
+> Prompted by reading `maxit-front-flutter` (a real team-split monorepo) to see how a
+> production project structures its Drift layer differently from NEAT. Found three
+> differences; the user decided per-point: skip the per-feature-database split
+> (keep one shared `AppDatabase` — not worth the design cost against packageSplit's
+> team-autonomy goal), but adopt downgrade safety and per-table DAO files.
+
+- **Downgrade safety**: `AppDatabase`'s `MigrationStrategy` only ever handled
+  upgrades (`onUpgrade`, see 5e) — a schema **downgrade** (older app build opened
+  against a newer on-disk database, e.g. after a rollback) hit no handling at all
+  and Drift would leave the mismatched schema in place. Every generated
+  `database.dart` now also sets `beforeOpen`: if `details.versionBefore! >
+  schemaVersion`, it drops every table (`DROP TABLE IF EXISTS
+  ${table.actualTableName}` for all of `allTables`, wrapped in `PRAGMA
+  foreign_keys = OFF/ON`) and recreates them via `createMigrator().createAll()` —
+  same pattern maxit uses identically across both of its databases.
+  `GenerateFeatureUsecase._ensureMigrationStrategy`'s self-heal block for
+  pre-5e projects was updated to insert this too, so old projects catch up in
+  one pass.
+- **Per-table DAO files**: every CRUD method used to be inlined directly onto the
+  monolithic `AppDatabase` class via anchor insertion (`// neat:daos`). Now each
+  table gets its own `@DriftAccessor` DAO class in its own file
+  (`packages/<app>_database/lib/src/dao/<feature>_dao.dart`,
+  `.../dao/outbox_dao.dart` for the Outbox), registered via `@DriftDatabase(...,
+  daos: [FooDao, OutboxDao])` and reached as `_db.fooDao.xxx()` /
+  `_db.outboxDao.xxx()` from `FeatureLocalSource` and `SyncService` — mirroring
+  maxit's actual file-per-table convention instead of one growing god-class.
+  Deliberately scoped: `FeatureLocalSource`/`SyncService` stay typed to
+  `AppDatabase` (no new DI providers or barrel exports) — file separation was the
+  ask, not a DI restructure. `GenerateFeatureUsecase._injectDriftTable` now writes
+  the new DAO file directly and inserts both an import at `// neat:dao-imports`
+  and the class name at `// neat:daos`, instead of inlining methods. Old
+  already-generated projects aren't retrofitted (no anchor exists yet in their
+  `database.dart`) — accepted, same as every other new `// neat:` anchor.
+- **Package renamed `local_storage` → `<app>_database`**: verified against a real
+  generated project (`neat_test/liza`) while checking that Point 1 actually
+  landed there — it did, but the user flagged the package name itself as
+  confusing, since after this refactor it contains **only** Drift (a typed SQL
+  database + DAOs), never a generic cache/SharedPreferences/secure-storage mix.
+  Renamed to `<app>_database`, prefixed like the extracted UI package (unlike
+  `core`/`auth`/feature packages, which stay unprefixed — see the naming
+  rationale comments at each call site). `ProjectLoader.scanFeatures` and
+  `GenerateFeatureUsecase` both detect the package name from disk (checking for
+  `<app>_database` first, falling back to the old `local_storage`) so projects
+  generated before the rename keep working in the Workshop without a migration
+  step — the generator itself only ever writes the new name going forward.
+- Harness-proven: the chopper+offline-sync full-generation test now asserts
+  `database.dart` has no inlined Outbox methods and a new
+  `packages/<app>_database/lib/src/dao/outbox_dao.dart` contains them; the
+  Workshop Drift-injection test asserts `database.dart` has no inlined
+  `upsertOrders`, contains the `OrdersDao` import/registration, and a new
+  `orders_dao.dart` has the real method; every package-name assertion across
+  the integration suite (imports, pubspecs, workspace members) was updated to
+  the new `<app>_database` name. Full fast suite (245 tests) and every
+  offline/sync/packageSplit integration test green.
+- **Follow-up — table definitions split the same way**: the user asked
+  specifically whether NEAT matched maxit's `table/<name>_table.dart` files
+  (a plain `class FooTable extends Table` in its own file, imported by both
+  the database and its DAO) — it didn't yet; the Table classes were still
+  inlined in `database.dart`. Added `LocalStorageTemplates.featureTableFile`/
+  `outboxTableFile` (mirrors `featureDaoFile`/`outboxDaoFile` exactly) and
+  `LocalStoragePackageWriter` now writes
+  `packages/<app>_database/lib/src/table/<feature>_table.dart` (and
+  `.../table/outbox_table.dart` when sync is on). `database.dart` shrinks to
+  imports (`// neat:table-imports` anchor, new) + the `@DriftDatabase(tables:
+  [...], daos: [...])` registration — no table or DAO bodies at all now. Each
+  DAO file imports its table file directly (`import '../table/<feature>_table.dart';`)
+  in addition to `../database.dart`, matching maxit's own DAO imports exactly —
+  confirmed by reading `quick_action_dao.dart`/`quick_action_dao.g.dart` in
+  `maxit-front-flutter` directly: the row data class (e.g. `QuickActionTableData`)
+  is generated once, into the *database's* own `.g.dart`, never duplicated by the
+  DAO's `.g.dart` — proving a table can safely live in its own file without
+  drift_dev generating conflicting output. `GenerateFeatureUsecase._injectDriftTable`
+  writes the new table file and wires `// neat:table-imports` the same way it
+  already wired `// neat:dao-imports`. `agents_md_template.dart` and
+  `CoreTemplates.removeFirstFeatureDoc` updated to reference the new anchor/files.
+  Harness-proven: every test asserting on inline table-class text in
+  `database.dart` (the sync test's `class OutboxEntries`, the Workshop
+  Drift-injection test's `class OrdersRows`, both JSON-entity tests' column
+  lines) now asserts its **absence** from `database.dart` and its presence in
+  the new `table/*.dart` file instead. Full fast suite (245 tests) + all 58
+  integration tests green, including real `build_runner`/`flutter analyze` on
+  every generated combo (proving drift_dev itself accepts the split, not just
+  that the generator emits the right strings).
+
+### 5i. Offline-first + web target — real bug, found running a real project in Chrome
+
+- **The defect**: a project generated with `targetPlatforms` including `web`
+  **and** offline-first storage crashed at runtime — every provider downstream
+  of `appDatabaseProvider` (`productLocalSourceProvider`,
+  `productRepositoryProvider`, `getProductUsecaseProvider`, the first
+  feature's own list provider) failed in cascade with `ProviderException:
+  Tried to use a provider that is in error state`. Root cause, found in the
+  Chrome devtools log of a real generated project (`liza_web`):
+  `drift_flutter`'s `driftDatabase()` throws `Invalid argument(s): When
+  compiling to the web, the \`web\` parameter needs to be set.` unless a
+  `DriftWebOptions` is supplied — `LocalStorageTemplates.database()`'s
+  `_open()` only ever emitted the native-only
+  `driftDatabase(name: 'app_db')` call, with no web branch at all, even
+  though `identity.targetPlatforms` already offers `web` as a real wizard
+  option and `launch_generation_usecase.dart` already computed an `isWeb`
+  flag — just never threaded it as far as the Drift template (only used for
+  `usePathUrlStrategy()` before this fix).
+- **The fix**: `LocalStorageTemplates.database()` gained an `isWeb` param;
+  when true, `_open()` branches on `kIsWeb`
+  (`import 'package:flutter/foundation.dart' show kIsWeb;`) and supplies
+  `web: DriftWebOptions(sqlite3Wasm: Uri.parse('sqlite3.wasm'), driftWorker:
+  Uri.parse('drift_worker.dart.js'))`, falling through to the exact same
+  native one-liner as before on every other platform. `isWeb` threads through
+  `LocalStoragePackageWriter.write` from the flag `launch_generation_usecase.dart`
+  already had at hand.
+- **The one thing that couldn't be templated**: `sqlite3.wasm` and
+  `drift_worker.dart.js` are prebuilt, versioned release binaries (confirmed
+  against drift's own docs, https://drift.simonbinder.eu/platforms/web/ —
+  "No bootstrapping command... files must be manually downloaded and placed
+  in the `web/` folder"), not generatable Dart source, and no local package
+  in the resolved dependency tree ships them reliably enough to copy at
+  generation time. Rather than silently leaving the user to discover this the
+  same way (a browser stack trace), a new `CoreTemplates.driftWebSetupDoc`
+  writes `docs/DRIFT_WEB_SETUP.md` — only when `localStoragePackage != null &&
+  isWeb` — spelling out exactly what to download, from where, and where to
+  put it, plus the `Content-Type: application/wasm` production-serving note.
+  Same "generate a doc instead of a half-solution" precedent as
+  `REMOVE_FIRST_FEATURE.md`.
+- **Verified desktop-only is unaffected**: `drift_flutter`'s own pubspec
+  already depends on `path_provider` + `sqlite3` (native-asset-hooks-based)
+  transitively for macOS/Windows/Linux — confirmed directly by reading
+  `drift_flutter`'s installed `pubspec.yaml`, no NEAT-side dependency was
+  ever missing for native platforms. No changes needed or made there.
+- Harness-proven: a new integration test generates an offline-first + `web`-only
+  project and asserts `database.dart` contains the `kIsWeb` import, the
+  `DriftWebOptions` branch with both exact filenames, and the native fallback
+  line untouched; `docs/DRIFT_WEB_SETUP.md` exists and names the right
+  package path; `flutter analyze` 0/0 (this validates the generated Dart
+  type-checks against the real pinned `drift_flutter`/`flutter/foundation.dart`
+  APIs, though it can't exercise an actual browser run the way the original
+  bug report did). The existing non-web offline-first test gained negative
+  assertions (`kIsWeb`/`DriftWebOptions` absent, no setup doc written) as a
+  regression guard. Full fast suite (245 tests) + all 59 integration tests
+  green.
+
+### 5j. Customize endpoints (Entity + CRUD, chopper) — real gap found via a real project
+
+> Follow-up from a "Custom Endpoints" (§7 Phase 2) design pass that was
+> reverted: the user pointed out `afsv`'s `book` feature (Custom Endpoints)
+> generated three near-identical models (`AllBooksRequestModel`,
+> `AddBookRequestModel`, `UpdateBookRequestModel` — same 6 fields, three
+> names) versus `product`'s (Entity + CRUD) single shared model — real
+> duplication, confirmed by reading the generated files directly. Read
+> dummyjson.com/docs/recipes as a concrete reference API: GET/POST/PUT all
+> return the same `Recipe`, but create is `POST /recipes/add`, not
+> `POST /recipes` — a shape Entity+CRUD's single `apiPath` (one base for all
+> 5 operations) can't express. Rather than fixing Custom Endpoints' model
+> duplication, the better fix was making Entity+CRUD's own fixed 5 operations
+> individually path/verb-configurable, so it can model APIs like this
+> natively instead. Custom Endpoints itself is unchanged (still exists for
+> endpoint *sets* that don't map onto 5 CRUD operations at all, e.g.
+> dummyjson's `/recipes/tags` returning plain strings).
+
+- **New model**: `CrudEndpointOverrides` (hand-written, mirrors
+  `EndpointSpec`'s own style rather than freezed) — a name + method + path
+  per fixed operation (`getAll`/`getById`/`create`/`update`/`delete`, names
+  defaulting to those exact identifiers). `FeatureGenOptions` gained
+  `customizeEndpoints` (off by default) + `endpointOverrides`.
+  `getById`/`update`/`delete` keep a literal `{id}` in their path —
+  chopper's own `@Path()` binding matches it natively, no runtime
+  substitution needed.
+- **Template**: `DataTemplates.featureApiSource`'s chopper branch gets a new
+  `customizeEndpoints` path: `@ChopperApi(baseUrl: '')` (empty, like Custom
+  Endpoints) and each of the 5 methods carries its own full literal
+  `path:` + verb + **method name**, instead of one shared `baseUrl` with
+  fixed per-method suffixes and fixed names. `DataTemplates.featureRepositoryImpl`
+  (offline-first non-sync + remote-only branches) follows the same custom
+  names at its 5 remote call sites, so a rename is load-bearing, not
+  cosmetic — the Outbox-based sync-mode write methods are untouched (they
+  queue by raw `endpoint:`/`operation:` string, replayed later by
+  `SyncService`, never call the `ApiSource` directly). Dio/Supabase/Firebase
+  untouched — chopper-only, same scope discipline as Custom Endpoints itself
+  (no REST path concept for Supabase/Firebase's table/collection
+  addressing).
+- **Workshop UI**: a new "Customize endpoints" toggle in the Architecture
+  Layers step (chopper projects only), collapsed/off by default — the
+  existing single "API Path" field stays the default behavior. Once
+  switched on, 5 fixed rows (Get All/Get By Id/Create/Update/Delete, no
+  add/remove — these are the CRUD operations, not an arbitrary list), each
+  with a fixed role label plus an editable name + HTTP verb + path,
+  pre-filled with the current derived defaults
+  (`CrudEndpointOverrides.defaultsFor`) so the user only has to change what
+  actually differs (e.g. just `createPath`, or rename `add` → `createRecipe`).
+  Same row-editor language as Custom Endpoints' `_EndpointRow` (which itself
+  has a real, functional name field — confirmed via a user screenshot
+  showing "getProduct" being typed live), simplified: no expansion, no
+  request/response body editors (every operation shares the feature's one
+  entity, already defined in Entity Fields). The role label (Get All/Get By
+  Id/etc.) stays visible alongside the editable name so renaming never
+  costs the user their bearings on which of the 5 operations a row is.
+- Harness-proven: an integration test (dummyjson-shaped: `apiPath:
+  '/recipes'`, `createPath: '/recipes/add'`, `createName: 'createRecipe'`,
+  `updateMethod: patch`) asserts the generated `recipe_api_source.dart`
+  carries the exact per-method verb+path+name combination and an empty
+  `baseUrl`, that `recipe_repository_impl.dart`'s call site follows the
+  renamed method (`.createRecipe(model)`, not `.add(model)`), that the
+  entity/model stay singular (not one per operation), and `flutter analyze`
+  0/0. Full fast suite (245 tests) + all integration tests green.
+
+### 5k. "Set as home page" — closes a promise the welcome placeholder's own doc made and nothing delivered
+
+> Found via a real generated project (`liza`): the user added their first
+> feature via the Workshop after launching with no first feature, but the
+> app kept showing the launch-time "Welcome" placeholder — routing was never
+> updated. `AppRoutePath.welcome`'s own doc comment already promised "until
+> you add one via the Workshop", but `GenerateFeatureUsecase` had zero
+> references to "welcome" anywhere — the promise was never implemented.
+> Confirmed by reading the real project: `app_router.dart`'s `redirect:`
+> closure still pointed at the dead `welcome` constant after the user
+> manually edited `initialLocation`. Decision: fully delete the placeholder
+> (not just bypass it) — confirmed with the user, who didn't expect the
+> Welcome page to ever resurface after a real first feature exists.
+
+- **New option**: `FeatureGenOptions.setAsHomePage` (`@Default(true)`) — a
+  `LayerToggle` in the Identity & Routing step, shown only when
+  `features.isEmpty` (the project's actual first feature; meaningless
+  otherwise, so hidden rather than disabled).
+- **`GenerateFeatureUsecase._removeWelcomePlaceholder`**: when the option is
+  on and this is genuinely the first feature, repoints every
+  `AppRoutePath.welcome` reference at the new feature's own route constant
+  and deletes the placeholder's own files. Four steps, each defensive/no-op
+  on content it doesn't find (idempotent — safe to call on a project that
+  never had a welcome placeholder): (1) `routes.dart` — drop the placeholder's
+  own import + aggregator entry outright, via a `RegExp` (not a literal
+  string) tolerant of `dart format`'s line-wrapping for long package names;
+  (2) delete `welcome_route.dart`/`.g.dart`/`welcome_page.dart`; (3) drop the
+  dead `AppRoutePath.welcome` constant (app's own copy + the core package's
+  mirrored copy under packageSplit); (4) a project-wide sweep
+  (`AppRoutePath.welcome` → `AppRoutePath.$feature`) across every `.dart`
+  file — not a fixed list of known call sites, since `homeRouteExpr()`
+  (`generation_io.dart`) reaches `initialLocation`, the onboarding `onDone`
+  redirect, *and* the post-login auth guard redirect, and enumerating every
+  template call site by name would be fragile.
+- Harness-proven: two integration tests (launch with no first feature, then
+  `GenerateFeatureUsecase` add one) — `setAsHomePage: true` (default) asserts
+  the placeholder's files are gone, `routes.dart`/`app_router.dart`/
+  `app_route_path.dart` contain no `welcome` reference and do contain the new
+  feature's, and `flutter analyze` 0/0; `setAsHomePage: false` (opt-out)
+  asserts the placeholder stays untouched, coexisting exactly like before
+  this option existed. Full fast suite (257 tests) green.
+
+### 5l. Paginated list envelope unwrap — closes the gap the envelope-detection heuristic (§7-adjacent) left in codegen
+
+> Follow-up from the same `liza` project diagnosis as §5k, found in the same
+> message: the user manually wired routing to the new "recepies" feature and
+> hit a runtime crash — `FormatException: JsonConverter expected response
+> body to be Iterable<RecepiesModel>, but got Map` — confirmed by reading the
+> generated `recepies_api_source.dart` (`getAll()` declared
+> `Future<Response<List<Model>>>`) against dummyjson.com/recipes' actual
+> shape (a paginated wrapper object, not a bare array). An earlier session
+> had already taught `JsonEntityInferencer` to *detect* this wrapper and
+> infer fields from its first element (avoiding wrong fields), but detection
+> alone didn't fix the HTTP layer — `getAll()` still assumed a bare array.
+> This closes that gap: the detected wrapper key now flows all the way to
+> the generated `getAll()`.
+- **`InferenceResult`** gained `envelopeKey` (the JSON key the entity's own
+  list lives under, e.g. `"recipes"`; `null` when no wrapper was detected).
+  **`FeatureGenOptions`** gained `listEnvelopeKey` (`@Default('')`), set by
+  `EntityFieldsStep.onInfer`/`onReset` from the inference result — no new
+  Workshop UI control; the existing "Detected a paginated list wrapper..."
+  warning already surfaces this to the user.
+- **`DataTemplates.featureApiSource`**: dio's `getAll()` unwraps the key
+  inline, self-contained (`_dio.get<Map<String, dynamic>>` +
+  `response.data?['key']` instead of `_dio.get<List<dynamic>>`) — no
+  repository change needed. Chopper can't do the same (an abstract
+  `@GET()`-annotated interface has no method body): its `getAll()` return
+  type becomes `Response<dynamic>` instead of `Response<List<Model>>` when a
+  key is set — `dynamic` sidesteps `ModelJsonConverter`'s per-Type decoder
+  dispatch entirely, leaving the raw decoded `Map` for the repository layer
+  to unwrap instead. Applies to both the plain and `customizeEndpoints`
+  branches; `getById`/`create`/`update`/`delete` are untouched (only
+  `getAll()`'s response is ever a paginated wrapper in the shapes seen so
+  far). Supabase/Firebase untouched — no pagination-envelope concept in
+  their generated table/collection queries.
+- **`DataTemplates.featureRepositoryImpl`**: a `getAllRemote()` helper
+  swaps in the unwrap-by-key + per-item `fromJson` expression at exactly
+  `getAll()`'s two call sites (offline-first + remote-only chopper
+  branches) — every other operation keeps the plain `unwrapChopperResponse`
+  helper unchanged.
+- Harness-proven: a unit group in `data_templates_test.dart` (chopper +
+  dio, key set vs unset, api source + repository) plus a full integration
+  test — launches with no first feature, adds one via `GenerateFeatureUsecase`
+  from dummyjson's real recipes shape run through the real
+  `JsonEntityInferencer`, then an **executable regression probe**
+  (`flutter test` against a hand-written probe file in the generated
+  project, same technique as the existing chopper-converter probe) proves
+  the actual runtime bug is gone: `ModelJsonConverter.convertResponse` no
+  longer throws decoding the envelope body, and the repository's generated
+  unwrap expression decodes real typed Models — `flutter analyze` can't
+  catch this class of bug (the old code compiled fine; it only failed
+  against a real decoded response). `flutter analyze` 0/0. Full fast suite
+  (263 tests) green.
+
+### 5m. packageSplit + chopper: bootstrap.dart's decoder-registration anchors self-heal too — a real bug from the same envelope-fix testing session
+
+> Found immediately after §5l shipped, verifying it on a second real project
+> (`arth`, packageSplit + chopper): the *same* `FormatException` still hit
+> `dummyjson.com/users` — but this time on every single call, not just
+> `getAll()`. Reading the generated project: `users_repository_providers.dart`
+> had a perfectly-generated `registerUsersChopperDecoders()`, but nothing in
+> the whole project ever called it — `chopperModelDecoders` stayed empty, so
+> chopper's own built-in converter (never NEAT's `ModelJsonConverter`, since
+> the per-Type decoder lookup always missed) tried to decode every response
+> and threw. Root cause: `AppTemplates.bootstrap` only writes `bootstrap.dart`'s
+> `// neat:chopper-register-imports`/`-calls` anchors when the *wizard's own*
+> first feature already uses chopper (`chopperRegisterFeaturePackage != null`)
+> — a project launched with zero features (`generateFirstFeature: false`,
+> the same fully-valid, common combo §5k/§5l both already exercise) never had
+> them to begin with, so `_registerChopperDecoderSplit`'s anchor-insertion
+> silently no-op'd the very first time a chopper feature was added via the
+> Workshop. The exact same class of gap as §5k's welcome-placeholder bug
+> (an assumption baked in at launch time that doesn't hold for "added later
+> via Workshop"), and one this codebase had already solved once before for
+> the sibling shell-branch registration anchors (`healBootstrapShellAnchors`)
+> — its own doc comment even flagged chopper's missing counterpart as "an
+> accepted, pre-existing limitation," believing it was legacy-only. It wasn't.
+- **`GenerateFeatureUsecase.healBootstrapChopperAnchors`** (new,
+  `@visibleForTesting`) mirrors `healBootstrapShellAnchors` exactly: adds
+  `// neat:chopper-register-imports` after the last import line and
+  `// neat:chopper-register-calls` right before `registerErrorHandler();`,
+  idempotent. Called at the top of `_registerChopperDecoderSplit`, same spot
+  `_registerShellPageSplit` already calls its own healer.
+- Harness-proven: 3 new fast unit tests (`anchor_healing_test.dart`) against
+  the exact real `arth` bootstrap.dart shape (anchors added in the right
+  spots, idempotent, a properly-anchored file left untouched) + a new
+  integration test — launches packageSplit+chopper with zero features, adds
+  the first one via `GenerateFeatureUsecase`, asserts both anchors and the
+  actual import/call exist afterward (not just the registration function
+  existing — the exact thing that silently failed) and `flutter analyze`
+  0/0. Full fast suite (266 tests) green.
+- The user's own two real test projects were hit by this in immediate
+  succession while verifying §5l (`liza` first, `arth` second) — `arth`'s
+  `lib/core/bootstrap.dart` was hand-patched directly to the same shape this
+  fix now generates, to unblock testing before a NEAT restart.
+
+### 5n. Typed `<Feature>ListModel` wrapper — replaces §5l's `dynamic`-based envelope unwrap
+
+> Follow-up, same session: verifying §5l on a real project, the user hand-patched
+> `users_api_source.dart`/`users_repository_impl.dart` themselves — added a
+> `UsersListModel` (`{ users, total, skip, limit }`) and typed `getAll()` as
+> `Future<Response<UsersListModel>>` instead of `Response<dynamic>`, asked
+> what I thought. Assessment: genuinely better — zero `dynamic` in the
+> repository, the decoder registry stays uniform (every response type routes
+> through the same `chopperModelDecoders[InnerType]` lookup, no special case
+> for `getAll()`), and pagination metadata (`total`/`skip`/`limit`) survives
+> instead of being discarded. The one real risk (a required field on a
+> hand-inferred wrapper missing from a live response, throwing a *new*
+> `FormatException`) is no worse than the risk the entity model itself
+> already carries everywhere else in NEAT — no principled reason to treat
+> the wrapper specially. `_detectListEnvelope` already parses the wrapper's
+> sibling scalar fields to validate the "exactly one array field" guard, so
+> the data needed was sitting right there, unused. Confirmed with the user
+> before implementing (explicit "oui" — "le but de neat est quand même de
+> faire gagner du temps"), then replaced §5l's `dynamic` approach outright
+> rather than keeping both.
+- **`JsonEntityInferencer`**: `InferenceResult` gained `envelopeFields` — the
+  wrapper's own sibling scalars (e.g. `total`/`skip`/`limit`), inferred via
+  the same `_childrenOf` used for the entity (guaranteed scalar-only by
+  `_detectListEnvelope`'s own "exactly one array field" guard, so no
+  object/list branching needed). `FeatureGenOptions` gained the matching
+  field, wired from `EntityFieldsStep` alongside the existing `listEnvelopeKey`.
+- **`DataTemplates.featureModel`**: new `_listWrapperModelFreezed`/`_listWrapperModelPlain`
+  generate `<Feature>ListModel` (freezed or plain, matching the project's
+  own config) alongside the entity model in the same file — deliberately
+  *not* built on the existing `_modelFreezed`/`_modelPlain` (every other
+  model in that file assumes a domain `Entity` counterpart with
+  `fromEntity`/`toEntity`; the wrapper is a pure transport shape with
+  neither). The list field's Dart name is `camel(envelopeKey)` — `@JsonKey`
+  only when that differs from the raw key (every real-world key seen so far
+  — `recipes`/`users`/`data`/`items` — already matches).
+- **`DataTemplates.featureApiSource`/`featureRepositoryImpl`**: chopper's
+  `getAll()` now returns `Response<<Feature>ListModel>` (routes through
+  `ModelJsonConverter`'s ordinary per-Type registry, same as every other
+  response) instead of `Response<dynamic>`; the repository's `getAllRemote()`
+  simplified from a multi-line unwrap-and-cast expression to a single
+  `.<envelopeFieldName>` property access. Dio decodes the wrapper directly
+  (`<Feature>ListModel.fromJson(response.data!).<envelopeFieldName>`), still
+  self-contained in the ApiSource. `featureRepositoryProviders` registers
+  *both* the entity Model's and the wrapper ListModel's decoders now (split
+  and non-split paths both updated).
+- Harness-proven: unit coverage extended in `data_templates_test.dart`
+  (wrapper generation, `@JsonKey` only-when-renamed, both http clients, both
+  decoder registrations) and `json_entity_inferencer_test.dart`
+  (`envelopeFields` asserted across every existing envelope-detection case).
+  The existing §5l integration test's assertions/probe were rewritten for
+  the typed shape — the probe now drives `ModelJsonConverter.convertResponse`
+  with the *real* registered `RecipeListModel` decoder end to end (stronger
+  than the old dynamic/dynamic pass-through check it replaced). `flutter
+  analyze` 0/0. Full fast suite (271 tests) green.
+
+### 5o. Skeletonizer placeholder hoisted to a top-level `final` — found via a wesioo comparison
+
+> Follow-up, same session: the user pointed at `wesioo`'s
+> `doctor_agenda_page.dart` (`_skeletonState`, a module-level `final`
+> computed once via an IIFE) next to a NEAT-generated `users_page.dart`,
+> asking why NEAT rebuilds the whole placeholder model instead of doing the
+> same. Confirmed the gap: `_riverpodListPage`'s Skeletonizer branch called
+> `List.generate(8, (_) => ${'$'}{p}Entity(...))` **inline inside `build()`** —
+> reconstructing 8 full nested placeholder entities (every field, every
+> nested object) from scratch on *every* rebuild while loading, not once.
+> Not `const`-able (a `DateTime` placeholder isn't a const expression), but
+> a plain top-level `final` gets the same one-time-computation benefit
+> without needing wesioo's IIFE (NEAT's placeholders are fixed values, no
+> `DateTime.now()`-relative setup step to wrap).
+- **`PresentationTemplates._riverpodListPage`**:
+  the placeholder construction moves to a generated top-level
+  `final _<feature>SkeletonItems = List.generate(8, (_) => <Feature>Entity(...));`
+  declared once, right after the imports (mirrors wesioo's own placement — a
+  clearly separated "skeleton data" section before the widget class).
+  `build()`'s Skeletonizer branch shrinks to
+  `Skeletonizer(child: _<Feature>List(items: _<feature>SkeletonItems))`.
+- Harness-proven: new `presentation_templates_test.dart` (3 tests — the
+  hoisted var exists, `build()` references it instead of an inline
+  `List.generate`, and it's positioned before the class/`build()` in the
+  generated source) + full fast suite (274 tests) + full integration suite
+  (64 tests, unaffected — the existing `contains('Skeletonizer(')`
+  assertion holds either way) all green.
+- Applied by hand to the user's own `arth` test project as an immediate
+  reference (their `users_page.dart` had independently converged on
+  wesioo's `?? <fallback>` pattern, using `?? []` — replaced with
+  `?? _usersSkeletonItems` so the shimmer effect actually has skeleton-shaped
+  rows to animate over instead of an empty list).
+
+### 5p. Widgetbook gets its own `web` target, independent of the app's own platforms
+
+> Follow-up, same session: the user asked why Widgetbook — a component
+> catalog meant to be browsed on a big screen — didn't default to a
+> desktop/web template instead of inheriting whatever platforms the app
+> itself picked (mobile-only, in their case). Confirmed: NEAT never ran
+> `flutter create` for Widgetbook at all. In loose mode (no extracted `<ui>`
+> package) its catalog is a bare file sharing the app's own scaffold, so a
+> mobile-only app meant a mobile-only catalog. In the *extracted* (workspace
+> member) case — the actual default, since `ThemeEngineState.extractUiPackage`
+> defaults to `true` — it's worse: `ThemeWriter` only hand-writes
+> `widgetbook/pubspec.yaml`/`lib/main.dart` as text, `flutter create` never
+> touches that directory, so it has **zero** platform runner folders of its
+> own — not runnable on *any* platform, not just the wrong one. User's own
+> framing: reuse the existing opt-in and auto-add a platform in
+> `LaunchGenerationUsecase` when it's on — right instinct, though the
+> extracted case needed its own fix beyond just appending to
+> `identity.targetPlatforms` (a separate directory `flutter create` never
+> reaches, regardless of what's in that list).
+- Empirically verified before writing any code (not assumed): `flutter
+  create` on a directory that already has a hand-written `pubspec.yaml` +
+  `lib/main.dart` only fills in *missing* platform folders — it doesn't
+  touch either file. Safe to run late, after `ThemeWriter` has already
+  placed the extracted member's own files.
+- **Loose mode** (`generateWidgetbook && !extractUiPackage`): `web` is added
+  to a locally-scoped `requestedPlatforms` set feeding the app's own (only)
+  `flutter create` call — deliberately *not* a mutation of
+  `identity.targetPlatforms` itself, so `isWeb` (computed from that field
+  elsewhere) keeps reflecting the user's actual platform choice, not this
+  widgetbook-driven addition.
+- **Extracted (member) mode** (the default): a **second** `flutter create
+  --platforms web --no-pub` call, scoped to the `widgetbook/` directory,
+  inserted after `PubspecWriter.write()` (so the root workspace's own
+  `workspace:` list already names it — pub's workspace resolution needs
+  that first) and before the workspace-wide `flutter pub get` (`--no-pub`
+  here to avoid a premature, redundant resolution attempt).
+- Harness-proven: extended the existing "extracted UI package + Widgetbook"
+  integration test (asserts `widgetbook/web/` now exists, the app's own
+  `web/` doesn't, and `flutter create` left the hand-written pubspec/
+  main.dart untouched) + fixed the main "chopper + offline-sync" test's
+  widgetbook assertions (it turned out to already be exercising member mode
+  by default, not loose mode as first assumed — `widgetbook/lib/main.dart`,
+  not `widgetbook/main.dart`) + a new dedicated loose-mode test
+  (`extractUiPackage: false`, mobile-only `targetPlatforms`) confirming the
+  app gets a `web/` folder while `isWeb`-gated bootstrap behavior
+  (`usePathUrlStrategy()`) stays off. `flutter analyze` 0/0 on both shapes.
+  Full fast suite (274 tests, unaffected — this is integration-only
+  behavior) + full integration suite green.
+
+### 5q. Widgetbook + ScreenUtil: `ScreenUtilInit` was never run for the catalog — real crash, found running §5p on a real project
+
+> Follow-up, same session, found the moment §5p's fix let the user actually
+> launch the widgetbook catalog for the first time: `LateInitializationError:
+> Field '_minTextAdapt' has not been initialized`, thrown building
+> `WidgetbookApp`. Root cause: the design-system components (`AppGap`,
+> typography) call `.sp`/`.w`/`.h` — flutter_screenutil extensions that
+> require `ScreenUtilInit`'s `builder` to have run at least once — but
+> unlike the app's own `AppTemplates.appDart` (which wraps its `MaterialApp`
+> in exactly that), `ThemeTemplates.widgetbookApp` never did. `useScreenUtil`
+> is the *default* for nearly every project (`!isWebOnly`), so this wasn't a
+> rare combination — any generated project with Widgetbook on would hit it
+> the instant the catalog rendered a single component. `flutter analyze`
+> never caught it in §5o/§5p's own tests because it's a pure runtime failure
+> — the generated code compiles and lints cleanly either way.
+- **`ThemeTemplates.widgetbookApp`**: gained `useScreenUtil` — wraps the
+  `Widgetbook.material(...)` catalog in the same `ScreenUtilInit(designSize:
+  ..., minTextAdapt: true, splitScreenMode: true, builder: ...)` shape
+  `AppTemplates.appDart` already uses, plus the matching
+  `flutter_screenutil` import.
+- **`UiPackageWriter.widgetbookPubspec`**: gained `useScreenUtil` too — pub
+  requires a package to declare its own direct dependency on anything it
+  imports, so the extracted widgetbook member needs its own
+  `flutter_screenutil` entry even though the `<ui>` path-dependency already
+  has one (no implicit transitive re-export). Threaded through
+  `ThemeWriter.write`'s two call sites (both already had `useScreenUtil` in
+  scope).
+- Harness-proven: an **executable regression probe** (same technique as the
+  session's earlier chopper-converter one) — pumps the real generated
+  `WidgetbookApp` in a widget test and asserts no exception — added to the
+  extracted-member integration test. Verified with a genuine negative
+  control before trusting it: reverted the fix via `git stash`, reran, watched
+  the test fail for the right reason (missing `flutter_screenutil` dependency),
+  then restored and reran green — the probe has teeth, not just a
+  plausible-looking assertion. `flutter analyze` 0/0, full fast suite (274
+  tests, unaffected) + full integration suite green.
+
 ### 6. Multiple architectures — later, with caution
 
 - The harness makes **every** architecture a ~3× maintenance cost (each must be proven).
@@ -1151,6 +1667,56 @@ Harness-proven: `pubspec_builder_test.dart` gained two cases (override present
 >     and `flutter analyze` 0/0 across the workspace. The pre-existing (non-
 >     merged) shell-child integration tests re-verified green, unaffected.
 >     Full suite green.
+> - ✅ **packageSplit without a first feature — done** (user noticed:
+>     turning off "Generate example feature" grayed out the packageSplit
+>     toggle, and since packageSplit can't be turned on retroactively on an
+>     existing project, skipping it at launch meant losing access to it
+>     forever — even though the Workshop treats every feature-add identically
+>     regardless of whether it's the 1st or 5th). The UI's own
+>     `canPackageSplit` required `generateFirstFeature`, but the generator's
+>     own `packageSplitSupported` never did — an unnecessary UI restriction,
+>     confirmed by reading both gates side by side. Proved the combo with a
+>     new integration test rather than trusting that reasoning alone, which
+>     surfaced two real bugs:
+>   - **Bug 1**: `_writeCorePackage`'s own `CoreTemplates.appRoutePath(...)`
+>     call never passed `hasFirstFeature`, so it always defaulted to `true`
+>     and wrote `AppRoutePath.home` — while the app's router files (which do
+>     respect `generateFirstFeature`) referenced `AppRoutePath.welcome`,
+>     producing an `undefined_getter` error. Then, when the Workshop later
+>     added the real "home" feature, its own `AppRoutePath.home` insertion
+>     collided with the stale one core already had, producing a
+>     `duplicate_definition` error too. Fixed by threading a new
+>     `hasFirstFeature` param through `_writeCorePackage`, set from
+>     `architecture.generateFirstFeature` at its call site.
+>   - **Bug 2** (pre-existing, only ever masked): `CorePackageTemplates.pubspec`
+>     hardcoded stale `riverpod_annotation: ^4.0.2` / `riverpod_generator:
+>     ^4.0.3` floors, while `featurePackagePubspec` (the split feature
+>     package) hardcodes newer `^4.0.3`/`^4.0.4`. In a pub workspace, a
+>     feature package's higher floor always dragged the whole workspace up to
+>     a mutually-compatible version — silently hiding that core's own pins
+>     were stale, in every packageSplit combo tested until now. With no
+>     first feature, nothing raises the floor, so the workspace resolved
+>     `riverpod_generator: 4.0.3` paired with a `riverpod` core version whose
+>     `AnyNotifier.runBuild` signature had already moved on (`WhenComplete
+>     Function()`, not `void`), producing an `invalid_override` error on the
+>     generated `theme_mode_controller.g.dart`. Found by generating both
+>     combos side by side and diffing the actual resolved `pubspec.lock`
+>     versions and generated `.g.dart` output, not by reasoning alone. Fixed
+>     by bumping `CorePackageTemplates.pubspec`'s floors to match
+>     `featurePackagePubspec`'s.
+>   - `canPackageSplit` (`architecture_screen.dart`) no longer requires
+>     `generateFirstFeature`; the toggle's description branches on whether a
+>     first feature is present (mentions the Workshop when it isn't) instead
+>     of listing it as a requirement.
+>   - Harness-proven: a new integration test generates `packageSplit: true` +
+>     `generateFirstFeature: false`, asserts the core package exists with
+>     zero feature packages, `lib/features/` never existed, the welcome
+>     placeholder owns the root route, then drives the Workshop to add "home"
+>     as the real first feature and asserts it lands as its own split
+>     package depending on core — `flutter analyze` 0/0 for the whole
+>     sequence. All 16 packageSplit integration tests green (the 15
+>     pre-existing combos + this new one), full fast suite (245 tests) and a
+>     project-wide `flutter analyze` green.
 
 ### 7. JSON-driven feature generation — big bet, high value
 
@@ -1240,6 +1806,65 @@ overlap — pick deliberately. → Phased:
       fakestoreapi.com for real, proving the absolute-URL override) and the
       zero-feature path for both plain go_router and go_router_builder routing
       shapes, plus the zero-table Drift case — all build_runner + analyze 0/0.
+    - ✅ **Follow-up: onboarding/auth redirects and the app title still leaked
+      the wizard's leftover default feature name — done**, found in a real
+      user's generated project (`packages/core/lib/core/constants/
+      app_route_path.dart` correctly had `welcome` with no first feature, but
+      `onboarding_routes.dart` referenced the nonexistent
+      `AppRoutePath.product` — `'product'` being `ArchitectureState`'s
+      default `firstFeatureName`, left over from the wizard even with the
+      toggle off). Root cause: two call sites in
+      `launch_generation_usecase.dart` built the "go home" redirect as
+      `'AppRoutePath.${_camelCase(featureName)}'` unconditionally — the
+      onboarding page's `onDone` callback, and the post-login auth guard in
+      `router_notifier.dart` — neither checked `generateFirstFeature`, unlike
+      `CoreTemplates.appRoutePath` itself (which already branches on
+      `hasFirstFeature` correctly) or `_writeRouter` (which already routes
+      `app_router.dart`/`routes.dart` to the welcome placeholder). Fixed with
+      one shared `_homeRouteExpr({featureName, hasFirstFeature})` helper
+      (`AppRoutePath.welcome` when `!hasFirstFeature`, mirroring
+      `CoreTemplates.appRoutePath`'s own branch) used at both sites, with
+      `hasFirstFeature` threaded into `_writeAuth`'s params. Also fixed in
+      passing, a real bug independent of this toggle: `app.dart`'s
+      `MaterialApp(.router)` `title:` was wired to `featureName` too — the
+      app's window/task-switcher title was always the example feature's
+      name, not the app's own — now uses `packageName`. Harness-proven: a new
+      integration test generates onboarding + auth + `generateFirstFeature:
+      false` together (the exact combo that exposed this — neither existing
+      onboarding test nor the no-first-feature tests combined the two) and
+      asserts both redirects target `AppRoutePath.welcome`, the app title is
+      the project's own package name, and `flutter analyze` 0/0. Full
+      onboarding suite (5 tests) and fast suite (245 tests) still green.
+    - ✅ **Follow-up: `docs/REMOVE_FIRST_FEATURE.md` — done** (user question:
+      can the wizard's first feature be deleted later, e.g. to drop the
+      FakeStore Products demo once real features exist?). Investigated
+      building an actual delete-feature capability first — rejected: a
+      feature isn't self-contained in its own folder, it also inserts lines
+      into up to ~12 categories of shared files (routes.dart, AppRoutePath,
+      the chopper decoder registry, the Drift database, root/package
+      `pubspec.yaml` for packageSplit, the shell registry/nav bar...), and
+      neither `NeatContract` nor `ProjectLoader` track which files a given
+      feature touched (features are derived by scanning `lib/features/`/
+      `packages/`, not recorded) — building safe deletion would mean adding
+      that tracking first, disproportionate effort for what's usually a
+      one-time cleanup. Shipped the cheaper alternative instead: a generated
+      `docs/REMOVE_FIRST_FEATURE.md` (written whenever `generateFirstFeature`
+      is on, alongside the feature itself) that spells out every file to
+      revert, computed from the exact same flags the generator used —
+      routing always; the chopper decoder registry only when `httpClient ==
+      'chopper'`; the Drift database only when offline-first (with a
+      migrations-anchor line only when sync is also on); workspace/pubspec
+      wiring only when packageSplit; the nav shell only when a shell branch
+      exists. Also points out the simplest path of all: a fresh project with
+      **"Generate example feature"** off needs no cleanup at all.
+      Harness-proven: added assertions to three already-passing integration
+      tests spanning the full conditional matrix — the main chopper +
+      offline-sync test (chopper + Drift + migrations sections present,
+      packageSplit/shell absent), the plain-go_router no-first-feature test
+      (doc absent entirely), and the packageSplit + shell-branches test
+      (packageSplit + shell sections present, chopper/Drift absent) — rather
+      than standing up a new combo from scratch. Fast suite (245 tests)
+      still green.
 - ✅ **Phase 2 — Typed endpoints ("Custom Endpoints")** — **done**, scoped down
   from the full vision on purpose. A new opt-in Workshop mode, **alongside**
   (not replacing) Entity + CRUD: a feature is N arbitrary

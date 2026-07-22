@@ -760,12 +760,21 @@ class _AppTextFieldState extends State<AppTextField> {
 
   /// Scaffolds a Widgetbook catalog for the enabled [components].
   /// Lives outside lib/ — run with `flutter run -t widgetbook/main.dart`.
+  /// [useScreenUtil]: real bug, found via a real generated project — the
+  /// design-system components (`AppGap`, typography) call `.sp`/`.w`/`.h`
+  /// when the project has responsive sizing on, which throws
+  /// `LateInitializationError: Field '_minTextAdapt' has not been
+  /// initialized` the instant Widgetbook renders one, since (unlike the
+  /// app's own `AppTemplates.appDart`) nothing here ever ran
+  /// `ScreenUtilInit`. Wraps the same way the app itself does.
   static String widgetbookApp({
     required String packageName,
     required Set<AppComponent> components,
+    bool useScreenUtil = false,
   }) {
     final imports = <String>[
       "import 'package:flutter/material.dart';",
+      if (useScreenUtil) "import 'package:flutter_screenutil/flutter_screenutil.dart';",
       "import 'package:widgetbook/widgetbook.dart';",
       "import 'package:$packageName/core/theme/app_theme.dart';",
       for (final c in components) "import 'package:$packageName/components/${c.fileName}';",
@@ -773,16 +782,7 @@ class _AppTextFieldState extends State<AppTextField> {
 
     final entries = components.map(_widgetbookEntry).join('\n');
 
-    return '''$imports
-
-void main() => runApp(const WidgetbookApp());
-
-class WidgetbookApp extends StatelessWidget {
-  const WidgetbookApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Widgetbook.material(
+    final catalog = '''Widgetbook.material(
       addons: [
         ThemeAddon<ThemeData>(
           themes: [
@@ -796,7 +796,27 @@ class WidgetbookApp extends StatelessWidget {
       directories: [
 $entries
       ],
-    );
+    )''';
+
+    final body = useScreenUtil
+        ? '''ScreenUtilInit(
+      designSize: const Size(375, 812),
+      minTextAdapt: true,
+      splitScreenMode: true,
+      builder: (context, child) => $catalog,
+    )'''
+        : catalog;
+
+    return '''$imports
+
+void main() => runApp(const WidgetbookApp());
+
+class WidgetbookApp extends StatelessWidget {
+  const WidgetbookApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return $body;
   }
 }
 ''';

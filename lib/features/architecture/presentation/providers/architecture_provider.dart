@@ -9,24 +9,27 @@ part 'architecture_provider.g.dart';
 class ArchitectureNotifier extends _$ArchitectureNotifier {
   @override
   ArchitectureState build() => const ArchitectureState(
-        firstFeatureName: 'product',
-        firstFeatureFields: FieldSpec.fakeStoreProduct,
-        firstFeatureApiPath: 'https://fakestoreapi.com/products',
-      );
+    firstFeatureName: 'product',
+    firstFeatureFields: FieldSpec.fakeStoreProduct,
+    firstFeatureApiPath: 'https://fakestoreapi.com/products',
+  );
 
-  void setPattern(StructuralPattern pattern) => state = state.copyWith(pattern: pattern);
+  void setPattern(StructuralPattern pattern) =>
+      state = state.copyWith(pattern: pattern);
   void toggleMappers(bool val) => state = state.copyWith(includeMappers: val);
-  void toggleRiverpodAnnotations(bool val) => state = state.copyWith(useRiverpodAnnotations: val);
+  void toggleRiverpodAnnotations(bool val) =>
+      state = state.copyWith(useRiverpodAnnotations: val);
   void toggleCubit(bool val) => state = state.copyWith(useCubit: val);
-  void toggleMirrorTest(bool val) => state = state.copyWith(mirrorTestStructure: val);
+  void toggleMirrorTest(bool val) =>
+      state = state.copyWith(mirrorTestStructure: val);
 
   /// Off → the app ships with zero features (a placeholder welcome screen
   /// owns the root route instead). A shell needs a first branch, so turning
   /// this off also drops the navigation-shell opt-in.
   void setGenerateFirstFeature(bool val) => state = state.copyWith(
-        generateFirstFeature: val,
-        useNavigationShell: val ? state.useNavigationShell : false,
-      );
+    generateFirstFeature: val,
+    useNavigationShell: val ? state.useNavigationShell : false,
+  );
   void setFirstFeatureName(String val) =>
       state = state.copyWith(firstFeatureName: val.trim());
 
@@ -38,16 +41,24 @@ class ArchitectureNotifier extends _$ArchitectureNotifier {
   /// `true` while the toggle is hidden is harmless.
   void setStorageStrategy(StorageStrategy strategy) =>
       state = state.copyWith(storageStrategy: strategy);
-  void togglePackageSplit(bool val) => state = state.copyWith(packageSplit: val);
-  void toggleNavigationShell(bool val) => state = state.copyWith(useNavigationShell: val);
-  void toggleGenerateAuth(bool val) => state = state.copyWith(generateAuth: val);
-  void toggleGenerateRealtime(bool val) => state = state.copyWith(generateRealtime: val);
-  void toggleGenerateStorage(bool val) => state = state.copyWith(generateStorage: val);
+  void togglePackageSplit(bool val) =>
+      state = state.copyWith(packageSplit: val);
+  void toggleNavigationShell(bool val) =>
+      state = state.copyWith(useNavigationShell: val);
+  void toggleGenerateAuth(bool val) =>
+      state = state.copyWith(generateAuth: val);
+  void toggleGenerateRealtime(bool val) =>
+      state = state.copyWith(generateRealtime: val);
+  void toggleGenerateStorage(bool val) =>
+      state = state.copyWith(generateStorage: val);
   void setFirebaseConfigPath(String path) =>
       state = state.copyWith(firebaseConfigPath: path.trim());
-  void toggleGenerateOAuth(bool val) => state = state.copyWith(generateOAuth: val);
-  void toggleGenerateI18n(bool val) => state = state.copyWith(generateI18n: val);
-  void toggleGenerateOnboarding(bool val) => state = state.copyWith(generateOnboarding: val);
+  void toggleGenerateOAuth(bool val) =>
+      state = state.copyWith(generateOAuth: val);
+  void toggleGenerateI18n(bool val) =>
+      state = state.copyWith(generateI18n: val);
+  void toggleGenerateOnboarding(bool val) =>
+      state = state.copyWith(generateOnboarding: val);
 
   /// Toggles [locale] in [ArchitectureState.i18nLocales] — a no-op when it
   /// would deselect the last remaining language (at least one is always
@@ -62,10 +73,13 @@ class ArchitectureNotifier extends _$ArchitectureNotifier {
     }
   }
 
-  void setI18nCsvPath(String path) => state = state.copyWith(i18nCsvPath: path.trim());
-  void toggleGenerateFlavors(bool val) => state = state.copyWith(generateFlavors: val);
+  void setI18nCsvPath(String path) =>
+      state = state.copyWith(i18nCsvPath: path.trim());
+  void toggleGenerateFlavors(bool val) =>
+      state = state.copyWith(generateFlavors: val);
 
-  void setEnvName(int index, String name) => _updateEnv(index, (e) => e.copyWith(name: name));
+  void setEnvName(int index, String name) =>
+      _updateEnv(index, (e) => e.copyWith(name: name));
   void setEnvApiUrl(int index, String url) =>
       _updateEnv(index, (e) => e.copyWith(apiBaseUrl: url.trim()));
   void setEnvSupabaseUrl(int index, String url) =>
@@ -92,7 +106,12 @@ class ArchitectureNotifier extends _$ArchitectureNotifier {
     for (var i = state.environments.length + 1; used.contains(name); i++) {
       name = 'env$i';
     }
-    state = state.copyWith(environments: [...state.environments, EnvConfig(name: name)]);
+    state = state.copyWith(
+      environments: [
+        ...state.environments,
+        EnvConfig(name: name),
+      ],
+    );
   }
 
   /// Removes the environment at [index]. Keeps at least one (a single env →
@@ -121,6 +140,7 @@ class ArchitectureNotifier extends _$ArchitectureNotifier {
     if (index < 0 || index >= state.environments.length) return;
     state = state.copyWith(baseEnvIndex: index);
   }
+
   void setShellIcon(String icon) => state = state.copyWith(shellIcon: icon);
   void setShellLabel(String label) => state = state.copyWith(shellLabel: label);
 }

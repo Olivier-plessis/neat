@@ -1,10 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:neat/features/dependencies/domain/models/pub_package.dart';
-import 'package:neat/features/generation/domain/usecases/launch_generation_usecase.dart';
+import 'package:neat/features/generation/domain/usecases/writers/pubspec_writer.dart';
 import 'package:yaml/yaml.dart';
 
 /// A minimal `flutter create` pubspec, used as the [original] input to
-/// [LaunchGenerationUsecase.buildPubspecContent].
+/// [PubspecWriter.buildPubspecContent].
 const _basePubspec = '''
 name: my_app
 description: "A new Flutter project."
@@ -51,7 +51,7 @@ PubPackage pkg(String name, String version, {bool isDev = false}) =>
 void main() {
   group('buildPubspecContent — YAML validity', () {
     test('produces valid YAML for an empty package list', () {
-      final out = LaunchGenerationUsecase.buildPubspecContent(_basePubspec, const []);
+      final out = PubspecWriter.buildPubspecContent(_basePubspec, const []);
       expect(() => parseDeps(out), returnsNormally);
     });
 
@@ -75,7 +75,7 @@ void main() {
         pkg('go_router_builder', '4.3.0', isDev: true),
       ];
 
-      final out = LaunchGenerationUsecase.buildPubspecContent(_basePubspec, packages);
+      final out = PubspecWriter.buildPubspecContent(_basePubspec, packages);
       final parsed = parseDeps(out);
 
       expect(parsed.deps['envied'], '^1.3.5');
@@ -89,7 +89,7 @@ void main() {
 
   group('buildPubspecContent — dependency placement', () {
     test('runtime vs dev split honors isDev', () {
-      final out = LaunchGenerationUsecase.buildPubspecContent(_basePubspec, [
+      final out = PubspecWriter.buildPubspecContent(_basePubspec, [
         pkg('dio', '5.9.2'),
         pkg('build_runner', '2.15.0', isDev: true),
       ]);
@@ -100,7 +100,7 @@ void main() {
     });
 
     test('selected versions are prefixed with a single caret', () {
-      final out = LaunchGenerationUsecase.buildPubspecContent(_basePubspec, [
+      final out = PubspecWriter.buildPubspecContent(_basePubspec, [
         pkg('dio', '5.9.2'),
       ]);
       expect(parseDeps(out).deps['dio'], '^5.9.2');
@@ -109,7 +109,7 @@ void main() {
 
   group('buildPubspecContent — deduplication (no side effects across runs)', () {
     test('duplicate package entries collapse to one', () {
-      final out = LaunchGenerationUsecase.buildPubspecContent(_basePubspec, [
+      final out = PubspecWriter.buildPubspecContent(_basePubspec, [
         pkg('dio', '5.9.2'),
         pkg('dio', '5.9.2'),
         pkg('dio', '5.9.2'),
@@ -124,12 +124,12 @@ void main() {
 
   group('buildPubspecContent — auto-injection', () {
     test('google_fonts is always injected when absent', () {
-      final out = LaunchGenerationUsecase.buildPubspecContent(_basePubspec, const []);
+      final out = PubspecWriter.buildPubspecContent(_basePubspec, const []);
       expect(parseDeps(out).deps.containsKey('google_fonts'), isTrue);
     });
 
     test('google_fonts is not duplicated when user already selected it', () {
-      final out = LaunchGenerationUsecase.buildPubspecContent(_basePubspec, [
+      final out = PubspecWriter.buildPubspecContent(_basePubspec, [
         pkg('google_fonts', '7.0.0'),
       ]);
       final occurrences =
@@ -141,10 +141,10 @@ void main() {
 
     test('flutter_screenutil injected by default, skipped when addScreenUtil=false', () {
       final withSu =
-          LaunchGenerationUsecase.buildPubspecContent(_basePubspec, const []);
+          PubspecWriter.buildPubspecContent(_basePubspec, const []);
       expect(parseDeps(withSu).deps.containsKey('flutter_screenutil'), isTrue);
 
-      final webOnly = LaunchGenerationUsecase.buildPubspecContent(
+      final webOnly = PubspecWriter.buildPubspecContent(
         _basePubspec,
         const [],
         addScreenUtil: false,
@@ -153,7 +153,7 @@ void main() {
     });
 
     test('go_router_builder pulls in go_router as a runtime dep', () {
-      final out = LaunchGenerationUsecase.buildPubspecContent(_basePubspec, [
+      final out = PubspecWriter.buildPubspecContent(_basePubspec, [
         pkg('go_router_builder', '4.3.0', isDev: true),
       ]);
       final parsed = parseDeps(out);
@@ -162,7 +162,7 @@ void main() {
     });
 
     test('go_router not duplicated when explicitly selected alongside builder', () {
-      final out = LaunchGenerationUsecase.buildPubspecContent(_basePubspec, [
+      final out = PubspecWriter.buildPubspecContent(_basePubspec, [
         pkg('go_router', '17.2.3'),
         pkg('go_router_builder', '4.3.0', isDev: true),
       ]);
@@ -172,14 +172,14 @@ void main() {
     });
 
     test('flutter_bloc injected when only the plain bloc package was selected', () {
-      final out = LaunchGenerationUsecase.buildPubspecContent(_basePubspec, [
+      final out = PubspecWriter.buildPubspecContent(_basePubspec, [
         pkg('bloc', '9.0.1'),
       ]);
       expect(parseDeps(out).deps.containsKey('flutter_bloc'), isTrue);
     });
 
     test('flutter_bloc not duplicated when explicitly selected', () {
-      final out = LaunchGenerationUsecase.buildPubspecContent(_basePubspec, [
+      final out = PubspecWriter.buildPubspecContent(_basePubspec, [
         pkg('flutter_bloc', '9.1.1'),
       ]);
       final occurrences =
@@ -188,15 +188,15 @@ void main() {
     });
 
     test('no flutter_bloc injected when no bloc-family package is present', () {
-      final out = LaunchGenerationUsecase.buildPubspecContent(_basePubspec, const []);
+      final out = PubspecWriter.buildPubspecContent(_basePubspec, const []);
       expect(parseDeps(out).deps.containsKey('flutter_bloc'), isFalse);
     });
 
     test('widgetbook injected only when withWidgetbook=true', () {
-      final off = LaunchGenerationUsecase.buildPubspecContent(_basePubspec, const []);
+      final off = PubspecWriter.buildPubspecContent(_basePubspec, const []);
       expect(parseDeps(off).devDeps.containsKey('widgetbook'), isFalse);
 
-      final on = LaunchGenerationUsecase.buildPubspecContent(
+      final on = PubspecWriter.buildPubspecContent(
         _basePubspec,
         const [],
         withWidgetbook: true,
@@ -205,7 +205,7 @@ void main() {
     });
 
     test('envied auto-injects envied_generator + build_runner', () {
-      final out = LaunchGenerationUsecase.buildPubspecContent(_basePubspec, [
+      final out = PubspecWriter.buildPubspecContent(_basePubspec, [
         pkg('envied', '1.3.5'),
       ]);
       final parsed = parseDeps(out);
@@ -215,7 +215,7 @@ void main() {
     });
 
     test('envied does not duplicate generator/build_runner when present', () {
-      final out = LaunchGenerationUsecase.buildPubspecContent(_basePubspec, [
+      final out = PubspecWriter.buildPubspecContent(_basePubspec, [
         pkg('envied', '1.3.5'),
         pkg('envied_generator', '1.3.5', isDev: true),
         pkg('build_runner', '2.15.0', isDev: true),
@@ -233,13 +233,13 @@ void main() {
 
   group('buildPubspecContent — workspace', () {
     test('no workspace block when there are no members', () {
-      final out = LaunchGenerationUsecase.buildPubspecContent(_basePubspec, const []);
+      final out = PubspecWriter.buildPubspecContent(_basePubspec, const []);
       expect(out.contains('workspace:'), isFalse);
       expect(() => parseDeps(out), returnsNormally);
     });
 
     test('path packages → workspace members + path deps + connectivity', () {
-      final out = LaunchGenerationUsecase.buildPubspecContent(
+      final out = PubspecWriter.buildPubspecContent(
         _basePubspec,
         const [],
         pathPackages: ['my_app_local_storage'],
@@ -264,7 +264,7 @@ void main() {
     });
 
     test('no offline-first (addConnectivity=false) → no sqlparser override', () {
-      final out = LaunchGenerationUsecase.buildPubspecContent(
+      final out = PubspecWriter.buildPubspecContent(
         _basePubspec,
         const [],
         pathPackages: ['my_app_ui'],
@@ -274,7 +274,7 @@ void main() {
     });
 
     test('multiple path packages + extra members (widgetbook)', () {
-      final out = LaunchGenerationUsecase.buildPubspecContent(
+      final out = PubspecWriter.buildPubspecContent(
         _basePubspec,
         const [],
         pathPackages: ['my_app_ui', 'my_app_local_storage'],
@@ -293,7 +293,7 @@ void main() {
     });
 
     test('workspace block coexists with auto-injected deps (valid YAML)', () {
-      final out = LaunchGenerationUsecase.buildPubspecContent(
+      final out = PubspecWriter.buildPubspecContent(
         _basePubspec,
         [pkg('envied', '1.3.5')],
         pathPackages: ['my_app_local_storage'],
@@ -308,7 +308,7 @@ void main() {
 
   group('buildPubspecContent — onboarding', () {
     test('addOnboarding injects shared_preferences', () {
-      final out = LaunchGenerationUsecase.buildPubspecContent(
+      final out = PubspecWriter.buildPubspecContent(
         _basePubspec,
         const [],
         addOnboarding: true,
@@ -317,12 +317,12 @@ void main() {
     });
 
     test('no shared_preferences when onboarding is off', () {
-      final out = LaunchGenerationUsecase.buildPubspecContent(_basePubspec, const []);
+      final out = PubspecWriter.buildPubspecContent(_basePubspec, const []);
       expect(parseDeps(out).deps.containsKey('shared_preferences'), isFalse);
     });
 
     test('addSlang + addOnboarding together: shared_preferences added once, not duplicated', () {
-      final out = LaunchGenerationUsecase.buildPubspecContent(
+      final out = PubspecWriter.buildPubspecContent(
         _basePubspec,
         const [],
         addSlang: true,

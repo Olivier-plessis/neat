@@ -67,6 +67,40 @@ flutter run -d macos
 1. **Wizard** → configure the stack → generate a project.
 2. **Workshop** → open that project → add features over time.
 
+## Building a distributable `.dmg`
+
+Flutter doesn't produce a `.dmg` directly — build the release `.app`, then package it
+with [`create-dmg`](https://github.com/create-dmg/create-dmg).
+
+```bash
+# 1. Build the release app
+flutter build macos --release
+# → build/macos/Build/Products/Release/NEAT.app
+
+# 2. Isolate the .app in a clean staging folder — pointing create-dmg at the
+#    Release/ build output directly also pulls in every other build artifact
+#    (dSYMs, .swiftmodule files, plugin bundles...) into the DMG's root.
+rm -rf dmg_staging NEAT.dmg
+mkdir dmg_staging
+cp -R "build/macos/Build/Products/Release/NEAT.app" dmg_staging/
+
+# 3. Package it
+brew install create-dmg   # once
+create-dmg \
+  --volname "NEAT" \
+  --window-size 600 400 \
+  --icon-size 100 \
+  --icon "NEAT.app" 175 120 \
+  --hide-extension "NEAT.app" \
+  --app-drop-link 425 120 \
+  "NEAT.dmg" \
+  "dmg_staging/"
+```
+
+Without a paid Apple Developer ID signing/notarizing the app, recipients will see a
+Gatekeeper warning ("unidentified developer") — they can right-click → Open to bypass
+it, but this isn't a substitute for proper signing if distributing more broadly.
+
 ## Roadmap
 
 Shipped: contract-aware AI rules (AGENTS.md), i18n (slang), Bloc/Cubit. In progress:

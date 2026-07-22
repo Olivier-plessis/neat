@@ -20,7 +20,7 @@ class AgentsMdTemplate {
     final offline = c.storageStrategy != 'remoteOnly';
     final sync = c.storageStrategy == 'offlineFirstSync';
     final hasCodegen = useAnnotations || c.hasFreezed || c.hasJsonSerializable || builder || hasHttp;
-    const pkg = 'local_storage';
+    final pkg = '${c.projectName}_database';
     final fbase = featureFirst ? 'lib/features/<feature>' : 'lib/{data,domain,presentation}/<feature>';
 
     final b = StringBuffer();
@@ -205,8 +205,9 @@ class AgentsMdTemplate {
       b.writeln('## Offline / local storage (Drift)\n');
       b.writeln('- The local DB is a **workspace package**: `packages/$pkg` (Drift). The database is '
           '`packages/$pkg/lib/src/database.dart`.');
-      b.writeln('- Each feature has a typed table `<Feature>Rows` + DAO methods, injected at the '
-          '`// neat:tables`, `// neat:table-names`, `// neat:daos` anchors.');
+      b.writeln('- Each feature has a typed table `<Feature>Rows` (`src/table/<feature>_table.dart`) '
+          '+ a DAO (`src/dao/<feature>_dao.dart`), wired at the `// neat:table-imports`, '
+          '`// neat:table-names`, `// neat:dao-imports`, `// neat:daos` anchors.');
       b.writeln('- Repositories are offline-first: read network when online, fall back to the Drift cache.');
       if (sync) {
         b.writeln('- **Writes use the Outbox**: optimistic local write → queued in the Outbox table → '
@@ -274,8 +275,9 @@ class AgentsMdTemplate {
           '${builder ? '`TypedGoRoute` spread' : '`GoRoute`'} above `// neat:route-entries`.');
     }
     if (offline) {
-      b.writeln('4. Add the `<Feature>Rows` table + DAO in `packages/$pkg/lib/src/database.dart` '
-          'at `// neat:tables` / `// neat:table-names` / `// neat:daos`.');
+      b.writeln('4. Add a `src/table/<feature>_table.dart` + `src/dao/<feature>_dao.dart` in '
+          '`packages/$pkg`, then wire them into `database.dart` at `// neat:table-imports` / '
+          '`// neat:table-names` / `// neat:dao-imports` / `// neat:daos`.');
     }
     if (hasCodegen) b.writeln('5. Run codegen (see **Verification**).');
     b.writeln();

@@ -132,9 +132,7 @@ void main() => $call;
     imports.writeln(
       "import 'package:${corePackageName ?? packageName}/core/utils/app_logger.dart';",
     );
-    imports.writeln(
-      "import 'package:${corePackageName ?? packageName}/core/utils/extensions.dart';",
-    );
+
     if (hasRiverpod) {
       imports.writeln("import 'package:$packageName/core/observers/provider_observer.dart';");
     }

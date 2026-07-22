@@ -76,10 +76,18 @@ void main() {
 
   test(
       'packageSplit: scans packages/ for unprefixed feature packages, excluding '
-      'core/local_storage/auth/<projectName>_ui', () async {
+      'core/local_storage/auth/<projectName>_ui/<projectName>_database', () async {
     final split = contract.copyWith(packageSplit: true);
     writeContract(split);
-    for (final pkg in ['core', 'local_storage', 'auth', 'demo_ui', 'home', 'orders']) {
+    for (final pkg in [
+      'core',
+      'local_storage',
+      'auth',
+      'demo_ui',
+      'demo_database',
+      'home',
+      'orders',
+    ]) {
       Directory('${tempRoot.path}/packages/$pkg').createSync(recursive: true);
     }
     final project = await loader.load(tempRoot.path);

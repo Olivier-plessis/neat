@@ -25,7 +25,9 @@ abstract class EnvConfig with _$EnvConfig {
         .toLowerCase()
         .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
         .replaceAll(RegExp(r'^_+|_+$'), '');
-    if (cleaned.isEmpty || !RegExp(r'^[a-z]').hasMatch(cleaned)) return 'env_$cleaned';
+    if (cleaned.isEmpty || !RegExp(r'^[a-z]').hasMatch(cleaned)) {
+      return 'env_$cleaned';
+    }
     return cleaned;
   }
 }
