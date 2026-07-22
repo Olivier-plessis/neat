@@ -85,12 +85,8 @@ abstract final class PubspecWriter {
     final seen = <String>{};
     final uniquePackages = packages.where((p) => seen.add(p.name)).toList();
 
-    final hasGoRouterBuilder = uniquePackages.any(
-      (p) => p.name == 'go_router_builder',
-    );
-    final hasGoRouterExplicit = uniquePackages.any(
-      (p) => p.name == 'go_router',
-    );
+    final hasGoRouterBuilder = uniquePackages.any((p) => p.name == 'go_router_builder');
+    final hasGoRouterExplicit = uniquePackages.any((p) => p.name == 'go_router');
 
     for (final pkg in uniquePackages) {
       final line = '  ${pkg.name}: ^${pkg.version}\n';
@@ -112,9 +108,7 @@ abstract final class PubspecWriter {
     // itself (e.g. the plain, Flutter-less `bloc` package from a pub.dev
     // search) so the project still compiles.
     final hasBlocFamily = uniquePackages.any((p) => p.name.contains('bloc'));
-    final hasFlutterBlocExplicit = uniquePackages.any(
-      (p) => p.name == 'flutter_bloc',
-    );
+    final hasFlutterBlocExplicit = uniquePackages.any((p) => p.name == 'flutter_bloc');
     if (hasBlocFamily && !hasFlutterBlocExplicit) {
       deps.write('  flutter_bloc: ^9.1.1\n');
     }
@@ -131,14 +125,13 @@ abstract final class PubspecWriter {
     }
 
     // Responsive sizing — added by default, skipped for web-only projects.
-    if (addScreenUtil &&
-        !uniquePackages.any((p) => p.name == 'flutter_screenutil')) {
+    if (addScreenUtil && !uniquePackages.any((p) => p.name == 'flutter_screenutil')) {
       deps.write('  flutter_screenutil: ^5.9.3\n');
     }
 
     // Widgetbook catalog (dev-only) when opted in.
     if (withWidgetbook && !uniquePackages.any((p) => p.name == 'widgetbook')) {
-      devDeps.write('  widgetbook: ^3.7.0\n');
+      devDeps.write('  widgetbook: ^3.25.0\n');
     }
 
     // envied needs its generator (+ build_runner) to produce the .g.dart files.
@@ -152,32 +145,26 @@ abstract final class PubspecWriter {
     }
 
     // connectivity_plus for the offline NetworkInfo brick.
-    if (addConnectivity &&
-        !uniquePackages.any((p) => p.name == 'connectivity_plus')) {
+    if (addConnectivity && !uniquePackages.any((p) => p.name == 'connectivity_plus')) {
       deps.write('  connectivity_plus: ^7.1.1\n');
     }
     // skeletonizer for the generated list screen's loading placeholders.
-    if (addSkeletonizer &&
-        !uniquePackages.any((p) => p.name == 'skeletonizer')) {
+    if (addSkeletonizer && !uniquePackages.any((p) => p.name == 'skeletonizer')) {
       deps.write('  skeletonizer: ^2.1.3\n');
     }
     // image_picker for the Storage sample avatar upload widget.
-    if (addImagePicker &&
-        !uniquePackages.any((p) => p.name == 'image_picker')) {
+    if (addImagePicker && !uniquePackages.any((p) => p.name == 'image_picker')) {
       deps.write('  image_picker: ^1.1.2\n');
     }
     // Firebase: cloud_firestore is the user-selected marker; firebase_core is
     // required by it, and auth/storage are pulled in with their opt-ins.
-    if (addFirebaseCore &&
-        !uniquePackages.any((p) => p.name == 'firebase_core')) {
+    if (addFirebaseCore && !uniquePackages.any((p) => p.name == 'firebase_core')) {
       deps.write('  firebase_core: ^3.8.1\n');
     }
-    if (addFirebaseAuth &&
-        !uniquePackages.any((p) => p.name == 'firebase_auth')) {
+    if (addFirebaseAuth && !uniquePackages.any((p) => p.name == 'firebase_auth')) {
       deps.write('  firebase_auth: ^5.3.4\n');
     }
-    if (addFirebaseStorage &&
-        !uniquePackages.any((p) => p.name == 'firebase_storage')) {
+    if (addFirebaseStorage && !uniquePackages.any((p) => p.name == 'firebase_storage')) {
       deps.write('  firebase_storage: ^12.4.0\n');
     }
     // slang i18n: runtime (slang + slang_flutter + flutter_localizations) +
@@ -201,9 +188,7 @@ abstract final class PubspecWriter {
     // Onboarding: shared_preferences for the "seen it" flag — same package
     // LocaleStore uses for locale persistence, so guard against addSlang
     // already having added it (avoid a duplicate line).
-    if (addOnboarding &&
-        !addSlang &&
-        !uniquePackages.any((p) => p.name == 'shared_preferences')) {
+    if (addOnboarding && !addSlang && !uniquePackages.any((p) => p.name == 'shared_preferences')) {
       deps.write('  shared_preferences: ^2.3.3\n');
     }
     // Sentry (CI/CD screen, opt-in): crash/error reporting, wrapped around
@@ -242,10 +227,7 @@ abstract final class PubspecWriter {
 
     // Declare the Dart workspace at the root (app = workspace root). Members
     // live under packages/ (or widgetbook/) and each carries `resolution: workspace`.
-    final members = [
-      ...pathPackages.map((p) => 'packages/$p'),
-      ...extraWorkspaceMembers,
-    ];
+    final members = [...pathPackages.map((p) => 'packages/$p'), ...extraWorkspaceMembers];
     if (members.isNotEmpty) {
       final block = members.map((m) => '  - $m').join('\n');
       content = '${content.trimRight()}\n\nworkspace:\n$block\n';
