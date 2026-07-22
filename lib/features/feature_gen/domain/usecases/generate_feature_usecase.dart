@@ -242,6 +242,8 @@ class GenerateFeatureUsecase {
       endpoints: options.endpoints,
       customizeEndpoints: options.customizeEndpoints,
       endpointOverrides: options.endpointOverrides,
+      listEnvelopeKey: options.listEnvelopeKey,
+      envelopeFields: options.envelopeFields,
       // A merged shell-branch child skips the registry entirely (see
       // wireChildIntoTypedShell/wireChildIntoPlainShell's mergeIntoParent
       // branch) — no <f>_shell_registration.dart to write.
@@ -338,6 +340,21 @@ class GenerateFeatureUsecase {
           corePackageName: corePackageName,
         );
       }
+
+      // Opt-in, only meaningful for the project's actual first feature (see
+      // FeatureGenOptions.setAsHomePage's own doc) — repoints the launch-time
+      // "welcome" placeholder's every reference at this feature and deletes
+      // its now-dead files.
+      if (options.setAsHomePage && project.features.isEmpty) {
+        await _removeWelcomePlaceholder(
+          project.path,
+          c.projectName,
+          featureName,
+          hasGoRouterBuilder: hasGoRouterBuilder,
+          corePackageName: corePackageName,
+          onLog: onLog,
+        );
+      }
     }
 
     // Chopper's built-in JsonConverter can't call a custom Model's fromJson —
@@ -372,7 +389,12 @@ class GenerateFeatureUsecase {
           mergeIntoParent: mergeIntoParent,
         );
       } else {
-        await _registerChopperDecoder(project.path, c.projectName, featureName);
+        await _registerChopperDecoder(
+          project.path,
+          c.projectName,
+          featureName,
+          listEnvelopeKey: options.listEnvelopeKey,
+        );
       }
     }
 
@@ -470,11 +492,15 @@ class GenerateFeatureUsecase {
   /// `Response<List<XModel>>` calls decode correctly. No-op if the project has
   /// no chopper converter file (generated before this fix, or a non-chopper
   /// stack — the caller already guards on `httpClient == 'chopper'`).
+  /// [listEnvelopeKey] set (see `FeatureGenOptions`' own doc) registers the
+  /// generated `<Feature>ListModel` wrapper too — `getAll()` decodes into it,
+  /// not the entity Model directly.
   Future<void> _registerChopperDecoder(
     String projectPath,
     String packageName,
-    String featureName,
-  ) async {
+    String featureName, {
+    String listEnvelopeKey = '',
+  }) async {
     final file = File(
       '$projectPath/lib/core/network/chopper_model_converter.dart',
     );
@@ -491,6 +517,13 @@ class GenerateFeatureUsecase {
       '// neat:chopper-decoders',
       '  ${p}Model: (json) => ${p}Model.fromJson(json),',
     );
+    if (listEnvelopeKey.isNotEmpty) {
+      s = _insertBefore(
+        s,
+        '// neat:chopper-decoders',
+        '  ${p}ListModel: (json) => ${p}ListModel.fromJson(json),',
+      );
+    }
     await file.writeAsString(s);
   }
 
@@ -533,7 +566,17 @@ class GenerateFeatureUsecase {
   /// `bootstrap.dart`'s `// neat:chopper-register-imports`/`-calls` anchors to
   /// import and call that function before anything hits the shared
   /// ChopperClient — mirrors the wizard's own first-feature wiring
-  /// (`AppTemplates.bootstrap`). No-op if the project predates these anchors.
+  /// (`AppTemplates.bootstrap`). Self-heals those anchors first (see
+  /// [healBootstrapChopperAnchors]) — real bug, found via a real generated
+  /// project: `AppTemplates.bootstrap` only seeds them when the *wizard's*
+  /// own first feature already uses chopper (`chopperRegisterFeaturePackage
+  /// != null`), so a project launched with zero features (`generateFirstFeature:
+  /// false`, a fully valid, common combo — not a legacy edge case) never had
+  /// them to begin with. The old silent no-op left `register<Feature>ChopperDecoders()`
+  /// generated but never called — `chopperModelDecoders` stayed empty
+  /// forever, and every response for that feature (not just
+  /// paginated-wrapper ones) threw a chopper `FormatException` at runtime,
+  /// invisible to `flutter analyze`.
   Future<void> _registerChopperDecoderSplit(
     String projectPath,
     // The split feature's own package — or, when merged, the *parent's* own
@@ -549,7 +592,7 @@ class GenerateFeatureUsecase {
     final file = File('$projectPath/lib/core/bootstrap.dart');
     if (!file.existsSync()) return;
     final p = _pascal(featureName);
-    var s = await file.readAsString();
+    var s = healBootstrapChopperAnchors(await file.readAsString());
     final dataPrefix = mergeIntoParent ? 'data/$featureName' : 'data';
     s = _insertBefore(
       s,
@@ -564,6 +607,34 @@ class GenerateFeatureUsecase {
     await file.writeAsString(s);
   }
 
+  /// Adds `bootstrap.dart`'s `// neat:chopper-register-imports`/`-calls`
+  /// anchors when missing. Idempotent. Mirrors [healBootstrapShellAnchors]
+  /// exactly (same anchor-less gap, same fix) — see
+  /// [_registerChopperDecoderSplit]'s own doc for why this turned out to
+  /// matter for freshly-generated projects, not just legacy ones.
+  @visibleForTesting
+  static String healBootstrapChopperAnchors(String content) {
+    var s = content;
+    if (!s.contains('// neat:chopper-register-imports')) {
+      final imports = RegExp(
+        r'^import .*;$',
+        multiLine: true,
+      ).allMatches(s).toList();
+      if (imports.isNotEmpty) {
+        final end = imports.last.end;
+        s = '${s.substring(0, end)}\n// neat:chopper-register-imports${s.substring(end)}';
+      }
+    }
+    if (!s.contains('// neat:chopper-register-calls') &&
+        s.contains('registerErrorHandler();')) {
+      s = s.replaceFirst(
+        'registerErrorHandler();',
+        '// neat:chopper-register-calls\n      registerErrorHandler();',
+      );
+    }
+    return s;
+  }
+
   /// packageSplit variant of shell-branch (or shell-branch-child, see
   /// `_wireChildIntoShellBuilder`/`_wireChildIntoShellPlain`) registration:
   /// the feature already generated its own `register<Feature>ShellPage()`
@@ -575,12 +646,10 @@ class GenerateFeatureUsecase {
   /// `packages/<core>/lib/core/router/shell_page_registry.dart` exists
   /// first, creating it (no witness — an arbitrary existing branch would be
   /// a false signal) if this project predates shell page registration.
-  /// Mirrors [_registerChopperDecoderSplit] closely, with one difference:
-  /// this self-heals its own two `bootstrap.dart` anchors when missing —
-  /// unlike chopper's registration, which silently no-ops on a missing
-  /// anchor (an accepted, pre-existing limitation for anchors that predate
-  /// that method). These anchors are new, so there's no legacy anchor-less
-  /// population to intentionally match.
+  /// Mirrors [_registerChopperDecoderSplit] closely — both self-heal their
+  /// own `bootstrap.dart` anchors when missing (see
+  /// [healBootstrapChopperAnchors]'s own doc for why that one turned out to
+  /// matter for freshly-generated projects too, not just legacy ones).
   Future<void> _registerShellPageSplit(
     String projectPath,
     String featurePackageName,
@@ -838,6 +907,118 @@ class GenerateFeatureUsecase {
       );
     }
     await routes.writeAsString(s);
+  }
+
+  // ── Removing the "welcome" placeholder (first feature set as home page) ───
+
+  /// Repoints every `AppRoutePath.welcome` reference at [featureName]'s own
+  /// route constant and deletes the placeholder's own route/page files — see
+  /// `FeatureGenOptions.setAsHomePage`'s own doc for why (the "welcome"
+  /// scaffold's own doc comment already promises this; nothing previously
+  /// delivered on it). Idempotent/defensive throughout — every step no-ops
+  /// on content it doesn't find, so calling this on a project that never had
+  /// a welcome placeholder (or already had it removed) is harmless.
+  Future<void> _removeWelcomePlaceholder(
+    String projectPath,
+    String packageName,
+    String featureName, {
+    required bool hasGoRouterBuilder,
+    required void Function(String) onLog,
+    String? corePackageName,
+  }) async {
+    final camel = _camel(featureName);
+
+    // 1. routes.dart — remove the placeholder's own import + entry outright
+    // (a plain AppRoutePath.welcome → AppRoutePath.$camel substitution would
+    // instead leave a second GoRoute at the same path as the new feature).
+    // The import is a regex, not a literal string: this file was already
+    // through a `dart format` pass at launch time, which wraps the import
+    // onto its own continuation line once the package name is long enough
+    // (`import '...'\n    as welcome;`) — `\s` spans that newline too.
+    final routesFile = File('$projectPath/lib/core/router/routes.dart');
+    if (routesFile.existsSync()) {
+      var s = await routesFile.readAsString();
+      s = hasGoRouterBuilder
+          ? s
+                .replaceAll(
+                  RegExp(
+                    r"import\s+'[^']*/core/router/welcome_route\.dart'\s*as\s+welcome;\n",
+                  ),
+                  '',
+                )
+                .replaceAll('  ...welcome.\$appRoutes,\n', '')
+          : s
+                .replaceAll(
+                  RegExp(r"import\s+'[^']*/core/pages/welcome_page\.dart';\n"),
+                  '',
+                )
+                .replaceAll(
+                  '  GoRoute(\n'
+                      '    path: AppRoutePath.welcome,\n'
+                      '    builder: (context, state) => const WelcomePage(),\n'
+                      '  ),\n',
+                  '',
+                );
+      await routesFile.writeAsString(s);
+    }
+
+    // 2. Delete the placeholder's own files — nothing references them anymore.
+    if (hasGoRouterBuilder) {
+      for (final name in ['welcome_route.dart', 'welcome_route.g.dart']) {
+        final f = File('$projectPath/lib/core/router/$name');
+        if (f.existsSync()) await f.delete();
+      }
+    }
+    final page = File('$projectPath/lib/core/pages/welcome_page.dart');
+    if (page.existsSync()) await page.delete();
+
+    // 3. AppRoutePath — drop the now-dead `welcome` constant (app's own copy,
+    // and the core package's mirrored copy when packageSplit is on).
+    final routePathFiles = [
+      '$projectPath/lib/core/constants/app_route_path.dart',
+      if (corePackageName != null)
+        '$projectPath/packages/$corePackageName/lib/core/constants/app_route_path.dart',
+    ];
+    for (final path in routePathFiles) {
+      final f = File(path);
+      if (!f.existsSync()) continue;
+      var s = await f.readAsString();
+      s = s.replaceAll(
+        '  /// No first feature — the welcome placeholder owns the app\'s root\n'
+            '  /// route until you add one via the Workshop.\n'
+            "  static const String welcome = '/';\n",
+        '',
+      );
+      await f.writeAsString(s);
+    }
+
+    // 4. Every other "go home" reference (initialLocation, the onboarding
+    // onDone redirect, the post-login auth guard — see
+    // generation_io.dart's homeRouteExpr) — repointed at this feature by
+    // sweeping for the literal expression instead of hunting down every
+    // template call site by name.
+    await _replaceInDartFiles(
+      Directory('$projectPath/lib'),
+      'AppRoutePath.welcome',
+      'AppRoutePath.$camel',
+    );
+    if (corePackageName != null) {
+      final coreDir = Directory('$projectPath/packages/$corePackageName/lib');
+      if (coreDir.existsSync()) {
+        await _replaceInDartFiles(coreDir, 'AppRoutePath.welcome', 'AppRoutePath.$camel');
+      }
+    }
+
+    onLog('[✓] "$featureName" set as home page — welcome placeholder removed.');
+  }
+
+  Future<void> _replaceInDartFiles(Directory dir, String from, String to) async {
+    await for (final entity in dir.list(recursive: true)) {
+      if (entity is! File || !entity.path.endsWith('.dart')) continue;
+      final s = await entity.readAsString();
+      if (!s.contains(from)) continue;
+      await entity.writeAsString(s.replaceAll(from, to));
+    }
   }
 
   // ── Child route wiring (nests the feature under a parent's GoRoute) ────────

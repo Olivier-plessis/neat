@@ -25,12 +25,22 @@ class DataTemplates {
     // changing both the depth (one more `../`) and the target path (domain's
     // own `<name>/` subfolder) — the caller computes the right value.
     String domainCross = '../../domain',
+    // See featureApiSource/featureRepositoryImpl's own doc — set when the
+    // entity was inferred from a paginated list wrapper: adds a
+    // `<Feature>ListModel` alongside the entity model, so getAll() can
+    // decode the response fully typed instead of as a bare array or a raw
+    // Map. Always paired with [envelopeFields] (its sibling scalars, e.g.
+    // total/skip/limit — empty when the wrapper had none).
+    String listEnvelopeKey = '',
+    List<FieldSpec> envelopeFields = const [],
   }) {
     final p = pascal(featureName);
     final entityImport =
         "import '$domainCross/entities/${featureName}_entity.dart';";
     // Nested objects (and list-element objects) each become their own sub-model.
     final objects = collectObjectSpecs(fields);
+    final hasEnvelope = listEnvelopeKey.isNotEmpty;
+    final envelopeFieldName = camel(listEnvelopeKey);
 
     if (hasFreezed) {
       // freezed handles JSON serialization internally; json_serializable wires
@@ -43,6 +53,14 @@ class DataTemplates {
         _modelFreezed(p, fields, hasJsonSerializable),
         for (final o in objects)
           _modelFreezed(o.objectName, o.children, hasJsonSerializable),
+        if (hasEnvelope)
+          _listWrapperModelFreezed(
+            p,
+            listEnvelopeKey,
+            envelopeFieldName,
+            envelopeFields,
+            hasJsonSerializable,
+          ),
       ].join('\n\n');
       // The id converter (see FieldCodegen.idFromJsonName) is only needed once
       // per file — only the top-level entity ever carries an id.
@@ -62,11 +80,82 @@ $classes$idHelper
     final classes = [
       _modelPlain(p, fields),
       for (final o in objects) _modelPlain(o.objectName, o.children),
+      if (hasEnvelope)
+        _listWrapperModelPlain(p, listEnvelopeKey, envelopeFieldName, envelopeFields),
     ].join('\n\n');
     return '''$entityImport
 
 $classes
 ''';
+  }
+
+  /// The paginated-wrapper class (`<Feature>ListModel`) — a pure data/transport
+  /// shape, unlike every other model in this file: no domain `Entity`
+  /// counterpart, no `fromEntity`/`toEntity` (the repository unwraps
+  /// `.$envelopeFieldName` to get the already-mappable `List<${'$'}{p}Model>`).
+  /// [envelopeFieldName] is the Dart-normalised sibling of [envelopeKey]
+  /// (`camel(envelopeKey)`) — only annotated with `@JsonKey` when they differ.
+  static String _listWrapperModelFreezed(
+    String p,
+    String envelopeKey,
+    String envelopeFieldName,
+    List<FieldSpec> envelopeFields,
+    bool hasJson,
+  ) {
+    final listAnn = hasJson && envelopeFieldName != envelopeKey
+        ? "    @JsonKey(name: '$envelopeKey')\n"
+        : '';
+    final listParam = '$listAnn    required List<${p}Model> $envelopeFieldName,';
+    final siblingParams = envelopeFields.map((f) {
+      final ann = hasJson && f.jsonKeyAnnotation.isNotEmpty ? '    ${f.jsonKeyAnnotation}\n' : '';
+      return '$ann    ${f.nullable ? '' : 'required '}${f.type} ${f.dartName},';
+    });
+    final params = [listParam, ...siblingParams].join('\n');
+    final fromJson = hasJson
+        ? '\n\n  factory ${p}ListModel.fromJson(Map<String, dynamic> json) =>\n'
+              '      _\$${p}ListModelFromJson(json);'
+        : '';
+    return '''@freezed
+abstract class ${p}ListModel with _\$${p}ListModel {
+  const factory ${p}ListModel({
+$params
+  }) = _${p}ListModel;$fromJson
+}''';
+  }
+
+  /// Plain (no codegen) variant of [_listWrapperModelFreezed].
+  static String _listWrapperModelPlain(
+    String p,
+    String envelopeKey,
+    String envelopeFieldName,
+    List<FieldSpec> envelopeFields,
+  ) {
+    final ctorParams = [
+      '    required this.$envelopeFieldName,',
+      for (final f in envelopeFields)
+        f.nullable ? '    this.${f.dartName},' : '    required this.${f.dartName},',
+    ].join('\n');
+    final decls = [
+      '  final List<${p}Model> $envelopeFieldName;',
+      for (final f in envelopeFields) '  final ${f.type} ${f.dartName};',
+    ].join('\n');
+    final fromJsonArgs = [
+      "    $envelopeFieldName: (json['$envelopeKey'] as List)\n"
+          '        .map((e) => ${p}Model.fromJson(e as Map<String, dynamic>))\n'
+          '        .toList(),',
+      for (final f in envelopeFields) '    ${f.dartName}: ${f.fromJsonExpr()},',
+    ].join('\n');
+    return '''class ${p}ListModel {
+  const ${p}ListModel({
+$ctorParams
+  });
+
+$decls
+
+  factory ${p}ListModel.fromJson(Map<String, dynamic> json) => ${p}ListModel(
+$fromJsonArgs
+  );
+}''';
   }
 
   /// One freezed model class with fromJson (when [hasJson]) + fromEntity/toEntity
@@ -226,6 +315,12 @@ $classes
     // instead of the fixed getAll/getById/add/update/delete.
     bool customizeEndpoints = false,
     CrudEndpointOverrides? endpointOverrides,
+    // See featureApiSource/featureModel's own doc — dio unwraps the envelope
+    // inside its own getAll() body (self-contained), but chopper's getAll()
+    // returns the generated <Feature>ListModel wrapper when this is set, so
+    // this repository accesses its list field to get the plain typed list
+    // every other call site already expects.
+    String listEnvelopeKey = '',
   }) {
     final p = pascal(featureName);
     final isChopper = httpClient == 'chopper';
@@ -250,6 +345,14 @@ $classes
     String remote(String call) => isChopper
         ? 'unwrapChopperResponse(await _remote.$call)'
         : 'await _remote.$call';
+    final hasEnvelope = isChopper && listEnvelopeKey.isNotEmpty;
+    // getAll()'s own remote call: normally the same as remote('$getAllName()')
+    // (already the plain List<Model>), but with a wrapper the response
+    // decodes to <Feature>ListModel instead — its list field access reduces
+    // it right back to the same List<Model> every other call site expects.
+    String getAllRemote() =>
+        hasEnvelope ? '${remote('$getAllName()')}.${camel(listEnvelopeKey)}' : remote('$getAllName()');
+
     final chopperImport = isChopper
         ? "import 'package:${corePackageName ?? packageName}/core/network/chopper_model_converter.dart';\n"
         : '';
@@ -370,7 +473,7 @@ class ${p}RepositoryImpl implements I${p}Repository {
   Future<Result<List<${p}Entity>>> getAll() async {
     if (await _network.isConnected) {
       try {
-        final fresh = ${remote('$getAllName()')};
+        final fresh = ${getAllRemote()};
         await _local.cacheAll(fresh);
         return Result.success(fresh.map((m) => m.toEntity()).toList());
       } catch (e, st) {
@@ -421,7 +524,7 @@ class ${p}RepositoryImpl implements I${p}Repository {
 
   @override
   Future<List<${p}Entity>> getAll() async {
-    final data = ${remote('$getAllName()')};
+    final data = ${getAllRemote()};
     return data.map((m) => m.toEntity()).toList();
   }
 
@@ -496,6 +599,12 @@ class ${p}RepositoryImpl implements I${p}Repository {
     // (dummyjson's recipes: POST /recipes/add to create, not POST /recipes).
     bool customizeEndpoints = false,
     CrudEndpointOverrides? endpointOverrides,
+    // Set when the entity was inferred from a paginated list wrapper (e.g.
+    // dummyjson's `{ "recipes": [...], "total": ... }` — see
+    // JsonEntityInferencer's envelope detection): getAll() unwraps this JSON
+    // key instead of decoding the response as a bare array. Empty (the
+    // default) keeps the original bare-array behaviour unchanged.
+    String listEnvelopeKey = '',
   }) {
     final p = pascal(featureName);
     // An absolute apiPath (e.g. https://fakestoreapi.com/products) overrides
@@ -503,6 +612,8 @@ class ${p}RepositoryImpl implements I${p}Repository {
     // their base URL when the request path is already absolute, so no second
     // HTTP client is needed to target a different host.
     final base = apiPath ?? '/${featureName}s';
+    final hasEnvelope = listEnvelopeKey.isNotEmpty;
+    final envelopeFieldName = camel(listEnvelopeKey);
 
     if (useCustomEndpoints) {
       // No shared resource path across arbitrary endpoints (unlike the CRUD
@@ -542,6 +653,10 @@ $methods
       final createPath = ov.createPath.isNotEmpty ? ov.createPath : base;
       final updatePath = ov.updatePath.isNotEmpty ? ov.updatePath : '$base/{id}';
       final deletePath = ov.deletePath.isNotEmpty ? ov.deletePath : '$base/{id}';
+      // A List<Model>-typed return can't decode a wrapper object — see
+      // DataTemplates.featureModel's own doc on the generated <Feature>
+      // ListModel this decodes into instead when a wrapper was detected.
+      final getAllReturn = hasEnvelope ? 'Response<${p}ListModel>' : 'Response<List<${p}Model>>';
       return '''import 'package:chopper/chopper.dart';
 import '../models/${featureName}_model.dart';
 
@@ -552,7 +667,7 @@ abstract class ${p}ApiSource extends ChopperService {
   static ${p}ApiSource create([ChopperClient? client]) => _\$${p}ApiSource(client);
 
   @${verb(ov.getAllMethod)}(path: '$getAllPath')
-  Future<Response<List<${p}Model>>> ${ov.getAllName}();
+  Future<$getAllReturn> ${ov.getAllName}();
 
   @${verb(ov.getByIdMethod)}(path: '$getByIdPath')
   Future<Response<${p}Model>> ${ov.getByIdName}(@Path() String id);
@@ -570,6 +685,9 @@ abstract class ${p}ApiSource extends ChopperService {
     }
 
     if (httpClient == 'chopper') {
+      // See the customizeEndpoints branch above's getAllReturn doc — same
+      // reasoning, just for the fixed (non-customized) getAll() signature.
+      final getAllReturn = hasEnvelope ? 'Response<${p}ListModel>' : 'Response<List<${p}Model>>';
       return '''import 'package:chopper/chopper.dart';
 import '../models/${featureName}_model.dart';
 
@@ -580,7 +698,7 @@ abstract class ${p}ApiSource extends ChopperService {
   static ${p}ApiSource create([ChopperClient? client]) => _\$${p}ApiSource(client);
 
   @GET()
-  Future<Response<List<${p}Model>>> getAll();
+  Future<$getAllReturn> getAll();
 
   @GET(path: '/{id}')
   Future<Response<${p}Model>> getById(@Path() String id);
@@ -692,7 +810,21 @@ ${realtime ? '''
 ''';
     }
 
-    // Dio plain
+    // Dio plain — self-contained decode (no JsonConverter registry to route
+    // through, unlike chopper), so the envelope unwrap lives right here
+    // instead of leaking into the repository.
+    final dioGetAll = hasEnvelope
+        ? '''  Future<List<${p}Model>> getAll() async {
+    final response = await _dio.get<Map<String, dynamic>>('$base');
+    return ${p}ListModel.fromJson(response.data!).$envelopeFieldName;
+  }'''
+        : '''  Future<List<${p}Model>> getAll() async {
+    final response = await _dio.get<List<dynamic>>('$base');
+    return (response.data ?? [])
+        .cast<Map<String, dynamic>>()
+        .map(${p}Model.fromJson)
+        .toList();
+  }''';
     return '''import 'package:dio/dio.dart';
 import '../models/${featureName}_model.dart';
 
@@ -701,13 +833,7 @@ class ${p}ApiSource {
 
   final Dio _dio;
 
-  Future<List<${p}Model>> getAll() async {
-    final response = await _dio.get<List<dynamic>>('$base');
-    return (response.data ?? [])
-        .cast<Map<String, dynamic>>()
-        .map(${p}Model.fromJson)
-        .toList();
-  }
+$dioGetAll
 
   Future<${p}Model> getById(String id) async {
     final response = await _dio.get<Map<String, dynamic>>('$base/\$id');
@@ -847,6 +973,10 @@ class ${p}LocalSource {
     String? corePackageName,
     // See featureModel's doc.
     String domainCross = '../../domain',
+    // See featureModel's own doc — when set, the generated <Feature>ListModel
+    // wrapper needs its own decoder registered too (getAll() decodes into it,
+    // not the entity Model directly).
+    String listEnvelopeKey = '',
   }) {
     final p = pascal(featureName);
     final c = camel(featureName);
@@ -957,12 +1087,15 @@ SyncService ${c}Sync(Ref ref) {
 
     // Called once from the app's bootstrap (see AppTemplates.bootstrap's
     // chopper-register anchors) before anything can hit the shared
-    // ChopperClient — populates core's registry with this feature's decoder.
+    // ChopperClient — populates core's registry with this feature's decoder(s).
+    final listDecoderLine = listEnvelopeKey.isNotEmpty
+        ? '\n  chopperModelDecoders[${p}ListModel] = ${p}ListModel.fromJson;'
+        : '';
     final chopperRegisterFn = registersChopperDecoder
         ? '''
 
 void register${p}ChopperDecoders() {
-  chopperModelDecoders[${p}Model] = ${p}Model.fromJson;
+  chopperModelDecoders[${p}Model] = ${p}Model.fromJson;$listDecoderLine
 }'''
         : '';
 

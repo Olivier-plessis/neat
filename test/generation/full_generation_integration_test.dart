@@ -1459,6 +1459,186 @@ void main() {
   );
 
   test(
+    'FeatureGenOptions.setAsHomePage (real bug from a real generated project '
+    '— the "welcome" placeholder\'s own doc comment promised removal but '
+    'nothing ever delivered it): the Workshop\'s first feature repoints '
+    'every AppRoutePath.welcome reference and deletes the placeholder\'s '
+    'own files',
+    () async {
+      const projectName = 'neat_gen_home_page_test';
+      final logs = <String>[];
+
+      final identity = IdentityState(
+        name: projectName,
+        organization: 'com.neat.test',
+        projectPath: tempRoot.path,
+        description: 'NEAT setAsHomePage integration test',
+        targetPlatforms: const ['macos'],
+      );
+      const architecture = ArchitectureState(generateFirstFeature: false);
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: identity,
+          packages: packages,
+          architecture: architecture,
+          cicd: const CicdState(),
+          theme: const ThemeEngineState(approach: ThemeApproach.customM3),
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('Base generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+      String read(String p) => File(p).readAsStringSync();
+
+      // Sanity: the welcome placeholder really is there pre-add, same as
+      // the other no-first-feature tests.
+      expect(
+        File('${projectDir.path}/lib/core/router/welcome_route.dart').existsSync(),
+        isTrue,
+      );
+      expect(
+        read('${projectDir.path}/lib/core/router/app_router.dart'),
+        contains('AppRoutePath.welcome'),
+      );
+      expect(
+        read('${projectDir.path}/lib/core/constants/app_route_path.dart'),
+        contains("static const String welcome = '/';"),
+      );
+
+      final loaded = await const ProjectLoader().load(projectDir.path);
+      expect(loaded!.features, isEmpty);
+
+      // ── The Workshop adds the real first feature, as the home page ──────
+      // setAsHomePage defaults to true, so this alone already exercises it.
+      try {
+        await const GenerateFeatureUsecase().execute(
+          project: loaded,
+          options: const FeatureGenOptions(name: 'recipes'),
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('Feature generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+      }
+
+      // The placeholder's own files are gone.
+      expect(
+        File('${projectDir.path}/lib/core/router/welcome_route.dart').existsSync(),
+        isFalse,
+      );
+      expect(
+        File('${projectDir.path}/lib/core/router/welcome_route.g.dart').existsSync(),
+        isFalse,
+      );
+      expect(
+        File('${projectDir.path}/lib/core/pages/welcome_page.dart').existsSync(),
+        isFalse,
+      );
+
+      // routes.dart: no trace of the placeholder, the new feature wired in.
+      final routes = read('${projectDir.path}/lib/core/router/routes.dart');
+      expect(routes, isNot(contains('welcome')));
+      expect(routes, isNot(contains('Welcome')));
+      expect(routes, contains('recipes.\$appRoutes'));
+
+      // app_router.dart: initialLocation (and any redirect target) now
+      // points at the new feature, not the placeholder.
+      final router = read('${projectDir.path}/lib/core/router/app_router.dart');
+      expect(router, isNot(contains('AppRoutePath.welcome')));
+      expect(router, contains('AppRoutePath.recipes'));
+
+      // AppRoutePath: the dead constant is gone, the real one is there.
+      final routePath = read('${projectDir.path}/lib/core/constants/app_route_path.dart');
+      expect(routePath, isNot(contains('welcome')));
+      expect(routePath, contains("static const String recipes = '/recipes';"));
+
+      final reloaded = await const ProjectLoader().load(projectDir.path);
+      expect(reloaded!.features, ['recipes']);
+
+      final analyze = await Process.run('flutter', [
+        'analyze',
+        '--no-pub',
+      ], workingDirectory: projectDir.path);
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where(
+            (l) =>
+                (l.contains(' error •') || l.contains(' warning •')) &&
+                !l.contains('• build/'),
+          )
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason:
+            'flutter analyze reported errors:\n${errorLines.join('\n')}\n\n'
+            '--- full analyze output ---\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
+
+  test(
+    'FeatureGenOptions.setAsHomePage: false (opt-out) — the welcome '
+    'placeholder stays untouched, coexisting with the new feature exactly '
+    'like before this option existed',
+    () async {
+      const projectName = 'neat_gen_home_page_optout_test';
+      final logs = <String>[];
+
+      final identity = IdentityState(
+        name: projectName,
+        organization: 'com.neat.test',
+        projectPath: tempRoot.path,
+        description: 'NEAT setAsHomePage opt-out integration test',
+        targetPlatforms: const ['macos'],
+      );
+      const architecture = ArchitectureState(generateFirstFeature: false);
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: identity,
+          packages: packages,
+          architecture: architecture,
+          cicd: const CicdState(),
+          theme: const ThemeEngineState(approach: ThemeApproach.customM3),
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('Base generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+      final loaded = await const ProjectLoader().load(projectDir.path);
+
+      try {
+        await const GenerateFeatureUsecase().execute(
+          project: loaded!,
+          options: const FeatureGenOptions(name: 'recipes', setAsHomePage: false),
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('Feature generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+      }
+
+      expect(
+        File('${projectDir.path}/lib/core/router/welcome_route.dart').existsSync(),
+        isTrue,
+        reason: 'opted out — the placeholder must be left alone',
+      );
+      final routes = File(
+        '${projectDir.path}/lib/core/router/routes.dart',
+      ).readAsStringSync();
+      expect(routes, contains('welcome.\$appRoutes'));
+      expect(routes, contains('recipes.\$appRoutes'));
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
+
+  test(
     'packageSplit=true (Phase 1): shared <app>_core workspace package plus a '
     'split first feature package are generated, wired, and analyze cleanly',
     () async {
@@ -3649,6 +3829,136 @@ void main() {
     );
   }, timeout: const Timeout(Duration(minutes: 12)));
 
+  test(
+    'packageSplit=true + chopper + generateFirstFeature=false (real bug, found '
+    'via a real generated project: dummyjson.com/users threw a chopper '
+    'FormatException on every call, not just getAll() — the decoder registration '
+    'function was generated but never called): the Workshop\'s very first '
+    'feature must self-heal bootstrap.dart\'s chopper-register anchors, since '
+    '`AppTemplates.bootstrap` only seeds them when the wizard\'s own first '
+    'feature already uses chopper',
+    () async {
+      const projectName = 'neat_pkgsplit_chopper_nofirst_test';
+      final logs = <String>[];
+      final pkgs = <PubPackage>[
+        _dep('hooks_riverpod', '3.3.1'),
+        _dep('flutter_hooks', '0.21.3+1'),
+        _dep('riverpod_annotation', '4.0.2'),
+        _dep('json_annotation', '4.11.0'),
+        _dep('freezed_annotation', '3.1.0'),
+        _dep('chopper', '8.6.0'),
+        _dep('go_router', '17.2.3'),
+        _dev('riverpod_generator', '4.0.3'),
+        _dev('riverpod_lint', '3.1.3'),
+        _dev('json_serializable', '6.13.0'),
+        _dev('build_runner', '2.15.0'),
+        _dev('freezed', '3.2.5'),
+        _dev('chopper_generator', '8.6.2'),
+      ];
+
+      final identity = IdentityState(
+        name: projectName,
+        organization: 'com.neat.test',
+        projectPath: tempRoot.path,
+        description: 'NEAT packageSplit + chopper, no first feature, integration test',
+        targetPlatforms: const ['macos'],
+      );
+      // The exact combo that exposed this: no first feature at launch — chopper
+      // is still the project's chosen httpClient, but nothing seeds bootstrap
+      // .dart's chopper-register anchors until a real feature exists.
+      const architecture = ArchitectureState(
+        packageSplit: true,
+        generateFirstFeature: false,
+      );
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: identity,
+          packages: pkgs,
+          architecture: architecture,
+          cicd: const CicdState(),
+          theme: const ThemeEngineState(approach: ThemeApproach.customM3),
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('Base generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+      final project = await const ProjectLoader().load(projectDir.path);
+      expect(project, isNotNull);
+      expect(project!.contract.httpClient, 'chopper');
+
+      // bootstrap.dart has no chopper-register anchors yet — nothing has ever
+      // used them (no first feature at launch).
+      final bootstrapPath = '${projectDir.path}/lib/core/bootstrap.dart';
+      expect(
+        File(bootstrapPath).readAsStringSync(),
+        isNot(contains('// neat:chopper-register-imports')),
+      );
+
+      try {
+        await const GenerateFeatureUsecase().execute(
+          project: project,
+          options: const FeatureGenOptions(name: 'users'),
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail(
+          'Feature generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}',
+        );
+      }
+
+      // The feature generated its own registration function...
+      final repoProviders = File(
+        '${projectDir.path}/packages/users/lib/data/repositories/users_repository_providers.dart',
+      ).readAsStringSync();
+      expect(repoProviders, contains('void registerUsersChopperDecoders() {'));
+      expect(
+        repoProviders,
+        contains('chopperModelDecoders[UsersModel] = UsersModel.fromJson;'),
+      );
+
+      // ...and bootstrap.dart both gained the anchors (self-healed) and
+      // actually calls it — the exact real-world gap: without the self-heal,
+      // the anchors — and therefore this import/call — would be entirely
+      // absent, leaving the registration function dead code and
+      // chopperModelDecoders permanently empty.
+      final bootstrap = File(bootstrapPath).readAsStringSync();
+      expect(bootstrap, contains('// neat:chopper-register-imports'));
+      expect(bootstrap, contains('// neat:chopper-register-calls'));
+      expect(
+        bootstrap,
+        contains(
+          "import 'package:users/data/repositories/users_repository_providers.dart';",
+        ),
+      );
+      expect(bootstrap, contains('registerUsersChopperDecoders();'));
+
+      final analyze = await Process.run('flutter', [
+        'analyze',
+        '--no-pub',
+      ], workingDirectory: projectDir.path);
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where(
+            (l) =>
+                (l.contains(' error •') || l.contains(' warning •')) &&
+                !l.contains('• build/'),
+          )
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason:
+            'packageSplit + chopper, no first feature, workspace analyze '
+            'reported issues:\n${errorLines.join('\n')}\n\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
+
   test('packageSplit=true + i18n: the whole slang setup is single-sourced in '
       'core, never duplicated in the app', () async {
     const projectName = 'neat_pkgsplit_i18n_test';
@@ -5522,6 +5832,211 @@ abstract final class Palette {
         isEmpty,
         reason:
             'Customize endpoints workspace analyze reported issues:\n'
+            '${errorLines.join('\n')}\n\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
+
+  test(
+    'FeatureGenOptions.listEnvelopeKey (real bug from a real generated project: '
+    'dummyjson-style paginated envelopes broke getAll() at runtime with '
+    '"FormatException: JsonConverter expected response body to be Iterable<Model>, '
+    'but got Map"): getAll() decodes into a typed <Feature>ListModel wrapper '
+    'instead of a bare array',
+    () async {
+      const projectName = 'neat_envelope_test';
+      final logs = <String>[];
+
+      final pkgs = <PubPackage>[
+        _dep('hooks_riverpod', '3.3.1'),
+        _dep('flutter_hooks', '0.21.3+1'),
+        _dep('riverpod_annotation', '4.0.2'),
+        _dep('json_annotation', '4.11.0'),
+        _dep('freezed_annotation', '3.1.0'),
+        _dep('chopper', '8.6.0'),
+        _dep('go_router', '17.2.3'),
+        _dev('riverpod_generator', '4.0.3'),
+        _dev('riverpod_lint', '3.1.3'),
+        _dev('json_serializable', '6.13.0'),
+        _dev('build_runner', '2.15.0'),
+        _dev('freezed', '3.2.5'),
+        _dev('chopper_generator', '8.6.2'),
+      ];
+
+      final identity = IdentityState(
+        name: projectName,
+        organization: 'com.neat.test',
+        projectPath: tempRoot.path,
+        description: 'NEAT paginated-envelope integration test',
+        targetPlatforms: const ['macos'],
+      );
+      // No first feature — added via the Workshop, same as a real user would.
+      const architecture = ArchitectureState(generateFirstFeature: false);
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: identity,
+          packages: pkgs,
+          architecture: architecture,
+          cicd: const CicdState(),
+          theme: const ThemeEngineState(approach: ThemeApproach.customM3),
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail('Base generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+      final project = await const ProjectLoader().load(projectDir.path);
+      expect(project, isNotNull);
+      expect(project!.contract.httpClient, 'chopper');
+
+      // dummyjson.com/recipes' real shape — the exact JSON that exposed this
+      // bug — run through JsonEntityInferencer exactly like the Workshop's
+      // Entity Fields step does, so the envelope key comes from real
+      // inference, not a hand-picked constant.
+      const sampleJson = '''
+{
+  "recipes": [
+    {"id": 1, "name": "Kimchi", "cuisine": "Korean"}
+  ],
+  "total": 50,
+  "skip": 0,
+  "limit": 30
+}
+''';
+      final inferred = const JsonEntityInferencer().infer(sampleJson);
+      expect(inferred.envelopeKey, 'recipes');
+
+      final options = FeatureGenOptions(
+        name: 'recipe',
+        apiPath: '/recipes',
+        json: sampleJson,
+        fields: inferred.fields,
+        fieldWarnings: inferred.warnings,
+        listEnvelopeKey: inferred.envelopeKey ?? '',
+        envelopeFields: inferred.envelopeFields,
+      );
+
+      try {
+        await const GenerateFeatureUsecase().execute(
+          project: project,
+          options: options,
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail(
+          'Feature generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}',
+        );
+      }
+
+      // The ApiSource: a List<Model>-typed return can't decode a wrapper
+      // object — getAll() decodes into the generated RecipeListModel wrapper
+      // instead (see DataTemplates.featureModel's own doc), fully typed.
+      final apiSource = File(
+        '${projectDir.path}/lib/features/recipe/data/sources/recipe_api_source.dart',
+      ).readAsStringSync();
+      expect(apiSource, contains('Future<Response<RecipeListModel>> getAll();'));
+      expect(
+        apiSource,
+        isNot(contains('Future<Response<List<RecipeModel>>> getAll();')),
+      );
+
+      // The model file: the wrapper class carries the list field + its
+      // sibling pagination metadata, typed — not discarded.
+      final modelFile = File(
+        '${projectDir.path}/lib/features/recipe/data/models/recipe_model.dart',
+      ).readAsStringSync();
+      expect(modelFile, contains('abstract class RecipeListModel'));
+      expect(modelFile, contains('required List<RecipeModel> recipes,'));
+      expect(modelFile, contains('required int total,'));
+      expect(modelFile, contains('required int skip,'));
+      expect(modelFile, contains('required int limit,'));
+
+      // The repository: accesses the wrapper's list field directly — no
+      // manual Map casting.
+      final repositoryImpl = File(
+        '${projectDir.path}/lib/features/recipe/data/repositories/recipe_repository_impl.dart',
+      ).readAsStringSync();
+      expect(repositoryImpl, contains('unwrapChopperResponse(await _remote.getAll()).recipes'));
+      expect(repositoryImpl, isNot(contains('as Map<String, dynamic>')));
+
+      // The decoder registry: both the entity Model and the wrapper
+      // ListModel are registered — getAll() decodes into the latter.
+      final converter = File(
+        '${projectDir.path}/lib/core/network/chopper_model_converter.dart',
+      ).readAsStringSync();
+      expect(converter, contains('RecipeModel: (json) => RecipeModel.fromJson(json),'));
+      expect(converter, contains('RecipeListModel: (json) => RecipeListModel.fromJson(json),'));
+
+      // Executable regression probe: proves the actual runtime bug (a
+      // `FormatException` chopper throws mid-decode, which `flutter analyze`
+      // can't catch — the generated code compiles fine either way) is gone.
+      // Drives the real pipeline end to end: a real HTTP response carrying
+      // the envelope body, through ModelJsonConverter.convertResponse with
+      // the actual registered RecipeListModel decoder — exactly what
+      // getAll()'s new typed declaration triggers at runtime.
+      await File(
+        '${projectDir.path}/test/_envelope_probe_test.dart',
+      ).writeAsString('''
+import 'package:chopper/chopper.dart' as chopper;
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:$projectName/core/network/chopper_model_converter.dart';
+import 'package:$projectName/features/recipe/data/models/recipe_model.dart';
+
+void main() {
+  test('ModelJsonConverter decodes an envelope body into a typed '
+      'RecipeListModel (no Iterable<Model> vs Map mismatch)', () async {
+    final httpResponse = http.Response(
+      '{"recipes": [{"id": 1, "name": "Kimchi", "cuisine": "Korean"}], '
+      '"total": 50, "skip": 0, "limit": 30}',
+      200,
+      headers: {'content-type': 'application/json'},
+    );
+    final response = chopper.Response<dynamic>(httpResponse, null);
+
+    final converted = await const ModelJsonConverter()
+        .convertResponse<RecipeListModel, RecipeListModel>(response);
+
+    expect(converted.body, isA<RecipeListModel>());
+    final wrapper = converted.body!;
+    expect(wrapper.total, 50);
+    expect(wrapper.recipes, hasLength(1));
+    expect(wrapper.recipes.first.id, '1');
+    expect(wrapper.recipes.first.name, 'Kimchi');
+  });
+}
+''');
+      final probe = await Process.run('flutter', [
+        'test',
+        'test/_envelope_probe_test.dart',
+      ], workingDirectory: projectDir.path);
+      expect(
+        probe.exitCode,
+        0,
+        reason: 'envelope regression probe failed:\n${probe.stdout}\n${probe.stderr}',
+      );
+
+      final analyze = await Process.run('flutter', [
+        'analyze',
+        '--no-pub',
+      ], workingDirectory: projectDir.path);
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where(
+            (l) =>
+                (l.contains(' error •') || l.contains(' warning •')) &&
+                !l.contains('• build/'),
+          )
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason:
+            'Paginated-envelope workspace analyze reported issues:\n'
             '${errorLines.join('\n')}\n\n$out',
       );
     },

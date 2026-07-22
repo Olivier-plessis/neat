@@ -140,4 +140,91 @@ final List<RouteBase> appRoutes = [
       expect('MigrationStrategy get migration'.allMatches(twice).length, 1);
     });
   });
+
+  group('bootstrap.dart chopper-register anchors', () {
+    // Real bug, found via a real generated project: `AppTemplates.bootstrap`
+    // only seeds `// neat:chopper-register-imports`/`-calls` when the
+    // wizard's own first feature already uses chopper — a project launched
+    // with zero features (generateFirstFeature: false, a fully valid, common
+    // combo, not a legacy one) never had them. The Workshop's first chopper
+    // feature then silently no-op'd its own registration insert, leaving
+    // `register<Feature>ChopperDecoders()` generated but never called.
+    // Exact shape taken from a real such project (shell-register anchors
+    // present — that one self-heals already — chopper-register absent).
+    const noAnchors = '''import 'dart:async';
+
+import 'package:flutter/widgets.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:arth/app.dart';
+import 'package:core/core/utils/app_logger.dart';
+import 'package:arth/core/observers/provider_observer.dart';
+
+Future<void> bootstrap() async {
+  await runZonedGuarded(
+    () async {
+      WidgetsFlutterBinding.ensureInitialized();
+      registerErrorHandler();
+      final container = ProviderContainer(observers: [RiverpodObserver()]);
+      runApp(
+        UncontrolledProviderScope(container: container, child: const App()),
+      );
+    },
+    (error, stack) =>
+        AppLogger.f('Uncaught exception', error: error, stackTrace: stack),
+  );
+}
+''';
+
+    test('adds both anchors, imports anchor after the last import, calls '
+        'anchor right before registerErrorHandler()', () {
+      final healed = GenerateFeatureUsecase.healBootstrapChopperAnchors(noAnchors);
+      expect(healed, contains('// neat:chopper-register-imports'));
+      expect(healed, contains('// neat:chopper-register-calls'));
+
+      final lastImportIdx = healed.lastIndexOf(
+        "import 'package:arth/core/observers/provider_observer.dart';",
+      );
+      final importAnchorIdx = healed.indexOf('// neat:chopper-register-imports');
+      expect(lastImportIdx, lessThan(importAnchorIdx));
+
+      final callsAnchorIdx = healed.indexOf('// neat:chopper-register-calls');
+      final registerErrorIdx = healed.indexOf('registerErrorHandler();');
+      expect(callsAnchorIdx, lessThan(registerErrorIdx));
+    });
+
+    test('is idempotent (already-anchored stays unchanged)', () {
+      final once = GenerateFeatureUsecase.healBootstrapChopperAnchors(noAnchors);
+      final twice = GenerateFeatureUsecase.healBootstrapChopperAnchors(once);
+      expect(twice, once);
+      expect('// neat:chopper-register-imports'.allMatches(twice).length, 1);
+      expect('// neat:chopper-register-calls'.allMatches(twice).length, 1);
+    });
+
+    test('a bootstrap.dart that already has the anchors (the wizard\'s own '
+        'first chopper feature) is left untouched', () {
+      const alreadyAnchored = '''import 'dart:async';
+
+import 'package:flutter/widgets.dart';
+import 'package:home/data/repositories/home_repository_providers.dart';
+// neat:chopper-register-imports
+
+Future<void> bootstrap() async {
+  await runZonedGuarded(
+    () async {
+      WidgetsFlutterBinding.ensureInitialized();
+      registerHomeChopperDecoders();
+      // neat:chopper-register-calls
+      registerErrorHandler();
+      runApp(const App());
+    },
+    (error, stack) => AppLogger.f('Uncaught exception', error: error, stackTrace: stack),
+  );
+}
+''';
+      expect(
+        GenerateFeatureUsecase.healBootstrapChopperAnchors(alreadyAnchored),
+        alreadyAnchored,
+      );
+    });
+  });
 }

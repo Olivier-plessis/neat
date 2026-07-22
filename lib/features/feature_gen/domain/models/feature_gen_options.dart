@@ -25,6 +25,14 @@ abstract class FeatureGenOptions with _$FeatureGenOptions {
     @Default(false) bool mergeIntoParent,
     @Default('home') String shellIcon, // Material icon name, only when shell
     @Default('') String shellLabel, // NavigationBar label, only when shell
+
+    /// Opt-in, only meaningful when this is the project's first real feature
+    /// (Workshop only shows it then): replaces the launch-time "welcome"
+    /// placeholder as the app's home route instead of leaving it in place
+    /// alongside this feature — every `AppRoutePath.welcome` reference is
+    /// repointed at this feature, and the placeholder's own route/page files
+    /// are deleted. See GenerateFeatureUsecase's own routing-wiring step.
+    @Default(true) bool setAsHomePage,
     @Default(true) bool includeRemoteDataSource,
     @Default(true) bool includeLocalDataSource,
     @Default(true) bool includeUseCase,
@@ -39,6 +47,19 @@ abstract class FeatureGenOptions with _$FeatureGenOptions {
 
     /// Notes from the last inference (shown under the editor).
     @Default(<String>[]) List<String> fieldWarnings,
+
+    /// Set when the last inferred JSON was a paginated list wrapper (e.g.
+    /// dummyjson's `{ "recipes": [...], "total": ... }`) — the JSON key the
+    /// entity's own list lives under. Empty means no wrapper: `getAll()`
+    /// decodes the response as a bare array, same as before this existed.
+    /// See JsonEntityInferencer's own envelope-detection doc.
+    @Default('') String listEnvelopeKey,
+
+    /// The wrapper's own sibling scalar fields when [listEnvelopeKey] is set
+    /// (e.g. `total`/`skip`/`limit`) — generates a typed `<Feature>ListModel`
+    /// alongside the entity model, instead of discarding this pagination
+    /// metadata. Always empty when [listEnvelopeKey] is empty.
+    @Default(<FieldSpec>[]) List<FieldSpec> envelopeFields,
 
     /// Overrides the REST resource path (default: `/<name>s`). Either a
     /// relative path or an absolute URL — an absolute URL overrides the
