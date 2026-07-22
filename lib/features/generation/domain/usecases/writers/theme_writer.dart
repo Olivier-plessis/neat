@@ -130,6 +130,7 @@ abstract final class ThemeWriter {
       final widgetbookApp = ThemeTemplates.widgetbookApp(
         packageName: themePkg,
         components: theme.components,
+        useScreenUtil: useScreenUtil,
       );
       if (uiPackage != null) {
         // A proper workspace member that depends on <app>_ui.
@@ -139,7 +140,11 @@ abstract final class ThemeWriter {
         );
         await writeFile(
           '${projectDir.path}/widgetbook/pubspec.yaml',
-          UiPackageWriter.widgetbookPubspec(packageName, uiPackage),
+          UiPackageWriter.widgetbookPubspec(
+            packageName,
+            uiPackage,
+            useScreenUtil: useScreenUtil,
+          ),
         );
       } else {
         await writeFile(

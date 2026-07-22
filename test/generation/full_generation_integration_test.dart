@@ -179,6 +179,40 @@ void main() {
         contains('skeletonizer:'),
       );
 
+      // Widgetbook — extractUiPackage defaults to true, so this is member
+      // mode (its own workspace package, not the loose lib/-relative file):
+      // it gets its own separate `flutter create` (web) below, independent
+      // of the app's own targetPlatforms (macos only here) — widgetbook is
+      // meant to be browsed on a big screen, not a phone. `isWeb`-gated app
+      // behavior must stay OFF regardless — this is a widgetbook-only
+      // addition, not a genuine change to the app's own chosen platforms.
+      expect(
+        File('${projectDir.path}/widgetbook/lib/main.dart').existsSync(),
+        isTrue,
+      );
+      expect(
+        Directory('${projectDir.path}/widgetbook/web').existsSync(),
+        isTrue,
+        reason: 'widgetbook needs a big-screen target to run on',
+      );
+      expect(
+        Directory('${projectDir.path}/web').existsSync(),
+        isFalse,
+        reason: 'the app itself only targeted macos — web is widgetbook-only',
+      );
+      expect(
+        Directory('${projectDir.path}/macos').existsSync(),
+        isTrue,
+        reason: 'the app itself still targets macos, as chosen',
+      );
+      expect(
+        File('${projectDir.path}/lib/core/bootstrap.dart').readAsStringSync(),
+        isNot(contains('usePathUrlStrategy')),
+        reason:
+            'isWeb must reflect the app\'s own targetPlatforms (macos only) — '
+            'widgetbook\'s own web/ folder must not flip it on',
+      );
+
       // Observability + networking bricks (chopper variant).
       for (final relPath in const [
         'lib/core/utils/app_logger.dart',
@@ -4976,6 +5010,73 @@ void main() {
       ).readAsStringSync();
       expect(wbPubspec, contains('path: ../packages/$uiPkg'));
 
+      // Widgetbook is meant to be browsed on a big screen, not a phone — it
+      // gets its own `flutter create` (web), independent of the app's own
+      // targetPlatforms (macos only here, no web) — real gap: without it,
+      // the extracted widgetbook member had zero platform runner folders of
+      // its own at all, since `flutter create` never touched that directory
+      // (ThemeWriter only wrote its pubspec.yaml/lib/main.dart).
+      expect(
+        Directory('${projectDir.path}/widgetbook/web').existsSync(),
+        isTrue,
+        reason: 'widgetbook should have its own web/ runner folder',
+      );
+      // Confirms `flutter create` didn't clobber the hand-written pubspec/
+      // main.dart it found already there (verified — not assumed).
+      expect(wbPubspec, contains('path: ../packages/$uiPkg'));
+      expect(
+        File('${projectDir.path}/widgetbook/lib/main.dart').readAsStringSync(),
+        contains('WidgetbookApp'),
+      );
+      // The app itself never asked for web — untouched.
+      expect(
+        Directory('${projectDir.path}/web').existsSync(),
+        isFalse,
+        reason: 'the app itself only targeted macos — web is widgetbook-only',
+      );
+
+      // The extracted widgetbook member pulls in flutter_screenutil itself
+      // (see the probe just below for why).
+      expect(wbPubspec, contains('flutter_screenutil'));
+
+      // Executable regression probe: real bug, found via a real generated
+      // project — WidgetbookApp threw `LateInitializationError: Field
+      // '_minTextAdapt' has not been initialized` the instant it rendered
+      // any design-system component using ScreenUtil's `.sp`/`.w` sizing,
+      // since (unlike the app's own AppTemplates.appDart) nothing ever ran
+      // ScreenUtilInit here. `flutter analyze` can't catch this — the
+      // generated code compiles fine either way, it only fails against a
+      // real widget tree. Drives the actual pipeline: pumps the generated
+      // WidgetbookApp for real.
+      final probeFile = File(
+        '${projectDir.path}/widgetbook/test/widgetbook_smoke_test.dart',
+      );
+      await probeFile.create(recursive: true);
+      await probeFile.writeAsString('''
+import 'package:flutter_test/flutter_test.dart';
+import 'package:${projectName}_widgetbook/main.dart';
+
+void main() {
+  testWidgets(
+    'WidgetbookApp builds without a ScreenUtil LateInitializationError',
+    (tester) async {
+      await tester.pumpWidget(const WidgetbookApp());
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+    },
+  );
+}
+''');
+      final probe = await Process.run('flutter', [
+        'test',
+        'test/widgetbook_smoke_test.dart',
+      ], workingDirectory: '${projectDir.path}/widgetbook');
+      expect(
+        probe.exitCode,
+        0,
+        reason: 'widgetbook ScreenUtilInit regression probe failed:\n${probe.stdout}\n${probe.stderr}',
+      );
+
       // Whole workspace analyzes without errors or warnings.
       final analyze = await Process.run('flutter', [
         'analyze',
@@ -5000,6 +5101,99 @@ void main() {
         isEmpty,
         reason:
             'UI-package workspace analyze reported issues:\n${errorLines.join('\n')}\n\n$out',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
+
+  test(
+    'Widgetbook, loose mode (extractUiPackage: false): its catalog shares '
+    'the app\'s own flutter create — mobile-only targetPlatforms still gets '
+    'a web/ folder added so the catalog is browsable on a big screen, not '
+    'just a phone',
+    () async {
+      const projectName = 'neat_widgetbook_loose_test';
+      final logs = <String>[];
+
+      final identity = IdentityState(
+        name: projectName,
+        organization: 'com.neat.test',
+        projectPath: tempRoot.path,
+        description: 'NEAT widgetbook loose-mode integration test',
+        // Mobile-only (the default) — no web, no macos: proves widgetbook's
+        // own web/ folder isn't just piggybacking on a platform the user
+        // already chose for an unrelated reason.
+      );
+
+      const theme = ThemeEngineState(
+        approach: ThemeApproach.customM3,
+        components: {AppComponent.button},
+        generateWidgetbook: true,
+        extractUiPackage: false,
+      );
+
+      try {
+        await const LaunchGenerationUsecase().execute(
+          identity: identity,
+          packages: packages,
+          architecture: const ArchitectureState(),
+          cicd: const CicdState(),
+          theme: theme,
+          onLog: logs.add,
+        );
+      } catch (e) {
+        fail(
+          'Widgetbook loose-mode generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}',
+        );
+      }
+
+      final projectDir = Directory('${tempRoot.path}/$projectName');
+
+      // Loose mode: the catalog is a plain file next to the app, not its own
+      // workspace package.
+      expect(File('${projectDir.path}/widgetbook/main.dart').existsSync(), isTrue);
+      expect(
+        File('${projectDir.path}/widgetbook/pubspec.yaml').existsSync(),
+        isFalse,
+        reason: 'no extracted <ui> package — nothing for it to depend on',
+      );
+
+      // It shares the app's own flutter create — mobile-only chosen, but a
+      // web/ folder should still exist so the catalog runs somewhere sane.
+      expect(
+        Directory('${projectDir.path}/web').existsSync(),
+        isTrue,
+        reason: 'widgetbook needs a big-screen target to run on',
+      );
+      expect(Directory('${projectDir.path}/android').existsSync(), isTrue);
+      expect(Directory('${projectDir.path}/ios').existsSync(), isTrue);
+      // isWeb must reflect the app's own chosen platforms (mobile-only) —
+      // widgetbook's own web/ folder must not flip web-specific app
+      // behavior on behind the user's back.
+      expect(
+        File('${projectDir.path}/lib/core/bootstrap.dart').readAsStringSync(),
+        isNot(contains('usePathUrlStrategy')),
+      );
+
+      final analyze = await Process.run('flutter', [
+        'analyze',
+        '--no-pub',
+      ], workingDirectory: projectDir.path);
+      final out = '${analyze.stdout}\n${analyze.stderr}';
+      final errorLines = const LineSplitter()
+          .convert(out)
+          .where(
+            (l) =>
+                (l.contains(' error •') || l.contains(' warning •')) &&
+                !l.contains('• build/'),
+          )
+          .toList();
+      expect(
+        errorLines,
+        isEmpty,
+        reason:
+            'Widgetbook loose-mode workspace analyze reported issues:\n'
+            '${errorLines.join('\n')}\n\n$out',
       );
     },
     timeout: const Timeout(Duration(minutes: 12)),
