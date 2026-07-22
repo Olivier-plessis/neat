@@ -18,6 +18,7 @@ class NeatColors extends ThemeExtension<NeatColors> {
     required this.errorColor,
     required this.colorYellow,
     required this.colorGreen,
+    required this.colorLightGreen,
   });
 
   final Color mainFont;
@@ -34,6 +35,7 @@ class NeatColors extends ThemeExtension<NeatColors> {
   final Color errorColor;
   final Color colorYellow;
   final Color colorGreen;
+  final Color colorLightGreen;
 
   @override
   ThemeExtension<NeatColors> copyWith({
@@ -51,6 +53,7 @@ class NeatColors extends ThemeExtension<NeatColors> {
     Color? errorColor,
     Color? colorYellow,
     Color? colorGreen,
+    Color? colorLightGreen,
   }) {
     return NeatColors(
       mainFont: mainFont ?? this.mainFont,
@@ -67,6 +70,7 @@ class NeatColors extends ThemeExtension<NeatColors> {
       errorColor: errorColor ?? this.errorColor,
       colorYellow: colorYellow ?? this.colorYellow,
       colorGreen: colorGreen ?? this.colorGreen,
+      colorLightGreen: colorLightGreen ?? this.colorLightGreen,
     );
   }
 
@@ -88,6 +92,7 @@ class NeatColors extends ThemeExtension<NeatColors> {
       errorColor: Color.lerp(errorColor, other.errorColor, t)!,
       colorYellow: Color.lerp(colorYellow, other.colorYellow, t)!,
       colorGreen: Color.lerp(colorGreen, other.colorGreen, t)!,
+      colorLightGreen: Color.lerp(colorLightGreen, other.colorLightGreen, t)!,
     );
   }
 }

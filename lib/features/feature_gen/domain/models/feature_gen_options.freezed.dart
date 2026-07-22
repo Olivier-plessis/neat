@@ -23,11 +23,26 @@ mixin _$FeatureGenOptions {
 /// `page/<sub-feature>/` pattern.
  bool get mergeIntoParent; String get shellIcon;// Material icon name, only when shell
  String get shellLabel;// NavigationBar label, only when shell
- bool get includeRemoteDataSource; bool get includeLocalDataSource; bool get includeUseCase; bool get includeMapper;/// Entity fields (inferred from a pasted Response JSON, or the id/name
+/// Opt-in, only meaningful when this is the project's first real feature
+/// (Workshop only shows it then): replaces the launch-time "welcome"
+/// placeholder as the app's home route instead of leaving it in place
+/// alongside this feature — every `AppRoutePath.welcome` reference is
+/// repointed at this feature, and the placeholder's own route/page files
+/// are deleted. See GenerateFeatureUsecase's own routing-wiring step.
+ bool get setAsHomePage; bool get includeRemoteDataSource; bool get includeLocalDataSource; bool get includeUseCase; bool get includeMapper;/// Entity fields (inferred from a pasted Response JSON, or the id/name
 /// default). Drives the entity/model/mapper/Drift table of the new feature.
  List<FieldSpec> get fields;/// The raw JSON pasted to infer [fields] (kept for the editor round-trip).
  String get json;/// Notes from the last inference (shown under the editor).
- List<String> get fieldWarnings;/// Overrides the REST resource path (default: `/<name>s`). Either a
+ List<String> get fieldWarnings;/// Set when the last inferred JSON was a paginated list wrapper (e.g.
+/// dummyjson's `{ "recipes": [...], "total": ... }`) — the JSON key the
+/// entity's own list lives under. Empty means no wrapper: `getAll()`
+/// decodes the response as a bare array, same as before this existed.
+/// See JsonEntityInferencer's own envelope-detection doc.
+ String get listEnvelopeKey;/// The wrapper's own sibling scalar fields when [listEnvelopeKey] is set
+/// (e.g. `total`/`skip`/`limit`) — generates a typed `<Feature>ListModel`
+/// alongside the entity model, instead of discarding this pagination
+/// metadata. Always empty when [listEnvelopeKey] is empty.
+ List<FieldSpec> get envelopeFields;/// Overrides the REST resource path (default: `/<name>s`). Either a
 /// relative path or an absolute URL — an absolute URL overrides the
 /// project's API Base URL entirely. Empty → the default pluralised path.
 /// REST clients only (dio/chopper).
@@ -37,7 +52,13 @@ mixin _$FeatureGenOptions {
 /// — the Workshop UI shows one section or the other, never both.
 /// Chopper-only, remote-only (no local storage/offline-first/realtime).
  bool get useCustomEndpoints;/// The endpoints when [useCustomEndpoints] is on.
- List<EndpointSpec> get endpoints;
+ List<EndpointSpec> get endpoints;/// Opt-in (Entity + CRUD only, chopper — Architecture Layers step):
+/// customize each of the 5 fixed CRUD operations' own HTTP method + path,
+/// instead of deriving all 5 from [apiPath]'s single base path. Off by
+/// default — most REST APIs follow the plain convention [apiPath] alone
+/// already covers.
+ bool get customizeEndpoints;/// The per-operation overrides when [customizeEndpoints] is on.
+ CrudEndpointOverrides get endpointOverrides;
 /// Create a copy of FeatureGenOptions
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -48,16 +69,16 @@ $FeatureGenOptionsCopyWith<FeatureGenOptions> get copyWith => _$FeatureGenOption
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is FeatureGenOptions&&(identical(other.name, name) || other.name == name)&&(identical(other.routing, routing) || other.routing == routing)&&(identical(other.parentFeature, parentFeature) || other.parentFeature == parentFeature)&&(identical(other.mergeIntoParent, mergeIntoParent) || other.mergeIntoParent == mergeIntoParent)&&(identical(other.shellIcon, shellIcon) || other.shellIcon == shellIcon)&&(identical(other.shellLabel, shellLabel) || other.shellLabel == shellLabel)&&(identical(other.includeRemoteDataSource, includeRemoteDataSource) || other.includeRemoteDataSource == includeRemoteDataSource)&&(identical(other.includeLocalDataSource, includeLocalDataSource) || other.includeLocalDataSource == includeLocalDataSource)&&(identical(other.includeUseCase, includeUseCase) || other.includeUseCase == includeUseCase)&&(identical(other.includeMapper, includeMapper) || other.includeMapper == includeMapper)&&const DeepCollectionEquality().equals(other.fields, fields)&&(identical(other.json, json) || other.json == json)&&const DeepCollectionEquality().equals(other.fieldWarnings, fieldWarnings)&&(identical(other.apiPath, apiPath) || other.apiPath == apiPath)&&(identical(other.useCustomEndpoints, useCustomEndpoints) || other.useCustomEndpoints == useCustomEndpoints)&&const DeepCollectionEquality().equals(other.endpoints, endpoints));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is FeatureGenOptions&&(identical(other.name, name) || other.name == name)&&(identical(other.routing, routing) || other.routing == routing)&&(identical(other.parentFeature, parentFeature) || other.parentFeature == parentFeature)&&(identical(other.mergeIntoParent, mergeIntoParent) || other.mergeIntoParent == mergeIntoParent)&&(identical(other.shellIcon, shellIcon) || other.shellIcon == shellIcon)&&(identical(other.shellLabel, shellLabel) || other.shellLabel == shellLabel)&&(identical(other.setAsHomePage, setAsHomePage) || other.setAsHomePage == setAsHomePage)&&(identical(other.includeRemoteDataSource, includeRemoteDataSource) || other.includeRemoteDataSource == includeRemoteDataSource)&&(identical(other.includeLocalDataSource, includeLocalDataSource) || other.includeLocalDataSource == includeLocalDataSource)&&(identical(other.includeUseCase, includeUseCase) || other.includeUseCase == includeUseCase)&&(identical(other.includeMapper, includeMapper) || other.includeMapper == includeMapper)&&const DeepCollectionEquality().equals(other.fields, fields)&&(identical(other.json, json) || other.json == json)&&const DeepCollectionEquality().equals(other.fieldWarnings, fieldWarnings)&&(identical(other.listEnvelopeKey, listEnvelopeKey) || other.listEnvelopeKey == listEnvelopeKey)&&const DeepCollectionEquality().equals(other.envelopeFields, envelopeFields)&&(identical(other.apiPath, apiPath) || other.apiPath == apiPath)&&(identical(other.useCustomEndpoints, useCustomEndpoints) || other.useCustomEndpoints == useCustomEndpoints)&&const DeepCollectionEquality().equals(other.endpoints, endpoints)&&(identical(other.customizeEndpoints, customizeEndpoints) || other.customizeEndpoints == customizeEndpoints)&&(identical(other.endpointOverrides, endpointOverrides) || other.endpointOverrides == endpointOverrides));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,name,routing,parentFeature,mergeIntoParent,shellIcon,shellLabel,includeRemoteDataSource,includeLocalDataSource,includeUseCase,includeMapper,const DeepCollectionEquality().hash(fields),json,const DeepCollectionEquality().hash(fieldWarnings),apiPath,useCustomEndpoints,const DeepCollectionEquality().hash(endpoints));
+int get hashCode => Object.hashAll([runtimeType,name,routing,parentFeature,mergeIntoParent,shellIcon,shellLabel,setAsHomePage,includeRemoteDataSource,includeLocalDataSource,includeUseCase,includeMapper,const DeepCollectionEquality().hash(fields),json,const DeepCollectionEquality().hash(fieldWarnings),listEnvelopeKey,const DeepCollectionEquality().hash(envelopeFields),apiPath,useCustomEndpoints,const DeepCollectionEquality().hash(endpoints),customizeEndpoints,endpointOverrides]);
 
 @override
 String toString() {
-  return 'FeatureGenOptions(name: $name, routing: $routing, parentFeature: $parentFeature, mergeIntoParent: $mergeIntoParent, shellIcon: $shellIcon, shellLabel: $shellLabel, includeRemoteDataSource: $includeRemoteDataSource, includeLocalDataSource: $includeLocalDataSource, includeUseCase: $includeUseCase, includeMapper: $includeMapper, fields: $fields, json: $json, fieldWarnings: $fieldWarnings, apiPath: $apiPath, useCustomEndpoints: $useCustomEndpoints, endpoints: $endpoints)';
+  return 'FeatureGenOptions(name: $name, routing: $routing, parentFeature: $parentFeature, mergeIntoParent: $mergeIntoParent, shellIcon: $shellIcon, shellLabel: $shellLabel, setAsHomePage: $setAsHomePage, includeRemoteDataSource: $includeRemoteDataSource, includeLocalDataSource: $includeLocalDataSource, includeUseCase: $includeUseCase, includeMapper: $includeMapper, fields: $fields, json: $json, fieldWarnings: $fieldWarnings, listEnvelopeKey: $listEnvelopeKey, envelopeFields: $envelopeFields, apiPath: $apiPath, useCustomEndpoints: $useCustomEndpoints, endpoints: $endpoints, customizeEndpoints: $customizeEndpoints, endpointOverrides: $endpointOverrides)';
 }
 
 
@@ -68,7 +89,7 @@ abstract mixin class $FeatureGenOptionsCopyWith<$Res>  {
   factory $FeatureGenOptionsCopyWith(FeatureGenOptions value, $Res Function(FeatureGenOptions) _then) = _$FeatureGenOptionsCopyWithImpl;
 @useResult
 $Res call({
- String name, FeatureRouting routing, String parentFeature, bool mergeIntoParent, String shellIcon, String shellLabel, bool includeRemoteDataSource, bool includeLocalDataSource, bool includeUseCase, bool includeMapper, List<FieldSpec> fields, String json, List<String> fieldWarnings, String apiPath, bool useCustomEndpoints, List<EndpointSpec> endpoints
+ String name, FeatureRouting routing, String parentFeature, bool mergeIntoParent, String shellIcon, String shellLabel, bool setAsHomePage, bool includeRemoteDataSource, bool includeLocalDataSource, bool includeUseCase, bool includeMapper, List<FieldSpec> fields, String json, List<String> fieldWarnings, String listEnvelopeKey, List<FieldSpec> envelopeFields, String apiPath, bool useCustomEndpoints, List<EndpointSpec> endpoints, bool customizeEndpoints, CrudEndpointOverrides endpointOverrides
 });
 
 
@@ -85,7 +106,7 @@ class _$FeatureGenOptionsCopyWithImpl<$Res>
 
 /// Create a copy of FeatureGenOptions
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? name = null,Object? routing = null,Object? parentFeature = null,Object? mergeIntoParent = null,Object? shellIcon = null,Object? shellLabel = null,Object? includeRemoteDataSource = null,Object? includeLocalDataSource = null,Object? includeUseCase = null,Object? includeMapper = null,Object? fields = null,Object? json = null,Object? fieldWarnings = null,Object? apiPath = null,Object? useCustomEndpoints = null,Object? endpoints = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? name = null,Object? routing = null,Object? parentFeature = null,Object? mergeIntoParent = null,Object? shellIcon = null,Object? shellLabel = null,Object? setAsHomePage = null,Object? includeRemoteDataSource = null,Object? includeLocalDataSource = null,Object? includeUseCase = null,Object? includeMapper = null,Object? fields = null,Object? json = null,Object? fieldWarnings = null,Object? listEnvelopeKey = null,Object? envelopeFields = null,Object? apiPath = null,Object? useCustomEndpoints = null,Object? endpoints = null,Object? customizeEndpoints = null,Object? endpointOverrides = null,}) {
   return _then(_self.copyWith(
 name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,routing: null == routing ? _self.routing : routing // ignore: cast_nullable_to_non_nullable
@@ -93,17 +114,22 @@ as FeatureRouting,parentFeature: null == parentFeature ? _self.parentFeature : p
 as String,mergeIntoParent: null == mergeIntoParent ? _self.mergeIntoParent : mergeIntoParent // ignore: cast_nullable_to_non_nullable
 as bool,shellIcon: null == shellIcon ? _self.shellIcon : shellIcon // ignore: cast_nullable_to_non_nullable
 as String,shellLabel: null == shellLabel ? _self.shellLabel : shellLabel // ignore: cast_nullable_to_non_nullable
-as String,includeRemoteDataSource: null == includeRemoteDataSource ? _self.includeRemoteDataSource : includeRemoteDataSource // ignore: cast_nullable_to_non_nullable
+as String,setAsHomePage: null == setAsHomePage ? _self.setAsHomePage : setAsHomePage // ignore: cast_nullable_to_non_nullable
+as bool,includeRemoteDataSource: null == includeRemoteDataSource ? _self.includeRemoteDataSource : includeRemoteDataSource // ignore: cast_nullable_to_non_nullable
 as bool,includeLocalDataSource: null == includeLocalDataSource ? _self.includeLocalDataSource : includeLocalDataSource // ignore: cast_nullable_to_non_nullable
 as bool,includeUseCase: null == includeUseCase ? _self.includeUseCase : includeUseCase // ignore: cast_nullable_to_non_nullable
 as bool,includeMapper: null == includeMapper ? _self.includeMapper : includeMapper // ignore: cast_nullable_to_non_nullable
 as bool,fields: null == fields ? _self.fields : fields // ignore: cast_nullable_to_non_nullable
 as List<FieldSpec>,json: null == json ? _self.json : json // ignore: cast_nullable_to_non_nullable
 as String,fieldWarnings: null == fieldWarnings ? _self.fieldWarnings : fieldWarnings // ignore: cast_nullable_to_non_nullable
-as List<String>,apiPath: null == apiPath ? _self.apiPath : apiPath // ignore: cast_nullable_to_non_nullable
+as List<String>,listEnvelopeKey: null == listEnvelopeKey ? _self.listEnvelopeKey : listEnvelopeKey // ignore: cast_nullable_to_non_nullable
+as String,envelopeFields: null == envelopeFields ? _self.envelopeFields : envelopeFields // ignore: cast_nullable_to_non_nullable
+as List<FieldSpec>,apiPath: null == apiPath ? _self.apiPath : apiPath // ignore: cast_nullable_to_non_nullable
 as String,useCustomEndpoints: null == useCustomEndpoints ? _self.useCustomEndpoints : useCustomEndpoints // ignore: cast_nullable_to_non_nullable
 as bool,endpoints: null == endpoints ? _self.endpoints : endpoints // ignore: cast_nullable_to_non_nullable
-as List<EndpointSpec>,
+as List<EndpointSpec>,customizeEndpoints: null == customizeEndpoints ? _self.customizeEndpoints : customizeEndpoints // ignore: cast_nullable_to_non_nullable
+as bool,endpointOverrides: null == endpointOverrides ? _self.endpointOverrides : endpointOverrides // ignore: cast_nullable_to_non_nullable
+as CrudEndpointOverrides,
   ));
 }
 
@@ -188,10 +214,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String name,  FeatureRouting routing,  String parentFeature,  bool mergeIntoParent,  String shellIcon,  String shellLabel,  bool includeRemoteDataSource,  bool includeLocalDataSource,  bool includeUseCase,  bool includeMapper,  List<FieldSpec> fields,  String json,  List<String> fieldWarnings,  String apiPath,  bool useCustomEndpoints,  List<EndpointSpec> endpoints)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String name,  FeatureRouting routing,  String parentFeature,  bool mergeIntoParent,  String shellIcon,  String shellLabel,  bool setAsHomePage,  bool includeRemoteDataSource,  bool includeLocalDataSource,  bool includeUseCase,  bool includeMapper,  List<FieldSpec> fields,  String json,  List<String> fieldWarnings,  String listEnvelopeKey,  List<FieldSpec> envelopeFields,  String apiPath,  bool useCustomEndpoints,  List<EndpointSpec> endpoints,  bool customizeEndpoints,  CrudEndpointOverrides endpointOverrides)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _FeatureGenOptions() when $default != null:
-return $default(_that.name,_that.routing,_that.parentFeature,_that.mergeIntoParent,_that.shellIcon,_that.shellLabel,_that.includeRemoteDataSource,_that.includeLocalDataSource,_that.includeUseCase,_that.includeMapper,_that.fields,_that.json,_that.fieldWarnings,_that.apiPath,_that.useCustomEndpoints,_that.endpoints);case _:
+return $default(_that.name,_that.routing,_that.parentFeature,_that.mergeIntoParent,_that.shellIcon,_that.shellLabel,_that.setAsHomePage,_that.includeRemoteDataSource,_that.includeLocalDataSource,_that.includeUseCase,_that.includeMapper,_that.fields,_that.json,_that.fieldWarnings,_that.listEnvelopeKey,_that.envelopeFields,_that.apiPath,_that.useCustomEndpoints,_that.endpoints,_that.customizeEndpoints,_that.endpointOverrides);case _:
   return orElse();
 
 }
@@ -209,10 +235,10 @@ return $default(_that.name,_that.routing,_that.parentFeature,_that.mergeIntoPare
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String name,  FeatureRouting routing,  String parentFeature,  bool mergeIntoParent,  String shellIcon,  String shellLabel,  bool includeRemoteDataSource,  bool includeLocalDataSource,  bool includeUseCase,  bool includeMapper,  List<FieldSpec> fields,  String json,  List<String> fieldWarnings,  String apiPath,  bool useCustomEndpoints,  List<EndpointSpec> endpoints)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String name,  FeatureRouting routing,  String parentFeature,  bool mergeIntoParent,  String shellIcon,  String shellLabel,  bool setAsHomePage,  bool includeRemoteDataSource,  bool includeLocalDataSource,  bool includeUseCase,  bool includeMapper,  List<FieldSpec> fields,  String json,  List<String> fieldWarnings,  String listEnvelopeKey,  List<FieldSpec> envelopeFields,  String apiPath,  bool useCustomEndpoints,  List<EndpointSpec> endpoints,  bool customizeEndpoints,  CrudEndpointOverrides endpointOverrides)  $default,) {final _that = this;
 switch (_that) {
 case _FeatureGenOptions():
-return $default(_that.name,_that.routing,_that.parentFeature,_that.mergeIntoParent,_that.shellIcon,_that.shellLabel,_that.includeRemoteDataSource,_that.includeLocalDataSource,_that.includeUseCase,_that.includeMapper,_that.fields,_that.json,_that.fieldWarnings,_that.apiPath,_that.useCustomEndpoints,_that.endpoints);case _:
+return $default(_that.name,_that.routing,_that.parentFeature,_that.mergeIntoParent,_that.shellIcon,_that.shellLabel,_that.setAsHomePage,_that.includeRemoteDataSource,_that.includeLocalDataSource,_that.includeUseCase,_that.includeMapper,_that.fields,_that.json,_that.fieldWarnings,_that.listEnvelopeKey,_that.envelopeFields,_that.apiPath,_that.useCustomEndpoints,_that.endpoints,_that.customizeEndpoints,_that.endpointOverrides);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -229,10 +255,10 @@ return $default(_that.name,_that.routing,_that.parentFeature,_that.mergeIntoPare
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String name,  FeatureRouting routing,  String parentFeature,  bool mergeIntoParent,  String shellIcon,  String shellLabel,  bool includeRemoteDataSource,  bool includeLocalDataSource,  bool includeUseCase,  bool includeMapper,  List<FieldSpec> fields,  String json,  List<String> fieldWarnings,  String apiPath,  bool useCustomEndpoints,  List<EndpointSpec> endpoints)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String name,  FeatureRouting routing,  String parentFeature,  bool mergeIntoParent,  String shellIcon,  String shellLabel,  bool setAsHomePage,  bool includeRemoteDataSource,  bool includeLocalDataSource,  bool includeUseCase,  bool includeMapper,  List<FieldSpec> fields,  String json,  List<String> fieldWarnings,  String listEnvelopeKey,  List<FieldSpec> envelopeFields,  String apiPath,  bool useCustomEndpoints,  List<EndpointSpec> endpoints,  bool customizeEndpoints,  CrudEndpointOverrides endpointOverrides)?  $default,) {final _that = this;
 switch (_that) {
 case _FeatureGenOptions() when $default != null:
-return $default(_that.name,_that.routing,_that.parentFeature,_that.mergeIntoParent,_that.shellIcon,_that.shellLabel,_that.includeRemoteDataSource,_that.includeLocalDataSource,_that.includeUseCase,_that.includeMapper,_that.fields,_that.json,_that.fieldWarnings,_that.apiPath,_that.useCustomEndpoints,_that.endpoints);case _:
+return $default(_that.name,_that.routing,_that.parentFeature,_that.mergeIntoParent,_that.shellIcon,_that.shellLabel,_that.setAsHomePage,_that.includeRemoteDataSource,_that.includeLocalDataSource,_that.includeUseCase,_that.includeMapper,_that.fields,_that.json,_that.fieldWarnings,_that.listEnvelopeKey,_that.envelopeFields,_that.apiPath,_that.useCustomEndpoints,_that.endpoints,_that.customizeEndpoints,_that.endpointOverrides);case _:
   return null;
 
 }
@@ -244,7 +270,7 @@ return $default(_that.name,_that.routing,_that.parentFeature,_that.mergeIntoPare
 
 
 class _FeatureGenOptions extends FeatureGenOptions {
-  const _FeatureGenOptions({this.name = '', this.routing = FeatureRouting.root, this.parentFeature = '', this.mergeIntoParent = false, this.shellIcon = 'home', this.shellLabel = '', this.includeRemoteDataSource = true, this.includeLocalDataSource = true, this.includeUseCase = true, this.includeMapper = true, final  List<FieldSpec> fields = FieldSpec.idName, this.json = '', final  List<String> fieldWarnings = const <String>[], this.apiPath = '', this.useCustomEndpoints = false, final  List<EndpointSpec> endpoints = const <EndpointSpec>[]}): _fields = fields,_fieldWarnings = fieldWarnings,_endpoints = endpoints,super._();
+  const _FeatureGenOptions({this.name = '', this.routing = FeatureRouting.root, this.parentFeature = '', this.mergeIntoParent = false, this.shellIcon = 'home', this.shellLabel = '', this.setAsHomePage = true, this.includeRemoteDataSource = true, this.includeLocalDataSource = true, this.includeUseCase = true, this.includeMapper = true, final  List<FieldSpec> fields = FieldSpec.idName, this.json = '', final  List<String> fieldWarnings = const <String>[], this.listEnvelopeKey = '', final  List<FieldSpec> envelopeFields = const <FieldSpec>[], this.apiPath = '', this.useCustomEndpoints = false, final  List<EndpointSpec> endpoints = const <EndpointSpec>[], this.customizeEndpoints = false, this.endpointOverrides = const CrudEndpointOverrides()}): _fields = fields,_fieldWarnings = fieldWarnings,_envelopeFields = envelopeFields,_endpoints = endpoints,super._();
   
 
 @override@JsonKey() final  String name;
@@ -262,6 +288,13 @@ class _FeatureGenOptions extends FeatureGenOptions {
 // Material icon name, only when shell
 @override@JsonKey() final  String shellLabel;
 // NavigationBar label, only when shell
+/// Opt-in, only meaningful when this is the project's first real feature
+/// (Workshop only shows it then): replaces the launch-time "welcome"
+/// placeholder as the app's home route instead of leaving it in place
+/// alongside this feature — every `AppRoutePath.welcome` reference is
+/// repointed at this feature, and the placeholder's own route/page files
+/// are deleted. See GenerateFeatureUsecase's own routing-wiring step.
+@override@JsonKey() final  bool setAsHomePage;
 @override@JsonKey() final  bool includeRemoteDataSource;
 @override@JsonKey() final  bool includeLocalDataSource;
 @override@JsonKey() final  bool includeUseCase;
@@ -288,6 +321,27 @@ class _FeatureGenOptions extends FeatureGenOptions {
   return EqualUnmodifiableListView(_fieldWarnings);
 }
 
+/// Set when the last inferred JSON was a paginated list wrapper (e.g.
+/// dummyjson's `{ "recipes": [...], "total": ... }`) — the JSON key the
+/// entity's own list lives under. Empty means no wrapper: `getAll()`
+/// decodes the response as a bare array, same as before this existed.
+/// See JsonEntityInferencer's own envelope-detection doc.
+@override@JsonKey() final  String listEnvelopeKey;
+/// The wrapper's own sibling scalar fields when [listEnvelopeKey] is set
+/// (e.g. `total`/`skip`/`limit`) — generates a typed `<Feature>ListModel`
+/// alongside the entity model, instead of discarding this pagination
+/// metadata. Always empty when [listEnvelopeKey] is empty.
+ final  List<FieldSpec> _envelopeFields;
+/// The wrapper's own sibling scalar fields when [listEnvelopeKey] is set
+/// (e.g. `total`/`skip`/`limit`) — generates a typed `<Feature>ListModel`
+/// alongside the entity model, instead of discarding this pagination
+/// metadata. Always empty when [listEnvelopeKey] is empty.
+@override@JsonKey() List<FieldSpec> get envelopeFields {
+  if (_envelopeFields is EqualUnmodifiableListView) return _envelopeFields;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_envelopeFields);
+}
+
 /// Overrides the REST resource path (default: `/<name>s`). Either a
 /// relative path or an absolute URL — an absolute URL overrides the
 /// project's API Base URL entirely. Empty → the default pluralised path.
@@ -308,6 +362,14 @@ class _FeatureGenOptions extends FeatureGenOptions {
   return EqualUnmodifiableListView(_endpoints);
 }
 
+/// Opt-in (Entity + CRUD only, chopper — Architecture Layers step):
+/// customize each of the 5 fixed CRUD operations' own HTTP method + path,
+/// instead of deriving all 5 from [apiPath]'s single base path. Off by
+/// default — most REST APIs follow the plain convention [apiPath] alone
+/// already covers.
+@override@JsonKey() final  bool customizeEndpoints;
+/// The per-operation overrides when [customizeEndpoints] is on.
+@override@JsonKey() final  CrudEndpointOverrides endpointOverrides;
 
 /// Create a copy of FeatureGenOptions
 /// with the given fields replaced by the non-null parameter values.
@@ -319,16 +381,16 @@ _$FeatureGenOptionsCopyWith<_FeatureGenOptions> get copyWith => __$FeatureGenOpt
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _FeatureGenOptions&&(identical(other.name, name) || other.name == name)&&(identical(other.routing, routing) || other.routing == routing)&&(identical(other.parentFeature, parentFeature) || other.parentFeature == parentFeature)&&(identical(other.mergeIntoParent, mergeIntoParent) || other.mergeIntoParent == mergeIntoParent)&&(identical(other.shellIcon, shellIcon) || other.shellIcon == shellIcon)&&(identical(other.shellLabel, shellLabel) || other.shellLabel == shellLabel)&&(identical(other.includeRemoteDataSource, includeRemoteDataSource) || other.includeRemoteDataSource == includeRemoteDataSource)&&(identical(other.includeLocalDataSource, includeLocalDataSource) || other.includeLocalDataSource == includeLocalDataSource)&&(identical(other.includeUseCase, includeUseCase) || other.includeUseCase == includeUseCase)&&(identical(other.includeMapper, includeMapper) || other.includeMapper == includeMapper)&&const DeepCollectionEquality().equals(other._fields, _fields)&&(identical(other.json, json) || other.json == json)&&const DeepCollectionEquality().equals(other._fieldWarnings, _fieldWarnings)&&(identical(other.apiPath, apiPath) || other.apiPath == apiPath)&&(identical(other.useCustomEndpoints, useCustomEndpoints) || other.useCustomEndpoints == useCustomEndpoints)&&const DeepCollectionEquality().equals(other._endpoints, _endpoints));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _FeatureGenOptions&&(identical(other.name, name) || other.name == name)&&(identical(other.routing, routing) || other.routing == routing)&&(identical(other.parentFeature, parentFeature) || other.parentFeature == parentFeature)&&(identical(other.mergeIntoParent, mergeIntoParent) || other.mergeIntoParent == mergeIntoParent)&&(identical(other.shellIcon, shellIcon) || other.shellIcon == shellIcon)&&(identical(other.shellLabel, shellLabel) || other.shellLabel == shellLabel)&&(identical(other.setAsHomePage, setAsHomePage) || other.setAsHomePage == setAsHomePage)&&(identical(other.includeRemoteDataSource, includeRemoteDataSource) || other.includeRemoteDataSource == includeRemoteDataSource)&&(identical(other.includeLocalDataSource, includeLocalDataSource) || other.includeLocalDataSource == includeLocalDataSource)&&(identical(other.includeUseCase, includeUseCase) || other.includeUseCase == includeUseCase)&&(identical(other.includeMapper, includeMapper) || other.includeMapper == includeMapper)&&const DeepCollectionEquality().equals(other._fields, _fields)&&(identical(other.json, json) || other.json == json)&&const DeepCollectionEquality().equals(other._fieldWarnings, _fieldWarnings)&&(identical(other.listEnvelopeKey, listEnvelopeKey) || other.listEnvelopeKey == listEnvelopeKey)&&const DeepCollectionEquality().equals(other._envelopeFields, _envelopeFields)&&(identical(other.apiPath, apiPath) || other.apiPath == apiPath)&&(identical(other.useCustomEndpoints, useCustomEndpoints) || other.useCustomEndpoints == useCustomEndpoints)&&const DeepCollectionEquality().equals(other._endpoints, _endpoints)&&(identical(other.customizeEndpoints, customizeEndpoints) || other.customizeEndpoints == customizeEndpoints)&&(identical(other.endpointOverrides, endpointOverrides) || other.endpointOverrides == endpointOverrides));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,name,routing,parentFeature,mergeIntoParent,shellIcon,shellLabel,includeRemoteDataSource,includeLocalDataSource,includeUseCase,includeMapper,const DeepCollectionEquality().hash(_fields),json,const DeepCollectionEquality().hash(_fieldWarnings),apiPath,useCustomEndpoints,const DeepCollectionEquality().hash(_endpoints));
+int get hashCode => Object.hashAll([runtimeType,name,routing,parentFeature,mergeIntoParent,shellIcon,shellLabel,setAsHomePage,includeRemoteDataSource,includeLocalDataSource,includeUseCase,includeMapper,const DeepCollectionEquality().hash(_fields),json,const DeepCollectionEquality().hash(_fieldWarnings),listEnvelopeKey,const DeepCollectionEquality().hash(_envelopeFields),apiPath,useCustomEndpoints,const DeepCollectionEquality().hash(_endpoints),customizeEndpoints,endpointOverrides]);
 
 @override
 String toString() {
-  return 'FeatureGenOptions(name: $name, routing: $routing, parentFeature: $parentFeature, mergeIntoParent: $mergeIntoParent, shellIcon: $shellIcon, shellLabel: $shellLabel, includeRemoteDataSource: $includeRemoteDataSource, includeLocalDataSource: $includeLocalDataSource, includeUseCase: $includeUseCase, includeMapper: $includeMapper, fields: $fields, json: $json, fieldWarnings: $fieldWarnings, apiPath: $apiPath, useCustomEndpoints: $useCustomEndpoints, endpoints: $endpoints)';
+  return 'FeatureGenOptions(name: $name, routing: $routing, parentFeature: $parentFeature, mergeIntoParent: $mergeIntoParent, shellIcon: $shellIcon, shellLabel: $shellLabel, setAsHomePage: $setAsHomePage, includeRemoteDataSource: $includeRemoteDataSource, includeLocalDataSource: $includeLocalDataSource, includeUseCase: $includeUseCase, includeMapper: $includeMapper, fields: $fields, json: $json, fieldWarnings: $fieldWarnings, listEnvelopeKey: $listEnvelopeKey, envelopeFields: $envelopeFields, apiPath: $apiPath, useCustomEndpoints: $useCustomEndpoints, endpoints: $endpoints, customizeEndpoints: $customizeEndpoints, endpointOverrides: $endpointOverrides)';
 }
 
 
@@ -339,7 +401,7 @@ abstract mixin class _$FeatureGenOptionsCopyWith<$Res> implements $FeatureGenOpt
   factory _$FeatureGenOptionsCopyWith(_FeatureGenOptions value, $Res Function(_FeatureGenOptions) _then) = __$FeatureGenOptionsCopyWithImpl;
 @override @useResult
 $Res call({
- String name, FeatureRouting routing, String parentFeature, bool mergeIntoParent, String shellIcon, String shellLabel, bool includeRemoteDataSource, bool includeLocalDataSource, bool includeUseCase, bool includeMapper, List<FieldSpec> fields, String json, List<String> fieldWarnings, String apiPath, bool useCustomEndpoints, List<EndpointSpec> endpoints
+ String name, FeatureRouting routing, String parentFeature, bool mergeIntoParent, String shellIcon, String shellLabel, bool setAsHomePage, bool includeRemoteDataSource, bool includeLocalDataSource, bool includeUseCase, bool includeMapper, List<FieldSpec> fields, String json, List<String> fieldWarnings, String listEnvelopeKey, List<FieldSpec> envelopeFields, String apiPath, bool useCustomEndpoints, List<EndpointSpec> endpoints, bool customizeEndpoints, CrudEndpointOverrides endpointOverrides
 });
 
 
@@ -356,7 +418,7 @@ class __$FeatureGenOptionsCopyWithImpl<$Res>
 
 /// Create a copy of FeatureGenOptions
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? name = null,Object? routing = null,Object? parentFeature = null,Object? mergeIntoParent = null,Object? shellIcon = null,Object? shellLabel = null,Object? includeRemoteDataSource = null,Object? includeLocalDataSource = null,Object? includeUseCase = null,Object? includeMapper = null,Object? fields = null,Object? json = null,Object? fieldWarnings = null,Object? apiPath = null,Object? useCustomEndpoints = null,Object? endpoints = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? name = null,Object? routing = null,Object? parentFeature = null,Object? mergeIntoParent = null,Object? shellIcon = null,Object? shellLabel = null,Object? setAsHomePage = null,Object? includeRemoteDataSource = null,Object? includeLocalDataSource = null,Object? includeUseCase = null,Object? includeMapper = null,Object? fields = null,Object? json = null,Object? fieldWarnings = null,Object? listEnvelopeKey = null,Object? envelopeFields = null,Object? apiPath = null,Object? useCustomEndpoints = null,Object? endpoints = null,Object? customizeEndpoints = null,Object? endpointOverrides = null,}) {
   return _then(_FeatureGenOptions(
 name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,routing: null == routing ? _self.routing : routing // ignore: cast_nullable_to_non_nullable
@@ -364,17 +426,22 @@ as FeatureRouting,parentFeature: null == parentFeature ? _self.parentFeature : p
 as String,mergeIntoParent: null == mergeIntoParent ? _self.mergeIntoParent : mergeIntoParent // ignore: cast_nullable_to_non_nullable
 as bool,shellIcon: null == shellIcon ? _self.shellIcon : shellIcon // ignore: cast_nullable_to_non_nullable
 as String,shellLabel: null == shellLabel ? _self.shellLabel : shellLabel // ignore: cast_nullable_to_non_nullable
-as String,includeRemoteDataSource: null == includeRemoteDataSource ? _self.includeRemoteDataSource : includeRemoteDataSource // ignore: cast_nullable_to_non_nullable
+as String,setAsHomePage: null == setAsHomePage ? _self.setAsHomePage : setAsHomePage // ignore: cast_nullable_to_non_nullable
+as bool,includeRemoteDataSource: null == includeRemoteDataSource ? _self.includeRemoteDataSource : includeRemoteDataSource // ignore: cast_nullable_to_non_nullable
 as bool,includeLocalDataSource: null == includeLocalDataSource ? _self.includeLocalDataSource : includeLocalDataSource // ignore: cast_nullable_to_non_nullable
 as bool,includeUseCase: null == includeUseCase ? _self.includeUseCase : includeUseCase // ignore: cast_nullable_to_non_nullable
 as bool,includeMapper: null == includeMapper ? _self.includeMapper : includeMapper // ignore: cast_nullable_to_non_nullable
 as bool,fields: null == fields ? _self._fields : fields // ignore: cast_nullable_to_non_nullable
 as List<FieldSpec>,json: null == json ? _self.json : json // ignore: cast_nullable_to_non_nullable
 as String,fieldWarnings: null == fieldWarnings ? _self._fieldWarnings : fieldWarnings // ignore: cast_nullable_to_non_nullable
-as List<String>,apiPath: null == apiPath ? _self.apiPath : apiPath // ignore: cast_nullable_to_non_nullable
+as List<String>,listEnvelopeKey: null == listEnvelopeKey ? _self.listEnvelopeKey : listEnvelopeKey // ignore: cast_nullable_to_non_nullable
+as String,envelopeFields: null == envelopeFields ? _self._envelopeFields : envelopeFields // ignore: cast_nullable_to_non_nullable
+as List<FieldSpec>,apiPath: null == apiPath ? _self.apiPath : apiPath // ignore: cast_nullable_to_non_nullable
 as String,useCustomEndpoints: null == useCustomEndpoints ? _self.useCustomEndpoints : useCustomEndpoints // ignore: cast_nullable_to_non_nullable
 as bool,endpoints: null == endpoints ? _self._endpoints : endpoints // ignore: cast_nullable_to_non_nullable
-as List<EndpointSpec>,
+as List<EndpointSpec>,customizeEndpoints: null == customizeEndpoints ? _self.customizeEndpoints : customizeEndpoints // ignore: cast_nullable_to_non_nullable
+as bool,endpointOverrides: null == endpointOverrides ? _self.endpointOverrides : endpointOverrides // ignore: cast_nullable_to_non_nullable
+as CrudEndpointOverrides,
   ));
 }
 

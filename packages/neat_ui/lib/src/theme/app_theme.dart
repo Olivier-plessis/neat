@@ -97,6 +97,7 @@ class AppTheme {
           errorColor: Palette.errorColor,
           colorYellow: Palette.colorYellow,
           colorGreen: Palette.colorGreen,
+          colorLightGreen: Palette.colorLightGreen,
         ),
       ],
     );

@@ -26,14 +26,14 @@ void main() {
     expect(md, contains('go_router_builder'));
     expect(md, contains('TypedGoRoute'));
     expect(md, contains('StatefulShellRoute'));
-    expect(md, contains('packages/local_storage'));
+    expect(md, contains('packages/shop_database'));
     expect(md, contains('Outbox'));
     expect(md, contains('SyncService'));
     expect(md, contains('infrastructure_providers.dart'));
     expect(md, contains('envied'));
     // The unique part: the anchor system + Workshop.
     expect(md, contains('// neat:route-entries'));
-    expect(md, contains('// neat:tables'));
+    expect(md, contains('// neat:table-imports'));
     expect(md, contains('NEAT Workshop'));
     // Codegen commands are accurate (this stack DOES use build_runner).
     expect(md, contains('dart run build_runner build'));
@@ -89,7 +89,7 @@ void main() {
     expect(md, isNot(contains('chopperClientProvider')));
     expect(md, contains('No HTTP client is enabled'));
     // Offline read but NOT sync → no Outbox.
-    expect(md, contains('packages/local_storage'));
+    expect(md, contains('packages/notes_database'));
     expect(md, isNot(contains('Outbox')));
   });
 }

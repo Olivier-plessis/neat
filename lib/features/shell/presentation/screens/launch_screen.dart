@@ -9,10 +9,9 @@ import 'package:neat/features/cicd/presentation/providers/cicd_provider.dart';
 import 'package:neat/features/dependencies/domain/models/pub_package.dart';
 import 'package:neat/features/dependencies/presentation/providers/dependencies_provider.dart';
 import 'package:neat/features/feature_gen/presentation/providers/workshop_controller.dart';
-import 'package:neat/features/generation/domain/usecases/launch_generation_usecase.dart';
-import 'package:neat/features/hub/presentation/providers/recent_projects_provider.dart';
 import 'package:neat/features/identity/domain/models/identity_state.dart';
 import 'package:neat/features/identity/presentation/providers/identity_provider.dart';
+import 'package:neat/features/shell/presentation/providers/launch_controller.dart';
 import 'package:neat/features/shell/presentation/providers/stepper_provider.dart';
 import 'package:neat/features/theme_engine/presentation/providers/theme_engine_provider.dart';
 import 'package:neat_ui/neat_ui.dart';
@@ -28,16 +27,17 @@ class LaunchScreen extends HookConsumerWidget {
     final cicd = ref.watch(cicdProvider);
     final theme = ref.watch(themeEngineProvider);
 
-    // isGenerating lives in the shared provider so main_layout can lock the Back button
-    final isGeneratingNotifier = ref.read(isGeneratingProvider.notifier);
+    // isGenerating lives in a shared provider so main_layout can lock the Back
+    // button too; the run's own logs/hasFinished/error live in LaunchState.
     final isGenerating = ref.watch(isGeneratingProvider);
-    final hasFinished = useState(false);
-    final errorMessage = useState<String?>(null);
-    final logs = useState<List<String>>(_initialLogs(identity));
+    final launch = ref.watch(launchControllerProvider);
+    final launchNotifier = ref.read(launchControllerProvider.notifier);
     final scrollController = useScrollController();
-
-    void appendLog(String line) {
-      logs.value = [...logs.value, line];
+    // No local hook state to trigger a scroll from an append callback (logs
+    // now stream in through Riverpod state) — react to the list growing.
+    final logsLength = launch.logs.length;
+    useEffect(() {
+      if (logsLength == 0) return null;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (scrollController.hasClients) {
           scrollController.animateTo(
@@ -47,35 +47,16 @@ class LaunchScreen extends HookConsumerWidget {
           );
         }
       });
-    }
+      return null;
+    }, [logsLength]);
 
-    Future<void> generate() async {
-      isGeneratingNotifier.set(true);
-      hasFinished.value = false;
-      errorMessage.value = null;
-      logs.value = ['neat@shell:~\$ generate --project ${identity.name}', ''];
-
-      try {
-        await const LaunchGenerationUsecase().execute(
-          identity: identity,
-          packages: packages,
-          architecture: architecture,
-          cicd: cicd,
-          theme: theme,
-          onLog: appendLog,
-        );
-        hasFinished.value = true;
-        // Surface the freshly generated project in the Hub's recent list.
-        await ref
-            .read(recentProjectsProvider.notifier)
-            .register(path: '${identity.projectPath}/${identity.name}', name: identity.name);
-      } catch (e) {
-        errorMessage.value = e.toString();
-        appendLog('[✗] Generation failed: $e');
-      } finally {
-        isGeneratingNotifier.set(false);
-      }
-    }
+    Future<void> generate() => launchNotifier.generate(
+      identity: identity,
+      packages: packages,
+      architecture: architecture,
+      cicd: cicd,
+      theme: theme,
+    );
 
     final canGenerate = identity.name.isNotEmpty && identity.projectPath.isNotEmpty;
 
@@ -94,14 +75,11 @@ class LaunchScreen extends HookConsumerWidget {
     return Column(
       crossAxisAlignment: .start,
       children: [
-        const Text(
-          'Ready for Launch',
-          style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white),
-        ),
+        Text('Ready for Launch', style: context.textTheme.headlineLarge),
         8.gapH,
         Text(
           'Review your configuration before initiating the generation sequence. The process will\nscaffold your complete Flutter architecture.',
-          style: TextStyle(color: Colors.grey[400], fontSize: 14, height: 1.5),
+          style: context.textTheme.bodyLarge,
         ),
         24.gapH,
 
@@ -126,8 +104,8 @@ class LaunchScreen extends HookConsumerWidget {
                 flex: 4,
                 child: _ActionPanel(
                   isGenerating: isGenerating,
-                  hasFinished: hasFinished.value,
-                  hasError: errorMessage.value != null,
+                  hasFinished: launch.hasFinished,
+                  hasError: launch.error != null,
                   canGenerate: canGenerate,
                   projectPath: '${identity.projectPath}/${identity.name}',
                   onGenerate: generate,
@@ -142,86 +120,15 @@ class LaunchScreen extends HookConsumerWidget {
         16.gapH,
 
         // ── Terminal output ───────────────────────────────────────────────
-        Container(
-          height: 200,
-          decoration: BoxDecoration(
-            color: const Color(0xFF0A0A0C),
-            borderRadius: .circular(10),
-            border: .all(color: Colors.white10),
-          ),
-          child: Column(
-            crossAxisAlignment: .start,
-            children: [
-              Container(
-                padding: const .symmetric(horizontal: 16, vertical: 8),
-                decoration: const BoxDecoration(
-                  color: Color(0xFF141416),
-                  borderRadius: .vertical(top: Radius.circular(10)),
-                ),
-                child: Row(
-                  children: [
-                    _TrafficDot(color: const Color(0xFFFF5F57)),
-                    6.gapW,
-                    _TrafficDot(color: const Color(0xFFFFBD2E)),
-                    6.gapW,
-                    _TrafficDot(color: const Color(0xFF28C840)),
-                    16.gapW,
-
-                    const Text(
-                      'System Output',
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const Spacer(),
-                    if (isGenerating)
-                      const SizedBox(
-                        width: 10,
-                        height: 10,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 1.5,
-                          color: Palette.colorPrimaryCyan,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: ListView.builder(
-                  controller: scrollController,
-                  padding: const .all(14),
-                  itemCount: logs.value.length,
-                  itemBuilder: (_, i) {
-                    final line = logs.value[i];
-                    return Text(
-                      line,
-                      style: TextStyle(
-                        color: _lineColor(line),
-                        fontFamily: 'monospace',
-                        fontSize: 12,
-                        height: 1.6,
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
+        FeatureTree(
+          isGenerating: isGenerating,
+          scrollController: scrollController,
+          logs: launch.logs.isEmpty ? _initialLogs(identity) : launch.logs,
         ),
 
         const SizedBox(height: 8),
       ],
     );
-  }
-
-  Color _lineColor(String line) {
-    if (line.startsWith('[✓')) return const Color(0xFF4CAF50);
-    if (line.startsWith('[✗')) return Colors.redAccent;
-    if (line.startsWith('[▶')) return Palette.colorPrimaryCyan;
-    if (line.startsWith('neat@')) return Colors.grey;
-    return const Color(0xFF9ECE6A);
   }
 
   List<String> _initialLogs(IdentityState identity) => [
@@ -343,7 +250,7 @@ class _ConfigPanel extends StatelessWidget {
                           cicdTools,
                           style: const TextStyle(
                             color: Colors.white70,
-                            fontFamily: 'monospace',
+                            
                             fontSize: 13,
                           ),
                         ),
@@ -474,7 +381,6 @@ class _Chip extends StatelessWidget {
               ? Colors.white30
               : Colors.white70,
           fontSize: 11,
-          fontFamily: 'monospace',
         ),
       ),
     );
@@ -541,7 +447,7 @@ class _ActionPanel extends StatelessWidget {
             24.gapH,
             SizedBox(
               width: .infinity,
-              child: FilledButton.icon(
+              child: OutlinedButton.icon(
                 onPressed: onAddFeature,
                 icon: const Icon(Icons.add, size: 18),
                 label: const Text('Add a feature'),
@@ -717,21 +623,6 @@ class _GenerateButton extends StatelessWidget {
                 ],
               ),
       ),
-    );
-  }
-}
-
-class _TrafficDot extends StatelessWidget {
-  const _TrafficDot({required this.color});
-
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 11,
-      height: 11,
-      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
     );
   }
 }

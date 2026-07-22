@@ -10,29 +10,29 @@ abstract final class AppLogger {
     return Level.trace;
   }
 
-  /// Trace — cycle de vie, informations très granulaires
+  /// Trace — lifecycle, highly granular information
   static void t(dynamic message) => _logger.t(message);
 
-  /// Debug — informations utiles au débogage
+  /// Debug — useful information for debugging
   static void d(dynamic message) => _logger.d(message);
 
-  /// Info — événements métier notables
+  /// Info — notable business events
   static void i(dynamic message) => _logger.i(message);
 
-  /// Warning — situation inattendue, non bloquante
+  /// Warning — unexpected situation, non-blocking
   static void w(dynamic message, {Object? error, StackTrace? stackTrace}) =>
       _logger.w(message, error: error, stackTrace: stackTrace);
 
-  /// Error — erreur récupérable
+  /// Error — recoverable error
   static void e(dynamic message, {Object? error, StackTrace? stackTrace}) {
     _logger.e(message, error: error, stackTrace: stackTrace);
-    // TODO: envoyer vers un service crash (Sentry, Firebase Crashlytics…)
+    // TODO: send to a crash reporting service (Sentry, Firebase Crashlytics, etc.)
   }
 
-  /// Fatal — erreur critique non récupérable
+  /// Fatal — critical non-recoverable error
   static void f(dynamic message, {Object? error, StackTrace? stackTrace}) {
     _logger.f(message, error: error, stackTrace: stackTrace);
-    // TODO: envoyer vers un service crash (Sentry, Firebase Crashlytics…)
+    // TODO: send to a crash reporting service (Sentry, Firebase Crashlytics, etc.)
   }
 }
 

@@ -216,7 +216,12 @@ class ${p}Notifier extends Notifier<AsyncValue<void>> {
     final titleExpr = tf.nullable ? "item.${tf.dartName} ?? ''" : 'item.${tf.dartName}';
     final idName = idField(fields).dartName;
     // Skeleton placeholder: a dummy entity per field. Not `const` — a DateTime
-    // placeholder isn't a const expression.
+    // placeholder isn't a const expression. Hoisted to a top-level `final`
+    // (see the generated file's own skeletonItems var below) rather than
+    // rebuilt inline in build() — real bug pattern flagged via a wesioo
+    // comparison (doctor_agenda_page.dart's own `_skeletonState`): an inline
+    // `List.generate(8, ...)` reconstructs 8 full nested entities from
+    // scratch on *every* rebuild while loading, not just once.
     final placeholderArgs = fields.map((f) => '${f.dartName}: ${f.entityPlaceholder()}').join(', ');
 
     // This file lives in presentation/pages/ — the usecase providers live in
@@ -267,6 +272,9 @@ import 'package:$corePkg/core/theme/theme_mode_controller.dart';
 ${i18nImports}import '$domainCross/entities/${featureName}_entity.dart';
 import '../providers/${featureName}_provider.dart';
 $crudImport
+// Skeleton placeholder (Skeletonizer): computed once, not on every rebuild.
+final _${c}SkeletonItems = List.generate(8, (_) => ${p}Entity($placeholderArgs));
+
 class ${p}Page extends ConsumerWidget {
   const ${p}Page({super.key});
 
@@ -290,14 +298,7 @@ class ${p}Page extends ConsumerWidget {
           AsyncData(:final value) => _${p}List(items: value,$onTapArg),
           AsyncError(:final error) =>
             _${p}List.error(error is Failure ? error.message : error.toString()),
-          _ => Skeletonizer(
-              child: _${p}List(
-                items: List.generate(
-                  8,
-                  (_) => ${p}Entity($placeholderArgs),
-                ),
-              ),
-            ),
+          _ => Skeletonizer(child: _${p}List(items: _${c}SkeletonItems)),
         },
       ),
     );
