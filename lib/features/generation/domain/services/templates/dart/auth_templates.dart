@@ -115,20 +115,31 @@ class AuthRepositoryImpl implements IAuthRepository {
 
   final SupabaseClient _client;
 
+  // Deep link the confirmation/reset emails send the user back to. Must be
+  // registered as a redirect URL in the Supabase Dashboard (Authentication
+  // → URL Configuration) — see docs/SUPABASE.md — or Supabase falls back to
+  // opening it in a browser instead of the app.
+  static const _emailRedirectTo = '$packageName://login-callback';
+
   @override
   Future<Result<bool>> signIn({required String email, required String password}) =>
       _guard(() => _client.auth.signInWithPassword(email: email, password: password));
 
   @override
   Future<Result<bool>> signUp({required String email, required String password}) =>
-      _guard(() => _client.auth.signUp(email: email, password: password));
+      _guard(() => _client.auth.signUp(
+            email: email,
+            password: password,
+            emailRedirectTo: _emailRedirectTo,
+          ));
 
   @override
   Future<Result<bool>> signOut() => _guard(() => _client.auth.signOut());
 
   @override
-  Future<Result<bool>> sendPasswordReset(String email) =>
-      _guard(() => _client.auth.resetPasswordForEmail(email));
+  Future<Result<bool>> sendPasswordReset(String email) => _guard(
+        () => _client.auth.resetPasswordForEmail(email, redirectTo: _emailRedirectTo),
+      );
 
   Future<Result<bool>> _guard(Future<void> Function() action) async {
     try {
@@ -272,6 +283,17 @@ IAuthRepository authRepository(Ref ref) =>
     if (onboardingSeen && onOnboarding) return $homeRoute;
 '''
         : '';
+    // Real bug, found via a real generated project: the onboarding route is
+    // shown *before* login, but the login redirect below never exempted it —
+    // an unonboarded, unauthenticated user on /onboarding (mid-flow, not yet
+    // marked seen) fell through both onboarding checks above, then got
+    // bounced to /login by this one, which bounced straight back to
+    // /onboarding, forever: /onboarding => /login => /onboarding. onOnboarding
+    // only exists as a variable when hasOnboarding is on (declared inside
+    // onboardingCheck above), so the extra clause must be conditional too.
+    final loginRedirectCondition = hasOnboarding
+        ? '!loggedIn && !onAuthRoute && !onOnboarding'
+        : '!loggedIn && !onAuthRoute';
     return '''import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -306,7 +328,7 @@ $onboardingCheck
         loc == AppRoutePath.signup ||
         loc == AppRoutePath.forgotPassword;
 
-    if (!loggedIn && !onAuthRoute) return AppRoutePath.login;
+    if ($loginRedirectCondition) return AppRoutePath.login;
     if (loggedIn && onAuthRoute) return $homeRoute;
     return null;
   }
