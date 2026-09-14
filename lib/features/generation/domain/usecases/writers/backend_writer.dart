@@ -72,6 +72,15 @@ abstract final class BackendWriter {
       );
     }
 
+    // ── docs/SUPABASE.md (auth deep-link wiring + the Dashboard redirect-URL
+    // step NEAT can't automate) ────────────────────────────────────────────
+    if (httpClient == 'supabase' && hasAuth) {
+      await writeFile(
+        '${projectDir.path}/docs/SUPABASE.md',
+        CoreTemplates.supabaseDoc(packageName),
+      );
+    }
+
     // ── core/storage (Storage, opt-in) ───────────────────────────────────────
     if (hasStorage) {
       await writeFile(

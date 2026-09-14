@@ -7100,6 +7100,19 @@ void main() {
       ).readAsStringSync();
       expect(repo, contains('signInWithPassword'));
       expect(repo, contains('_client.auth.signUp'));
+      // Deep-link redirect: without it, Supabase's confirmation/reset emails
+      // open a browser instead of returning to the app (real bug, found via
+      // a real generated project — see docs/SUPABASE.md).
+      expect(repo, contains("'$projectName://login-callback'"));
+      expect(repo, contains('emailRedirectTo: _emailRedirectTo'));
+      expect(repo, contains('redirectTo: _emailRedirectTo'));
+
+      // docs/SUPABASE.md documents the one manual step NEAT can't automate.
+      final supabaseDoc = File(
+        '${projectDir.path}/docs/SUPABASE.md',
+      ).readAsStringSync();
+      expect(supabaseDoc, contains('$projectName://login-callback'));
+      expect(supabaseDoc, contains('Redirect URLs'));
 
       // Path constants + the router guard are wired.
       final routePath = File(
@@ -8894,6 +8907,17 @@ void main() {
       expect(notifier, contains('ref.listen(onboardingSeenProvider,'));
       expect(notifier, contains('AppRoutePath.onboarding'));
       expect('implements Listenable'.allMatches(notifier).length, 1);
+      // Real bug, found via a real generated project: the login redirect
+      // never exempted the onboarding route itself, so an unonboarded,
+      // unauthenticated user landing on /onboarding fell through both
+      // onboarding checks, then got bounced to /login by this one, which
+      // bounced straight back — an infinite /onboarding => /login =>
+      // /onboarding loop. `flutter analyze` below can't catch this — it's a
+      // logic bug, not a compile error — so it needs its own assertion.
+      expect(
+        notifier,
+        contains('if (!loggedIn && !onAuthRoute && !onOnboarding) return AppRoutePath.login;'),
+      );
 
       // app_router.dart uses the Auth guard's shape — no standalone onboarding guard.
       final appRouter = File(
