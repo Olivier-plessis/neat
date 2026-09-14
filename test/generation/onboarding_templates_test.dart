@@ -105,5 +105,39 @@ void main() {
       // Still exactly one Listenable — RouterNotifier itself.
       expect('implements Listenable'.allMatches(code).length, 1);
     });
+
+    test(
+      'hasOnboarding: the login redirect exempts the onboarding route itself '
+      '(real bug, found via a real generated project: an unonboarded, '
+      'unauthenticated user landing on /onboarding fell through both '
+      'onboarding checks, then got bounced to /login by this one, which '
+      'bounced straight back — an infinite /onboarding => /login => '
+      '/onboarding loop)',
+      () {
+        final code = AuthTemplates.routerNotifier(
+          packageName: 'demo_app',
+          homeRoute: 'AppRoutePath.product',
+          hasOnboarding: true,
+        );
+        expect(
+          code,
+          contains('if (!loggedIn && !onAuthRoute && !onOnboarding) return AppRoutePath.login;'),
+        );
+      },
+    );
+
+    test(
+      'no onboarding: the login redirect does not reference onOnboarding — '
+      'that variable is only ever declared when hasOnboarding is on, so '
+      'including it here would be a compile error, not just a redundant check',
+      () {
+        final code = AuthTemplates.routerNotifier(
+          packageName: 'demo_app',
+          homeRoute: 'AppRoutePath.product',
+        );
+        expect(code, contains('if (!loggedIn && !onAuthRoute) return AppRoutePath.login;'));
+        expect(code, isNot(contains('onOnboarding')));
+      },
+    );
   });
 }

@@ -1063,6 +1063,43 @@ Then commit the updated `lib/firebase_options.dart` and the native files it adds
 and review `firestore.rules` before shipping.
 ''';
 
+  /// A short guide on the generated Supabase auth wiring + the one manual
+  /// Dashboard step NEAT can't automate.
+  static String supabaseDoc(String packageName) => '''# Supabase
+
+This project uses **Supabase** for authentication (login/signup/forgot-password).
+
+## What NEAT generated
+- `lib/core/network/supabase_provider.dart` — the `SupabaseClient` provider,
+  initialized from `SUPABASE_URL` / `SUPABASE_PUBLISHABLE_KEY` in your `.env`
+  (baked in by envied at build time — re-run `dart run build_runner build` after
+  changing either value).
+- `.../data/repositories/auth_repository_impl.dart` — signup and password-reset
+  pass `emailRedirectTo` / `redirectTo: '$packageName://login-callback'`, so
+  Supabase's confirmation/reset emails deep-link back into the app.
+- The `$packageName://login-callback` scheme registered natively: an
+  `<intent-filter>` in `android/app/src/main/AndroidManifest.xml`, and a
+  `CFBundleURLTypes` entry in `ios/Runner/Info.plist`.
+- `lib/core/router/router_notifier.dart` already listens for the auth state
+  change the deep link produces, so a confirmed/reset session logs the user in
+  and redirects home automatically — nothing else to wire up.
+
+## Redirect URL — one manual step (Supabase Dashboard)
+Supabase rejects a redirect it doesn't recognise and falls back to opening the
+email link in a browser instead of the app. In your project's **Dashboard →
+Authentication → URL Configuration → Redirect URLs**, add:
+
+```
+$packageName://login-callback
+```
+
+## Make it production-ready
+A bare custom scheme (`$packageName://...`) works everywhere but can be hijacked
+by another app registering the same scheme. For a production mobile release,
+prefer **Universal Links** (iOS) / **App Links** (Android) instead — see
+https://supabase.com/docs/guides/auth/native-mobile-deep-linking.
+''';
+
   // ── core/storage/storage_service.dart (Storage, opt-in) ───────────────────
 
   /// A thin wrapper over the project's object storage + a provider. Both

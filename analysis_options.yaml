@@ -4,6 +4,10 @@ analyzer:
   exclude:
     - "**/*.g.dart"
     - "**/*.freezed.dart"
+    - build/**
+    - windows/**
+    - macos/**
+    - linux/**
   errors:
     invalid_annotation_target: ignore
   language:
