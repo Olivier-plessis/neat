@@ -871,6 +871,52 @@ Harness-proven: `pubspec_builder_test.dart` gained two cases (override present
   plausible-looking assertion. `flutter analyze` 0/0, full fast suite (274
   tests, unaffected) + full integration suite green.
 
+### 5r. Supabase auth: email confirmation/reset links opened a browser instead of the app — real gap, found via a real project
+
+> Follow-up, same session as §5q's onboarding/router-guard fixes. After
+> fixing the `/onboarding => /login` redirect loop, the user actually signed
+> up on a device: the confirmation email arrived, but tapping its link
+> opened a browser instead of the app, with no auto-login. Root cause:
+> `AuthTemplates.authRepositoryImpl`'s Supabase branch never passed
+> `emailRedirectTo`/`redirectTo` to `signUp()`/`resetPasswordForEmail()`, and
+> nothing registered a URL scheme natively — so Supabase had nowhere valid
+> to redirect and fell back to a plain browser link. This wasn't a rare
+> misconfiguration; every generated Supabase-auth project hit it the moment
+> a user tried to confirm an email, and `flutter analyze` never caught it —
+> the generated code compiles and lints cleanly either way (a runtime/
+> product gap, not a syntax one).
+- **`AuthTemplates.authRepositoryImpl`** (Supabase branch only — Firebase's
+  email-link mechanism is a differently-shaped feature, out of scope): gained
+  a `static const _emailRedirectTo = '<packageName>://login-callback'`,
+  passed to both `signUp()` and `resetPasswordForEmail()`. `AuthController`
+  already listened to `onAuthStateChange`, and `RouterNotifier` already
+  redirected on login — once the deep link produces a session, both fire
+  with no further wiring needed.
+- **`AuthWriter._patchNativeDeepLinks`** (new, mirrors `FlavorsWriter.
+  _patchAndroidFlavors`'s post-`flutter create` regex-patch technique):
+  inserts a `VIEW`/`BROWSABLE` `<intent-filter>` for the scheme into
+  `AndroidManifest.xml`, and a `CFBundleURLTypes` entry into `Info.plist`.
+  Guarded on `backend == 'supabase'`, on the file existing (no-op for
+  platforms not in `targetPlatforms`), and on the scheme not already being
+  present (safe to re-run, same as the flavors patch).
+- **`docs/SUPABASE.md`** (new, written by `BackendWriter` when
+  `httpClient == 'supabase' && hasAuth`, mirroring `firebaseDoc`'s shape):
+  documents what NEAT generated, and the **one manual step NEAT can't
+  automate** — adding the redirect URL in the Supabase Dashboard
+  (Authentication → URL Configuration → Redirect URLs). Also flags
+  swapping the bare custom scheme for Universal/App Links before a real
+  mobile release.
+- Tests: `auth_templates_test.dart` (new) covers the Supabase-only redirect
+  wiring and asserts it's absent on the Firebase branch;
+  `auth_writer_native_deep_links_test.dart` (new, 4 tests) exercises the
+  manifest/plist patch directly against stub `flutter create` output —
+  scheme registered, idempotent on a second run, no-op when the platform
+  dir doesn't exist, untouched on Firebase. The existing full-pipeline
+  Supabase auth integration test gained assertions for the redirect
+  constant and `docs/SUPABASE.md`, rerun end-to-end (real `flutter create`
+  + `analyze`) and green. `flutter analyze` 0/0, full fast suite green
+  (282 tests, +6 from this fix).
+
 ### 6. Multiple architectures — later, with caution
 
 - The harness makes **every** architecture a ~3× maintenance cost (each must be proven).
