@@ -143,5 +143,72 @@ abstract final class AuthWriter {
       );
       await routes.writeAsString(s);
     }
+
+    // Supabase's confirmation/reset emails deep-link back into the app (see
+    // authRepositoryImpl's `_emailRedirectTo`, '<packageName>://login-callback').
+    // That only works if the platform actually knows the scheme, so register
+    // it natively — the one piece of this NEAT can't leave to docs alone.
+    // Firebase's equivalent (ActionCodeSettings + Dynamic Links) is a
+    // differently-shaped feature, out of scope here.
+    if (backend == 'supabase') {
+      await _patchNativeDeepLinks(projectDir, packageName);
+    }
+  }
+
+  /// Registers the `<packageName>://login-callback` scheme natively, so a
+  /// Supabase confirmation/reset email opens the app instead of a browser.
+  /// No-op if the target platform wasn't generated (file doesn't exist) or
+  /// the scheme is already there (re-run safety, like _patchAndroidFlavors).
+  static Future<void> _patchNativeDeepLinks(
+    Directory projectDir,
+    String packageName,
+  ) async {
+    final manifest = File(
+      '${projectDir.path}/android/app/src/main/AndroidManifest.xml',
+    );
+    if (manifest.existsSync()) {
+      var src = await manifest.readAsString();
+      if (!src.contains('login-callback')) {
+        const filter =
+            '            <!-- Supabase email confirmation / password reset deep link. -->\n'
+            '            <intent-filter android:autoVerify="false">\n'
+            '                <action android:name="android.intent.action.VIEW"/>\n'
+            '                <category android:name="android.intent.category.DEFAULT"/>\n'
+            '                <category android:name="android.intent.category.BROWSABLE"/>\n'
+            '                <data android:scheme="SCHEME_PLACEHOLDER" android:host="login-callback"/>\n'
+            '            </intent-filter>\n'
+            '        </activity>';
+        src = src.replaceFirst(
+          '</activity>',
+          filter.replaceFirst('SCHEME_PLACEHOLDER', packageName),
+        );
+        await manifest.writeAsString(src);
+      }
+    }
+
+    final infoPlist = File('${projectDir.path}/ios/Runner/Info.plist');
+    if (infoPlist.existsSync()) {
+      var src = await infoPlist.readAsString();
+      if (!src.contains('CFBundleURLTypes')) {
+        final urlTypes =
+            '\t<key>CFBundleURLTypes</key>\n'
+            '\t<array>\n'
+            '\t\t<dict>\n'
+            '\t\t\t<key>CFBundleURLName</key>\n'
+            '\t\t\t<string>$packageName.auth</string>\n'
+            '\t\t\t<key>CFBundleURLSchemes</key>\n'
+            '\t\t\t<array>\n'
+            '\t\t\t\t<string>$packageName</string>\n'
+            '\t\t\t</array>\n'
+            '\t\t</dict>\n'
+            '\t</array>\n'
+            '\t<key>LSRequiresIPhoneOS</key>';
+        src = src.replaceFirst(
+          RegExp(r'<key>LSRequiresIPhoneOS</key>'),
+          urlTypes,
+        );
+        await infoPlist.writeAsString(src);
+      }
+    }
   }
 }
