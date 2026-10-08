@@ -272,7 +272,11 @@ IAuthRepository authRepository(Ref ref) =>
         ? "\nimport 'package:$packageName/core/onboarding/onboarding_seen_provider.dart';"
         : '';
     final onboardingListen = hasOnboarding
-        ? '\n    ref.listen(onboardingSeenProvider, (_, __) => _listener?.call());'
+        // `(_, _)`, not `(_, __)`: Dart 3.7+ wildcards — `__` trips the
+        // `unnecessary_underscores` info, which a generated project's CI
+        // `flutter analyze` treats as fatal (real bug, found via a real
+        // project's pipeline).
+        ? '\n    ref.listen(onboardingSeenProvider, (_, _) => _listener?.call());'
         : '';
     // Checked first — shown before even asking to log in.
     final onboardingCheck = hasOnboarding

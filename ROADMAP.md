@@ -917,6 +917,43 @@ Harness-proven: `pubspec_builder_test.dart` gained two cases (override present
   + `analyze`) and green. `flutter analyze` 0/0, full fast suite green
   (282 tests, +6 from this fix).
 
+### 5s. Generated CI pipeline failed on a fresh packageSplit + Supabase project — real bugs, found via a real project's GitHub Actions run
+
+> Follow-up, same project as §5r. The generated `.github/workflows/flutter.yml`
+> runs `flutter analyze` → `dart format --set-exit-if-changed` → `flutter test
+> --coverage`, and failed at every step a fresh project could reach. Root
+> cause of why NEAT never saw it: the integration harness only gated on
+> `error •` / `warning •` lines, while the generated CI's `flutter analyze`
+> is **fatal on infos too** — so a whole class of real defects
+> (`depend_on_referenced_packages`, `unnecessary_underscores`) passed NEAT's
+> own quality bar and failed the user's. And no test ever ran `flutter test`
+> on a generated project, which has no `test/` at all (`flutter create -e`).
+- **`CorePackageTemplates.featurePackagePubspec`**: supabase/firebase fell
+  through to `dio`, so split packages importing `supabase_flutter` /
+  `cloud_firestore` never declared them. Now switches on the backend like
+  `pubspec()` does; new `isAuthPackage` (passed by `AuthWriter`) adds
+  `flutter_hooks` (the auth screens are `HookConsumerWidget`s) and, on
+  Firebase, `firebase_auth`.
+- **`CorePackageTemplates.pubspec`** (Firebase): declares `firebase_core` —
+  core's `network_error_handler.dart` imports it directly. Not reported by the
+  user; caught by tightening the Firebase twin scenario to CI's gate.
+- **`CorePackageWriter`**: `logger_interceptor.dart` (a Dio/Chopper
+  interceptor) was written unconditionally into a Supabase/Firebase core —
+  dead code importing an undeclared `dio`. Now gated on dio/chopper, same
+  gate `CoreInfraWriter`'s non-split copy already had.
+- **`AuthTemplates.routerNotifier`** (onboarding): `(_, __)` → `(_, _)`
+  (Dart 3.7 wildcards; `__` trips `unnecessary_underscores`).
+- **`CoreDartTemplates.coreResultTest`** (new), written by `CoreInfraWriter`
+  for every project, split or not: `test/core/result/result_test.dart`, a real
+  test of the always-generated `Result` — so the CI's `flutter test
+  --coverage` has something to run instead of failing on a missing `test/`.
+- Tests: `generated_ci_readiness_test.dart` (new, 7 unit tests). The two
+  packageSplit + auth integration scenarios (Supabase, Firebase) now also
+  assert `flutter analyze`'s **exit code** is 0 — exactly CI's gate — and the
+  Supabase one runs `flutter test` on the generated project. Both green.
+  Every other integration scenario still only gates on errors/warnings —
+  extending the CI-faithful gate to all of them is the natural follow-up.
+
 ### 6. Multiple architectures — later, with caution
 
 - The harness makes **every** architecture a ~3× maintenance cost (each must be proven).

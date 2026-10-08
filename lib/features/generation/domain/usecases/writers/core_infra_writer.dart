@@ -43,6 +43,15 @@ abstract final class CoreInfraWriter {
         CoreDartTemplates.coreUsecaseDart(packageName: packageName),
       );
     }
+    // The app's first real test — always, split or not (Result then lives in
+    // core, but the root `flutter test` the generated CI runs still needs a
+    // test of its own; see coreResultTest's doc).
+    await writeFile(
+      '${lib.replaceFirst(RegExp(r'/lib$'), '/test')}/core/result/result_test.dart',
+      CoreDartTemplates.coreResultTest(
+        packageName: corePackageName ?? packageName,
+      ),
+    );
 
     // ── core/constants ────────────────────────────────────────────────────
     if (corePackageName == null) {

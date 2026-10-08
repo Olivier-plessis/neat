@@ -43,6 +43,38 @@ final class _Failure<T> extends Result<T> {
 }
 ''';
 
+  /// `test/core/result/result_test.dart` — the project's first real test.
+  /// `flutter create -e` ships no `test/` at all, and `mirrorTestStructure`
+  /// only lays down `.gitkeep`s, so the generated CI's `flutter test
+  /// --coverage` failed on every fresh project ("Test directory "test" not
+  /// found" — real bug, found via a real project's pipeline). [Result] is
+  /// generated for every project, so it's always a valid target.
+  /// [packageName]: the app's own name, or the core package's when split.
+  static String coreResultTest({required String packageName}) =>
+      '''import 'package:flutter_test/flutter_test.dart';
+import 'package:$packageName/core/error/failure.dart';
+import 'package:$packageName/core/result/result.dart';
+
+void main() {
+  group('Result', () {
+    test('success folds to onSuccess and exposes its value', () {
+      final result = Result.success(42);
+      expect(result.fold(onSuccess: (v) => v, onFailure: (_) => -1), 42);
+      expect(result.getOrNull(), 42);
+      expect(result.getOrThrow(), 42);
+    });
+
+    test('failure folds to onFailure and getOrThrow rethrows the Failure', () {
+      const failure = Failure(message: 'boom');
+      final result = Result<int>.failure(failure);
+      expect(result.getOrNull(), isNull);
+      expect(result.getOrDefault(7), 7);
+      expect(result.getOrThrow, throwsA(same(failure)));
+    });
+  });
+}
+''';
+
   /// [UseCase.execute] is the business logic — it **may throw** (a repository
   /// method call, a parsing error, anything). [UseCase.call] is the *only*
   /// place that catches: it converts whatever was thrown into a [Failure] via

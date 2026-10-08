@@ -4374,6 +4374,36 @@ void main() {
           'flutter analyze reported errors:\n${errorLines.join('\n')}\n\n'
           '--- full analyze output ---\n$out',
     );
+
+    // CI-faithful gate (real bug, found via a real project's pipeline): the
+    // generated CI's `flutter analyze` is fatal on *infos* too — a split
+    // package importing supabase_flutter/flutter_hooks without declaring
+    // them (`depend_on_referenced_packages`) failed it, while the
+    // error/warning-only check above stayed green.
+    expect(
+      analyze.exitCode,
+      0,
+      reason: 'flutter analyze must pass as the generated CI runs it:\n$out',
+    );
+    expect(
+      File('$coreRoot/lib/core/observers/logger_interceptor.dart').existsSync(),
+      isFalse,
+      reason: 'a Supabase core has no Dio — no Dio interceptor either',
+    );
+    expect(read('$authRoot/pubspec.yaml'), contains('flutter_hooks:'));
+    expect(read('$featureRoot/pubspec.yaml'), isNot(contains('dio:')));
+
+    // ...and so must the CI's `flutter test --coverage` step: `flutter
+    // create -e` ships no test/ at all, so NEAT generates a first real one.
+    final test = await Process.run('flutter', [
+      'test',
+      '--no-pub',
+    ], workingDirectory: projectDir.path);
+    expect(
+      test.exitCode,
+      0,
+      reason: 'flutter test failed:\n${test.stdout}\n${test.stderr}',
+    );
   }, timeout: const Timeout(Duration(minutes: 12)));
 
   test(
@@ -4525,6 +4555,21 @@ void main() {
         reason:
             'flutter analyze reported errors:\n${errorLines.join('\n')}\n\n'
             '--- full analyze output ---\n$out',
+      );
+      // CI-faithful gate — see the Supabase twin above: infos are fatal in
+      // the generated CI, and Firebase's split packages hit the same
+      // undeclared-import infos (cloud_firestore/firebase_auth/flutter_hooks).
+      expect(
+        analyze.exitCode,
+        0,
+        reason: 'flutter analyze must pass as the generated CI runs it:\n$out',
+      );
+      expect(
+        File(
+          '$coreRoot/lib/core/observers/logger_interceptor.dart',
+        ).existsSync(),
+        isFalse,
+        reason: 'a Firebase core has no Dio — no Dio interceptor either',
       );
     },
     timeout: const Timeout(Duration(minutes: 12)),
