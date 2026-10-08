@@ -161,13 +161,20 @@ abstract final class CorePackageWriter {
         ),
       );
     }
-    await writeFile(
-      '$root/lib/core/observers/logger_interceptor.dart',
-      CoreTemplates.loggerInterceptor(
-        packageName: corePackageName,
-        httpClient: httpClient,
-      ),
-    );
+    // HTTP logging interceptor — REST clients only, same gate as
+    // CoreInfraWriter's non-split copy. Real bug, found via a real project's
+    // CI: written unconditionally here, a Supabase/Firebase core shipped an
+    // unused Dio interceptor importing a package its pubspec never declares
+    // (`depend_on_referenced_packages`, fatal in the generated CI).
+    if (httpClient == 'dio' || httpClient == 'chopper') {
+      await writeFile(
+        '$root/lib/core/observers/logger_interceptor.dart',
+        CoreTemplates.loggerInterceptor(
+          packageName: corePackageName,
+          httpClient: httpClient,
+        ),
+      );
+    }
     await writeFile(
       '$root/lib/core/utils/app_logger.dart',
       CoreTemplates.appLogger(useEnvied: false, packageName: corePackageName),
