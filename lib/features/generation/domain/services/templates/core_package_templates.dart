@@ -46,8 +46,13 @@ class CorePackageTemplates {
     final clientDep = switch (httpClient) {
       'chopper' => '  chopper: ^8.6.0\n',
       'supabase' => '  supabase_flutter: ^2.14.1\n',
+      // firebase_core: core's network_error_handler.dart imports it directly
+      // (FirebaseException) — undeclared, it tripped
+      // `depend_on_referenced_packages`, fatal in the generated CI (found by
+      // tightening the packageSplit + Firebase integration test to CI's gate).
       'firebase' =>
-        '  cloud_firestore: ^5.6.0\n'
+        '  firebase_core: ^3.8.1\n'
+            '  cloud_firestore: ^5.6.0\n'
             '${hasAuth ? '  firebase_auth: ^5.3.4\n' : ''}'
             '${hasStorage ? '  firebase_storage: ^12.4.0\n' : ''}',
       _ => '  dio: ^5.9.2\n',
@@ -111,15 +116,35 @@ extension FireAndForgetFutureX<T> on Future<T> {
   /// [localStoragePackage] adds a sibling `path:` dep on the Drift package —
   /// `featureLocalSource()` imports it directly, same as it already does in
   /// the non-split app.
+  /// [isAuthPackage]: the split Auth package's screens are
+  /// `HookConsumerWidget`s (flutter_hooks), and on Firebase its repository
+  /// talks to firebase_auth directly.
+  ///
+  /// Real bug, found via a real project's CI: supabase/firebase used to fall
+  /// through to `dio` here, so every split package importing
+  /// supabase_flutter / cloud_firestore / flutter_hooks tripped
+  /// `depend_on_referenced_packages` — only an info locally, but fatal in the
+  /// generated CI's `flutter analyze`. Every package must declare what it
+  /// imports itself; pub never re-exports a sibling's (core's) dependencies.
   static String featurePackagePubspec({
     required String featurePackageName,
     required String corePackageName,
     String httpClient = 'dio',
     bool hasGoRouterBuilder = false,
     String? localStoragePackage,
+    bool isAuthPackage = false,
   }) {
     final isChopper = httpClient == 'chopper';
-    final clientDeps = isChopper ? '  chopper: ^8.6.0\n' : '  dio: ^5.9.2\n';
+    final backendDeps = switch (httpClient) {
+      'chopper' => '  chopper: ^8.6.0\n',
+      'supabase' => '  supabase_flutter: ^2.14.1\n',
+      'firebase' =>
+        '  cloud_firestore: ^5.6.0\n'
+            '${isAuthPackage ? '  firebase_auth: ^5.3.4\n' : ''}',
+      _ => '  dio: ^5.9.2\n',
+    };
+    final hooksDep = isAuthPackage ? '  flutter_hooks: ^0.21.3+1\n' : '';
+    final clientDeps = '$backendDeps$hooksDep';
     final clientDevDeps = isChopper ? '  chopper_generator: ^8.6.2\n' : '';
     final routerDevDeps = hasGoRouterBuilder ? '  go_router_builder: ^4.3.0\n' : '';
     final localStorageDep = localStoragePackage != null
