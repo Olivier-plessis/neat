@@ -60,6 +60,9 @@ flutter test --tags integration            # full generate + analyze gate (slow)
 
 ## Run it
 
+Requires **Flutter ≥ 3.47** (stable): generated projects use freezed 4, which
+needs Dart 3.13.
+
 ```bash
 flutter run -d macos
 ```

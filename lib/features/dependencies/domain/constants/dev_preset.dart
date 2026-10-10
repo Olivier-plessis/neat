@@ -4,7 +4,7 @@ const devPresetPackages = [
   // ── Runtime dependencies ──────────────────────────────────────────────────
   PubPackage(
     name: 'hooks_riverpod',
-    version: '3.3.1',
+    version: '3.4.3',
     description: 'Flutter hooks + Riverpod state management.',
   ),
   PubPackage(
@@ -14,7 +14,7 @@ const devPresetPackages = [
   ),
   PubPackage(
     name: 'riverpod_annotation',
-    version: '4.0.2',
+    version: '4.0.7',
     description: 'Annotations for code-generated Riverpod providers.',
   ),
   PubPackage(
@@ -32,55 +32,55 @@ const devPresetPackages = [
     version: '8.6.0',
     description: 'HTTP client generator using annotations.',
   ),
-  PubPackage(name: 'go_router', version: '17.2.3', description: 'Declarative routing for Flutter.'),
+  PubPackage(name: 'go_router', version: '17.5.0', description: 'Declarative routing for Flutter.'),
   PubPackage(name: 'envied', version: '1.3.5', description: 'Declarative env for Flutter.'),
 
   // ── Dev dependencies ──────────────────────────────────────────────────────
   PubPackage(
     name: 'riverpod_generator',
-    version: '4.0.3',
+    version: '4.0.9',
     description: 'Code generator for Riverpod providers.',
     isDev: true,
   ),
   PubPackage(
     name: 'envied_generator',
-    version: '1.3.5',
+    version: '1.3.10',
     description: 'Code generator for envied.',
     isDev: true,
   ),
   PubPackage(
     name: 'riverpod_lint',
-    version: '3.1.4',
+    version: '3.1.9',
     description: 'Lint rules for Riverpod.',
     isDev: true,
   ),
   PubPackage(
     name: 'json_serializable',
-    version: '6.13.0',
+    version: '6.14.1',
     description: 'Generates toJson/fromJson from annotations.',
     isDev: true,
   ),
   PubPackage(
     name: 'build_runner',
-    version: '2.15.0',
+    version: '2.16.2',
     description: 'Build system for Dart code generation.',
     isDev: true,
   ),
   PubPackage(
     name: 'freezed',
-    version: '3.2.5',
+    version: '4.0.2',
     description: 'Code generator for immutable classes and sealed unions.',
     isDev: true,
   ),
   PubPackage(
     name: 'go_router_builder',
-    version: '4.3.0',
+    version: '4.5.0',
     description: 'Type-safe route generation for go_router.',
     isDev: true,
   ),
   PubPackage(
     name: 'chopper_generator',
-    version: '8.6.2',
+    version: '8.7.1',
     description: 'Code generator for Chopper HTTP clients.',
     isDev: true,
   ),

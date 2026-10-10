@@ -211,7 +211,7 @@ return $default(_that.name,_that.organization,_that.projectPath,_that.descriptio
 
 
 class _IdentityState implements IdentityState {
-  const _IdentityState({this.name = '', this.organization = 'com.example', this.projectPath = '', this.description = '', final  List<String> targetPlatforms = const ['android', 'ios'], this.flutterVersion = '3.44.x'}): _targetPlatforms = targetPlatforms;
+  const _IdentityState({this.name = '', this.organization = 'com.example', this.projectPath = '', this.description = '', final  List<String> targetPlatforms = const ['android', 'ios'], this.flutterVersion = '3.47.2'}): _targetPlatforms = targetPlatforms;
   
 
 @override@JsonKey() final  String name;
