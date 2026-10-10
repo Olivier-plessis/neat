@@ -1987,7 +1987,7 @@ class GenerateFeatureUsecase {
     if (s.contains('go_router:')) return;
     s = s.replaceFirst(
       'dependencies:\n  flutter:\n    sdk: flutter',
-      'dependencies:\n  flutter:\n    sdk: flutter\n  go_router: ^17.2.3\n',
+      'dependencies:\n  flutter:\n    sdk: flutter\n  go_router: ^17.5.0\n',
     );
     await pubspec.writeAsString(s);
   }

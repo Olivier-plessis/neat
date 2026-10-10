@@ -35,23 +35,23 @@ void main() {
   // The exact set that resolves cleanly (mirrors a known-good generation):
   // riverpod + hooks + freezed + json + chopper/dio + go_router_builder + envied.
   final packages = <PubPackage>[
-    _dep('hooks_riverpod', '3.3.1'),
+    _dep('hooks_riverpod', '3.4.3'),
     _dep('flutter_hooks', '0.21.3+1'),
-    _dep('riverpod_annotation', '4.0.2'),
+    _dep('riverpod_annotation', '4.0.7'),
     _dep('json_annotation', '4.11.0'),
     _dep('freezed_annotation', '3.1.0'),
     _dep('dio', '5.9.2'),
     _dep('chopper', '8.6.0'),
-    _dep('go_router', '17.2.3'),
+    _dep('go_router', '17.5.0'),
     _dep('envied', '1.3.5'),
-    _dev('riverpod_generator', '4.0.3'),
-    _dev('envied_generator', '1.3.5'),
-    _dev('riverpod_lint', '3.1.3'),
-    _dev('json_serializable', '6.13.0'),
-    _dev('build_runner', '2.15.0'),
-    _dev('freezed', '3.2.5'),
-    _dev('go_router_builder', '4.3.0'),
-    _dev('chopper_generator', '8.6.2'),
+    _dev('riverpod_generator', '4.0.9'),
+    _dev('envied_generator', '1.3.10'),
+    _dev('riverpod_lint', '3.1.9'),
+    _dev('json_serializable', '6.14.1'),
+    _dev('build_runner', '2.16.2'),
+    _dev('freezed', '4.0.2'),
+    _dev('go_router_builder', '4.5.0'),
+    _dev('chopper_generator', '8.7.1'),
   ];
 
   late Directory tempRoot;
@@ -426,10 +426,10 @@ void main() {
 
       // No riverpod_annotation/riverpod_generator — manual mode needs neither.
       final manualPackages = <PubPackage>[
-        _dep('hooks_riverpod', '3.3.1'),
+        _dep('hooks_riverpod', '3.4.3'),
         _dep('flutter_hooks', '0.21.3+1'),
         _dep('dio', '5.9.2'),
-        _dep('go_router', '17.2.3'),
+        _dep('go_router', '17.5.0'),
       ];
 
       final identity = IdentityState(
@@ -534,7 +534,7 @@ void main() {
     final blocPackages = <PubPackage>[
       _dep('bloc', '9.0.1'),
       _dep('dio', '5.9.2'),
-      _dep('go_router', '17.2.3'),
+      _dep('go_router', '17.5.0'),
     ];
 
     final identity = IdentityState(
@@ -647,9 +647,9 @@ void main() {
     final blocPackages = <PubPackage>[
       _dep('flutter_bloc', '9.1.1'),
       _dep('chopper', '8.6.0'),
-      _dep('go_router', '17.2.3'),
-      _dev('chopper_generator', '8.6.2'),
-      _dev('build_runner', '2.15.0'),
+      _dep('go_router', '17.5.0'),
+      _dev('chopper_generator', '8.7.1'),
+      _dev('build_runner', '2.16.2'),
     ];
 
     final identity = IdentityState(
@@ -746,7 +746,7 @@ void main() {
       final cubitPackages = <PubPackage>[
         _dep('flutter_bloc', '9.1.1'),
         _dep('dio', '5.9.2'),
-        _dep('go_router', '17.2.3'),
+        _dep('go_router', '17.5.0'),
       ];
 
       final identity = IdentityState(
@@ -1111,18 +1111,18 @@ void main() {
     // Plain go_router (no go_router_builder) — isolates the manual routing
     // welcome-fallback path from the typed one (covered separately below).
     final noBuilderPackages = <PubPackage>[
-      _dep('hooks_riverpod', '3.3.1'),
+      _dep('hooks_riverpod', '3.4.3'),
       _dep('flutter_hooks', '0.21.3+1'),
-      _dep('riverpod_annotation', '4.0.2'),
+      _dep('riverpod_annotation', '4.0.7'),
       _dep('json_annotation', '4.11.0'),
       _dep('freezed_annotation', '3.1.0'),
       _dep('dio', '5.9.2'),
-      _dep('go_router', '17.2.3'),
-      _dev('riverpod_generator', '4.0.3'),
-      _dev('riverpod_lint', '3.1.3'),
-      _dev('json_serializable', '6.13.0'),
-      _dev('build_runner', '2.15.0'),
-      _dev('freezed', '3.2.5'),
+      _dep('go_router', '17.5.0'),
+      _dev('riverpod_generator', '4.0.9'),
+      _dev('riverpod_lint', '3.1.9'),
+      _dev('json_serializable', '6.14.1'),
+      _dev('build_runner', '2.16.2'),
+      _dev('freezed', '4.0.2'),
     ];
 
     final identity = IdentityState(
@@ -1326,18 +1326,18 @@ void main() {
       const projectName = 'neat_gen_pkgsplit_nofeature_test';
       final logs = <String>[];
       final noBuilderPackages = <PubPackage>[
-        _dep('hooks_riverpod', '3.3.1'),
+        _dep('hooks_riverpod', '3.4.3'),
         _dep('flutter_hooks', '0.21.3+1'),
-        _dep('riverpod_annotation', '4.0.2'),
+        _dep('riverpod_annotation', '4.0.7'),
         _dep('json_annotation', '4.11.0'),
         _dep('freezed_annotation', '3.1.0'),
         _dep('dio', '5.9.2'),
-        _dep('go_router', '17.2.3'),
-        _dev('riverpod_generator', '4.0.3'),
-        _dev('riverpod_lint', '3.1.3'),
-        _dev('json_serializable', '6.13.0'),
-        _dev('build_runner', '2.15.0'),
-        _dev('freezed', '3.2.5'),
+        _dep('go_router', '17.5.0'),
+        _dev('riverpod_generator', '4.0.9'),
+        _dev('riverpod_lint', '3.1.9'),
+        _dev('json_serializable', '6.14.1'),
+        _dev('build_runner', '2.16.2'),
+        _dev('freezed', '4.0.2'),
       ];
 
       final identity = IdentityState(
@@ -1681,18 +1681,18 @@ void main() {
       // Phase 1 combo: dio, plain go_router, remote-only (no Drift — a 3rd
       // package, later — see the "offline-first" combo elsewhere in Phase 2).
       final noBuilderPackages = <PubPackage>[
-        _dep('hooks_riverpod', '3.3.1'),
+        _dep('hooks_riverpod', '3.4.3'),
         _dep('flutter_hooks', '0.21.3+1'),
-        _dep('riverpod_annotation', '4.0.2'),
+        _dep('riverpod_annotation', '4.0.7'),
         _dep('json_annotation', '4.11.0'),
         _dep('freezed_annotation', '3.1.0'),
         _dep('dio', '5.9.2'),
-        _dep('go_router', '17.2.3'),
-        _dev('riverpod_generator', '4.0.3'),
-        _dev('riverpod_lint', '3.1.3'),
-        _dev('json_serializable', '6.13.0'),
-        _dev('build_runner', '2.15.0'),
-        _dev('freezed', '3.2.5'),
+        _dep('go_router', '17.5.0'),
+        _dev('riverpod_generator', '4.0.9'),
+        _dev('riverpod_lint', '3.1.9'),
+        _dev('json_serializable', '6.14.1'),
+        _dev('build_runner', '2.16.2'),
+        _dev('freezed', '4.0.2'),
       ];
 
       final identity = IdentityState(
@@ -1913,19 +1913,19 @@ void main() {
     // registers itself at runtime instead (see
     // DataTemplates.featureRepositoryProviders/AppTemplates.bootstrap).
     final chopperPackages = <PubPackage>[
-      _dep('hooks_riverpod', '3.3.1'),
+      _dep('hooks_riverpod', '3.4.3'),
       _dep('flutter_hooks', '0.21.3+1'),
-      _dep('riverpod_annotation', '4.0.2'),
+      _dep('riverpod_annotation', '4.0.7'),
       _dep('json_annotation', '4.11.0'),
       _dep('freezed_annotation', '3.1.0'),
       _dep('chopper', '8.6.0'),
-      _dep('go_router', '17.2.3'),
-      _dev('riverpod_generator', '4.0.3'),
-      _dev('riverpod_lint', '3.1.3'),
-      _dev('json_serializable', '6.13.0'),
-      _dev('build_runner', '2.15.0'),
-      _dev('freezed', '3.2.5'),
-      _dev('chopper_generator', '8.6.2'),
+      _dep('go_router', '17.5.0'),
+      _dev('riverpod_generator', '4.0.9'),
+      _dev('riverpod_lint', '3.1.9'),
+      _dev('json_serializable', '6.14.1'),
+      _dev('build_runner', '2.16.2'),
+      _dev('freezed', '4.0.2'),
+      _dev('chopper_generator', '8.7.1'),
     ];
 
     final identity = IdentityState(
@@ -1999,7 +1999,7 @@ void main() {
     // The feature package depends on chopper (+ its generator) and core.
     final featurePubspec = read('$featureRoot/pubspec.yaml');
     expect(featurePubspec, contains('chopper: ^8.6.0'));
-    expect(featurePubspec, contains('chopper_generator: ^8.6.2'));
+    expect(featurePubspec, contains('chopper_generator: ^8.7.1'));
     expect(featurePubspec, contains('core:\n    path: ../core'));
 
     // The feature registers its own decoder — imports core's registry +
@@ -2101,21 +2101,21 @@ void main() {
     // real project: every split feature's remote call hit an empty
     // baseUrl, "Invalid argument(s): No host specified in URI ...").
     final packages = <PubPackage>[
-      _dep('hooks_riverpod', '3.3.1'),
+      _dep('hooks_riverpod', '3.4.3'),
       _dep('flutter_hooks', '0.21.3+1'),
-      _dep('riverpod_annotation', '4.0.2'),
+      _dep('riverpod_annotation', '4.0.7'),
       _dep('json_annotation', '4.11.0'),
       _dep('freezed_annotation', '3.1.0'),
       _dep('chopper', '8.6.0'),
-      _dep('go_router', '17.2.3'),
+      _dep('go_router', '17.5.0'),
       _dep('envied', '1.3.5'),
-      _dev('riverpod_generator', '4.0.3'),
-      _dev('envied_generator', '1.3.5'),
-      _dev('riverpod_lint', '3.1.3'),
-      _dev('json_serializable', '6.13.0'),
-      _dev('build_runner', '2.15.0'),
-      _dev('freezed', '3.2.5'),
-      _dev('chopper_generator', '8.6.2'),
+      _dev('riverpod_generator', '4.0.9'),
+      _dev('envied_generator', '1.3.10'),
+      _dev('riverpod_lint', '3.1.9'),
+      _dev('json_serializable', '6.14.1'),
+      _dev('build_runner', '2.16.2'),
+      _dev('freezed', '4.0.2'),
+      _dev('chopper_generator', '8.7.1'),
     ];
 
     final identity = IdentityState(
@@ -2221,19 +2221,19 @@ void main() {
       // featureRoutes() needed the same package-aware redirect as
       // routesManual()/featureRoute() got in Step 2a.
       final builderPackages = <PubPackage>[
-        _dep('hooks_riverpod', '3.3.1'),
+        _dep('hooks_riverpod', '3.4.3'),
         _dep('flutter_hooks', '0.21.3+1'),
-        _dep('riverpod_annotation', '4.0.2'),
+        _dep('riverpod_annotation', '4.0.7'),
         _dep('json_annotation', '4.11.0'),
         _dep('freezed_annotation', '3.1.0'),
         _dep('dio', '5.9.2'),
-        _dep('go_router', '17.2.3'),
-        _dev('go_router_builder', '4.3.0'),
-        _dev('riverpod_generator', '4.0.3'),
-        _dev('riverpod_lint', '3.1.3'),
-        _dev('json_serializable', '6.13.0'),
-        _dev('build_runner', '2.15.0'),
-        _dev('freezed', '3.2.5'),
+        _dep('go_router', '17.5.0'),
+        _dev('go_router_builder', '4.5.0'),
+        _dev('riverpod_generator', '4.0.9'),
+        _dev('riverpod_lint', '3.1.9'),
+        _dev('json_serializable', '6.14.1'),
+        _dev('build_runner', '2.16.2'),
+        _dev('freezed', '4.0.2'),
       ];
 
       final identity = IdentityState(
@@ -2307,7 +2307,7 @@ void main() {
             'go_router_builder codegen did not run for the split feature package',
       );
       final featurePubspec = read('$featureRoot/pubspec.yaml');
-      expect(featurePubspec, contains('go_router_builder: ^4.3.0'));
+      expect(featurePubspec, contains('go_router_builder: ^4.5.0'));
 
       // Core still ships its own AppRoutePath copy (written unconditionally
       // by _writeCorePackage), independent of the routing style.
@@ -2353,19 +2353,19 @@ void main() {
     const projectName = 'neat_pkgsplit_childroute_builder_test';
     final logs = <String>[];
     final builderPackages = <PubPackage>[
-      _dep('hooks_riverpod', '3.3.1'),
+      _dep('hooks_riverpod', '3.4.3'),
       _dep('flutter_hooks', '0.21.3+1'),
-      _dep('riverpod_annotation', '4.0.2'),
+      _dep('riverpod_annotation', '4.0.7'),
       _dep('json_annotation', '4.11.0'),
       _dep('freezed_annotation', '3.1.0'),
       _dep('dio', '5.9.2'),
-      _dep('go_router', '17.2.3'),
-      _dev('go_router_builder', '4.3.0'),
-      _dev('riverpod_generator', '4.0.3'),
-      _dev('riverpod_lint', '3.1.3'),
-      _dev('json_serializable', '6.13.0'),
-      _dev('build_runner', '2.15.0'),
-      _dev('freezed', '3.2.5'),
+      _dep('go_router', '17.5.0'),
+      _dev('go_router_builder', '4.5.0'),
+      _dev('riverpod_generator', '4.0.9'),
+      _dev('riverpod_lint', '3.1.9'),
+      _dev('json_serializable', '6.14.1'),
+      _dev('build_runner', '2.16.2'),
+      _dev('freezed', '4.0.2'),
     ];
 
     final identity = IdentityState(
@@ -2506,20 +2506,20 @@ void main() {
     // chopper, not dio (mirrors the "packageSplit + chopper" test above) —
     // exercises the decoder-registration path this test is really about.
     final builderPackages = <PubPackage>[
-      _dep('hooks_riverpod', '3.3.1'),
+      _dep('hooks_riverpod', '3.4.3'),
       _dep('flutter_hooks', '0.21.3+1'),
-      _dep('riverpod_annotation', '4.0.2'),
+      _dep('riverpod_annotation', '4.0.7'),
       _dep('json_annotation', '4.11.0'),
       _dep('freezed_annotation', '3.1.0'),
       _dep('chopper', '8.6.0'),
-      _dep('go_router', '17.2.3'),
-      _dev('go_router_builder', '4.3.0'),
-      _dev('riverpod_generator', '4.0.3'),
-      _dev('riverpod_lint', '3.1.3'),
-      _dev('json_serializable', '6.13.0'),
-      _dev('build_runner', '2.15.0'),
-      _dev('freezed', '3.2.5'),
-      _dev('chopper_generator', '8.6.2'),
+      _dep('go_router', '17.5.0'),
+      _dev('go_router_builder', '4.5.0'),
+      _dev('riverpod_generator', '4.0.9'),
+      _dev('riverpod_lint', '3.1.9'),
+      _dev('json_serializable', '6.14.1'),
+      _dev('build_runner', '2.16.2'),
+      _dev('freezed', '4.0.2'),
+      _dev('chopper_generator', '8.7.1'),
     ];
 
     final identity = IdentityState(
@@ -2686,18 +2686,18 @@ void main() {
     // Plain go_router (no go_router_builder), dio, no chopper — same combo
     // as the Phase 1 packageSplit core-package test's noBuilderPackages.
     final plainPackages = <PubPackage>[
-      _dep('hooks_riverpod', '3.3.1'),
+      _dep('hooks_riverpod', '3.4.3'),
       _dep('flutter_hooks', '0.21.3+1'),
-      _dep('riverpod_annotation', '4.0.2'),
+      _dep('riverpod_annotation', '4.0.7'),
       _dep('json_annotation', '4.11.0'),
       _dep('freezed_annotation', '3.1.0'),
       _dep('dio', '5.9.2'),
-      _dep('go_router', '17.2.3'),
-      _dev('riverpod_generator', '4.0.3'),
-      _dev('riverpod_lint', '3.1.3'),
-      _dev('json_serializable', '6.13.0'),
-      _dev('build_runner', '2.15.0'),
-      _dev('freezed', '3.2.5'),
+      _dep('go_router', '17.5.0'),
+      _dev('riverpod_generator', '4.0.9'),
+      _dev('riverpod_lint', '3.1.9'),
+      _dev('json_serializable', '6.14.1'),
+      _dev('build_runner', '2.16.2'),
+      _dev('freezed', '4.0.2'),
     ];
 
     final identity = IdentityState(
@@ -2829,19 +2829,19 @@ void main() {
     const projectName = 'neat_pkgsplit_shell_registry_test';
     final logs = <String>[];
     final builderPackages = <PubPackage>[
-      _dep('hooks_riverpod', '3.3.1'),
+      _dep('hooks_riverpod', '3.4.3'),
       _dep('flutter_hooks', '0.21.3+1'),
-      _dep('riverpod_annotation', '4.0.2'),
+      _dep('riverpod_annotation', '4.0.7'),
       _dep('json_annotation', '4.11.0'),
       _dep('freezed_annotation', '3.1.0'),
       _dep('dio', '5.9.2'),
-      _dep('go_router', '17.2.3'),
-      _dev('go_router_builder', '4.3.0'),
-      _dev('riverpod_generator', '4.0.3'),
-      _dev('riverpod_lint', '3.1.3'),
-      _dev('json_serializable', '6.13.0'),
-      _dev('build_runner', '2.15.0'),
-      _dev('freezed', '3.2.5'),
+      _dep('go_router', '17.5.0'),
+      _dev('go_router_builder', '4.5.0'),
+      _dev('riverpod_generator', '4.0.9'),
+      _dev('riverpod_lint', '3.1.9'),
+      _dev('json_serializable', '6.14.1'),
+      _dev('build_runner', '2.16.2'),
+      _dev('freezed', '4.0.2'),
     ];
 
     final identity = IdentityState(
@@ -3106,20 +3106,20 @@ void main() {
     const projectName = 'neat_pkgsplit_shell_merge_test';
     final logs = <String>[];
     final builderPackages = <PubPackage>[
-      _dep('hooks_riverpod', '3.3.1'),
+      _dep('hooks_riverpod', '3.4.3'),
       _dep('flutter_hooks', '0.21.3+1'),
-      _dep('riverpod_annotation', '4.0.2'),
+      _dep('riverpod_annotation', '4.0.7'),
       _dep('json_annotation', '4.11.0'),
       _dep('freezed_annotation', '3.1.0'),
       _dep('chopper', '8.6.0'),
-      _dep('go_router', '17.2.3'),
-      _dev('go_router_builder', '4.3.0'),
-      _dev('riverpod_generator', '4.0.3'),
-      _dev('riverpod_lint', '3.1.3'),
-      _dev('json_serializable', '6.13.0'),
-      _dev('build_runner', '2.15.0'),
-      _dev('freezed', '3.2.5'),
-      _dev('chopper_generator', '8.6.2'),
+      _dep('go_router', '17.5.0'),
+      _dev('go_router_builder', '4.5.0'),
+      _dev('riverpod_generator', '4.0.9'),
+      _dev('riverpod_lint', '3.1.9'),
+      _dev('json_serializable', '6.14.1'),
+      _dev('build_runner', '2.16.2'),
+      _dev('freezed', '4.0.2'),
+      _dev('chopper_generator', '8.7.1'),
     ];
 
     final identity = IdentityState(
@@ -3282,18 +3282,18 @@ void main() {
     const projectName = 'neat_pkgsplit_shell_registry_plain_test';
     final logs = <String>[];
     final plainPackages = <PubPackage>[
-      _dep('hooks_riverpod', '3.3.1'),
+      _dep('hooks_riverpod', '3.4.3'),
       _dep('flutter_hooks', '0.21.3+1'),
-      _dep('riverpod_annotation', '4.0.2'),
+      _dep('riverpod_annotation', '4.0.7'),
       _dep('json_annotation', '4.11.0'),
       _dep('freezed_annotation', '3.1.0'),
       _dep('dio', '5.9.2'),
-      _dep('go_router', '17.2.3'),
-      _dev('riverpod_generator', '4.0.3'),
-      _dev('riverpod_lint', '3.1.3'),
-      _dev('json_serializable', '6.13.0'),
-      _dev('build_runner', '2.15.0'),
-      _dev('freezed', '3.2.5'),
+      _dep('go_router', '17.5.0'),
+      _dev('riverpod_generator', '4.0.9'),
+      _dev('riverpod_lint', '3.1.9'),
+      _dev('json_serializable', '6.14.1'),
+      _dev('build_runner', '2.16.2'),
+      _dev('freezed', '4.0.2'),
     ];
 
     final identity = IdentityState(
@@ -3414,18 +3414,18 @@ void main() {
     // every offline-first feature package shares the same Drift db +
     // connectivity singletons instead of each getting its own.
     final offlinePackages = <PubPackage>[
-      _dep('hooks_riverpod', '3.3.1'),
+      _dep('hooks_riverpod', '3.4.3'),
       _dep('flutter_hooks', '0.21.3+1'),
-      _dep('riverpod_annotation', '4.0.2'),
+      _dep('riverpod_annotation', '4.0.7'),
       _dep('json_annotation', '4.11.0'),
       _dep('freezed_annotation', '3.1.0'),
       _dep('dio', '5.9.2'),
-      _dep('go_router', '17.2.3'),
-      _dev('riverpod_generator', '4.0.3'),
-      _dev('riverpod_lint', '3.1.3'),
-      _dev('json_serializable', '6.13.0'),
-      _dev('build_runner', '2.15.0'),
-      _dev('freezed', '3.2.5'),
+      _dep('go_router', '17.5.0'),
+      _dev('riverpod_generator', '4.0.9'),
+      _dev('riverpod_lint', '3.1.9'),
+      _dev('json_serializable', '6.14.1'),
+      _dev('build_runner', '2.16.2'),
+      _dev('freezed', '4.0.2'),
     ];
 
     final identity = IdentityState(
@@ -3572,18 +3572,18 @@ void main() {
     const projectName = 'neat_pkgsplit_2b_test';
     final logs = <String>[];
     final pkgs = <PubPackage>[
-      _dep('hooks_riverpod', '3.3.1'),
+      _dep('hooks_riverpod', '3.4.3'),
       _dep('flutter_hooks', '0.21.3+1'),
-      _dep('riverpod_annotation', '4.0.2'),
+      _dep('riverpod_annotation', '4.0.7'),
       _dep('json_annotation', '4.11.0'),
       _dep('freezed_annotation', '3.1.0'),
       _dep('dio', '5.9.2'),
-      _dep('go_router', '17.2.3'),
-      _dev('riverpod_generator', '4.0.3'),
-      _dev('riverpod_lint', '3.1.3'),
-      _dev('json_serializable', '6.13.0'),
-      _dev('build_runner', '2.15.0'),
-      _dev('freezed', '3.2.5'),
+      _dep('go_router', '17.5.0'),
+      _dev('riverpod_generator', '4.0.9'),
+      _dev('riverpod_lint', '3.1.9'),
+      _dev('json_serializable', '6.14.1'),
+      _dev('build_runner', '2.16.2'),
+      _dev('freezed', '4.0.2'),
     ];
 
     final identity = IdentityState(
@@ -3767,19 +3767,19 @@ void main() {
     const projectName = 'neat_pkgsplit_2b_chopper_test';
     final logs = <String>[];
     final pkgs = <PubPackage>[
-      _dep('hooks_riverpod', '3.3.1'),
+      _dep('hooks_riverpod', '3.4.3'),
       _dep('flutter_hooks', '0.21.3+1'),
-      _dep('riverpod_annotation', '4.0.2'),
+      _dep('riverpod_annotation', '4.0.7'),
       _dep('json_annotation', '4.11.0'),
       _dep('freezed_annotation', '3.1.0'),
       _dep('chopper', '8.6.0'),
-      _dep('go_router', '17.2.3'),
-      _dev('riverpod_generator', '4.0.3'),
-      _dev('riverpod_lint', '3.1.3'),
-      _dev('json_serializable', '6.13.0'),
-      _dev('build_runner', '2.15.0'),
-      _dev('freezed', '3.2.5'),
-      _dev('chopper_generator', '8.6.2'),
+      _dep('go_router', '17.5.0'),
+      _dev('riverpod_generator', '4.0.9'),
+      _dev('riverpod_lint', '3.1.9'),
+      _dev('json_serializable', '6.14.1'),
+      _dev('build_runner', '2.16.2'),
+      _dev('freezed', '4.0.2'),
+      _dev('chopper_generator', '8.7.1'),
     ];
 
     final identity = IdentityState(
@@ -3875,19 +3875,19 @@ void main() {
       const projectName = 'neat_pkgsplit_chopper_nofirst_test';
       final logs = <String>[];
       final pkgs = <PubPackage>[
-        _dep('hooks_riverpod', '3.3.1'),
+        _dep('hooks_riverpod', '3.4.3'),
         _dep('flutter_hooks', '0.21.3+1'),
-        _dep('riverpod_annotation', '4.0.2'),
+        _dep('riverpod_annotation', '4.0.7'),
         _dep('json_annotation', '4.11.0'),
         _dep('freezed_annotation', '3.1.0'),
         _dep('chopper', '8.6.0'),
-        _dep('go_router', '17.2.3'),
-        _dev('riverpod_generator', '4.0.3'),
-        _dev('riverpod_lint', '3.1.3'),
-        _dev('json_serializable', '6.13.0'),
-        _dev('build_runner', '2.15.0'),
-        _dev('freezed', '3.2.5'),
-        _dev('chopper_generator', '8.6.2'),
+        _dep('go_router', '17.5.0'),
+        _dev('riverpod_generator', '4.0.9'),
+        _dev('riverpod_lint', '3.1.9'),
+        _dev('json_serializable', '6.14.1'),
+        _dev('build_runner', '2.16.2'),
+        _dev('freezed', '4.0.2'),
+        _dev('chopper_generator', '8.7.1'),
       ];
 
       final identity = IdentityState(
@@ -3998,18 +3998,18 @@ void main() {
     const projectName = 'neat_pkgsplit_i18n_test';
     final logs = <String>[];
     final pkgs = <PubPackage>[
-      _dep('hooks_riverpod', '3.3.1'),
+      _dep('hooks_riverpod', '3.4.3'),
       _dep('flutter_hooks', '0.21.3+1'),
-      _dep('riverpod_annotation', '4.0.2'),
+      _dep('riverpod_annotation', '4.0.7'),
       _dep('json_annotation', '4.11.0'),
       _dep('freezed_annotation', '3.1.0'),
       _dep('dio', '5.9.2'),
-      _dep('go_router', '17.2.3'),
-      _dev('riverpod_generator', '4.0.3'),
-      _dev('riverpod_lint', '3.1.3'),
-      _dev('json_serializable', '6.13.0'),
-      _dev('build_runner', '2.15.0'),
-      _dev('freezed', '3.2.5'),
+      _dep('go_router', '17.5.0'),
+      _dev('riverpod_generator', '4.0.9'),
+      _dev('riverpod_lint', '3.1.9'),
+      _dev('json_serializable', '6.14.1'),
+      _dev('build_runner', '2.16.2'),
+      _dev('freezed', '4.0.2'),
     ];
 
     final identity = IdentityState(
@@ -4127,18 +4127,18 @@ void main() {
     const projectName = 'neat_pkgsplit_sync_test';
     final logs = <String>[];
     final pkgs = <PubPackage>[
-      _dep('hooks_riverpod', '3.3.1'),
+      _dep('hooks_riverpod', '3.4.3'),
       _dep('flutter_hooks', '0.21.3+1'),
-      _dep('riverpod_annotation', '4.0.2'),
+      _dep('riverpod_annotation', '4.0.7'),
       _dep('json_annotation', '4.11.0'),
       _dep('freezed_annotation', '3.1.0'),
       _dep('dio', '5.9.2'),
-      _dep('go_router', '17.2.3'),
-      _dev('riverpod_generator', '4.0.3'),
-      _dev('riverpod_lint', '3.1.3'),
-      _dev('json_serializable', '6.13.0'),
-      _dev('build_runner', '2.15.0'),
-      _dev('freezed', '3.2.5'),
+      _dep('go_router', '17.5.0'),
+      _dev('riverpod_generator', '4.0.9'),
+      _dev('riverpod_lint', '3.1.9'),
+      _dev('json_serializable', '6.14.1'),
+      _dev('build_runner', '2.16.2'),
+      _dev('freezed', '4.0.2'),
     ];
 
     final identity = IdentityState(
@@ -4234,19 +4234,19 @@ void main() {
     const projectName = 'neat_pkgsplit_supabase_test';
     final logs = <String>[];
     final pkgs = <PubPackage>[
-      _dep('hooks_riverpod', '3.3.1'),
+      _dep('hooks_riverpod', '3.4.3'),
       _dep('flutter_hooks', '0.21.3+1'),
-      _dep('riverpod_annotation', '4.0.2'),
+      _dep('riverpod_annotation', '4.0.7'),
       _dep('json_annotation', '4.11.0'),
       _dep('freezed_annotation', '3.1.0'),
       _dep('supabase_flutter', '2.14.1'),
-      _dep('go_router', '17.2.3'),
-      _dev('riverpod_generator', '4.0.3'),
-      _dev('riverpod_lint', '3.1.3'),
-      _dev('json_serializable', '6.13.0'),
-      _dev('build_runner', '2.15.0'),
-      _dev('freezed', '3.2.5'),
-      _dev('go_router_builder', '4.3.0'), // required by generateAuth
+      _dep('go_router', '17.5.0'),
+      _dev('riverpod_generator', '4.0.9'),
+      _dev('riverpod_lint', '3.1.9'),
+      _dev('json_serializable', '6.14.1'),
+      _dev('build_runner', '2.16.2'),
+      _dev('freezed', '4.0.2'),
+      _dev('go_router_builder', '4.5.0'), // required by generateAuth
     ];
 
     final identity = IdentityState(
@@ -4424,19 +4424,19 @@ void main() {
 }''');
 
       final pkgs = <PubPackage>[
-        _dep('hooks_riverpod', '3.3.1'),
+        _dep('hooks_riverpod', '3.4.3'),
         _dep('flutter_hooks', '0.21.3+1'),
-        _dep('riverpod_annotation', '4.0.2'),
+        _dep('riverpod_annotation', '4.0.7'),
         _dep('json_annotation', '4.11.0'),
         _dep('freezed_annotation', '3.1.0'),
         _dep('cloud_firestore', '5.6.0'),
-        _dep('go_router', '17.2.3'),
-        _dev('riverpod_generator', '4.0.3'),
-        _dev('riverpod_lint', '3.1.3'),
-        _dev('json_serializable', '6.13.0'),
-        _dev('build_runner', '2.15.0'),
-        _dev('freezed', '3.2.5'),
-        _dev('go_router_builder', '4.3.0'), // required by generateAuth
+        _dep('go_router', '17.5.0'),
+        _dev('riverpod_generator', '4.0.9'),
+        _dev('riverpod_lint', '3.1.9'),
+        _dev('json_serializable', '6.14.1'),
+        _dev('build_runner', '2.16.2'),
+        _dev('freezed', '4.0.2'),
+        _dev('go_router_builder', '4.5.0'), // required by generateAuth
       ];
 
       final identity = IdentityState(
@@ -4585,13 +4585,13 @@ void main() {
       // feature; the focus here is the workspace wrapping, not the heavy codegen
       // stack already covered by the first test.
       final offlinePackages = <PubPackage>[
-        _dep('hooks_riverpod', '3.3.1'),
+        _dep('hooks_riverpod', '3.4.3'),
         _dep('flutter_hooks', '0.21.3+1'),
-        _dep('riverpod_annotation', '4.0.2'),
+        _dep('riverpod_annotation', '4.0.7'),
         _dep('dio', '5.9.2'),
-        _dep('go_router', '17.2.3'),
-        _dev('riverpod_generator', '4.0.3'),
-        _dev('build_runner', '2.15.0'),
+        _dep('go_router', '17.5.0'),
+        _dev('riverpod_generator', '4.0.9'),
+        _dev('build_runner', '2.16.2'),
       ];
 
       final identity = IdentityState(
@@ -4784,13 +4784,13 @@ void main() {
       final logs = <String>[];
 
       final syncPackages = <PubPackage>[
-        _dep('hooks_riverpod', '3.3.1'),
+        _dep('hooks_riverpod', '3.4.3'),
         _dep('flutter_hooks', '0.21.3+1'),
-        _dep('riverpod_annotation', '4.0.2'),
+        _dep('riverpod_annotation', '4.0.7'),
         _dep('dio', '5.9.2'),
-        _dep('go_router', '17.2.3'),
-        _dev('riverpod_generator', '4.0.3'),
-        _dev('build_runner', '2.15.0'),
+        _dep('go_router', '17.5.0'),
+        _dev('riverpod_generator', '4.0.9'),
+        _dev('build_runner', '2.16.2'),
       ];
 
       final identity = IdentityState(
@@ -4932,13 +4932,13 @@ void main() {
       const uiPkg = '${projectName}_ui';
 
       final uiPackages = <PubPackage>[
-        _dep('hooks_riverpod', '3.3.1'),
+        _dep('hooks_riverpod', '3.4.3'),
         _dep('flutter_hooks', '0.21.3+1'),
-        _dep('riverpod_annotation', '4.0.2'),
+        _dep('riverpod_annotation', '4.0.7'),
         _dep('dio', '5.9.2'),
-        _dep('go_router', '17.2.3'),
-        _dev('riverpod_generator', '4.0.3'),
-        _dev('build_runner', '2.15.0'),
+        _dep('go_router', '17.5.0'),
+        _dev('riverpod_generator', '4.0.9'),
+        _dev('build_runner', '2.16.2'),
       ];
 
       final identity = IdentityState(
@@ -5252,12 +5252,12 @@ void main() {
       const uiPkg = '${projectName}_ui';
 
       final flexPackages = <PubPackage>[
-        _dep('hooks_riverpod', '3.3.1'),
+        _dep('hooks_riverpod', '3.4.3'),
         _dep('flutter_hooks', '0.21.3+1'),
-        _dep('riverpod_annotation', '4.0.2'),
+        _dep('riverpod_annotation', '4.0.7'),
         _dep('flex_color_scheme', '8.4.0'),
-        _dev('riverpod_generator', '4.0.3'),
-        _dev('build_runner', '2.15.0'),
+        _dev('riverpod_generator', '4.0.9'),
+        _dev('build_runner', '2.16.2'),
       ];
 
       final identity = IdentityState(
@@ -5353,12 +5353,12 @@ void main() {
       final logs = <String>[];
 
       final flexPackages = <PubPackage>[
-        _dep('hooks_riverpod', '3.3.1'),
+        _dep('hooks_riverpod', '3.4.3'),
         _dep('flutter_hooks', '0.21.3+1'),
-        _dep('riverpod_annotation', '4.0.2'),
+        _dep('riverpod_annotation', '4.0.7'),
         _dep('flex_color_scheme', '8.4.0'),
-        _dev('riverpod_generator', '4.0.3'),
-        _dev('build_runner', '2.15.0'),
+        _dev('riverpod_generator', '4.0.9'),
+        _dev('build_runner', '2.16.2'),
       ];
 
       final identity = IdentityState(
@@ -5484,13 +5484,13 @@ abstract final class Palette {
       final logs = <String>[];
 
       final pkgs = <PubPackage>[
-        _dep('hooks_riverpod', '3.3.1'),
+        _dep('hooks_riverpod', '3.4.3'),
         _dep('flutter_hooks', '0.21.3+1'),
-        _dep('riverpod_annotation', '4.0.2'),
+        _dep('riverpod_annotation', '4.0.7'),
         _dep('dio', '5.9.2'),
-        _dep('go_router', '17.2.3'),
-        _dev('riverpod_generator', '4.0.3'),
-        _dev('build_runner', '2.15.0'),
+        _dep('go_router', '17.5.0'),
+        _dev('riverpod_generator', '4.0.9'),
+        _dev('build_runner', '2.16.2'),
       ];
 
       final identity = IdentityState(
@@ -5624,7 +5624,7 @@ abstract final class Palette {
       final pkgs = <PubPackage>[
         _dep('flutter_bloc', '9.1.1'),
         _dep('dio', '5.9.2'),
-        _dep('go_router', '17.2.3'),
+        _dep('go_router', '17.5.0'),
       ];
 
       final identity = IdentityState(
@@ -5705,14 +5705,14 @@ abstract final class Palette {
     final logs = <String>[];
 
     final pkgs = <PubPackage>[
-      _dep('hooks_riverpod', '3.3.1'),
+      _dep('hooks_riverpod', '3.4.3'),
       _dep('flutter_hooks', '0.21.3+1'),
-      _dep('riverpod_annotation', '4.0.2'),
+      _dep('riverpod_annotation', '4.0.7'),
       _dep('chopper', '8.6.0'),
-      _dep('go_router', '17.2.3'),
-      _dev('riverpod_generator', '4.0.3'),
-      _dev('chopper_generator', '8.6.2'),
-      _dev('build_runner', '2.15.0'),
+      _dep('go_router', '17.5.0'),
+      _dev('riverpod_generator', '4.0.9'),
+      _dev('chopper_generator', '8.7.1'),
+      _dev('build_runner', '2.16.2'),
     ];
 
     final identity = IdentityState(
@@ -5950,19 +5950,19 @@ abstract final class Palette {
       final logs = <String>[];
 
       final pkgs = <PubPackage>[
-        _dep('hooks_riverpod', '3.3.1'),
+        _dep('hooks_riverpod', '3.4.3'),
         _dep('flutter_hooks', '0.21.3+1'),
-        _dep('riverpod_annotation', '4.0.2'),
+        _dep('riverpod_annotation', '4.0.7'),
         _dep('json_annotation', '4.11.0'),
         _dep('freezed_annotation', '3.1.0'),
         _dep('chopper', '8.6.0'),
-        _dep('go_router', '17.2.3'),
-        _dev('riverpod_generator', '4.0.3'),
-        _dev('riverpod_lint', '3.1.3'),
-        _dev('json_serializable', '6.13.0'),
-        _dev('build_runner', '2.15.0'),
-        _dev('freezed', '3.2.5'),
-        _dev('chopper_generator', '8.6.2'),
+        _dep('go_router', '17.5.0'),
+        _dev('riverpod_generator', '4.0.9'),
+        _dev('riverpod_lint', '3.1.9'),
+        _dev('json_serializable', '6.14.1'),
+        _dev('build_runner', '2.16.2'),
+        _dev('freezed', '4.0.2'),
+        _dev('chopper_generator', '8.7.1'),
       ];
 
       final identity = IdentityState(
@@ -6088,19 +6088,19 @@ abstract final class Palette {
       final logs = <String>[];
 
       final pkgs = <PubPackage>[
-        _dep('hooks_riverpod', '3.3.1'),
+        _dep('hooks_riverpod', '3.4.3'),
         _dep('flutter_hooks', '0.21.3+1'),
-        _dep('riverpod_annotation', '4.0.2'),
+        _dep('riverpod_annotation', '4.0.7'),
         _dep('json_annotation', '4.11.0'),
         _dep('freezed_annotation', '3.1.0'),
         _dep('chopper', '8.6.0'),
-        _dep('go_router', '17.2.3'),
-        _dev('riverpod_generator', '4.0.3'),
-        _dev('riverpod_lint', '3.1.3'),
-        _dev('json_serializable', '6.13.0'),
-        _dev('build_runner', '2.15.0'),
-        _dev('freezed', '3.2.5'),
-        _dev('chopper_generator', '8.6.2'),
+        _dep('go_router', '17.5.0'),
+        _dev('riverpod_generator', '4.0.9'),
+        _dev('riverpod_lint', '3.1.9'),
+        _dev('json_serializable', '6.14.1'),
+        _dev('build_runner', '2.16.2'),
+        _dev('freezed', '4.0.2'),
+        _dev('chopper_generator', '8.7.1'),
       ];
 
       final identity = IdentityState(
@@ -6289,14 +6289,14 @@ void main() {
       final logs = <String>[];
 
       final pkgs = <PubPackage>[
-        _dep('hooks_riverpod', '3.3.1'),
+        _dep('hooks_riverpod', '3.4.3'),
         _dep('flutter_hooks', '0.21.3+1'),
-        _dep('riverpod_annotation', '4.0.2'),
+        _dep('riverpod_annotation', '4.0.7'),
         _dep('chopper', '8.6.0'),
-        _dep('go_router', '17.2.3'),
-        _dev('riverpod_generator', '4.0.3'),
-        _dev('build_runner', '2.15.0'),
-        _dev('chopper_generator', '8.6.2'),
+        _dep('go_router', '17.5.0'),
+        _dev('riverpod_generator', '4.0.9'),
+        _dev('build_runner', '2.16.2'),
+        _dev('chopper_generator', '8.7.1'),
       ];
 
       final identity = IdentityState(
@@ -6431,14 +6431,14 @@ void main() {
     final logs = <String>[];
 
     final pkgs = <PubPackage>[
-      _dep('hooks_riverpod', '3.3.1'),
+      _dep('hooks_riverpod', '3.4.3'),
       _dep('flutter_hooks', '0.21.3+1'),
-      _dep('riverpod_annotation', '4.0.2'),
+      _dep('riverpod_annotation', '4.0.7'),
       _dep('chopper', '8.6.0'),
-      _dep('go_router', '17.2.3'),
-      _dev('riverpod_generator', '4.0.3'),
-      _dev('build_runner', '2.15.0'),
-      _dev('chopper_generator', '8.6.2'),
+      _dep('go_router', '17.5.0'),
+      _dev('riverpod_generator', '4.0.9'),
+      _dev('build_runner', '2.16.2'),
+      _dev('chopper_generator', '8.7.1'),
     ];
 
     final identity = IdentityState(
@@ -6529,14 +6529,14 @@ void main() {
     final logs = <String>[];
 
     final pkgs = <PubPackage>[
-      _dep('hooks_riverpod', '3.3.1'),
+      _dep('hooks_riverpod', '3.4.3'),
       _dep('flutter_hooks', '0.21.3+1'),
-      _dep('riverpod_annotation', '4.0.2'),
+      _dep('riverpod_annotation', '4.0.7'),
       _dep('chopper', '8.6.0'),
-      _dep('go_router', '17.2.3'),
-      _dev('riverpod_generator', '4.0.3'),
-      _dev('build_runner', '2.15.0'),
-      _dev('chopper_generator', '8.6.2'),
+      _dep('go_router', '17.5.0'),
+      _dev('riverpod_generator', '4.0.9'),
+      _dev('build_runner', '2.16.2'),
+      _dev('chopper_generator', '8.7.1'),
     ];
 
     final identity = IdentityState(
@@ -6632,13 +6632,13 @@ void main() {
       final logs = <String>[];
 
       final pkgs = <PubPackage>[
-        _dep('hooks_riverpod', '3.3.1'),
+        _dep('hooks_riverpod', '3.4.3'),
         _dep('flutter_hooks', '0.21.3+1'),
-        _dep('riverpod_annotation', '4.0.2'),
+        _dep('riverpod_annotation', '4.0.7'),
         _dep('dio', '5.9.2'),
-        _dep('go_router', '17.2.3'),
-        _dev('riverpod_generator', '4.0.3'),
-        _dev('build_runner', '2.15.0'),
+        _dep('go_router', '17.5.0'),
+        _dev('riverpod_generator', '4.0.9'),
+        _dev('build_runner', '2.16.2'),
       ];
 
       final identity = IdentityState(
@@ -6766,13 +6766,13 @@ void main() {
       final logs = <String>[];
 
       final pkgs = <PubPackage>[
-        _dep('hooks_riverpod', '3.3.1'),
+        _dep('hooks_riverpod', '3.4.3'),
         _dep('flutter_hooks', '0.21.3+1'),
-        _dep('riverpod_annotation', '4.0.2'),
-        _dep('go_router', '17.2.3'),
-        _dev('riverpod_generator', '4.0.3'),
-        _dev('build_runner', '2.15.0'),
-        _dev('go_router_builder', '4.3.0'),
+        _dep('riverpod_annotation', '4.0.7'),
+        _dep('go_router', '17.5.0'),
+        _dev('riverpod_generator', '4.0.9'),
+        _dev('build_runner', '2.16.2'),
+        _dev('go_router_builder', '4.5.0'),
       ];
 
       final identity = IdentityState(
@@ -6911,19 +6911,19 @@ void main() {
       final logs = <String>[];
 
       final pkgs = <PubPackage>[
-        _dep('hooks_riverpod', '3.3.1'),
+        _dep('hooks_riverpod', '3.4.3'),
         _dep('flutter_hooks', '0.21.3+1'),
-        _dep('riverpod_annotation', '4.0.2'),
+        _dep('riverpod_annotation', '4.0.7'),
         _dep('supabase_flutter', '2.14.1'),
-        _dep('go_router', '17.2.3'),
+        _dep('go_router', '17.5.0'),
         _dep('json_annotation', '4.11.0'),
         _dep('freezed_annotation', '3.1.0'),
         _dep('envied', '1.3.5'),
-        _dev('riverpod_generator', '4.0.3'),
-        _dev('build_runner', '2.15.0'),
-        _dev('freezed', '3.2.5'),
-        _dev('json_serializable', '6.13.0'),
-        _dev('envied_generator', '1.3.5'),
+        _dev('riverpod_generator', '4.0.9'),
+        _dev('build_runner', '2.16.2'),
+        _dev('freezed', '4.0.2'),
+        _dev('json_serializable', '6.14.1'),
+        _dev('envied_generator', '1.3.10'),
       ];
 
       final identity = IdentityState(
@@ -7075,20 +7075,20 @@ void main() {
       final logs = <String>[];
 
       final pkgs = <PubPackage>[
-        _dep('hooks_riverpod', '3.3.1'),
+        _dep('hooks_riverpod', '3.4.3'),
         _dep('flutter_hooks', '0.21.3+1'),
-        _dep('riverpod_annotation', '4.0.2'),
+        _dep('riverpod_annotation', '4.0.7'),
         _dep('supabase_flutter', '2.14.1'),
-        _dep('go_router', '17.2.3'),
+        _dep('go_router', '17.5.0'),
         _dep('json_annotation', '4.11.0'),
         _dep('freezed_annotation', '3.1.0'),
         _dep('envied', '1.3.5'),
-        _dev('riverpod_generator', '4.0.3'),
-        _dev('build_runner', '2.15.0'),
-        _dev('freezed', '3.2.5'),
-        _dev('json_serializable', '6.13.0'),
-        _dev('envied_generator', '1.3.5'),
-        _dev('go_router_builder', '4.3.0'),
+        _dev('riverpod_generator', '4.0.9'),
+        _dev('build_runner', '2.16.2'),
+        _dev('freezed', '4.0.2'),
+        _dev('json_serializable', '6.14.1'),
+        _dev('envied_generator', '1.3.10'),
+        _dev('go_router_builder', '4.5.0'),
       ];
 
       final identity = IdentityState(
@@ -7210,19 +7210,19 @@ void main() {
       final logs = <String>[];
 
       final pkgs = <PubPackage>[
-        _dep('hooks_riverpod', '3.3.1'),
+        _dep('hooks_riverpod', '3.4.3'),
         _dep('flutter_hooks', '0.21.3+1'),
-        _dep('riverpod_annotation', '4.0.2'),
+        _dep('riverpod_annotation', '4.0.7'),
         _dep('supabase_flutter', '2.14.1'),
-        _dep('go_router', '17.2.3'),
+        _dep('go_router', '17.5.0'),
         _dep('json_annotation', '4.11.0'),
         _dep('freezed_annotation', '3.1.0'),
         _dep('envied', '1.3.5'),
-        _dev('riverpod_generator', '4.0.3'),
-        _dev('build_runner', '2.15.0'),
-        _dev('freezed', '3.2.5'),
-        _dev('json_serializable', '6.13.0'),
-        _dev('envied_generator', '1.3.5'),
+        _dev('riverpod_generator', '4.0.9'),
+        _dev('build_runner', '2.16.2'),
+        _dev('freezed', '4.0.2'),
+        _dev('json_serializable', '6.14.1'),
+        _dev('envied_generator', '1.3.10'),
       ];
 
       final identity = IdentityState(
@@ -7351,18 +7351,18 @@ void main() {
 }''');
 
       final pkgs = <PubPackage>[
-        _dep('hooks_riverpod', '3.3.1'),
+        _dep('hooks_riverpod', '3.4.3'),
         _dep('flutter_hooks', '0.21.3+1'),
-        _dep('riverpod_annotation', '4.0.2'),
+        _dep('riverpod_annotation', '4.0.7'),
         _dep('cloud_firestore', '5.6.0'),
-        _dep('go_router', '17.2.3'),
+        _dep('go_router', '17.5.0'),
         _dep('json_annotation', '4.11.0'),
         _dep('freezed_annotation', '3.1.0'),
-        _dev('riverpod_generator', '4.0.3'),
-        _dev('build_runner', '2.15.0'),
-        _dev('freezed', '3.2.5'),
-        _dev('json_serializable', '6.13.0'),
-        _dev('go_router_builder', '4.3.0'),
+        _dev('riverpod_generator', '4.0.9'),
+        _dev('build_runner', '2.16.2'),
+        _dev('freezed', '4.0.2'),
+        _dev('json_serializable', '6.14.1'),
+        _dev('go_router_builder', '4.5.0'),
       ];
 
       final identity = IdentityState(
@@ -7537,19 +7537,19 @@ void main() {
       final logs = <String>[];
 
       final pkgs = <PubPackage>[
-        _dep('hooks_riverpod', '3.3.1'),
+        _dep('hooks_riverpod', '3.4.3'),
         _dep('flutter_hooks', '0.21.3+1'),
-        _dep('riverpod_annotation', '4.0.2'),
-        _dep('go_router', '17.2.3'),
+        _dep('riverpod_annotation', '4.0.7'),
+        _dep('go_router', '17.5.0'),
         // freezed + json_serializable bring source_gen builders: this is the
         // combo that made slang_build_runner throw InvalidOutputException, so
         // the test guards that the slang-CLI codegen path stays clean.
         _dep('json_annotation', '4.11.0'),
         _dep('freezed_annotation', '3.1.0'),
-        _dev('riverpod_generator', '4.0.3'),
-        _dev('build_runner', '2.15.0'),
-        _dev('freezed', '3.2.5'),
-        _dev('json_serializable', '6.13.0'),
+        _dev('riverpod_generator', '4.0.9'),
+        _dev('build_runner', '2.16.2'),
+        _dev('freezed', '4.0.2'),
+        _dev('json_serializable', '6.14.1'),
       ];
 
       final identity = IdentityState(
@@ -7678,16 +7678,16 @@ void main() {
       final logs = <String>[];
 
       final pkgs = <PubPackage>[
-        _dep('hooks_riverpod', '3.3.1'),
+        _dep('hooks_riverpod', '3.4.3'),
         _dep('flutter_hooks', '0.21.3+1'),
-        _dep('riverpod_annotation', '4.0.2'),
-        _dep('go_router', '17.2.3'),
+        _dep('riverpod_annotation', '4.0.7'),
+        _dep('go_router', '17.5.0'),
         _dep('json_annotation', '4.11.0'),
         _dep('freezed_annotation', '3.1.0'),
-        _dev('riverpod_generator', '4.0.3'),
-        _dev('build_runner', '2.15.0'),
-        _dev('freezed', '3.2.5'),
-        _dev('json_serializable', '6.13.0'),
+        _dev('riverpod_generator', '4.0.9'),
+        _dev('build_runner', '2.16.2'),
+        _dev('freezed', '4.0.2'),
+        _dev('json_serializable', '6.14.1'),
       ];
 
       final identity = IdentityState(
@@ -7769,16 +7769,16 @@ void main() {
     final logs = <String>[];
 
     final pkgs = <PubPackage>[
-      _dep('hooks_riverpod', '3.3.1'),
+      _dep('hooks_riverpod', '3.4.3'),
       _dep('flutter_hooks', '0.21.3+1'),
-      _dep('riverpod_annotation', '4.0.2'),
-      _dep('go_router', '17.2.3'),
+      _dep('riverpod_annotation', '4.0.7'),
+      _dep('go_router', '17.5.0'),
       _dep('json_annotation', '4.11.0'),
       _dep('freezed_annotation', '3.1.0'),
-      _dev('riverpod_generator', '4.0.3'),
-      _dev('build_runner', '2.15.0'),
-      _dev('freezed', '3.2.5'),
-      _dev('json_serializable', '6.13.0'),
+      _dev('riverpod_generator', '4.0.9'),
+      _dev('build_runner', '2.16.2'),
+      _dev('freezed', '4.0.2'),
+      _dev('json_serializable', '6.14.1'),
     ];
 
     final identity = IdentityState(
@@ -7865,16 +7865,16 @@ void main() {
         );
 
       final pkgs = <PubPackage>[
-        _dep('hooks_riverpod', '3.3.1'),
+        _dep('hooks_riverpod', '3.4.3'),
         _dep('flutter_hooks', '0.21.3+1'),
-        _dep('riverpod_annotation', '4.0.2'),
-        _dep('go_router', '17.2.3'),
+        _dep('riverpod_annotation', '4.0.7'),
+        _dep('go_router', '17.5.0'),
         _dep('json_annotation', '4.11.0'),
         _dep('freezed_annotation', '3.1.0'),
-        _dev('riverpod_generator', '4.0.3'),
-        _dev('build_runner', '2.15.0'),
-        _dev('freezed', '3.2.5'),
-        _dev('json_serializable', '6.13.0'),
+        _dev('riverpod_generator', '4.0.9'),
+        _dev('build_runner', '2.16.2'),
+        _dev('freezed', '4.0.2'),
+        _dev('json_serializable', '6.14.1'),
       ];
 
       try {
@@ -7962,14 +7962,14 @@ void main() {
       final logs = <String>[];
 
       final pkgs = <PubPackage>[
-        _dep('hooks_riverpod', '3.3.1'),
+        _dep('hooks_riverpod', '3.4.3'),
         _dep('flutter_hooks', '0.21.3+1'),
-        _dep('riverpod_annotation', '4.0.2'),
+        _dep('riverpod_annotation', '4.0.7'),
         _dep('dio', '5.9.2'),
         _dep('envied', '1.3.5'),
-        _dev('riverpod_generator', '4.0.3'),
-        _dev('build_runner', '2.15.0'),
-        _dev('envied_generator', '1.3.5'),
+        _dev('riverpod_generator', '4.0.9'),
+        _dev('build_runner', '2.16.2'),
+        _dev('envied_generator', '1.3.10'),
       ];
 
       try {
@@ -8094,15 +8094,15 @@ void main() {
       final logs = <String>[];
 
       final pkgs = <PubPackage>[
-        _dep('hooks_riverpod', '3.3.1'),
+        _dep('hooks_riverpod', '3.4.3'),
         _dep('flutter_hooks', '0.21.3+1'),
-        _dep('riverpod_annotation', '4.0.2'),
+        _dep('riverpod_annotation', '4.0.7'),
         _dep('chopper', '8.6.0'),
         _dep('envied', '1.3.5'),
-        _dev('riverpod_generator', '4.0.3'),
-        _dev('build_runner', '2.15.0'),
-        _dev('envied_generator', '1.3.5'),
-        _dev('chopper_generator', '8.6.2'),
+        _dev('riverpod_generator', '4.0.9'),
+        _dev('build_runner', '2.16.2'),
+        _dev('envied_generator', '1.3.10'),
+        _dev('chopper_generator', '8.7.1'),
       ];
 
       try {
@@ -8190,15 +8190,15 @@ void main() {
       final logs = <String>[];
 
       final pkgs = <PubPackage>[
-        _dep('hooks_riverpod', '3.3.1'),
+        _dep('hooks_riverpod', '3.4.3'),
         _dep('flutter_hooks', '0.21.3+1'),
-        _dep('riverpod_annotation', '4.0.2'),
+        _dep('riverpod_annotation', '4.0.7'),
         _dep('chopper', '8.6.0'),
         _dep('envied', '1.3.5'),
-        _dev('riverpod_generator', '4.0.3'),
-        _dev('build_runner', '2.15.0'),
-        _dev('envied_generator', '1.3.5'),
-        _dev('chopper_generator', '8.6.2'),
+        _dev('riverpod_generator', '4.0.9'),
+        _dev('build_runner', '2.16.2'),
+        _dev('envied_generator', '1.3.10'),
+        _dev('chopper_generator', '8.7.1'),
       ];
 
       try {
@@ -8574,11 +8574,11 @@ void main() {
         await const LaunchGenerationUsecase().execute(
           identity: identity,
           packages: <PubPackage>[
-            _dep('hooks_riverpod', '3.3.1'),
+            _dep('hooks_riverpod', '3.4.3'),
             _dep('flutter_hooks', '0.21.3+1'),
-            _dep('riverpod_annotation', '4.0.2'),
-            _dev('riverpod_generator', '4.0.3'),
-            _dev('build_runner', '2.15.0'),
+            _dep('riverpod_annotation', '4.0.7'),
+            _dev('riverpod_generator', '4.0.9'),
+            _dev('build_runner', '2.16.2'),
           ],
           architecture: const ArchitectureState(),
           cicd: const CicdState(),
@@ -8649,16 +8649,16 @@ void main() {
     final logs = <String>[];
 
     final pkgs = <PubPackage>[
-      _dep('hooks_riverpod', '3.3.1'),
+      _dep('hooks_riverpod', '3.4.3'),
       _dep('flutter_hooks', '0.21.3+1'),
-      _dep('riverpod_annotation', '4.0.2'),
-      _dep('go_router', '17.2.3'),
+      _dep('riverpod_annotation', '4.0.7'),
+      _dep('go_router', '17.5.0'),
       _dep('json_annotation', '4.11.0'),
       _dep('freezed_annotation', '3.1.0'),
-      _dev('riverpod_generator', '4.0.3'),
-      _dev('build_runner', '2.15.0'),
-      _dev('freezed', '3.2.5'),
-      _dev('json_serializable', '6.13.0'),
+      _dev('riverpod_generator', '4.0.9'),
+      _dev('build_runner', '2.16.2'),
+      _dev('freezed', '4.0.2'),
+      _dev('json_serializable', '6.14.1'),
     ];
 
     final identity = IdentityState(
@@ -8758,17 +8758,17 @@ void main() {
       final logs = <String>[];
 
       final pkgs = <PubPackage>[
-        _dep('hooks_riverpod', '3.3.1'),
+        _dep('hooks_riverpod', '3.4.3'),
         _dep('flutter_hooks', '0.21.3+1'),
-        _dep('riverpod_annotation', '4.0.2'),
-        _dep('go_router', '17.2.3'),
+        _dep('riverpod_annotation', '4.0.7'),
+        _dep('go_router', '17.5.0'),
         _dep('json_annotation', '4.11.0'),
         _dep('freezed_annotation', '3.1.0'),
-        _dev('riverpod_generator', '4.0.3'),
-        _dev('build_runner', '2.15.0'),
-        _dev('freezed', '3.2.5'),
-        _dev('json_serializable', '6.13.0'),
-        _dev('go_router_builder', '4.3.0'),
+        _dev('riverpod_generator', '4.0.9'),
+        _dev('build_runner', '2.16.2'),
+        _dev('freezed', '4.0.2'),
+        _dev('json_serializable', '6.14.1'),
+        _dev('go_router_builder', '4.5.0'),
       ];
 
       final identity = IdentityState(
@@ -8902,18 +8902,18 @@ void main() {
       final logs = <String>[];
 
       final pkgs = <PubPackage>[
-        _dep('hooks_riverpod', '3.3.1'),
+        _dep('hooks_riverpod', '3.4.3'),
         _dep('flutter_hooks', '0.21.3+1'),
-        _dep('riverpod_annotation', '4.0.2'),
+        _dep('riverpod_annotation', '4.0.7'),
         _dep('supabase_flutter', '2.14.1'),
-        _dep('go_router', '17.2.3'),
+        _dep('go_router', '17.5.0'),
         _dep('json_annotation', '4.11.0'),
         _dep('freezed_annotation', '3.1.0'),
-        _dev('riverpod_generator', '4.0.3'),
-        _dev('build_runner', '2.15.0'),
-        _dev('freezed', '3.2.5'),
-        _dev('json_serializable', '6.13.0'),
-        _dev('go_router_builder', '4.3.0'),
+        _dev('riverpod_generator', '4.0.9'),
+        _dev('build_runner', '2.16.2'),
+        _dev('freezed', '4.0.2'),
+        _dev('json_serializable', '6.14.1'),
+        _dev('go_router_builder', '4.5.0'),
       ];
 
       final identity = IdentityState(
@@ -9018,18 +9018,18 @@ void main() {
       final logs = <String>[];
 
       final pkgs = <PubPackage>[
-        _dep('hooks_riverpod', '3.3.1'),
+        _dep('hooks_riverpod', '3.4.3'),
         _dep('flutter_hooks', '0.21.3+1'),
-        _dep('riverpod_annotation', '4.0.2'),
+        _dep('riverpod_annotation', '4.0.7'),
         _dep('supabase_flutter', '2.14.1'),
-        _dep('go_router', '17.2.3'),
+        _dep('go_router', '17.5.0'),
         _dep('json_annotation', '4.11.0'),
         _dep('freezed_annotation', '3.1.0'),
-        _dev('riverpod_generator', '4.0.3'),
-        _dev('build_runner', '2.15.0'),
-        _dev('freezed', '3.2.5'),
-        _dev('json_serializable', '6.13.0'),
-        _dev('go_router_builder', '4.3.0'),
+        _dev('riverpod_generator', '4.0.9'),
+        _dev('build_runner', '2.16.2'),
+        _dev('freezed', '4.0.2'),
+        _dev('json_serializable', '6.14.1'),
+        _dev('go_router_builder', '4.5.0'),
       ];
 
       final identity = IdentityState(
@@ -9115,18 +9115,18 @@ void main() {
     final logs = <String>[];
 
     final pkgs = <PubPackage>[
-      _dep('hooks_riverpod', '3.3.1'),
+      _dep('hooks_riverpod', '3.4.3'),
       _dep('flutter_hooks', '0.21.3+1'),
-      _dep('riverpod_annotation', '4.0.2'),
+      _dep('riverpod_annotation', '4.0.7'),
       _dep('dio', '5.9.2'),
-      _dep('go_router', '17.2.3'),
+      _dep('go_router', '17.5.0'),
       _dep('json_annotation', '4.11.0'),
       _dep('freezed_annotation', '3.1.0'),
-      _dev('riverpod_generator', '4.0.3'),
-      _dev('build_runner', '2.15.0'),
-      _dev('freezed', '3.2.5'),
-      _dev('json_serializable', '6.13.0'),
-      _dev('go_router_builder', '4.3.0'),
+      _dev('riverpod_generator', '4.0.9'),
+      _dev('build_runner', '2.16.2'),
+      _dev('freezed', '4.0.2'),
+      _dev('json_serializable', '6.14.1'),
+      _dev('go_router_builder', '4.5.0'),
     ];
 
     final identity = IdentityState(
@@ -9235,13 +9235,13 @@ void main() {
       final logs = <String>[];
 
       final offlinePackages = <PubPackage>[
-        _dep('hooks_riverpod', '3.3.1'),
+        _dep('hooks_riverpod', '3.4.3'),
         _dep('flutter_hooks', '0.21.3+1'),
-        _dep('riverpod_annotation', '4.0.2'),
+        _dep('riverpod_annotation', '4.0.7'),
         _dep('dio', '5.9.2'),
-        _dep('go_router', '17.2.3'),
-        _dev('riverpod_generator', '4.0.3'),
-        _dev('build_runner', '2.15.0'),
+        _dep('go_router', '17.5.0'),
+        _dev('riverpod_generator', '4.0.9'),
+        _dev('build_runner', '2.16.2'),
       ];
 
       final identity = IdentityState(

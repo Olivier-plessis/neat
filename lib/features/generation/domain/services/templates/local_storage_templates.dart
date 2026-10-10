@@ -31,13 +31,13 @@ resolution: workspace
 dependencies:
   flutter:
     sdk: flutter
-  drift: ^2.33.0
+  drift: ^2.35.2
   drift_flutter: ^0.3.0
 
 dev_dependencies:
   flutter_lints: ^6.0.0
-  build_runner: ^2.4.13
-  drift_dev: ^2.33.0
+  build_runner: ^2.16.2
+  drift_dev: ^2.35.1
 ''';
 
   /// Public entry point (barrel) of the package.

@@ -14,7 +14,7 @@ abstract class IdentityState with _$IdentityState {
     @Default('') String projectPath,
     @Default('') String description,
     @Default(['android', 'ios']) List<String> targetPlatforms,
-    @Default('3.44.x') String flutterVersion,
+    @Default('3.47.2') String flutterVersion,
   }) = _IdentityState;
 }
 
