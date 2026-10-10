@@ -18,7 +18,7 @@ jobs:
 
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: 3.44.0
+          flutter-version: 3.47.2
           channel: stable
 
       # ── Gate: the release must be healthy before it even opens a PR ──
