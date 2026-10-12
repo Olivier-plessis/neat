@@ -917,6 +917,95 @@ Harness-proven: `pubspec_builder_test.dart` gained two cases (override present
   + `analyze`) and green. `flutter analyze` 0/0, full fast suite green
   (282 tests, +6 from this fix).
 
+### 5s. Generated CI pipeline failed on a fresh packageSplit + Supabase project — real bugs, found via a real project's GitHub Actions run
+
+> Follow-up, same project as §5r. The generated `.github/workflows/flutter.yml`
+> runs `flutter analyze` → `dart format --set-exit-if-changed` → `flutter test
+> --coverage`, and failed at every step a fresh project could reach. Root
+> cause of why NEAT never saw it: the integration harness only gated on
+> `error •` / `warning •` lines, while the generated CI's `flutter analyze`
+> is **fatal on infos too** — so a whole class of real defects
+> (`depend_on_referenced_packages`, `unnecessary_underscores`) passed NEAT's
+> own quality bar and failed the user's. And no test ever ran `flutter test`
+> on a generated project, which has no `test/` at all (`flutter create -e`).
+- **`CorePackageTemplates.featurePackagePubspec`**: supabase/firebase fell
+  through to `dio`, so split packages importing `supabase_flutter` /
+  `cloud_firestore` never declared them. Now switches on the backend like
+  `pubspec()` does; new `isAuthPackage` (passed by `AuthWriter`) adds
+  `flutter_hooks` (the auth screens are `HookConsumerWidget`s) and, on
+  Firebase, `firebase_auth`.
+- **`CorePackageTemplates.pubspec`** (Firebase): declares `firebase_core` —
+  core's `network_error_handler.dart` imports it directly. Not reported by the
+  user; caught by tightening the Firebase twin scenario to CI's gate.
+- **`CorePackageWriter`**: `logger_interceptor.dart` (a Dio/Chopper
+  interceptor) was written unconditionally into a Supabase/Firebase core —
+  dead code importing an undeclared `dio`. Now gated on dio/chopper, same
+  gate `CoreInfraWriter`'s non-split copy already had.
+- **`AuthTemplates.routerNotifier`** (onboarding): `(_, __)` → `(_, _)`
+  (Dart 3.7 wildcards; `__` trips `unnecessary_underscores`).
+- **`CoreDartTemplates.coreResultTest`** (new), written by `CoreInfraWriter`
+  for every project, split or not: `test/core/result/result_test.dart`, a real
+  test of the always-generated `Result` — so the CI's `flutter test
+  --coverage` has something to run instead of failing on a missing `test/`.
+- Tests: `generated_ci_readiness_test.dart` (new, 7 unit tests). The two
+  packageSplit + auth integration scenarios (Supabase, Firebase) now also
+  assert `flutter analyze`'s **exit code** is 0 — exactly CI's gate — and the
+  Supabase one runs `flutter test` on the generated project. Both green.
+  Every other integration scenario still only gates on errors/warnings —
+  extending the CI-faithful gate to all of them is the natural follow-up.
+
+### 5u. Flutter 3.47 / Dart 3.13 migration — generated projects broke on the new stable SDK
+
+> Found while validating §5s: 6 integration scenarios failed locally on
+> Flutter 3.47.2 (Dart 3.13), and failed identically on the commit *before*
+> §5s — so not a regression, the toolchain moved under NEAT (its CI was
+> still pinned to 3.44.0). Two independent breaks, both upstream:
+> 1. **Drift**: §5g's `dependency_overrides: sqlparser: ">=0.44.0 <0.44.6"`
+>    became the bug. On Dart 3.13, pub now picks drift_dev 2.35.x, which
+>    *requires* `sqlparser ^0.45.0` — the override forced 0.44.5, and
+>    drift_dev's own builder failed to compile ("Final variable 'type' must
+>    be assigned"), so `database.g.dart` was never generated (every
+>    offline-first scenario). The original conflict is fixed upstream:
+>    drift_dev ≥2.34.5 moved to sqlparser 0.45, and go_router_builder ≥4.4.1
+>    accepts analyzer 14.
+> 2. **freezed**: Dart 3.13 no longer allows `final` in constructor
+>    parameters, which freezed 3.x emits for every collection field
+>    (`required final List<X> items`) — e.g. §5n's `<Feature>ListModel`.
+>    freezed 4.0.0 exists precisely for this ("Breaking: no longer support
+>    `final` keyword inside constructor parameter").
+- **`PubspecWriter`**: the sqlparser override is gone (§5g reverted, with the
+  reason in a comment); envied_generator/build_runner fallbacks bumped.
+- **Presets** (`dev_preset.dart`, `backend_presets.dart`) and the hardcoded
+  template versions (`CorePackageTemplates`, `LocalStorageTemplates`) moved to
+  the analyzer-14 generation of the toolchain: freezed **4.0.2**,
+  riverpod_generator 4.0.9, riverpod_lint 3.1.9, json_serializable 6.14.1,
+  build_runner 2.16.2, go_router_builder 4.5.0, envied_generator 1.3.10,
+  chopper_generator 8.7.1, drift 2.35.2 / drift_dev 2.35.1.
+  `freezed_annotation` stays 3.1.0 (unchanged by freezed 4).
+- **Runtime floors aligned** with what the carets already resolved: hooks_riverpod
+  3.4.3 / riverpod_annotation 4.0.7 (riverpod_generator 4.0.9 pins
+  riverpod_annotation 4.0.7 exactly, so Riverpod 3.4.3 was already in use) and
+  go_router 17.5.0.
+- **go_router 18 deliberately deferred**: 18.0.0 brings no feature, only a
+  migration onto the new `material_ui` package — a full, *separate* Material
+  implementation, while every NEAT template (and Flutter 3.47 itself) still
+  uses `package:flutter/material.dart`. Each generated app would ship two
+  Material libraries, and go_router's own pages would read `material_ui`'s
+  Theme/MaterialApp instead of the app's (custom page transitions ignored,
+  MaterialApp detection off). Move to 18 together with migrating NEAT's own
+  templates to `material_ui`, in one step.
+- **Consequence**: freezed 4 requires Dart ≥3.13, so generated projects now
+  need **Flutter ≥3.47**. `IdentityState.flutterVersion` (the generated
+  `.fvmrc`) defaults to `3.47.2` instead of `3.44.x`.
+- **NEAT's own CI** (`flutter.yml`, `release.yml`) pinned to 3.47.2. NEAT's
+  own `sdk: ^3.11.5` constraint is deliberately unchanged — raising it to 3.13
+  would make NEAT's *own* freezed 3 output (`final List<String>
+  targetPlatforms`) stop compiling too; that's a separate, optional step.
+- Tests: `pubspec_builder_test.dart`'s §5g cases now assert *no*
+  `dependency_overrides`; integration fixtures moved to the same versions as
+  the presets. The 6 failing scenarios pass on 3.47.2; full fast suite green
+  (289).
+
 ### 6. Multiple architectures — later, with caution
 
 - The harness makes **every** architecture a ~3× maintenance cost (each must be proven).

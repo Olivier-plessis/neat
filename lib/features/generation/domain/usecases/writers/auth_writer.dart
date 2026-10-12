@@ -38,6 +38,7 @@ abstract final class AuthWriter {
           corePackageName: corePackageName!,
           httpClient: backend,
           hasGoRouterBuilder: true, // generateAuth already requires it
+          isAuthPackage: true,
         ),
       );
     }
