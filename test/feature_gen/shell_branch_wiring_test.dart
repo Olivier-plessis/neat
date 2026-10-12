@@ -198,7 +198,7 @@ void main() {
       'analyze flagged depend_on_referenced_packages)',
       () {
         final withShell = CorePackageTemplates.pubspec(corePackageName: 'core', useShell: true);
-        expect(withShell, contains('go_router: ^17.2.3'));
+        expect(withShell, contains('go_router: ^17.5.0'));
 
         final withoutShell = CorePackageTemplates.pubspec(corePackageName: 'core');
         expect(withoutShell, isNot(contains('go_router:')));

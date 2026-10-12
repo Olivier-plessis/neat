@@ -100,7 +100,7 @@ abstract final class PubspecWriter {
     // go_router_builder is a dev dep but requires go_router as a runtime dep.
     // Auto-inject it when missing so the generated code compiles out of the box.
     if (hasGoRouterBuilder && !hasGoRouterExplicit) {
-      deps.write('  go_router: ^17.2.3\n');
+      deps.write('  go_router: ^17.5.0\n');
     }
 
     // Generated Cubit/Bloc code always imports package:flutter_bloc — inject
@@ -137,10 +137,10 @@ abstract final class PubspecWriter {
     // envied needs its generator (+ build_runner) to produce the .g.dart files.
     if (uniquePackages.any((p) => p.name == 'envied')) {
       if (!uniquePackages.any((p) => p.name == 'envied_generator')) {
-        devDeps.write('  envied_generator: ^1.1.1\n');
+        devDeps.write('  envied_generator: ^1.3.10\n');
       }
       if (!uniquePackages.any((p) => p.name == 'build_runner')) {
-        devDeps.write('  build_runner: ^2.4.13\n');
+        devDeps.write('  build_runner: ^2.16.2\n');
       }
     }
 
@@ -233,19 +233,12 @@ abstract final class PubspecWriter {
       content = '${content.trimRight()}\n\nworkspace:\n$block\n';
     }
 
-    // drift_dev 2.34.0's query analyzer calls a `DartPlaceholder.when()` method
-    // that sqlparser removed in 0.44.6 (a breaking change published under a
-    // compatible `^0.44.0` constraint, so pub picks it up without a conflict —
-    // the build just fails at codegen time). Override stays workspace-wide
-    // here (a pub workspace resolves one version of everything) until
-    // drift_dev bumps its own sqlparser constraint past the break.
-    if (addConnectivity) {
-      content =
-          '${content.trimRight()}\n\n'
-          'dependency_overrides:\n'
-          '  sqlparser: ">=0.44.0 <0.44.6"\n';
-    }
-
+    // No `sqlparser` override any more (ROADMAP §5g, reverted in §5u): it pinned
+    // sqlparser <0.44.6 for drift_dev 2.34.0, but on Dart 3.13 pub now picks
+    // drift_dev 2.35.x, which *requires* sqlparser ^0.45 — the override forced
+    // an incompatible sqlparser and broke Drift's build_runner outright.
+    // drift_dev >=2.34.5 + go_router_builder >=4.4.1 resolve cleanly on their
+    // own (both accept analyzer 14).
     return content;
   }
 }
