@@ -312,6 +312,8 @@ void main() {
         ),
       );
       String read(String rel) => File('${projectDir.path}/$rel').readAsStringSync();
+      // The formatter width is pinned, so the IDE and the CI agree on it.
+      expect(read('analysis_options.yaml'), contains('formatter:\n  page_width: 80'));
 
       final loaded = await const ProjectLoader().load(projectDir.path);
       expect(loaded, isNotNull);

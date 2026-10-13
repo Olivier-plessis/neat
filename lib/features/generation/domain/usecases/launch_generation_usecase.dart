@@ -95,6 +95,15 @@ class LaunchGenerationUsecase {
     );
     onLog('[✓] .fvmrc written (Flutter ${identity.flutterVersion}).');
 
+    // 1c. analysis_options.yaml — `flutter create` wrote it; pin the formatter
+    // width so `dart format`, the generated CI and every IDE agree on it.
+    final analysisOptions = File('${projectDir.path}/analysis_options.yaml');
+    if (analysisOptions.existsSync()) {
+      await analysisOptions.writeAsString(
+        ConfigTemplates.withFormatterWidth(await analysisOptions.readAsString()),
+      );
+    }
+
     // Resolve feature flags from selected packages
     final hasRiverpod = packages.any((p) => p.name.contains('riverpod'));
     final hasBloc = packages.any((p) => p.name.contains('bloc'));
