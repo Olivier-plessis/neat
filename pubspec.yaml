@@ -35,13 +35,14 @@ dependencies:
   neat_ui:
     path: packages/neat_ui
   desktop_drop: ^0.7.1
+  # ProjectConstraints (lib/) parses existing pubspecs — a real dependency now.
+  yaml: ^3.1.2
 
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
-  yaml: ^3.1.2
   riverpod_generator: ^4.0.3
   build_runner: ^2.15.0
   chopper_generator: ^8.6.2

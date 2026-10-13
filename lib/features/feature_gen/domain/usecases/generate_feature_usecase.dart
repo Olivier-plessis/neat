@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:neat/features/feature_gen/domain/models/feature_gen_options.dart';
 import 'package:neat/features/feature_gen/domain/models/loaded_project.dart';
+import 'package:neat/features/feature_gen/domain/services/project_constraints.dart';
 import 'package:neat/features/generation/domain/models/field_spec.dart';
 import 'package:neat/features/generation/domain/services/feature_scaffolder.dart';
 import 'package:neat/features/generation/domain/services/i18n_importer.dart';
@@ -202,22 +203,31 @@ class GenerateFeatureUsecase {
     // CorePackageTemplates.featurePackagePubspec / LaunchGenerationUsecase).
     // Skipped entirely when merging — there's no new package to create.
     if (packageSplit && !mergeIntoParent) {
+      // Read before the new pubspec exists, so it never "agrees with itself".
+      final projectConstraints = ProjectConstraints.read(project.path);
       final featurePubspec = File(
         '${project.path}/packages/$featurePackageName/pubspec.yaml',
       );
       await featurePubspec.create(recursive: true);
       await featurePubspec.writeAsString(
-        CorePackageTemplates.featurePackagePubspec(
-          featurePackageName: featurePackageName!,
-          corePackageName: corePackageName!,
-          httpClient: c.httpClient,
-          hasGoRouterBuilder: hasGoRouterBuilder,
-          localStoragePackage: localStoragePackage,
-          clientIds: needsClientIds,
-          sdkConstraint: PubspecWriter.projectSdkConstraint(project.path),
-          uiPackage: c.extractUiPackage && Directory('${project.path}/packages/${c.projectName}_ui').existsSync()
-              ? '${c.projectName}_ui'
-              : null,
+        // The project's own versions win over NEAT's current template defaults
+        // — a workspace resolves one version of everything (see
+        // ProjectConstraints' doc for the real bug this fixes). That includes
+        // `uuid`, when the project already declares it.
+        ProjectConstraints.align(
+          CorePackageTemplates.featurePackagePubspec(
+            featurePackageName: featurePackageName!,
+            corePackageName: corePackageName!,
+            httpClient: c.httpClient,
+            hasGoRouterBuilder: hasGoRouterBuilder,
+            localStoragePackage: localStoragePackage,
+            clientIds: needsClientIds,
+            sdkConstraint: PubspecWriter.projectSdkConstraint(project.path),
+            uiPackage: c.extractUiPackage && Directory('${project.path}/packages/${c.projectName}_ui').existsSync()
+                ? '${c.projectName}_ui'
+                : null,
+          ),
+          projectConstraints,
         ),
       );
       await _addWorkspaceMember(project.path, featurePackageName);
