@@ -41,6 +41,25 @@ flutter:
 }
 ''';
 
+  /// The formatter width pinned in a generated project's `analysis_options.yaml`.
+  /// 80 is `dart format`'s own default: pinning it changes nothing for the CLI
+  /// or the CI, but makes the width explicit for every tool that reads the file
+  /// (an IDE has its own line-length setting, which the project should win over).
+  static const formatterBlock = '''formatter:
+  page_width: 80
+''';
+
+  /// [analysisOptions] (as `flutter create` wrote it) with the formatter width
+  /// pinned — unchanged when it already declares a `formatter:` section, so a
+  /// width the developer chose is never overwritten.
+  static String withFormatterWidth(String analysisOptions) {
+    if (RegExp(r'^formatter:', multiLine: true).hasMatch(analysisOptions)) {
+      return analysisOptions;
+    }
+    final body = analysisOptions.endsWith('\n') ? analysisOptions : '$analysisOptions\n';
+    return '$body\n# Pinned so `dart format`, the CI and every IDE agree on the width.\n$formatterBlock';
+  }
+
   static String analysisOptions({bool veryGoodAnalysis = false}) {
     final include = veryGoodAnalysis
         ? 'package:very_good_analysis/analysis_options.yaml'
@@ -51,6 +70,7 @@ flutter:
     // `flutter analyze`.
     return '''include: $include
 
+$formatterBlock
 analyzer:
   exclude:
     - build/**

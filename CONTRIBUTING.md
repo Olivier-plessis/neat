@@ -35,6 +35,24 @@ State models live in `domain/models` (freezed). Domain code never imports presen
 - Non-destructive edits to generated files use **anchors** (`// neat:route-entries`, etc.).
 - Keep new capabilities **gated** (visible but disabled) until the harness proves them.
 
+## Formatting
+
+Generated projects are `dart format`-clean and their CI checks it
+(`dart format --output=none --set-exit-if-changed .`); their `analysis_options.yaml`
+pins `formatter: page_width: 80`. NEAT's own source is **not** formatted as a whole
+yet (about half of the files would change), so its CI step stays commented out.
+
+`.githooks/pre-push` checks the Dart files a push touches, so formatting can be
+adopted file by file:
+
+```bash
+git config core.hooksPath .githooks   # once per clone
+git push --no-verify                  # skip it for one push
+```
+
+Run `dart format <file>` on a file before you push it. The better end state is one
+dedicated "format everything" commit, then the hook and the CI step both check `.`.
+
 ## Scope
 
 See [ROADMAP.md](ROADMAP.md). We keep the stack opinionated (Riverpod + Bloc/Cubit only)
