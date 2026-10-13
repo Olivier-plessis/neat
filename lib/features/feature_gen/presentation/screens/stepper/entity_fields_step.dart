@@ -74,11 +74,11 @@ class EntityFieldsStep extends StatelessWidget {
             );
           },
           onName: (i, v) => onChanged(
-            opts.copyWith(fields: editField(opts.fields, i, (f) => f.copyWith(dartName: v.trim()))),
+            opts.copyWith(fields: editField(opts.fields, i, (f) => renameField(f, v.trim()))),
           ),
           onType: (i, v) => onChanged(
             opts.copyWith(
-              fields: editField(opts.fields, i, (f) => f.isId ? f : f.copyWith(dartType: v)),
+              fields: editField(opts.fields, i, (f) => f.isId ? f : f.withType(v)),
             ),
           ),
           onNullable: (i, v) => onChanged(
@@ -90,6 +90,11 @@ class EntityFieldsStep extends StatelessWidget {
             if (opts.fields[i].isId) return;
             onChanged(opts.copyWith(fields: [...opts.fields]..removeAt(i)));
           },
+          onEnumValues: (i, values) => onChanged(
+            opts.copyWith(
+              fields: editField(opts.fields, i, (f) => f.copyWith(enumValues: values)),
+            ),
+          ),
           onChildrenChanged: (i, children) => onChanged(
             opts.copyWith(
               fields: editField(

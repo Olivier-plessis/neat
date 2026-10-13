@@ -217,6 +217,15 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _\$OutboxDaoMixin {
     );
   }
 
+  /// Gives a write that exhausted its retries a fresh start.
+  Future<void> resetRetries(int id) =>
+      (update(outboxEntries)..where((t) => t.id.equals(id))).write(
+        const OutboxEntriesCompanion(
+          retryCount: Value(0),
+          nextRetryAt: Value(null),
+        ),
+      );
+
   /// Flags an entry as conflicting — excluded from [pendingOutbox] until
   /// resolved.
   Future<void> markConflict(int id) =>
@@ -320,6 +329,15 @@ class AppDatabase extends _\$AppDatabase {
 
   @override
   int get schemaVersion => 1;
+
+  /// Wipes every table (the Outbox included). Called on sign-out: this
+  /// database is shared by whoever uses the device, so the next account must
+  /// neither see the previous one's rows nor replay its pending writes.
+  Future<void> clearAll() => transaction(() async {
+        for (final table in allTables) {
+          await delete(table).go();
+        }
+      });
 
   // A table added later (Workshop feature-gen) bumps schemaVersion and
   // inserts its own `if (from < N) await m.createTable(...)` step here —

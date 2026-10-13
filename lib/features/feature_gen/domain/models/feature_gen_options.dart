@@ -67,6 +67,15 @@ abstract class FeatureGenOptions with _$FeatureGenOptions {
     /// REST clients only (dio/chopper).
     @Default('') String apiPath,
 
+    /// Supabase table / Firestore collection (default `<name>s` when empty).
+    /// Replaces [apiPath] for those backends, which address a table, not a
+    /// REST path; the Outbox `resource` follows it.
+    @Default('') String tableName,
+
+    /// Supabase only: every row belongs to the signed-in user (`owner_id`,
+    /// owner-scoped RLS in the generated migration). False → a shared table.
+    @Default(true) bool ownedByUser,
+
     /// "Custom Endpoints" mode (see ROADMAP.md §7 Phase 2): the feature is N
     /// arbitrary REST calls instead of one entity + fixed CRUD. Mutually
     /// exclusive with [fields]/[json]/[apiPath]/the data-source toggles above

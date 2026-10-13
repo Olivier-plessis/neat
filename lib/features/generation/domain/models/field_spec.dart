@@ -8,6 +8,13 @@ enum FieldKind {
 
   /// A JSON array → `List<element>` (element is itself scalar or object).
   list,
+
+  /// A closed set of text values (a status, a category…): a **domain enum**
+  /// carrying its database text, while the DTO and the Drift row stay `String`
+  /// (the mapper converts both ways). Never inferred from JSON — a pasted
+  /// `"status": "planned"` is indistinguishable from any other string — so it
+  /// is set in the field editor.
+  enumeration,
 }
 
 /// One field of a feature's entity/model, inferred from a pasted JSON response
@@ -27,6 +34,8 @@ class FieldSpec {
     this.objectName = '',
     this.children = const [],
     this.element,
+    this.enumName = '',
+    this.enumValues = const [],
   });
 
   /// The original JSON key (e.g. `created_at`).
@@ -56,8 +65,24 @@ class FieldSpec {
   /// For [FieldKind.list]: the element spec (scalar or object).
   final FieldSpec? element;
 
+  /// For [FieldKind.enumeration]: the generated Dart enum's name
+  /// (`WorksiteStatus`). Blank until generation, which fills it in as
+  /// `<Feature><Field>` (see `resolveEnumNames`) — so renaming the feature in
+  /// the Workshop never leaves a stale name behind.
+  final String enumName;
+
+  /// For [FieldKind.enumeration]: the database texts (`in_progress`), in
+  /// order. The **first** one is the safe fallback `fromValue` returns for a
+  /// value this version doesn't know (an older or newer backend). Each also
+  /// feeds the SQL `CHECK` of the Supabase migration.
+  final List<String> enumValues;
+
   bool get isScalar => kind == FieldKind.scalar;
-  bool get isComplex => kind != FieldKind.scalar;
+
+  /// A nested object or list — serialised JSON in the Drift row. (An enum is
+  /// *not* complex: the DTO and the row hold its plain text.)
+  bool get isComplex => kind == FieldKind.object || kind == FieldKind.list;
+  bool get isEnum => kind == FieldKind.enumeration;
 
   /// The scalar Dart type with its nullability suffix (e.g. `String?`). Only
   /// meaningful for scalars — complex types resolve per layer in field_codegen.
@@ -66,6 +91,36 @@ class FieldSpec {
   /// True when the Dart identifier differs from the JSON key → the model needs a
   /// `@JsonKey(name: '<jsonKey>')` (json_serializable) / an explicit map read.
   bool get needsJsonKey => jsonKey != dartName;
+
+  /// What the editor's type dropdown shows: the Dart type of a scalar, `enum`
+  /// for an enumeration (object/list fields aren't picked from the dropdown).
+  String get typeLabel => isEnum ? enumTypeLabel : dartType;
+
+  /// The editor's dropdown entry for an enum field (not a Dart type).
+  static const enumTypeLabel = 'enum';
+
+  /// The default values a freshly picked `enum` type starts with.
+  static const defaultEnumValues = ['first', 'second'];
+
+  /// This field with its type switched to the dropdown entry [type] (one of
+  /// [supportedTypes]). Picking `enum` turns it into an [FieldKind.enumeration]
+  /// (keeping any values it already had, else [defaultEnumValues]); picking a
+  /// plain type turns an enum back into a scalar and drops its values.
+  FieldSpec withType(String type) {
+    if (type == enumTypeLabel) {
+      return copyWith(
+        kind: FieldKind.enumeration,
+        dartType: 'String',
+        enumValues: enumValues.isEmpty ? defaultEnumValues : enumValues,
+      );
+    }
+    return copyWith(
+      kind: FieldKind.scalar,
+      dartType: type,
+      enumName: '',
+      enumValues: const [],
+    );
+  }
 
   FieldSpec copyWith({
     String? jsonKey,
@@ -77,6 +132,8 @@ class FieldSpec {
     String? objectName,
     List<FieldSpec>? children,
     FieldSpec? element,
+    String? enumName,
+    List<String>? enumValues,
   }) {
     return FieldSpec(
       jsonKey: jsonKey ?? this.jsonKey,
@@ -88,6 +145,8 @@ class FieldSpec {
       objectName: objectName ?? this.objectName,
       children: children ?? this.children,
       element: element ?? this.element,
+      enumName: enumName ?? this.enumName,
+      enumValues: enumValues ?? this.enumValues,
     );
   }
 
@@ -98,8 +157,10 @@ class FieldSpec {
     FieldSpec(jsonKey: 'name', dartName: 'name'),
   ];
 
-  /// The scalar Dart types the inferencer can produce (also the UI dropdown).
-  static const supportedTypes = ['String', 'int', 'double', 'bool', 'DateTime'];
+  /// The scalar Dart types the inferencer can produce — which is every entry
+  /// but the last: `enum` (see [FieldKind.enumeration]) is only ever picked in
+  /// the field editor, JSON can't reveal it. Also the editor's dropdown.
+  static const supportedTypes = ['String', 'int', 'double', 'bool', 'DateTime', enumTypeLabel];
 
   /// The FakeStore Products schema (`GET https://fakestoreapi.com/products`) —
   /// NEAT's worked-example feature. Exercises a nested object (`rating`), so
@@ -139,7 +200,9 @@ class FieldSpec {
       other.kind == kind &&
       other.objectName == objectName &&
       _listEq(other.children, children) &&
-      other.element == element;
+      other.element == element &&
+      other.enumName == enumName &&
+      _strListEq(other.enumValues, enumValues);
 
   @override
   int get hashCode => Object.hash(
@@ -152,7 +215,17 @@ class FieldSpec {
         objectName,
         Object.hashAll(children),
         element,
+        enumName,
+        Object.hashAll(enumValues),
       );
+
+  static bool _strListEq(List<String> a, List<String> b) {
+    if (a.length != b.length) return false;
+    for (final (i, item) in a.indexed) {
+      if (item != b[i]) return false;
+    }
+    return true;
+  }
 
   static bool _listEq(List<FieldSpec> a, List<FieldSpec> b) {
     if (a.length != b.length) return false;

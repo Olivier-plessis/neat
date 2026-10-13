@@ -436,6 +436,11 @@ class LaunchGenerationUsecase {
       addSlang: hasI18n,
       addOnboarding: hasOnboarding,
       addSentry: hasSentry,
+      addDriftForTests: hasSync,
+      // The first feature's entity gets a client-id `create` factory when sync
+      // is on; with core split off, that feature lives in its own package
+      // (which declares uuid itself) and the app doesn't import it.
+      addUuid: hasSync && corePackageName == null,
     );
     onLog('[✓] Dependencies added to pubspec.yaml.');
 
@@ -878,6 +883,7 @@ class LaunchGenerationUsecase {
         authPackageName: authPackageName,
         hasOnboarding: autoWireOnboarding,
         hasFirstFeature: architecture.generateFirstFeature,
+        hasLocalData: localStoragePackage != null,
       );
     }
 
@@ -927,6 +933,9 @@ class LaunchGenerationUsecase {
             httpClient: httpClient,
             hasGoRouterBuilder: hasGoRouterBuilder,
             localStoragePackage: localStoragePackage,
+            clientIds: hasSync && hasHttpClient,
+            sdkConstraint: PubspecWriter.projectSdkConstraint(projectDir.path),
+            uiPackage: uiPackage,
           ),
         );
       }
@@ -954,6 +963,8 @@ class LaunchGenerationUsecase {
         packageSplit: featurePackageName != null,
         corePackageName: corePackageName,
         i18n: hasI18nSample,
+        projectRoot: projectDir.path,
+        hasAuth: hasAuth,
       );
 
       // A feature isn't self-contained in its own folder — see

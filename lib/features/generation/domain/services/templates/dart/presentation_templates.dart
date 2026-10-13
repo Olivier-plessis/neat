@@ -19,9 +19,19 @@ class PresentationTemplates {
     // data/repositories for the realtime stream notifier).
     String domainCross = '../../domain',
     String dataCross = '../../data',
+    // Offline-first + sync: the list is a stream over the repository's local
+    // `watchAll()` (Drift is the source of truth, so it also shows writes still
+    // waiting in the Outbox), `refresh()` pulls the remote rows into Drift, and
+    // the notifier keeps the feature's SyncService alive by watching it. Takes
+    // precedence over [realtime] (whose remote stream would hide those writes —
+    // the realtime changes are piped into Drift by the sync provider instead).
+    bool localFirst = false,
   }) {
     if (useAnnotations) {
       if (dataList) {
+        if (localFirst) {
+          return _riverpodListLocalNotifier(featureName, dataCross, domainCross);
+        }
         return realtime
             ? _riverpodListStreamNotifier(featureName, dataCross, domainCross)
             : _riverpodListNotifier(featureName, includeCrudUi, fields, domainCross);
@@ -52,6 +62,53 @@ part '${featureName}_provider.g.dart';
 class ${p}Notifier extends _\$${p}Notifier {
   @override
   Stream<List<${p}Entity>> build() => ref.watch(${camel(featureName)}RepositoryProvider).watchAll();
+}
+''';
+  }
+
+  /// Offline-first + sync list: a stream over the **local** database. Writes
+  /// land in Drift first (and in the Outbox), so reading Drift is the only way
+  /// the screen keeps showing them while online — listing `getAll()`'s remote
+  /// result directly would hide anything the server hasn't received yet.
+  /// [refresh] pulls the remote rows into Drift (pull-to-refresh calls it); the
+  /// list then updates by itself. Same-feature + data/domain relative imports
+  /// only, like [_riverpodListStreamNotifier].
+  static String _riverpodListLocalNotifier(
+    String featureName,
+    String dataCross,
+    String domainCross,
+  ) {
+    final p = pascal(featureName);
+    final c = camel(featureName);
+    return '''import 'dart:async';
+
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+import '$dataCross/repositories/${featureName}_repository_providers.dart';
+import '$domainCross/entities/${featureName}_entity.dart';
+import '${featureName}_usecase_providers.dart';
+
+part '${featureName}_provider.g.dart';
+
+@riverpod
+class ${p}Notifier extends _\$${p}Notifier {
+  @override
+  Stream<List<${p}Entity>> build() {
+    // Starts replaying queued offline writes (kept alive after this provider
+    // is disposed — it is shared with the rest of the app).
+    ref.watch(${c}SyncProvider);
+    // The list always reads the local database, which also holds writes not
+    // synced yet; the remote rows are pulled into it in the background.
+    unawaited(refresh());
+    return ref.watch(${c}RepositoryProvider).watchAll();
+  }
+
+  /// Pulls the remote rows into the local database; the list updates itself.
+  Future<void> refresh() async {
+    // The callable shorthand invokes UseCase.call(), which wraps execute() in
+    // a Result (converting any thrown error to a Failure) — never call
+    // execute() directly, it has no error handling of its own.
+    await ref.read(get${p}UsecaseProvider)();
+  }
 }
 ''';
   }
@@ -195,6 +252,11 @@ class ${p}Notifier extends Notifier<AsyncValue<void>> {
     String? corePackageName,
     // See DataTemplates.featureModel's domainCross doc.
     String domainCross = '../../domain',
+    // See featureProvider's localFirst doc: pull-to-refresh calls the
+    // notifier's refresh() (a remote pull into Drift) instead of invalidating
+    // the provider, and the create/delete sheets skip the optimistic list
+    // mutators (the stream already carries the write).
+    bool localFirst = false,
   ]) {
     final p = pascal(featureName);
     final c = camel(featureName);
@@ -210,6 +272,9 @@ class ${p}Notifier extends Notifier<AsyncValue<void>> {
         : '';
     final titleWidget = i18n ? 'Text(context.t.$c.title)' : "const Text('$p')";
     final switcherAction = i18n ? 'const LanguageSwitcher(),\n          ' : '';
+    final emptyChildren = i18n
+        ? 'children: [Padding(padding: const EdgeInsets.all(24), child: Text(context.t.$c.empty))],'
+        : "children: const [Padding(padding: EdgeInsets.all(24), child: Text('No items yet.'))],";
 
     // The tile's title is the inferred "display" field; the subtitle shows the id.
     final tf = titleField(fields);
@@ -253,7 +318,12 @@ class ${p}Notifier extends Notifier<AsyncValue<void>> {
               builder: (_) => _${p}DetailSheet(item: item),
             ),'''
         : '';
-    final crudWidgets = includeCrudUi ? _crudSheets(featureName, packageName, fields) : '';
+    final crudWidgets = includeCrudUi
+        ? _crudSheets(featureName, packageName, fields, localFirst)
+        : '';
+    final onRefresh = localFirst
+        ? 'ref.read(${c}Provider.notifier).refresh()'
+        : 'ref.invalidate(${c}Provider)';
     // Only declared when actually wired (onTapArg above) — an always-null,
     // never-passed constructor param is dead weight the analyzer flags.
     final onTapCtorParam = includeCrudUi ? ', this.onTap' : '';
@@ -293,7 +363,7 @@ class ${p}Page extends ConsumerWidget {
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: () async => ref.invalidate(${c}Provider),
+        onRefresh: () async => $onRefresh,
         child: switch (state) {
           AsyncData(:final value) => _${p}List(items: value,$onTapArg),
           AsyncError(:final error) =>
@@ -322,7 +392,7 @@ $onTapField
     }
     if (items.isEmpty) {
       return ListView(
-        children: const [Padding(padding: EdgeInsets.all(24), child: Text('No items yet.'))],
+        $emptyChildren
       );
     }
     return ListView.separated(
@@ -347,10 +417,33 @@ $crudWidgets''';
   /// covers scalar, non-id fields (String/int/double/bool) — nested
   /// object/list fields and DateTime fall back to [FieldSpec.entityPlaceholder],
   /// same as the list's Skeletonizer placeholder.
-  static String _crudSheets(String featureName, String packageName, List<FieldSpec> fields) {
+  static String _crudSheets(
+    String featureName,
+    String packageName,
+    List<FieldSpec> fields, [
+    bool localFirst = false,
+  ]) {
     final p = pascal(featureName);
     final c = camel(featureName);
     final idName = idField(fields).dartName;
+    // The list notifier's optimistic mutators exist only for the plain
+    // (non-local-first) list. A local-first list is a stream over Drift: the
+    // write already lands there before the usecase returns, so the list
+    // updates itself — adding the item again would show it twice.
+    final removeStep = localFirst
+        ? '// The list watches the local database: it drops the row by itself.'
+        : '''// A local (optimistic) removal, not `ref.invalidate` — a
+                  // refetch would just replay whatever the remote source
+                  // *actually* has, which for a demo/fake backend (e.g.
+                  // FakeStore) never reflects the delete at all.
+                  ref.read(${c}Provider.notifier).removeItem(item.$idName);''';
+    final addStep = localFirst
+        ? '// The list watches the local database: it shows the new row by itself.'
+        : '''// A local (optimistic) insert, not `ref.invalidate` — a refetch
+        // would just replay whatever the remote source *actually* has,
+        // which for a demo/fake backend (e.g. FakeStore) never reflects
+        // the create at all.
+        ref.read(${c}Provider.notifier).addItem(created);''';
     final detailRows = fields
         .map((f) => "Text('${f.dartName}: \${item.${f.dartName}}'),")
         .join('\n            ');
@@ -428,11 +521,7 @@ class _${p}DetailSheet extends ConsumerWidget {
               final result = await ref.read(delete${p}UsecaseProvider)(item.$idName);
               result.fold(
                 onSuccess: (_) {
-                  // A local (optimistic) removal, not `ref.invalidate` — a
-                  // refetch would just replay whatever the remote source
-                  // *actually* has, which for a demo/fake backend (e.g.
-                  // FakeStore) never reflects the delete at all.
-                  ref.read(${c}Provider.notifier).removeItem(item.$idName);
+                  $removeStep
                   if (context.mounted) Navigator.of(context).pop();
                 },
                 onFailure: (failure) {
@@ -475,11 +564,7 @@ $disposeLines
     if (!mounted) return;
     result.fold(
       onSuccess: (created) {
-        // A local (optimistic) insert, not `ref.invalidate` — a refetch
-        // would just replay whatever the remote source *actually* has,
-        // which for a demo/fake backend (e.g. FakeStore) never reflects
-        // the create at all.
-        ref.read(${c}Provider.notifier).addItem(created);
+        $addStep
         Navigator.of(context).pop();
       },
       onFailure: (failure) {
@@ -538,12 +623,14 @@ $disposeLines
     String? corePackageName,
     // See DataTemplates.featureModel's domainCross doc.
     String domainCross = '../../domain',
+    // See featureProvider's localFirst doc.
+    bool localFirst = false,
   }) {
     final p = pascal(featureName);
 
     if (hasRiverpod && useAnnotations && dataList) {
-      return _riverpodListPage(
-          featureName, packageName, i18n, fields, includeCrudUi, corePackageName, domainCross);
+      return _riverpodListPage(featureName, packageName, i18n, fields, includeCrudUi,
+          corePackageName, domainCross, localFirst);
     }
 
     if (hasRiverpod) {

@@ -24,10 +24,24 @@ class AuthTemplates {
         : '';
     return '''import 'package:${corePackageName ?? packageName}/core/result/result.dart';
 
+/// What a successful sign-up leads to.
+enum SignUpOutcome {
+  /// The project requires email confirmation: no session yet, the user has to
+  /// open the link we just emailed them.
+  confirmationEmailSent,
+
+  /// Email confirmation is not required: the user is already signed in and the
+  /// router takes over.
+  signedIn,
+}
+
 /// Authentication contract. Implementations map provider errors to [Result].
 abstract interface class IAuthRepository {
   Future<Result<bool>> signIn({required String email, required String password});
-  Future<Result<bool>> signUp({required String email, required String password});
+  Future<Result<SignUpOutcome>> signUp({required String email, required String password});
+
+  /// Sends the sign-up confirmation email again (rate limited by the backend).
+  Future<Result<bool>> resendSignUpConfirmation(String email);
   Future<Result<bool>> signOut();
   Future<Result<bool>> sendPasswordReset(String email);$oauthContract
 }
@@ -48,8 +62,15 @@ abstract interface class IAuthRepository {
     bool oauth = false,
     String? corePackageName,
     String? authPackageName,
+    // The project has a local Drift database (offline-first): signing out must
+    // wipe it — see [_signOutCleanup].
+    bool hasLocalData = false,
   }) {
     final corePkg = corePackageName ?? packageName;
+    final cleanupField = hasLocalData
+        ? '\n  /// Wipes the on-device data (Drift tables + Outbox) — see signOut.\n'
+            '  final Future<void> Function() _clearLocalData;\n'
+        : '';
     final iAuthRepoImport = authPackageName != null
         ? "import '../../domain/repositories/i_auth_repository.dart';"
         : "import 'package:$packageName/features/auth/domain/repositories/i_auth_repository.dart';";
@@ -73,29 +94,46 @@ import 'package:$corePkg/core/result/result.dart';
 $iAuthRepoImport
 
 class AuthRepositoryImpl implements IAuthRepository {
-  const AuthRepositoryImpl(this._auth);
+  const AuthRepositoryImpl(this._auth${hasLocalData ? ', this._clearLocalData' : ''});
 
   final FirebaseAuth _auth;
-
+$cleanupField
   @override
   Future<Result<bool>> signIn({required String email, required String password}) =>
       _guard(() => _auth.signInWithEmailAndPassword(email: email, password: password));
 
+  // Firebase signs the new user in right away (no confirmation gate unless you
+  // add one with security rules), hence always `signedIn`.
   @override
-  Future<Result<bool>> signUp({required String email, required String password}) =>
-      _guard(() => _auth.createUserWithEmailAndPassword(email: email, password: password));
+  Future<Result<SignUpOutcome>> signUp({required String email, required String password}) =>
+      _guardValue(() async {
+        await _auth.createUserWithEmailAndPassword(email: email, password: password);
+        return SignUpOutcome.signedIn;
+      });
+
+  /// Firebase has no pending-confirmation state: this re-sends the verification
+  /// email to the signed-in user (a no-op when nobody is signed in).
+  @override
+  Future<Result<bool>> resendSignUpConfirmation(String email) =>
+      _guard(() async => _auth.currentUser?.sendEmailVerification());
 
   @override
-  Future<Result<bool>> signOut() => _guard(_auth.signOut);
+  Future<Result<bool>> signOut() => _guard(() async {
+        await _auth.signOut();${_signOutCleanup(hasLocalData)}
+      });
 
   @override
   Future<Result<bool>> sendPasswordReset(String email) =>
       _guard(() => _auth.sendPasswordResetEmail(email: email));$oauthMethods
 
-  Future<Result<bool>> _guard(Future<void> Function() action) async {
+  Future<Result<bool>> _guard(Future<void> Function() action) => _guardValue(() async {
+        await action();
+        return true;
+      });
+
+  Future<Result<T>> _guardValue<T>(Future<T> Function() action) async {
     try {
-      await action();
-      return Result.success(true);
+      return Result.success(await action());
     } on FirebaseAuthException catch (e) {
       return Result.failure(Failure(message: e.message ?? e.code, code: e.code, originalError: e));
     } catch (e) {
@@ -111,10 +149,10 @@ import 'package:$corePkg/core/result/result.dart';
 $iAuthRepoImport
 
 class AuthRepositoryImpl implements IAuthRepository {
-  const AuthRepositoryImpl(this._client);
+  const AuthRepositoryImpl(this._client${hasLocalData ? ', this._clearLocalData' : ''});
 
   final SupabaseClient _client;
-
+$cleanupField
   // Deep link the confirmation/reset emails send the user back to. Must be
   // registered as a redirect URL in the Supabase Dashboard (Authentication
   // → URL Configuration) — see docs/SUPABASE.md — or Supabase falls back to
@@ -126,27 +164,56 @@ class AuthRepositoryImpl implements IAuthRepository {
       _guard(() => _client.auth.signInWithPassword(email: email, password: password));
 
   @override
-  Future<Result<bool>> signUp({required String email, required String password}) =>
-      _guard(() => _client.auth.signUp(
-            email: email,
-            password: password,
-            emailRedirectTo: _emailRedirectTo,
-          ));
+  Future<Result<SignUpOutcome>> signUp({required String email, required String password}) =>
+      _guardValue(() async {
+        final response = await _client.auth.signUp(
+          email: email,
+          password: password,
+          emailRedirectTo: _emailRedirectTo,
+        );
+        // With email confirmation enabled Supabase creates the user but returns
+        // no session until the link is opened.
+        return response.session == null
+            ? SignUpOutcome.confirmationEmailSent
+            : SignUpOutcome.signedIn;
+      });
 
   @override
-  Future<Result<bool>> signOut() => _guard(() => _client.auth.signOut());
+  Future<Result<bool>> resendSignUpConfirmation(String email) => _guard(
+        () => _client.auth.resend(
+          type: OtpType.signup,
+          email: email,
+          emailRedirectTo: _emailRedirectTo,
+        ),
+      );
+
+  @override
+  Future<Result<bool>> signOut() => _guard(() async {
+        await _client.auth.signOut();${_signOutCleanup(hasLocalData)}
+      });
 
   @override
   Future<Result<bool>> sendPasswordReset(String email) => _guard(
         () => _client.auth.resetPasswordForEmail(email, redirectTo: _emailRedirectTo),
       );
 
-  Future<Result<bool>> _guard(Future<void> Function() action) async {
+  Future<Result<bool>> _guard(Future<void> Function() action) => _guardValue(() async {
+        await action();
+        return true;
+      });
+
+  Future<Result<T>> _guardValue<T>(Future<T> Function() action) async {
     try {
-      await action();
-      return Result.success(true);
+      return Result.success(await action());
     } on AuthException catch (e) {
-      return Result.failure(Failure(message: e.message, code: e.code, originalError: e));
+      return Result.failure(
+        Failure(
+          message: e.message,
+          code: e.code,
+          statusCode: int.tryParse(e.statusCode ?? ''),
+          originalError: e,
+        ),
+      );
     } catch (e) {
       return Result.failure(Failure(message: e.toString(), originalError: e));
     }
@@ -154,6 +221,22 @@ class AuthRepositoryImpl implements IAuthRepository {
 }
 ''';
   }
+
+  /// The sign-out step that wipes the local database. The Drift database (and
+  /// its Outbox) belongs to the device, not to an account: left alone, the next
+  /// account to sign in would see the previous one's rows (the list reads Drift)
+  /// and — worse — its still-queued writes would be replayed under the new
+  /// session. Runs after the sign-out succeeded, so a failed sign-out wipes
+  /// nothing. Trade-off, deliberate: writes that never reached the server
+  /// before the user left are dropped with the account they belong to.
+  static String _signOutCleanup(bool hasLocalData) => hasLocalData
+      ? '''
+
+        // The local database belongs to the device, not to an account: wipe it
+        // (rows + pending Outbox writes) so the next account neither sees nor
+        // replays this one's data. Writes not yet synced are dropped with it.
+        await _clearLocalData();'''
+      : '';
 
   // ── presentation/providers/auth_provider.dart ─────────────────────────────
   // corePackageName: see iAuthRepository's doc — same redirect rationale
@@ -221,6 +304,8 @@ class AuthController extends _\$AuthController {
     String backend = 'supabase',
     String? corePackageName,
     String? authPackageName,
+    // See authRepositoryImpl's hasLocalData doc.
+    bool hasLocalData = false,
   }) {
     final isFirebase = backend == 'firebase';
     final corePkg = corePackageName ?? packageName;
@@ -233,15 +318,19 @@ class AuthController extends _\$AuthController {
             "import '../../domain/repositories/i_auth_repository.dart';"
         : "import 'package:$packageName/features/auth/data/repositories/auth_repository_impl.dart';\n"
             "import 'package:$packageName/features/auth/domain/repositories/i_auth_repository.dart';";
+    final localImport = hasLocalData
+        ? "\nimport 'package:$corePkg/core/providers/infrastructure_providers.dart';"
+        : '';
+    final localArg = hasLocalData ? ', ref.watch(clearLocalDataProvider)' : '';
     return '''import 'package:riverpod_annotation/riverpod_annotation.dart';
-$providerImport
+$providerImport$localImport
 $selfImports
 
 part 'auth_repository_providers.g.dart';
 
 @Riverpod(keepAlive: true)
 IAuthRepository authRepository(Ref ref) =>
-    AuthRepositoryImpl(ref.watch($clientProvider));
+    AuthRepositoryImpl(ref.watch($clientProvider)$localArg);
 ''';
   }
 
@@ -388,6 +477,55 @@ $onboardingCheck
         withPassword: true,
         corePackageName: corePackageName,
         authPackageName: authPackageName,
+        // Minimal reaction to the outcome: with email confirmation on there is no
+        // session yet, so say so (and let the user ask for the email again)
+        // instead of leaving them on a form that appears to have done nothing.
+        extraImports: authPackageName != null
+            ? "import '../../domain/repositories/i_auth_repository.dart';"
+            : "import 'package:$packageName/features/auth/domain/repositories/i_auth_repository.dart';",
+        extraState: '''
+    final confirmationSent = useState(false);
+    final resending = useState(false);
+''',
+        extraFunctions: '''
+    Future<void> resend() async {
+      resending.value = true;
+      final result = await ref
+          .read(authRepositoryProvider)
+          .resendSignUpConfirmation(email.text.trim());
+      resending.value = false;
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            result.fold(
+              onSuccess: (_) => 'Confirmation email sent again.',
+              onFailure: (failure) => failure.message,
+            ),
+          ),
+        ),
+      );
+    }
+
+''',
+        onSuccessBody: '''(outcome) {
+          // Signed in already (email confirmation off): the router takes over.
+          if (outcome == SignUpOutcome.confirmationEmailSent) {
+            confirmationSent.value = true;
+          }
+        }''',
+        afterError: '''
+              if (confirmationSent.value) ...[
+                const SizedBox(height: 12),
+                Text(
+                  'Check your inbox: we sent a confirmation link to '
+                  '\${email.text.trim()}. Open it on this device to finish.',
+                ),
+                TextButton(
+                  onPressed: resending.value ? null : resend,
+                  child: const Text('Resend the email'),
+                ),
+              ],''',
         footer: '''
             TextButton(
               onPressed: () => context.go(AppRoutePath.login),
@@ -431,6 +569,14 @@ $onboardingCheck
     bool oauth = false,
     String? corePackageName,
     String? authPackageName,
+    // Sign-up only (see signupScreen): imports / state / helper functions the
+    // screen needs, the body of `onSuccess: (...)` (default: nothing to do),
+    // and widgets shown right after the error text.
+    String extraImports = '',
+    String extraState = '',
+    String extraFunctions = '',
+    String onSuccessBody = '(_) {}',
+    String afterError = '',
   }) {
     // OAuth buttons (Google + Apple via Firebase's signInWithProvider). They
     // reuse the form's loading/error state.
@@ -510,7 +656,7 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 $appRoutePathImport
-$authRepoProvidersImport
+$authRepoProvidersImport${extraImports.isEmpty ? '' : '\n$extraImports'}
 
 class $className extends HookConsumerWidget {
   const $className({super.key});
@@ -520,14 +666,14 @@ class $className extends HookConsumerWidget {
     final email = useTextEditingController();
 $pwdController    final loading = useState(false);
     final error = useState<String?>(null);
-
-    Future<void> submit() async {
+$extraState
+$extraFunctions    Future<void> submit() async {
       loading.value = true;
       error.value = null;
       final result = await ref.read(authRepositoryProvider).$actionCall;
       loading.value = false;
       result.fold(
-        onSuccess: (_) {},
+        onSuccess: $onSuccessBody,
         onFailure: (failure) => error.value = failure.message,
       );
     }
@@ -549,7 +695,7 @@ $pwdController    final loading = useState(false);
               if (error.value != null) ...[
                 const SizedBox(height: 12),
                 Text(error.value!, style: const TextStyle(color: Colors.red)),
-              ],
+              ],$afterError
               const SizedBox(height: 20),
               FilledButton(
                 onPressed: loading.value ? null : submit,

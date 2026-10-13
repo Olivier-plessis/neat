@@ -1006,6 +1006,262 @@ Harness-proven: `pubspec_builder_test.dart` gained two cases (override present
   the presets. The 6 failing scenarios pass on 3.47.2; full fast suite green
   (289).
 
+### 5w. Offline-first sync: writes silently never reached the server — real bugs, found building a real project (archy)
+
+> Found while building **archy** (Riverpod + Supabase + Drift offline-first
+> sync, `packageSplit`): a worksite created in the app showed up in the list
+> and sat in the Outbox forever — the server never saw it, and nothing in the
+> generated code said so. Every layer *looked* wired and `flutter analyze` was
+> green (a pure runtime failure), but five independent defects stacked up:
+> (1) the generated `<f>Sync` provider was never read by anything, so the
+> `SyncService` never started; (2) it only flushed on a connectivity *change*,
+> never at start-up or on a new write; (3) the Outbox table is shared by every
+> feature, yet each feature's `SyncService` replayed **all** entries with its
+> own handler (feature A's entries sent to feature B's table); (4) replay
+> errors were swallowed (`catch (_)`) and a write was parked for good after 5
+> failures; (5) `getAll()` returned the *remote* rows when online, so the list
+> hid writes still in the Outbox (and creates were replayed with `insert`, not
+> idempotent after a crash). The fixes were made and verified in archy
+> (tests + a real Supabase project); this ports them.
+- **`CoreTemplates.syncService`**: `resource` is now a required named
+  parameter — the SyncService only replays entries whose endpoint path is, or
+  sits under, its resource (`/worksites/42` → `worksites`; a path *prefix*
+  rather than archy's first segment so a REST API behind `/api/v1/…` and an
+  absolute apiPath URL work too — the host never counts). `start()` flushes
+  right away, again on every queued write (`watchPendingOutbox()`), and on
+  connectivity changes; flushes are serialised (`_flushing` / `_flushAgain`);
+  failures are logged with `AppLogger.w` (operation, endpoint, attempt, error)
+  instead of swallowed; writes parked after `maxRetries` get a fresh start at
+  the next `start()` (`OutboxDao.resetRetries`, new).
+- **`DataTemplates.featureRepositoryProviders`**: passes
+  `resource:` (the Supabase table / Firestore collection, or the REST path
+  without slashes — one shared helper, `outboxResourceFor`, keeps provider,
+  repository and shipped tests in agreement); creates are replayed with the new
+  Supabase `upsert` (`DataTemplates.featureApiSource`); the sync engine is only
+  generated when the local layer exists (`hasSync && offlineFirst` — the
+  Workshop's Local Data Source toggle could previously produce a provider
+  referencing a missing `appDatabaseProvider`).
+- **Drift is the source of truth for the list.** Offline-first + sync adds
+  `watchAll()` to the local source (over the DAO's existing `watch<F>s()`), the
+  repository and the interface; the generated list notifier is a stream over it
+  that **watches `<f>SyncProvider`** (the line that actually starts the engine)
+  and exposes `refresh()` (= `getAll()`, which pulls the remote rows into
+  Drift); the page's pull-to-refresh calls it. The optimistic
+  `addItem`/`removeItem` mutators and their calls in the demo CRUD sheets are
+  dropped in that mode (the stream already carries the write — keeping them
+  duplicated the row).
+- **Decision — `realtime` vs the new `watchAll()`.** `realtime` already generated
+  a *remote* `watchAll()`; two meanings for one name would reintroduce the bug.
+  With offline-first sync **the local meaning wins** and the realtime stream is
+  piped *into* Drift by the sync provider (`api.watchAll().listen(local.cacheAll)`,
+  errors logged) instead of being shown directly. Without sync (remote-only,
+  offline *read* mode) nothing changes — no Outbox, so nothing to hide (and
+  offline-read keeps the future-based `getAll()` list: `cacheAll` is upsert-only,
+  a Drift-backed list there would keep showing rows deleted server-side).
+- **Hypothesis verified, then fixed: sign-out left everything.** Confirmed by
+  reading the generated code: `signOut` only called `auth.signOut()`; the Drift
+  database (`app_db`) belongs to the *device*; the `SyncService` provider is
+  `keepAlive`. So the next account saw the previous one's rows (the list now
+  reads Drift) and — worse — its queued writes were replayed under the new
+  session (with owner-based RLS: re-created as the new user's rows).
+  `AppDatabase.clearAll()` (new, one transaction over `allTables`), exposed from
+  core as `clearLocalDataProvider` (so the auth package gains no dependency on
+  the database package), is called by `AuthRepositoryImpl.signOut()` **after**
+  the SDK sign-out succeeded (Supabase and Firebase; any Drift project, sync or
+  not). Deliberate trade-off, documented in `OFFLINE.md`/`AGENTS.md`: writes
+  that had not reached the server are dropped with the account they belong to.
+- **Also fixed on the way (same "write silently lost" class)**: the chopper
+  replay ignored the response — chopper does not throw on a 4xx/5xx, so a
+  rejected write counted as sent and was deleted from the queue. Replays now go
+  through `unwrapChopperResponse`.
+- **Tests shipped with the generated project** (so the contract is executable
+  from day one): `test/core/sync/sync_service_test.dart` (start-up flush, flush
+  on queued write, exhausted retries re-queued, per-resource ownership, offline
+  wait, failing replay bookkeeping, no double replay, `clearAll`) for every sync
+  project; and `<feature>_repository_impl_test.dart` for dio / Supabase /
+  Firebase (a chopper `ApiSource` extends `ChopperService`, so it is not
+  fakeable that way): `watchAll` keeps an Outbox write after a server pull, pulled
+  rows show, emits on write, create queues on the feature's resource, delete,
+  `clearAll`. Both run on an in-memory Drift database + a fake network; the root
+  pubspec gains `drift` (dev) for `package:drift/native.dart`. They live in the
+  root `test/` (the only suite the generated CI runs): `test/core/sync/…`, and
+  the repository test either mirroring its `lib/` path (`mirrorTestStructure`
+  on) or flat as `test/<feature>/<feature>_offline_first_test.dart`.
+- **`AgentsMdTemplate`**: the `SyncService` path was wrong under packageSplit
+  (`packages/core/lib/core/sync/…`); the Outbox bullet is replaced by the new
+  contract (Drift is the truth, `watchAll()`, shared Outbox + `resource`, start
+  conditions, retries, `upsert` — Supabase only, sign-out wipe, realtime
+  reconciliation). `OFFLINE.md` carries the same text.
+- Known limits, not fixed here: `cacheAll` is upsert-only, so a row deleted on
+  another device lingers in Drift; a pull can overwrite a local edit still in
+  the Outbox (last write wins, as before); the sync provider calls
+  `api.add/update/delete` by their default names, so `customizeEndpoints`
+  (chopper) + sync still doesn't compile — pre-existing, unrelated to this port.
+- Tests: `offline_sync_templates_test.dart` (new, 50 generator tests, incl.
+  `FeatureScaffolder` writing the repository test into split / non-split /
+  layer-first / flat layouts) and `offline_sync_integration_test.dart` (new; two
+  of its three real generations belong here — `packageSplit` + Supabase + sync +
+  realtime + auth, and non-split dio with flat tests — each gated on `flutter
+  analyze` **exit code 0** and a passing `flutter test` that runs the shipped
+  tests). Fast suite green.
+
+### 5x. Supabase: no SQL / RLS generated, table name hardcoded — real gaps, found building a real project (archy)
+
+> Same project as §5w. A feature generated against Supabase wrote an
+> `ApiSource` talking to `.from('worksites')` — and nothing that creates that
+> table. Whoever then made it by hand in the dashboard got a table readable and
+> writable by **anyone holding the anon key** (Supabase grants ALL on new
+> public tables to `anon` and `authenticated`, and RLS is off by default) — archy
+> had to discover that, and to fix the grants, on a real project. Separately,
+> the table name was `'${featureName}s'` baked into the template, wrong for any
+> irregular plural (`person` → `persons`), and the Outbox endpoint was built from
+> an unrelated REST "API Path" field that Supabase ignores. `flutter analyze`
+> cannot see either: it is SQL, and a runtime 404.
+- **`SupabaseTemplates.migration`** (new) +
+  **`FeatureScaffolder`**: when the backend is Supabase and the feature has a
+  remote source, writes `supabase/migrations/<yyyyMMddHHmmss>_create_<table>.sql`
+  (the CLI's layout; the timestamp is bumped past any existing migration so two
+  features never share one). The table: `id uuid primary key default
+  gen_random_uuid()`, `owner_id uuid not null default auth.uid() references
+  auth.users on delete cascade`, the entity fields (`String`→`text`,
+  `int`→`integer`, `double`→`double precision`, `bool`→`boolean`,
+  `DateTime`→`timestamptz`, nested object/list → `jsonb`; `not null` unless
+  `FieldSpec.nullable`), `created_at` / `updated_at`; `set_updated_at()`
+  (`create or replace`, shared) + trigger; an index on `owner_id`; RLS enabled
+  with four policies written with `(select auth.uid())` (insert **and** update,
+  because the Outbox replays creates as upserts); `revoke all … from anon,
+  authenticated` **before** `grant select, insert, update, delete … to
+  authenticated`. camelCase / reserved column names are quoted; an entity field
+  already named `created_at` wins over the automatic one.
+- **Database-only columns stay out of the Dart side**: `owner_id`, `created_at`
+  and `updated_at` are in the SQL only — never in the model, the entity or the
+  Drift table (a test scans every generated Dart file for them).
+- **Workshop**: "Owned by the signed-in user" (`FeatureGenOptions.ownedByUser`).
+  Off → a **shared** table (no `owner_id`, `using (true)` policies, a loud
+  `SHARED TABLE` warning in the file; open to `anon` too when the project has no
+  Auth). Default: on **when the project has Auth** — a deliberate refinement of
+  "on for Supabase": owner-scoped rows in a project nobody can sign in to would
+  be unreachable. The wizard's first feature is owned exactly when Auth is on.
+- **Table name** (`FeatureGenOptions.tableName`, default `<feature>s`): replaces
+  the REST-only "API Path" field for Supabase **and** Firebase (collection name —
+  the same unused-path problem). Validated as a plain lower-case identifier
+  (`SupabaseTemplates.validateTableName`). It feeds the API source (`_table`),
+  the migration, the Outbox endpoint **and** the `SyncService` `resource`
+  (`outboxEndpointBase` / `outboxResourceFor`, one helper, §5w); `apiPath` is no
+  longer used for those two backends (the repository used to queue under it).
+- **Workshop bug found on the way**: renaming a hand-added field only changed its
+  Dart name, the JSON key stayed `field1` forever — so the wire name (and, now,
+  the SQL column) was `field1`. A hand-added field's JSON key now follows its
+  name; an inferred one (`start_date` ↔ `startDate`) keeps the API's key
+  (`renameField`).
+- `docs/SUPABASE.md` and the generated `AGENTS.md` document applying the
+  migrations (`supabase db push` / SQL editor) and "new migration, never edit an
+  applied one"; `supabase/migrations/**` is listed as safe to modify.
+- Not done / not verifiable here: the SQL was ported from the two migrations
+  verified on archy's real project and is pinned by string assertions, but not
+  executed against Postgres by this suite.
+- Tests: `supabase_enum_templates_test.dart` (new; the SQL, the scaffolder
+  writing/skipping/uniquifying the migration, database-only columns absent from
+  Dart) and the third scenario of `offline_sync_integration_test.dart`.
+
+### 5y. Enum field type and client-side ids — real gaps, found building a real project (archy)
+
+> Same project. The Workshop only knew `String` / `int` / `double` / `bool` /
+> `DateTime`, so a status or a category became a free `String`: a typo compiled,
+> a value from a newer backend was unmatchable, and the SQL `CHECK` had to be
+> written by hand. And the generated create flow left a placeholder `id`
+> (`'000000'`), which an offline-first create cannot use — the row exists locally
+> and in the Outbox before the server ever sees it, so the id must be generated
+> on the client.
+- **`FieldKind.enumeration`** (`FieldSpec.enumName` / `enumValues`,
+  `withType('enum')`; `isComplex` now means object/list only — an enum is plain
+  text in the DTO and the row). Set in the field editor (an `enum` entry in the
+  type dropdown + a "Values" line, comma separated; trimmed, deduped, order
+  kept) — **never inferred from JSON**. Not offered in Custom Endpoints' bodies
+  (no domain entity there).
+- **Generated**: a domain enum per field, `domain/entities/<feature>_<field>.dart`
+  (`WorksiteStatus`), each member carrying its database text (`value`) and a
+  `fromValue` whose fallback is the **first** value (an unknown value from an
+  older/newer backend never breaks a list). The entity types the field as the
+  enum and **re-exports** it (so model, page and shipped tests get it for free);
+  the DTO and the Drift row stay `String`; the mapper converts both ways
+  (`e.status.value` / `WorksiteStatus.fromValue(status)`, null-safe for a
+  nullable enum); the skeleton placeholder uses a real member. The migration's
+  `CHECK (col in (...))` is built from the same values (§5x). Class names are
+  resolved at generation (`<Feature><Field>`, de-conflicted with a numeric
+  suffix when two enums collide), so renaming the feature never leaves a stale
+  name. Member names are valid Dart whatever the value (`in_progress` →
+  `inProgress`; keywords, leading digits and `value`/`values`… get a suffix).
+- **Client-side ids**: with offline-first **sync**, the entity gets a `create`
+  factory (every field but the id) generating a uuid v4 — freezed (adds the
+  private constructor) and plain entities alike. `uuid` is added to the pubspec
+  that holds the entity: the app's (launch), the split feature package's
+  (`CorePackageTemplates.featurePackagePubspec(clientIds:)`), or — Workshop on an
+  existing project — patched in (`GenerateFeatureUsecase.ensureDependency`,
+  idempotent; the parent's package when merging).
+- `AGENTS.md` documents both conventions, as archy's did by hand.
+- Tests: the enum / client-id groups of `supabase_enum_templates_test.dart`
+  (type switching, member names, name resolution, enum file, entity, model — freezed
+  and plain —, nullable enum, Drift column, pubspecs, editor widget tests) and the
+  third real generation in `offline_sync_integration_test.dart` (`packageSplit` +
+  Supabase + sync with a required and a nullable enum: enum files, `create`
+  factory, `uuid` dependency, String DTO / text column, the migration with both
+  CHECKs — `flutter analyze` exit 0 and a passing `flutter test`).
+
+### 5z. Consistency and polish — found building archy
+
+> Six smaller gaps from the same project, none visible to `flutter analyze`.
+- **i18n in the Workshop**: it ignored `generateI18n`, so a feature added after
+  launch hardcoded `'Worksite'` / `'No items yet.'` while the launch-time one
+  read `context.t`. `I18nWriter.addFeatureKeys` now adds `title` / `empty` under
+  the feature's key in every existing `<locale>.i18n.json` (in the **core**
+  package when split — single-sourced like the rest of i18n —, never overwriting
+  a translation, skipped for a CSV-imported project whose keys NEAT doesn't know,
+  mirroring the launch-time rule), the page reads `context.t.<f>.title/.empty`,
+  and `dart run slang` regenerates the file. The launch-time translations gained
+  the `empty` key too.
+- **Feature package SDK**: `featurePackagePubspec` hardcoded `sdk: ^3.7.0`, which
+  pins the package's language version to 3.7 — dot-shorthands (3.10) were a
+  compile error in every feature page while core / ui / database followed the
+  project. It now takes the **project's** constraint
+  (`PubspecWriter.readSdkConstraint`, also for the split auth package) and gains
+  the `<app>_ui` path dependency when `extractUiPackage` is on.
+- **`RiverpodObserver`** logged `previous → new` state of every provider in debug
+  builds, so any state holding a secret (a password form's did) leaked into the
+  console. It logs provider names only — `add` / `update` / `dispose` / `fail`.
+- **Sign-up**: `signUp` returned `Result<bool>` and could not tell "confirmation
+  email sent" from "signed in". Now `Result<SignUpOutcome>` (Supabase: no session
+  after sign-up → `confirmationEmailSent`; Firebase signs in at once →
+  `signedIn`) plus `resendSignUpConfirmation` (Supabase `resend(OtpType.signup)`;
+  Firebase re-sends the verification email), and `_guard` keeps the HTTP status in
+  the `Failure`. The generated sign-up screen reacts minimally and inline — a
+  "check your inbox" note with a "Resend the email" button when confirmation is
+  pending, nothing when the router takes over; archy's bottom sheets are
+  project-specific and not ported.
+- **Workshop UI**: the preview showed `lib/features/<name>/` for a packageSplit
+  project (it is `packages/<name>/` with a pubspec and `lib/`) and left out the
+  Drift table + DAO, the migration and the enum files — all shown now; and the
+  locked "Data Mapper" switch rendered as OFF (a disabled `Switch` is painted in
+  the greyed palette) — painted as on, dimmed.
+- **`AGENTS.md`**: the enum and client-id conventions, database-only columns, and
+  `supabase/migrations/` in the safe-to-modify table (§5x / §5y).
+- Tests: `consistency_polish_test.dart` (new, 25 tests: i18n keys incl. split /
+  CSV / existing translations, SDK + UI package, observer, sign-up contract and
+  screens, preview lines, the locked toggle, AGENTS.md). Exercised end to end by
+  the real generations of §5w / §5y (the split Supabase + auth ones now build a
+  `SignUpOutcome` auth package on the project's SDK, analyze exit 0), and by a
+  fourth scenario of `offline_sync_integration_test.dart` that drives the
+  **Workshop** on a packageSplit Supabase project (sync + i18n + extracted UI
+  package): a feature with an enum and a custom table name (`people`) gets its
+  migration, its i18n keys and page strings, the project-SDK pubspec with `uuid`
+  and the UI package, a shipped repository test — `flutter analyze` exit 0 and a
+  passing `flutter test`.
+- Validation of §5w–§5z together: `flutter analyze` 0/0, fast suite green (401
+  tests, +~110 from this port), full integration suite green (every scenario
+  generates a real project and runs `flutter analyze`). One existing scenario
+  (chopper + offline-sync) asserted the old `Future` list notifier and was
+  updated to the stream/sync contract of §5w.
+
 ### 6. Multiple architectures — later, with caution
 
 - The harness makes **every** architecture a ~3× maintenance cost (each must be proven).

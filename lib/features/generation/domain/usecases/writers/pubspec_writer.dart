@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:neat/features/dependencies/domain/models/pub_package.dart';
+import 'package:neat/features/generation/domain/services/templates/core_package_templates.dart';
 
 /// Writes the root `pubspec.yaml`: merges every selected + auto-injected
 /// dependency into the `flutter create` scaffold, plus the workspace
@@ -26,6 +27,8 @@ abstract final class PubspecWriter {
     bool addSlang = false,
     bool addOnboarding = false,
     bool addSentry = false,
+    bool addDriftForTests = false,
+    bool addUuid = false,
   }) async {
     final pubspecFile = File('${projectDir.path}/pubspec.yaml');
     if (!pubspecFile.existsSync()) return;
@@ -48,9 +51,31 @@ abstract final class PubspecWriter {
       addSlang: addSlang,
       addOnboarding: addOnboarding,
       addSentry: addSentry,
+      addDriftForTests: addDriftForTests,
+      addUuid: addUuid,
     );
 
     await pubspecFile.writeAsString(content);
+  }
+
+  /// The `environment: sdk:` constraint of a pubspec's text (`^3.13.2`), or
+  /// [CorePackageTemplates.defaultSdkConstraint] when there isn't a readable one.
+  /// The workspace packages NEAT writes follow the project's constraint.
+  static String readSdkConstraint(String pubspecContent) {
+    final env = RegExp(r'^environment:[ \t]*\r?\n((?:[ \t]+.*\r?\n?)*)', multiLine: true)
+        .firstMatch(pubspecContent);
+    final sdk = env == null
+        ? null
+        : RegExp(r'^[ \t]+sdk:[ \t]*([^\s#]+)', multiLine: true).firstMatch(env.group(1)!);
+    return sdk?.group(1) ?? CorePackageTemplates.defaultSdkConstraint;
+  }
+
+  /// [readSdkConstraint] for the project at [projectPath].
+  static String projectSdkConstraint(String projectPath) {
+    final file = File('$projectPath/pubspec.yaml');
+    return file.existsSync()
+        ? readSdkConstraint(file.readAsStringSync())
+        : CorePackageTemplates.defaultSdkConstraint;
   }
 
   /// Pure pubspec assembly: takes the `flutter create` pubspec [original] and
@@ -76,6 +101,8 @@ abstract final class PubspecWriter {
     bool addSlang = false,
     bool addOnboarding = false,
     bool addSentry = false,
+    bool addDriftForTests = false,
+    bool addUuid = false,
   }) {
     final deps = StringBuffer();
     final devDeps = StringBuffer();
@@ -195,6 +222,18 @@ abstract final class PubspecWriter {
     // runApp in bootstrap() — see AppTemplates.bootstrap's hasSentry doc.
     if (addSentry && !uniquePackages.any((p) => p.name == 'sentry_flutter')) {
       deps.write('  sentry_flutter: ^9.5.0\n');
+    }
+    // Client-side ids: the entity's `create` factory generates a uuid v4 (an
+    // offline-created row can't wait for a server-assigned id).
+    if (addUuid && !uniquePackages.any((p) => p.name == 'uuid')) {
+      deps.write('  uuid: ${CorePackageTemplates.uuidConstraint}\n');
+    }
+    // The shipped offline-sync tests (SyncService, offline-first repository) run
+    // against an in-memory Drift database — `package:drift/native.dart` is a
+    // direct import of the app's `test/`, so the app declares drift itself (the
+    // database package re-exports drift's API but not its `native.dart`).
+    if (addDriftForTests && !uniquePackages.any((p) => p.name == 'drift')) {
+      devDeps.write('  drift: ^2.35.2\n');
     }
     // Branding tooling: app icons + splash from the uploaded logo.
     if (addBranding) {
