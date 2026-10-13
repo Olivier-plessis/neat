@@ -1293,6 +1293,81 @@ Harness-proven: `pubspec_builder_test.dart` gained two cases (override present
   (chopper + offline-sync) asserted the old `Future` list notifier and was
   updated to the stream/sync contract of §5w.
 
+### 5aa. A child feature's sync waits for its parent's — found building archy
+
+> A task created offline reached Supabase before its worksite when the network
+> came back, and failed on the foreign key (`23503 tasks_worksite_id_fkey`).
+> Every feature has its own `SyncService`; they all flush at the same moment, so
+> nothing ordered one resource's writes after another's.
+- **`SyncService.dependsOn`** (`Set<String>`, empty by default, written like
+  `resource`): a write waits while an **older** write (a lower Outbox id — ids
+  follow the queue order across every resource) of a resource it depends on is
+  still pending. A newer parent write never blocks it, and a parked parent write
+  still does (the child could not be accepted without it either). Waiting is
+  not an attempt: no retry bump, no log. The parent's service emptying its part
+  of the queue emits on the shared pending stream, which flushes the child.
+  Parent and own resources are matched the same way (the path, or under it — so
+  `api/v1/orders` works and `order` does not match `orders`).
+- **Wired by the Workshop**: a `<feature>_id` field (not the id) naming a
+  feature of the project makes the new feature a child; its generated sync
+  provider declares `dependsOn: const {'<parent resource>'}`. The parent's
+  Outbox `resource` is read back from the sync provider NEAT generated for it
+  (`SyncParents`, scanning `lib/` and `packages/` for
+  `<parent>_repository_providers.dart` and skipping `build/` and dot-folders) —
+  the one place that holds the table or REST path it really uses, whatever the
+  layout (split package, merged child, feature-first folder). A parent without
+  a sync provider is not a dependency; custom-endpoint features are skipped.
+- **Shipped test**: the generated `test/core/sync/sync_service_test.dart` gains
+  the two-service scenario (the parent is held up, the child must not go out;
+  once released it does, with no failed attempt) and the reverse (an older child
+  is not held back by a newer parent write).
+- **Docs of the generated project**: `AGENTS.md` and `docs/OFFLINE.md` tell a
+  child to declare its parent, and a parent's local delete to drop the child
+  rows **and their queued Outbox writes** in the same transaction (they could
+  only fail once the parent is gone from the server) — archy does it in
+  `WorksiteLocalSource.deleteById`. Not generated: it edits the *parent's*
+  files, which a child's generation does not touch.
+- Tests: `sync_dependency_test.dart` (new: the template, the provider,
+  `SyncParents` on every layout, the scaffolder, docs, the shipped test), and
+  the Workshop scenario of `offline_sync_integration_test.dart` now adds a
+  child `note` (`person_id`) to the `person` feature: its provider names
+  `people`, the parent's names nothing, and the generated project's own
+  `flutter test` runs the new SyncService scenarios — `flutter analyze` exit 0.
+
+### 5ab. A `<parent>_id` field is a foreign key — found building archy
+
+> The generated migration declared `worksite_id text`, which cannot reference the
+> parent's `uuid` id; archy wrote the `uuid`, the `references … on delete
+> cascade` and the index by hand. The same `<feature>_id` convention that sets
+> the sync order (§5aa) now drives the SQL.
+- **Migration** (`SupabaseTemplates.migration(references:)`): a referencing
+  column is a `uuid`, with `references public.<parent> (<id>)` and an index
+  `<table>_<column>_idx` (Postgres indexes the referenced side only; the
+  parent's delete and every "rows of this parent" query scan the other).
+  **Delete rule**: required → `on delete cascade` (the row cannot outlive its
+  parent, and the generated-by-hand local delete does the same); optional →
+  `on delete set null`. The Dart field stays a `String` (a uuid is its text on
+  the wire), the Drift column stays text.
+- **Where the parent comes from** (`ParentTables`): nothing is guessed. The
+  table is read from the parent's generated API source (`_table = '…'` — the
+  same name the Outbox and the SQL use, custom or not) and its id column from
+  its `create_<table>` migration, wherever the parent lives (split package,
+  merged child, feature-first folder). Without that migration in
+  `supabase/migrations/` (a table made by hand, another project), or with a
+  parent key that is not a `uuid`, the field stays a plain column and the
+  foreign key is left to the developer. A child is generated after its parent,
+  so its migration timestamp sorts after (the CLI applies in that order).
+  Supabase only; custom-endpoint features are skipped.
+- **Docs**: the generated `AGENTS.md` says what a `<feature>_id` field becomes
+  and asks to check the delete rule against the data.
+- Tests: `parent_reference_test.dart` (new: required / optional / index /
+  quoted id / unchanged without references; the resolver on a split package,
+  a custom table, a merged parent, no migration, a non-uuid key, self and
+  unknown references; the scaffolder; AGENTS.md), and the Workshop scenario of
+  `offline_sync_integration_test.dart` asserts the `note` migration's
+  `person_id uuid not null … references public.people (id) on delete cascade`
+  and its index.
+
 ### 6. Multiple architectures — later, with caution
 
 - The harness makes **every** architecture a ~3× maintenance cost (each must be proven).

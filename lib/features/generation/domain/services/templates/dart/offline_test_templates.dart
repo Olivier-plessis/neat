@@ -139,6 +139,69 @@ void main() {
     expect(left.map((e) => e.endpoint), ['/other_resource']);
   });
 
+  group('a resource that depends on another', () {
+    late Completer<void> parentGate;
+    late List<OutboxEntry> childReplayed;
+    late SyncService children;
+
+    setUp(() async {
+      // The parent's service is held up (slow network) until the gate opens.
+      parentGate = Completer<void>();
+      await service.dispose();
+      service = makeService((entry) async {
+        await parentGate.future;
+        replayed.add(entry);
+        return ReplaySyncResult.success;
+      });
+      childReplayed = [];
+      children = SyncService(
+        db,
+        network,
+        (entry) async {
+          childReplayed.add(entry);
+          return ReplaySyncResult.success;
+        },
+        resource: '${resource}_child',
+        dependsOn: const {'$resource'},
+      );
+      addTearDown(() async {
+        if (!parentGate.isCompleted) parentGate.complete();
+        await children.dispose();
+      });
+    });
+
+    test('waits for the older writes of its parent, without failing', () async {
+      await enqueue('/$resource'); // the parent row, created first…
+      await enqueue('/${resource}_child'); // …then a row pointing at it
+
+      service.start();
+      children.start();
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+
+      expect(childReplayed, isEmpty, reason: 'the parent is not there yet');
+      final queued = await pending();
+      expect(queued.map((e) => e.endpoint), ['/$resource', '/${resource}_child']);
+      expect(queued.last.retryCount, 0, reason: 'waiting is not an attempt');
+
+      parentGate.complete();
+
+      await eventually(() => childReplayed.length == 1);
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      expect(await pending(), isEmpty);
+    });
+
+    test('is not held back by a parent write queued after its own', () async {
+      await enqueue('/${resource}_child');
+      await enqueue('/$resource/42', 'update');
+
+      service.start();
+      children.start();
+
+      await eventually(() => childReplayed.length == 1);
+      expect(replayed, isEmpty, reason: 'the parent is still stuck');
+    });
+  });
+
   test('offline: waits for the connection to come back', () async {
     network.connected = false;
     await enqueue('/$resource');

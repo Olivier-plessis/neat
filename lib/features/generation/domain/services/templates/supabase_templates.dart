@@ -13,6 +13,14 @@ import 'package:neat/features/generation/domain/services/templates/dart/field_co
 ///
 /// Verified end to end on a real project (archy: two migrations applied and
 /// exercised through the Outbox replay) before being ported here.
+/// The parent table a field points at (`references public.<table> (<column>)`).
+class ForeignKey {
+  const ForeignKey(this.table, this.column);
+
+  final String table;
+  final String column;
+}
+
 class SupabaseTemplates {
   SupabaseTemplates._();
 
@@ -86,6 +94,12 @@ class SupabaseTemplates {
   ///   never in the Dart model, entity or Drift table; the defaults and the
   ///   trigger fill them. (An entity field that already carries one of these
   ///   names wins over the automatic column.)
+  /// - [references]: fields (by JSON key) that point at another table's rows —
+  ///   a `worksite_id` on a task. Such a column is a `uuid` (the parent's id
+  ///   is one), a real foreign key, and indexed (Postgres doesn't index the
+  ///   referencing side, and the parent's delete and any "rows of this parent"
+  ///   query scan it). A required one is `on delete cascade` — the row can't
+  ///   outlive its parent; an optional one is `on delete set null`.
   static String migration({
     required String featureName,
     required List<FieldSpec> fields,
@@ -93,6 +107,7 @@ class SupabaseTemplates {
     bool ownedByUser = true,
     bool hasAuth = true,
     String modelName = '',
+    Map<String, ForeignKey> references = const {},
   }) {
     final table = (tableName == null || tableName.isEmpty) ? '${featureName}s' : tableName;
     final p = modelName.isEmpty ? pascal(featureName) : modelName;
@@ -109,12 +124,25 @@ class SupabaseTemplates {
         '  owner_id uuid not null default auth.uid()\n'
             '    references auth.users (id) on delete cascade',
       for (final f in fields)
-        if (!f.isId) '  ${column(f.jsonKey)} ${sqlType(f)}${f.nullable ? '' : ' not null'}',
+        if (!f.isId)
+          if (references[f.jsonKey] case final parent?)
+            '  -- ${f.nullable ? 'Optional link to' : 'Belongs to'} a row of `${parent.table}`: '
+                '${f.nullable ? 'deleting that row clears it' : 'deleting that row deletes this one too'}.\n'
+                '  ${column(f.jsonKey)} uuid${f.nullable ? '' : ' not null'}\n'
+                '    references public.${parent.table} (${column(parent.column)}) '
+                'on delete ${f.nullable ? 'set null' : 'cascade'}'
+          else
+            '  ${column(f.jsonKey)} ${sqlType(f)}${f.nullable ? '' : ' not null'}',
       if (auto('created_at')) '  created_at timestamptz not null default now()',
       if (auto('updated_at')) '  updated_at timestamptz not null default now()',
     ];
     final checks = [for (final f in fields) ?checkFor(f, table)];
     final body = [...columns, ...checks.map((c) => '  $c')].join(',\n');
+    final referenceIndexes = [
+      for (final f in fields)
+        if (references.containsKey(f.jsonKey))
+          'create index ${table}_${_identifier(f.jsonKey)}_idx on public.$table (${column(f.jsonKey)});\n',
+    ].join();
 
     final roles = ownedByUser || hasAuth ? 'authenticated' : 'anon, authenticated';
     final ownerSql = ownedByUser ? 'owner_id = (select auth.uid())' : 'true';
@@ -168,7 +196,7 @@ end;
 create table public.$table (
 $body
 );
-${ownedByUser && auto('owner_id') ? '\ncreate index ${table}_owner_id_idx on public.$table (owner_id);\n' : ''}
+${ownedByUser && auto('owner_id') ? '\ncreate index ${table}_owner_id_idx on public.$table (owner_id);\n' : ''}${referenceIndexes.isEmpty ? '' : '\n$referenceIndexes'}
 create trigger ${table}_set_updated_at
   before update on public.$table
   for each row execute function public.set_updated_at();
@@ -209,9 +237,12 @@ grant select, insert, update, delete on public.$table to $roles;
     final values = f.enumValues;
     if (values.isEmpty) return null;
     final list = values.map((v) => "'${v.replaceAll("'", "''")}'").join(', ');
-    final id = f.jsonKey.toLowerCase().replaceAll(RegExp(r'[^a-z0-9_]'), '_');
+    final id = _identifier(f.jsonKey);
     return 'constraint ${table}_${id}_check check (${column(f.jsonKey)} in ($list))';
   }
+
+  /// A JSON key as a lower-case identifier fragment (for constraint and index names).
+  static String _identifier(String jsonKey) => jsonKey.toLowerCase().replaceAll(RegExp(r'[^a-z0-9_]'), '_');
 
   static String _list(List<String> items) => items.length <= 1
       ? items.join()

@@ -28,7 +28,7 @@ void main() {
     );
 
     test('takes a required `resource` and only handles its own entries', () {
-      expect(code, contains('SyncService(this._db, this._network, this._replay, {required this.resource});'));
+      expect(code, contains('required this.resource,'));
       expect(code, contains('bool _owns(OutboxEntry entry)'));
       expect(code, contains('.where(_owns)'));
       expect(code, contains("path.startsWith('\$resource/')"));

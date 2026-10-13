@@ -377,9 +377,44 @@ void main() {
         isTrue,
       );
 
+      // §5aa + §5ab: a child feature (its rows point at `person` through
+      // `person_id`) waits for the parent's writes — its sync names the
+      // parent's resource, the parent's own names nothing — and its migration
+      // makes the column a real foreign key.
+      final reloaded = await const ProjectLoader().load(projectDir.path);
+      expect(reloaded, isNotNull);
+      await const GenerateFeatureUsecase().execute(
+        project: reloaded!,
+        options: const FeatureGenOptions(
+          name: 'note',
+          fields: [
+            FieldSpec(jsonKey: 'id', dartName: 'id', isId: true),
+            FieldSpec(jsonKey: 'person_id', dartName: 'personId'),
+            FieldSpec(jsonKey: 'body', dartName: 'body'),
+          ],
+        ),
+        onLog: logs.add,
+      );
+      final noteSync = read('packages/note/lib/data/repositories/note_repository_providers.dart');
+      expect(noteSync, contains("resource: 'notes',"));
+      expect(noteSync, contains("dependsOn: const {'people'},"));
+      expect(
+        read('packages/person/lib/data/repositories/person_repository_providers.dart'),
+        isNot(contains('dependsOn')),
+      );
+      // The shipped SyncService test (run below) covers the waiting itself.
+      expect(read('test/core/sync/sync_service_test.dart'), contains('a resource that depends on another'));
+      final noteMigration = Directory('${projectDir.path}/supabase/migrations')
+          .listSync()
+          .whereType<File>()
+          .singleWhere((f) => f.path.endsWith('_create_notes.sql'))
+          .readAsStringSync();
+      expect(noteMigration, contains('person_id uuid not null\n    references public.people (id) on delete cascade'));
+      expect(noteMigration, contains('create index notes_person_id_idx on public.notes (person_id);'));
+
       await expectCiGreen(projectDir);
     },
-    timeout: const Timeout(Duration(minutes: 16)),
+    timeout: const Timeout(Duration(minutes: 20)),
   );
 }
 

@@ -1041,6 +1041,10 @@ class ${p}LocalSource {
     // sync provider also pipes the API source's live stream into Drift (see
     // the `live` block below).
     bool realtime = false,
+    // Outbox resources of the features this one's rows point at (a
+    // `<parent>_id` field): the sync waits for their older writes — see
+    // SyncService.dependsOn. Sorted by the caller for a stable output.
+    List<String> dependsOn = const [],
   }) {
     final p = pascal(featureName);
     final c = camel(featureName);
@@ -1163,6 +1167,11 @@ ${p}LocalSource ${c}LocalSource(Ref ref) => ${p}LocalSource(ref.watch(appDatabas
   ref.onDispose(live.cancel);'''
         : '';
 
+    final dependsOnLine = dependsOn.isEmpty
+        ? ''
+        : '\n    // Rows point at their parent: it must reach the server first.\n'
+              "    dependsOn: const {${dependsOn.map((r) => "'$r'").join(', ')}},";
+
     final syncProvider = sync
         ? '''
 
@@ -1191,7 +1200,7 @@ SyncService ${c}Sync(Ref ref) {
       }
       return ReplaySyncResult.success;
     },
-    resource: '$resource',
+    resource: '$resource',$dependsOnLine
   )..start();
   ref.onDispose(service.dispose);$liveLink
   return service;

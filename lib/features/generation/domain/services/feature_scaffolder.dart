@@ -81,6 +81,12 @@ class FeatureScaffolder {
     bool hasAuth = true,
     // The migration's timestamp (default: now, UTC). Injectable for tests.
     DateTime? migrationTime,
+    // Outbox resources of the already-synced features this one's rows point at
+    // (see SyncParents): its SyncService waits for their older writes.
+    List<String> syncDependsOn = const [],
+    // Fields (by JSON key) that point at another feature's Supabase table (see
+    // ParentTables): the migration makes them `uuid` foreign keys.
+    Map<String, ForeignKey> foreignKeys = const {},
     // The generated project's root. When set, an offline-first + sync feature
     // also gets its repository test in the root `test/` (the only suite the
     // generated CI runs): flat as `test/<feature>/<feature>_offline_first_test
@@ -303,6 +309,7 @@ class FeatureScaffolder {
             tableName: table,
             ownedByUser: ownedByUser,
             hasAuth: hasAuth,
+            references: foreignKeys,
           ),
         );
       }
@@ -406,6 +413,7 @@ class FeatureScaffolder {
             apiPath: apiPath,
             tableName: tableName,
             realtime: liveList && localFirst,
+            dependsOn: syncDependsOn,
           ),
         );
       }
