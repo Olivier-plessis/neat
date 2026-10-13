@@ -70,7 +70,7 @@ class GenerateYamlUsecase {
       buf.writeln('  quality:');
       buf.writeln('    runs-on: ubuntu-latest');
       buf.writeln('    steps:');
-      buf.writeln('      - uses: actions/checkout@v4');
+      buf.writeln('      - uses: actions/checkout@v5');
       buf.writeln('      - uses: subosito/flutter-action@v2');
       buf.writeln('        with:');
       buf.writeln("          channel: 'stable'");
@@ -92,7 +92,7 @@ class GenerateYamlUsecase {
       buf.writeln('    runs-on: macos-latest$needsClause');
       buf.writeln("    if: startsWith(github.ref, 'refs/tags/v')");
       buf.writeln('    steps:');
-      buf.writeln('      - uses: actions/checkout@v4');
+      buf.writeln('      - uses: actions/checkout@v5');
       buf.writeln('      - uses: subosito/flutter-action@v2');
       if (state.isSelected(CiTool.shorebird)) {
         buf.writeln('      - uses: shorebirdtech/setup-shorebird@v1');
