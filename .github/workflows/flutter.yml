@@ -24,9 +24,8 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      # Enable once you've run `dart format .` across the project.
-      # - name: Verify formatting
-      #   run: dart format --output=none --set-exit-if-changed .
+      - name: Verify formatting
+        run: dart format --output=none --set-exit-if-changed .
 
       - name: Analyze project source
         run: flutter analyze
