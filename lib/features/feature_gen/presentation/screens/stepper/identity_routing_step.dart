@@ -57,7 +57,11 @@ class IdentityRoutingStep extends StatelessWidget {
           controller: nameCtrl,
           enabled: enabled,
           style: const TextStyle(color: Colors.white),
-          decoration: fieldDecoration('e.g. user_profile, auth_login', nameError, context),
+          decoration: fieldDecoration(
+            'e.g. user_profile, auth_login',
+            nameError,
+            context,
+          ),
         ),
         if (canCustomEndpoints) ...[
           10.gapH,
@@ -72,7 +76,10 @@ class IdentityRoutingStep extends StatelessWidget {
         ],
         if (hasNav) ...[
           24.gapH,
-          const SectionHeader(icon: Icons.alt_route, label: 'Navigation & Routing'),
+          const SectionHeader(
+            icon: Icons.alt_route,
+            label: 'Navigation & Routing',
+          ),
           10.gapH,
           RoutingRow(
             selected: opts.routing,

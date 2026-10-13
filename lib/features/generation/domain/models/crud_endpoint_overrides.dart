@@ -41,13 +41,14 @@ class CrudEndpointOverrides {
   /// switched on — the exact paths today's fixed derivation already uses, so
   /// the user only has to retype the operation(s) that genuinely differ
   /// (e.g. just `createPath`) instead of every one of the 5 from scratch.
-  factory CrudEndpointOverrides.defaultsFor(String base) => CrudEndpointOverrides(
-    getAllPath: base,
-    getByIdPath: '$base/{id}',
-    createPath: base,
-    updatePath: '$base/{id}',
-    deletePath: '$base/{id}',
-  );
+  factory CrudEndpointOverrides.defaultsFor(String base) =>
+      CrudEndpointOverrides(
+        getAllPath: base,
+        getByIdPath: '$base/{id}',
+        createPath: base,
+        updatePath: '$base/{id}',
+        deletePath: '$base/{id}',
+      );
 
   final String getAllName;
   final HttpMethod getAllMethod;

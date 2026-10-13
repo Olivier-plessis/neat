@@ -26,13 +26,21 @@ class RadiusOverrideSlider extends StatelessWidget {
           children: [
             Text(
               'Radius',
-              style: const TextStyle(color: Colors.white38, fontSize: 10, letterSpacing: 1.2),
+              style: const TextStyle(
+                color: Colors.white38,
+                fontSize: 10,
+                letterSpacing: 1.2,
+              ),
             ),
             6.gapW,
             Text(
-              isOverridden ? '${value.round()}px' : '${globalRadius.round()}px (global)',
+              isOverridden
+                  ? '${value.round()}px'
+                  : '${globalRadius.round()}px (global)',
               style: TextStyle(
-                color: isOverridden ? context.neatColors.colorPrimaryCyan : Colors.white24,
+                color: isOverridden
+                    ? context.neatColors.colorPrimaryCyan
+                    : Colors.white24,
                 fontSize: 10,
                 fontWeight: FontWeight.bold,
               ),
@@ -41,7 +49,11 @@ class RadiusOverrideSlider extends StatelessWidget {
               6.gapW,
               Clickable(
                 onTap: onReset,
-                child: Icon(Icons.refresh, size: 12, color: context.neatColors.colorPrimaryCyan),
+                child: Icon(
+                  Icons.refresh,
+                  size: 12,
+                  color: context.neatColors.colorPrimaryCyan,
+                ),
               ),
             ],
           ],
@@ -50,13 +62,24 @@ class RadiusOverrideSlider extends StatelessWidget {
         SliderTheme(
           data: SliderThemeData(
             trackHeight: 2,
-            thumbColor: isOverridden ? context.neatColors.colorPrimaryCyan : Colors.white24,
-            activeTrackColor: isOverridden ? context.neatColors.colorPrimaryCyan : Colors.white24,
+            thumbColor: isOverridden
+                ? context.neatColors.colorPrimaryCyan
+                : Colors.white24,
+            activeTrackColor: isOverridden
+                ? context.neatColors.colorPrimaryCyan
+                : Colors.white24,
             inactiveTrackColor: Colors.white10,
-            overlayColor: context.neatColors.colorPrimaryCyan.withValues(alpha: 0.12),
+            overlayColor: context.neatColors.colorPrimaryCyan.withValues(
+              alpha: 0.12,
+            ),
             thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
           ),
-          child: Slider(value: value, max: 32, divisions: 32, onChanged: onChanged),
+          child: Slider(
+            value: value,
+            max: 32,
+            divisions: 32,
+            onChanged: onChanged,
+          ),
         ),
       ],
     );

@@ -160,7 +160,14 @@ class FieldSpec {
   /// The scalar Dart types the inferencer can produce — which is every entry
   /// but the last: `enum` (see [FieldKind.enumeration]) is only ever picked in
   /// the field editor, JSON can't reveal it. Also the editor's dropdown.
-  static const supportedTypes = ['String', 'int', 'double', 'bool', 'DateTime', enumTypeLabel];
+  static const supportedTypes = [
+    'String',
+    'int',
+    'double',
+    'bool',
+    'DateTime',
+    enumTypeLabel,
+  ];
 
   /// The FakeStore Products schema (`GET https://fakestoreapi.com/products`) —
   /// NEAT's worked-example feature. Exercises a nested object (`rating`), so
@@ -206,18 +213,18 @@ class FieldSpec {
 
   @override
   int get hashCode => Object.hash(
-        jsonKey,
-        dartName,
-        dartType,
-        nullable,
-        isId,
-        kind,
-        objectName,
-        Object.hashAll(children),
-        element,
-        enumName,
-        Object.hashAll(enumValues),
-      );
+    jsonKey,
+    dartName,
+    dartType,
+    nullable,
+    isId,
+    kind,
+    objectName,
+    Object.hashAll(children),
+    element,
+    enumName,
+    Object.hashAll(enumValues),
+  );
 
   static bool _strListEq(List<String> a, List<String> b) {
     if (a.length != b.length) return false;
@@ -236,5 +243,6 @@ class FieldSpec {
   }
 
   @override
-  String toString() => 'FieldSpec($dartName: ${kind.name}${isId ? ', id' : ''})';
+  String toString() =>
+      'FieldSpec($dartName: ${kind.name}${isId ? ', id' : ''})';
 }

@@ -12,21 +12,31 @@ class SplashScreen extends HookConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final glowCtrl = useAnimationController(duration: const Duration(milliseconds: 1600));
-    final contentCtrl = useAnimationController(duration: const Duration(milliseconds: 700));
-    final pulseCtrl = useAnimationController(duration: const Duration(milliseconds: 2000));
+    final glowCtrl = useAnimationController(
+      duration: const Duration(milliseconds: 1600),
+    );
+    final contentCtrl = useAnimationController(
+      duration: const Duration(milliseconds: 700),
+    );
+    final pulseCtrl = useAnimationController(
+      duration: const Duration(milliseconds: 2000),
+    );
 
     useEffect(() {
       glowCtrl.forward();
       Future.delayed(const Duration(milliseconds: 500), contentCtrl.forward);
-      Future.delayed(const Duration(milliseconds: 900), () => pulseCtrl.repeat(reverse: true));
+      Future.delayed(
+        const Duration(milliseconds: 900),
+        () => pulseCtrl.repeat(reverse: true),
+      );
 
       final timer = Timer(const Duration(milliseconds: 2800), () {
         Navigator.of(context).pushReplacement(
           PageRouteBuilder<void>(
             transitionDuration: const Duration(milliseconds: 600),
             pageBuilder: (_, _, _) => const MainLayout(),
-            transitionsBuilder: (_, anim, _, child) => FadeTransition(opacity: anim, child: child),
+            transitionsBuilder: (_, anim, _, child) =>
+                FadeTransition(opacity: anim, child: child),
           ),
         );
       });
@@ -39,7 +49,10 @@ class SplashScreen extends HookConsumerWidget {
       begin: 0.4,
       end: 1.0,
     ).animate(CurvedAnimation(parent: glowCtrl, curve: Curves.easeOutCubic));
-    final contentFade = CurvedAnimation(parent: contentCtrl, curve: Curves.easeOut);
+    final contentFade = CurvedAnimation(
+      parent: contentCtrl,
+      curve: Curves.easeOut,
+    );
     final pulse = Tween<double>(
       begin: 0.85,
       end: 1.0,
@@ -75,8 +88,10 @@ class SplashScreen extends HookConsumerWidget {
                                 shape: .circle,
                                 gradient: RadialGradient(
                                   colors: [
-                                    context.neatColors.colorPrimaryCyan.withValues(alpha: 0.12),
-                                    context.neatColors.colorPrimaryCyan.withValues(alpha: 0.04),
+                                    context.neatColors.colorPrimaryCyan
+                                        .withValues(alpha: 0.12),
+                                    context.neatColors.colorPrimaryCyan
+                                        .withValues(alpha: 0.04),
                                     Colors.transparent,
                                   ],
                                 ),
@@ -97,8 +112,10 @@ class SplashScreen extends HookConsumerWidget {
                                 shape: .circle,
                                 gradient: RadialGradient(
                                   colors: [
-                                    context.neatColors.colorPrimaryCyan.withValues(alpha: 0.25),
-                                    context.neatColors.colorPrimaryCyan.withValues(alpha: 0.08),
+                                    context.neatColors.colorPrimaryCyan
+                                        .withValues(alpha: 0.25),
+                                    context.neatColors.colorPrimaryCyan
+                                        .withValues(alpha: 0.08),
                                     Colors.transparent,
                                   ],
                                 ),
@@ -116,12 +133,16 @@ class SplashScreen extends HookConsumerWidget {
                             decoration: BoxDecoration(
                               borderRadius: .circular(22),
                               border: .all(
-                                color: context.neatColors.colorPrimaryCyan.withValues(alpha: 0.25),
+                                color: context.neatColors.colorPrimaryCyan
+                                    .withValues(alpha: 0.25),
                               ),
                             ),
                             child: ClipRRect(
                               borderRadius: .circular(21),
-                              child: Image.asset('assets/images/neat_logo.png', fit: BoxFit.cover),
+                              child: Image.asset(
+                                'assets/images/neat_logo.png',
+                                fit: BoxFit.cover,
+                              ),
                             ),
                           ),
                         ),
@@ -155,7 +176,9 @@ class SplashScreen extends HookConsumerWidget {
             child: FadeTransition(
               opacity: contentFade,
               child: Text(
-                ref.watch(appVersionProvider).maybeWhen(data: (v) => v, orElse: () => ''),
+                ref
+                    .watch(appVersionProvider)
+                    .maybeWhen(data: (v) => v, orElse: () => ''),
                 textAlign: TextAlign.center,
                 style: context.textTheme.bodySmall,
               ),

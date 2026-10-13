@@ -16,37 +16,46 @@ void main() {
     if (tempRoot.existsSync()) await tempRoot.delete(recursive: true);
   });
 
-  test('openProject loads a NEAT project and exposes its stack + features', () async {
-    File('${tempRoot.path}/.neat.json').writeAsStringSync(
-      jsonEncode(
-        const NeatContract(
-          projectName: 'demo',
-          architecture: 'feature_first',
-          stateManagement: 'riverpod',
-          navigation: 'go_router',
-          httpClient: 'chopper',
-          themeApproach: 'customM3',
-          storageStrategy: 'offlineFirstSync',
-        ).toJson(),
-      ),
-    );
-    Directory('${tempRoot.path}/lib/features/home').createSync(recursive: true);
+  test(
+    'openProject loads a NEAT project and exposes its stack + features',
+    () async {
+      File('${tempRoot.path}/.neat.json').writeAsStringSync(
+        jsonEncode(
+          const NeatContract(
+            projectName: 'demo',
+            architecture: 'feature_first',
+            stateManagement: 'riverpod',
+            navigation: 'go_router',
+            httpClient: 'chopper',
+            themeApproach: 'customM3',
+            storageStrategy: 'offlineFirstSync',
+          ).toJson(),
+        ),
+      );
+      Directory(
+        '${tempRoot.path}/lib/features/home',
+      ).createSync(recursive: true);
 
-    final container = ProviderContainer();
-    addTearDown(container.dispose);
-    await container.read(workshopControllerProvider.notifier).openProject(tempRoot.path);
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      await container
+          .read(workshopControllerProvider.notifier)
+          .openProject(tempRoot.path);
 
-    final state = container.read(workshopControllerProvider);
-    expect(state.error, isNull);
-    expect(state.project, isNotNull);
-    expect(state.project!.contract.httpClient, 'chopper');
-    expect(state.project!.features, ['home']);
-  });
+      final state = container.read(workshopControllerProvider);
+      expect(state.error, isNull);
+      expect(state.project, isNotNull);
+      expect(state.project!.contract.httpClient, 'chopper');
+      expect(state.project!.features, ['home']);
+    },
+  );
 
   test('openProject on a non-NEAT folder sets an error, no project', () async {
     final container = ProviderContainer();
     addTearDown(container.dispose);
-    await container.read(workshopControllerProvider.notifier).openProject(tempRoot.path);
+    await container
+        .read(workshopControllerProvider.notifier)
+        .openProject(tempRoot.path);
 
     final state = container.read(workshopControllerProvider);
     expect(state.project, isNull);

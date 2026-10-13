@@ -81,7 +81,12 @@ $classes$idHelper
       _modelPlain(p, fields),
       for (final o in objects) _modelPlain(o.objectName, o.children),
       if (hasEnvelope)
-        _listWrapperModelPlain(p, listEnvelopeKey, envelopeFieldName, envelopeFields),
+        _listWrapperModelPlain(
+          p,
+          listEnvelopeKey,
+          envelopeFieldName,
+          envelopeFields,
+        ),
     ].join('\n\n');
     return '''$entityImport
 
@@ -105,9 +110,12 @@ $classes
     final listAnn = hasJson && envelopeFieldName != envelopeKey
         ? "    @JsonKey(name: '$envelopeKey')\n"
         : '';
-    final listParam = '$listAnn    required List<${p}Model> $envelopeFieldName,';
+    final listParam =
+        '$listAnn    required List<${p}Model> $envelopeFieldName,';
     final siblingParams = envelopeFields.map((f) {
-      final ann = hasJson && f.jsonKeyAnnotation.isNotEmpty ? '    ${f.jsonKeyAnnotation}\n' : '';
+      final ann = hasJson && f.jsonKeyAnnotation.isNotEmpty
+          ? '    ${f.jsonKeyAnnotation}\n'
+          : '';
       return '$ann    ${f.nullable ? '' : 'required '}${f.type} ${f.dartName},';
     });
     final params = [listParam, ...siblingParams].join('\n');
@@ -133,7 +141,9 @@ $params
     final ctorParams = [
       '    required this.$envelopeFieldName,',
       for (final f in envelopeFields)
-        f.nullable ? '    this.${f.dartName},' : '    required this.${f.dartName},',
+        f.nullable
+            ? '    this.${f.dartName},'
+            : '    required this.${f.dartName},',
     ].join('\n');
     final decls = [
       '  final List<${p}Model> $envelopeFieldName;',
@@ -368,8 +378,9 @@ $classes
     // (already the plain List<Model>), but with a wrapper the response
     // decodes to <Feature>ListModel instead — its list field access reduces
     // it right back to the same List<Model> every other call site expects.
-    String getAllRemote() =>
-        hasEnvelope ? '${remote('$getAllName()')}.${camel(listEnvelopeKey)}' : remote('$getAllName()');
+    String getAllRemote() => hasEnvelope
+        ? '${remote('$getAllName()')}.${camel(listEnvelopeKey)}'
+        : remote('$getAllName()');
 
     final chopperImport = isChopper
         ? "import 'package:${corePackageName ?? packageName}/core/network/chopper_model_converter.dart';\n"
@@ -687,14 +698,22 @@ $methods
       final ov = endpointOverrides ?? const CrudEndpointOverrides();
       String verb(HttpMethod m) => m.name.toUpperCase();
       final getAllPath = ov.getAllPath.isNotEmpty ? ov.getAllPath : base;
-      final getByIdPath = ov.getByIdPath.isNotEmpty ? ov.getByIdPath : '$base/{id}';
+      final getByIdPath = ov.getByIdPath.isNotEmpty
+          ? ov.getByIdPath
+          : '$base/{id}';
       final createPath = ov.createPath.isNotEmpty ? ov.createPath : base;
-      final updatePath = ov.updatePath.isNotEmpty ? ov.updatePath : '$base/{id}';
-      final deletePath = ov.deletePath.isNotEmpty ? ov.deletePath : '$base/{id}';
+      final updatePath = ov.updatePath.isNotEmpty
+          ? ov.updatePath
+          : '$base/{id}';
+      final deletePath = ov.deletePath.isNotEmpty
+          ? ov.deletePath
+          : '$base/{id}';
       // A List<Model>-typed return can't decode a wrapper object — see
       // DataTemplates.featureModel's own doc on the generated <Feature>
       // ListModel this decodes into instead when a wrapper was detected.
-      final getAllReturn = hasEnvelope ? 'Response<${p}ListModel>' : 'Response<List<${p}Model>>';
+      final getAllReturn = hasEnvelope
+          ? 'Response<${p}ListModel>'
+          : 'Response<List<${p}Model>>';
       return '''import 'package:chopper/chopper.dart';
 import '../models/${featureName}_model.dart';
 
@@ -725,7 +744,9 @@ abstract class ${p}ApiSource extends ChopperService {
     if (httpClient == 'chopper') {
       // See the customizeEndpoints branch above's getAllReturn doc — same
       // reasoning, just for the fixed (non-customized) getAll() signature.
-      final getAllReturn = hasEnvelope ? 'Response<${p}ListModel>' : 'Response<List<${p}Model>>';
+      final getAllReturn = hasEnvelope
+          ? 'Response<${p}ListModel>'
+          : 'Response<List<${p}Model>>';
       return '''import 'package:chopper/chopper.dart';
 import '../models/${featureName}_model.dart';
 
@@ -1147,8 +1168,9 @@ ${p}LocalSource ${c}LocalSource(Ref ref) => ${p}LocalSource(ref.watch(appDatabas
     // acknowledged, so a crash in between replays the same create — an
     // insert would then fail on the duplicate id. Chopper calls are unwrapped
     // so a non-2xx response throws (and is retried) instead of counting as sent.
-    String call(String expr) =>
-        httpClient == 'chopper' ? 'unwrapChopperResponse(await $expr)' : 'await $expr';
+    String call(String expr) => httpClient == 'chopper'
+        ? 'unwrapChopperResponse(await $expr)'
+        : 'await $expr';
     final createCall = httpClient == 'supabase'
         ? 'await api.upsert(${p}Model.fromJson(data));'
         : '${call('api.add(${p}Model.fromJson(data))')};';

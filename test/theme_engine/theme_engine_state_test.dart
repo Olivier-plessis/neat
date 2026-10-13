@@ -32,39 +32,51 @@ void main() {
 
       expect(
         state.lightScheme.primary,
-        FlexThemeData.light(scheme: FlexScheme.materialBaseline).colorScheme.primary,
+        FlexThemeData.light(
+          scheme: FlexScheme.materialBaseline,
+        ).colorScheme.primary,
       );
     });
 
-    test('custom inline colors (no named scheme): falls back to Material baseline', () {
-      const code = '''
+    test(
+      'custom inline colors (no named scheme): falls back to Material baseline',
+      () {
+        const code = '''
         static ThemeData light = FlexThemeData.light(
           colors: FlexSchemeColor(primary: Color(0xFF123456)),
         );
       ''';
-      const state = ThemeEngineState(
-        approach: ThemeApproach.flexColorScheme,
-        flexColorSchemeCode: code,
-      );
+        const state = ThemeEngineState(
+          approach: ThemeApproach.flexColorScheme,
+          flexColorSchemeCode: code,
+        );
 
-      expect(
-        state.lightScheme.primary,
-        FlexThemeData.light(scheme: FlexScheme.materialBaseline).colorScheme.primary,
-      );
-    });
+        expect(
+          state.lightScheme.primary,
+          FlexThemeData.light(
+            scheme: FlexScheme.materialBaseline,
+          ).colorScheme.primary,
+        );
+      },
+    );
 
-    test('unknown scheme name: falls back to Material baseline instead of throwing', () {
-      const code = 'scheme: FlexScheme.doesNotExist,';
-      const state = ThemeEngineState(
-        approach: ThemeApproach.flexColorScheme,
-        flexColorSchemeCode: code,
-      );
+    test(
+      'unknown scheme name: falls back to Material baseline instead of throwing',
+      () {
+        const code = 'scheme: FlexScheme.doesNotExist,';
+        const state = ThemeEngineState(
+          approach: ThemeApproach.flexColorScheme,
+          flexColorSchemeCode: code,
+        );
 
-      expect(
-        state.lightScheme.primary,
-        FlexThemeData.light(scheme: FlexScheme.materialBaseline).colorScheme.primary,
-      );
-    });
+        expect(
+          state.lightScheme.primary,
+          FlexThemeData.light(
+            scheme: FlexScheme.materialBaseline,
+          ).colorScheme.primary,
+        );
+      },
+    );
 
     test('customM3 approach is unaffected: still derives from seedColor', () {
       const state = ThemeEngineState(
@@ -79,49 +91,66 @@ void main() {
     });
   });
 
-  group('ThemeEngineState.filledButtonRadius/outlinedButtonRadius — FlexColorScheme approach', () {
-    test('per-button radius paste: reads filledButtonRadius/outlinedButtonRadius', () {
-      const code = '''
+  group(
+    'ThemeEngineState.filledButtonRadius/outlinedButtonRadius — FlexColorScheme approach',
+    () {
+      test(
+        'per-button radius paste: reads filledButtonRadius/outlinedButtonRadius',
+        () {
+          const code = '''
         subThemesData: const FlexSubThemesData(
           filledButtonRadius: 4.0,
           outlinedButtonRadius: 6,
         ),
       ''';
-      const state = ThemeEngineState(
-        approach: ThemeApproach.flexColorScheme,
-        flexColorSchemeCode: code,
+          const state = ThemeEngineState(
+            approach: ThemeApproach.flexColorScheme,
+            flexColorSchemeCode: code,
+          );
+
+          expect(state.filledButtonRadius, 4.0);
+          expect(state.outlinedButtonRadius, 6.0);
+        },
       );
 
-      expect(state.filledButtonRadius, 4.0);
-      expect(state.outlinedButtonRadius, 6.0);
-    });
+      test(
+        'falls back to defaultRadius when the per-button field is absent',
+        () {
+          const code =
+              'subThemesData: const FlexSubThemesData(defaultRadius: 8.0),';
+          const state = ThemeEngineState(
+            approach: ThemeApproach.flexColorScheme,
+            flexColorSchemeCode: code,
+          );
 
-    test('falls back to defaultRadius when the per-button field is absent', () {
-      const code = 'subThemesData: const FlexSubThemesData(defaultRadius: 8.0),';
-      const state = ThemeEngineState(
-        approach: ThemeApproach.flexColorScheme,
-        flexColorSchemeCode: code,
+          expect(state.filledButtonRadius, 8.0);
+          expect(state.outlinedButtonRadius, 8.0);
+        },
       );
 
-      expect(state.filledButtonRadius, 8.0);
-      expect(state.outlinedButtonRadius, 8.0);
-    });
+      test('falls back to containerRadius when nothing is pasted', () {
+        const state = ThemeEngineState(approach: ThemeApproach.flexColorScheme);
 
-    test('falls back to containerRadius when nothing is pasted', () {
-      const state = ThemeEngineState(approach: ThemeApproach.flexColorScheme);
+        expect(state.filledButtonRadius, state.containerRadius);
+        expect(state.outlinedButtonRadius, state.containerRadius);
+      });
 
-      expect(state.filledButtonRadius, state.containerRadius);
-      expect(state.outlinedButtonRadius, state.containerRadius);
-    });
+      test(
+        'customM3 approach is unaffected: still uses effectiveRadius/radiusOverride',
+        () {
+          const state = ThemeEngineState(
+            approach: ThemeApproach.customM3,
+            filledButton: ButtonConfig(
+              hPadding: 24,
+              vPadding: 12,
+              radiusOverride: 99,
+            ),
+          );
 
-    test('customM3 approach is unaffected: still uses effectiveRadius/radiusOverride', () {
-      const state = ThemeEngineState(
-        approach: ThemeApproach.customM3,
-        filledButton: ButtonConfig(hPadding: 24, vPadding: 12, radiusOverride: 99),
+          expect(state.filledButtonRadius, 99);
+          expect(state.outlinedButtonRadius, state.containerRadius);
+        },
       );
-
-      expect(state.filledButtonRadius, 99);
-      expect(state.outlinedButtonRadius, state.containerRadius);
-    });
-  });
+    },
+  );
 }

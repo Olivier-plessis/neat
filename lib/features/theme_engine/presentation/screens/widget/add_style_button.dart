@@ -4,7 +4,11 @@ import 'package:neat/features/theme_engine/presentation/screens/widget/add_style
 import 'package:neat_ui/neat_ui.dart';
 
 class AddStyleButton extends StatelessWidget {
-  const AddStyleButton({required this.inactiveKeys, required this.onAdd, super.key});
+  const AddStyleButton({
+    required this.inactiveKeys,
+    required this.onAdd,
+    super.key,
+  });
 
   final List<TextStyleKey> inactiveKeys;
   final ValueChanged<TextStyleKey> onAdd;
@@ -29,7 +33,10 @@ class AddStyleButton extends StatelessWidget {
           spacing: 8,
           children: [
             Icon(Icons.add, size: 16, color: Colors.white38),
-            Text('Add style', style: TextStyle(color: Colors.white38, fontSize: 13)),
+            Text(
+              'Add style',
+              style: TextStyle(color: Colors.white38, fontSize: 13),
+            ),
           ],
         ),
       ),

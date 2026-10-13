@@ -62,7 +62,8 @@ class ThemeEngineScreen extends ConsumerWidget {
         ThemeEngineTab.buttonsShapes => const ButtonsShapesTab(),
         ThemeEngineTab.icons => const SplashIconTab(),
       },
-      ThemeApproach.none => const SizedBox.shrink(), // unreachable — see child below
+      ThemeApproach.none =>
+        const SizedBox.shrink(), // unreachable — see child below
     };
 
     return ScreenForScaffold(
@@ -71,7 +72,8 @@ class ThemeEngineScreen extends ConsumerWidget {
       child: approach == ThemeApproach.none
           ? EntryPoint(
               onTapCustom: () => notifier.setApproach(ThemeApproach.customM3),
-              onTapFlex: () => notifier.setApproach(ThemeApproach.flexColorScheme),
+              onTapFlex: () =>
+                  notifier.setApproach(ThemeApproach.flexColorScheme),
             )
           : Column(
               crossAxisAlignment: .start,
@@ -79,7 +81,9 @@ class ThemeEngineScreen extends ConsumerWidget {
                 Clickable(
                   onTap: () {
                     notifier.resetApproach();
-                    ref.read(selectedPackagesProvider.notifier).remove('flex_color_scheme');
+                    ref
+                        .read(selectedPackagesProvider.notifier)
+                        .remove('flex_color_scheme');
                   },
                   child: const Padding(
                     padding: .only(bottom: 16),

@@ -7,7 +7,11 @@ import 'package:neat/features/generation/domain/services/templates/local_storage
 
 /// One reference of a new feature to a parent feature of the project.
 class ParentLink {
-  const ParentLink({required this.field, required this.parent, required this.localSource});
+  const ParentLink({
+    required this.field,
+    required this.parent,
+    required this.localSource,
+  });
 
   /// The child's field (`worksite_id`).
   final FieldSpec field;
@@ -55,12 +59,20 @@ class ParentCleanup {
     });
     final sourceOf = {
       for (final file in files)
-        file.uri.pathSegments.last.substring(0, file.uri.pathSegments.last.length - suffix.length): file,
+        file.uri.pathSegments.last.substring(
+          0,
+          file.uri.pathSegments.last.length - suffix.length,
+        ): file,
     };
     return [
       for (final field in fields)
-        if (parents[field.jsonKey] case final parent? when sourceOf.containsKey(parent))
-          ParentLink(field: field, parent: parent, localSource: sourceOf[parent]!),
+        if (parents[field.jsonKey] case final parent?
+            when sourceOf.containsKey(parent))
+          ParentLink(
+            field: field,
+            parent: parent,
+            localSource: sourceOf[parent]!,
+          ),
     ];
   }
 
@@ -99,7 +111,10 @@ class ParentCleanup {
           "await _db.outboxDao.discardWrites(resource: '$resource', field: '${link.field.jsonKey}', value: id);",
       ];
       if (source.contains(lines.first)) continue; // already there
-      final indent = RegExp('^([ \\t]*)${RegExp.escape(anchor)}', multiLine: true).firstMatch(source)!.group(1)!;
+      final indent = RegExp(
+        '^([ \\t]*)${RegExp.escape(anchor)}',
+        multiLine: true,
+      ).firstMatch(source)!.group(1)!;
       await link.localSource.writeAsString(
         source.replaceFirst(
           '$indent$anchor',

@@ -3,36 +3,42 @@ import 'package:neat/features/generation/domain/models/field_spec.dart';
 import 'package:neat/features/generation/domain/services/templates/dart/data_templates.dart';
 
 void main() {
-  group('featureRepositoryImpl — offline-first read failures are logged, not swallowed', () {
-    // Regression: a silent `catch (_) {}` in getAll()/getById() made a 404,
-    // a bad base URL, or a parse error look identical to "device is offline" —
-    // the offline-first fallback returned an empty cache with zero visibility.
-    // This bit twice in real generated projects before the fix.
-    final code = DataTemplates.featureRepositoryImpl(
-      featureName: 'product',
-      packageName: 'demo',
-      hasHttpClient: true,
-      httpClient: 'chopper',
-      offlineFirst: true,
-    );
+  group(
+    'featureRepositoryImpl — offline-first read failures are logged, not swallowed',
+    () {
+      // Regression: a silent `catch (_) {}` in getAll()/getById() made a 404,
+      // a bad base URL, or a parse error look identical to "device is offline" —
+      // the offline-first fallback returned an empty cache with zero visibility.
+      // This bit twice in real generated projects before the fix.
+      final code = DataTemplates.featureRepositoryImpl(
+        featureName: 'product',
+        packageName: 'demo',
+        hasHttpClient: true,
+        httpClient: 'chopper',
+        offlineFirst: true,
+      );
 
-    test('getAll() logs the error before falling back to cache', () {
-      expect(code, contains("AppLogger.w('product.getAll() failed"));
-      expect(code, contains('error: e, stackTrace: st'));
-    });
+      test('getAll() logs the error before falling back to cache', () {
+        expect(code, contains("AppLogger.w('product.getAll() failed"));
+        expect(code, contains('error: e, stackTrace: st'));
+      });
 
-    test('getById() logs the error before falling back to cache', () {
-      expect(code, contains("AppLogger.w('product.getById() failed"));
-    });
+      test('getById() logs the error before falling back to cache', () {
+        expect(code, contains("AppLogger.w('product.getById() failed"));
+      });
 
-    test('imports AppLogger', () {
-      expect(code, contains("import 'package:demo/core/utils/app_logger.dart';"));
-    });
+      test('imports AppLogger', () {
+        expect(
+          code,
+          contains("import 'package:demo/core/utils/app_logger.dart';"),
+        );
+      });
 
-    test('no bare catch (_) left in the read paths', () {
-      expect(code, isNot(contains('catch (_)')));
-    });
-  });
+      test('no bare catch (_) left in the read paths', () {
+        expect(code, isNot(contains('catch (_)')));
+      });
+    },
+  );
 
   group('listEnvelopeKey — getAll() decodes a typed <Feature>ListModel '
       'wrapper instead of a bare array (real bug: dummyjson-style responses '
@@ -54,7 +60,10 @@ void main() {
         listEnvelopeKey: 'recipes',
         envelopeFields: envelopeFields,
       );
-      expect(code, contains('abstract class RecipeListModel with _\$RecipeListModel'));
+      expect(
+        code,
+        contains('abstract class RecipeListModel with _\$RecipeListModel'),
+      );
       expect(code, contains('required List<RecipeModel> recipes,'));
       expect(code, contains('required int total,'));
       expect(code, contains('required int skip,'));
@@ -101,24 +110,37 @@ void main() {
     });
 
     test('featureModel: no envelope key generates no wrapper class at all', () {
-      final code = DataTemplates.featureModel(featureName: 'recipe', hasFreezed: true, hasJsonSerializable: true);
+      final code = DataTemplates.featureModel(
+        featureName: 'recipe',
+        hasFreezed: true,
+        hasJsonSerializable: true,
+      );
       expect(code, isNot(contains('ListModel')));
     });
 
-    test('chopper featureApiSource: getAll() returns Response<RecipeListModel>, '
-        'not Response<List<Model>>', () {
-      final code = DataTemplates.featureApiSource(
-        featureName: 'recipe',
-        httpClient: 'chopper',
-        apiPath: '/recipes',
-        listEnvelopeKey: 'recipes',
-      );
-      expect(code, contains('Future<Response<RecipeListModel>> getAll();'));
-      expect(code, isNot(contains('Future<Response<List<RecipeModel>>> getAll();')));
-      // The other 4 operations are untouched — only getAll()'s response is
-      // ever a paginated wrapper.
-      expect(code, contains('Future<Response<RecipeModel>> getById(@Path() String id);'));
-    });
+    test(
+      'chopper featureApiSource: getAll() returns Response<RecipeListModel>, '
+      'not Response<List<Model>>',
+      () {
+        final code = DataTemplates.featureApiSource(
+          featureName: 'recipe',
+          httpClient: 'chopper',
+          apiPath: '/recipes',
+          listEnvelopeKey: 'recipes',
+        );
+        expect(code, contains('Future<Response<RecipeListModel>> getAll();'));
+        expect(
+          code,
+          isNot(contains('Future<Response<List<RecipeModel>>> getAll();')),
+        );
+        // The other 4 operations are untouched — only getAll()'s response is
+        // ever a paginated wrapper.
+        expect(
+          code,
+          contains('Future<Response<RecipeModel>> getById(@Path() String id);'),
+        );
+      },
+    );
 
     test('chopper featureApiSource: no envelope key keeps the original bare '
         'array signature', () {
@@ -139,11 +161,17 @@ void main() {
         httpClient: 'chopper',
         listEnvelopeKey: 'recipes',
       );
-      expect(code, contains('unwrapChopperResponse(await _remote.getAll()).recipes'));
+      expect(
+        code,
+        contains('unwrapChopperResponse(await _remote.getAll()).recipes'),
+      );
       expect(code, isNot(contains('as Map<String, dynamic>')));
       expect(code, isNot(contains('.cast<Map<String, dynamic>>()')));
       // getById/create/update/delete are untouched — still the plain unwrap.
-      expect(code, contains('unwrapChopperResponse(await _remote.getById(id))'));
+      expect(
+        code,
+        contains('unwrapChopperResponse(await _remote.getById(id))'),
+      );
     });
 
     test('chopper featureRepositoryImpl (offline-first): getAll() unwraps '
@@ -156,7 +184,10 @@ void main() {
         offlineFirst: true,
         listEnvelopeKey: 'recipes',
       );
-      expect(code, contains('unwrapChopperResponse(await _remote.getAll()).recipes'));
+      expect(
+        code,
+        contains('unwrapChopperResponse(await _remote.getAll()).recipes'),
+      );
       expect(code, contains('await _local.cacheAll(fresh)'));
     });
 
@@ -170,8 +201,16 @@ void main() {
         corePackageName: 'core',
         listEnvelopeKey: 'recipes',
       );
-      expect(code, contains('chopperModelDecoders[RecipeModel] = RecipeModel.fromJson;'));
-      expect(code, contains('chopperModelDecoders[RecipeListModel] = RecipeListModel.fromJson;'));
+      expect(
+        code,
+        contains('chopperModelDecoders[RecipeModel] = RecipeModel.fromJson;'),
+      );
+      expect(
+        code,
+        contains(
+          'chopperModelDecoders[RecipeListModel] = RecipeListModel.fromJson;',
+        ),
+      );
     });
 
     test('featureRepositoryProviders: no envelope key registers only the '
@@ -196,7 +235,10 @@ void main() {
         listEnvelopeKey: 'recipes',
       );
       expect(code, contains("_dio.get<Map<String, dynamic>>('/recipes')"));
-      expect(code, contains('RecipeListModel.fromJson(response.data!).recipes'));
+      expect(
+        code,
+        contains('RecipeListModel.fromJson(response.data!).recipes'),
+      );
       expect(code, isNot(contains('_dio.get<List<dynamic>>')));
     });
 

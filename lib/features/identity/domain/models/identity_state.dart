@@ -40,12 +40,15 @@ extension IdentityValidation on IdentityState {
   /// - Segments separated by dots
   String? validateOrganization() {
     if (organization.isEmpty) return 'Organization is required';
-    if (!RegExp(r'^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*)*$').hasMatch(organization)) {
+    if (!RegExp(
+      r'^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*)*$',
+    ).hasMatch(organization)) {
       return 'Use reverse domain format: com.example.myapp';
     }
     return null;
   }
 
   /// Returns true if both project name and organization are valid
-  bool get isIdentityValid => validateProjectName() == null && validateOrganization() == null;
+  bool get isIdentityValid =>
+      validateProjectName() == null && validateOrganization() == null;
 }

@@ -16,13 +16,25 @@ class IdentityScreen extends HookConsumerWidget {
     final initialState = useMemoized(() => ref.read(identityProvider));
 
     final nameController = useTextEditingController(text: initialState.name);
-    final orgController = useTextEditingController(text: initialState.organization);
-    final pathController = useTextEditingController(text: initialState.projectPath);
-    final descriptionController = useTextEditingController(text: initialState.description);
+    final orgController = useTextEditingController(
+      text: initialState.organization,
+    );
+    final pathController = useTextEditingController(
+      text: initialState.projectPath,
+    );
+    final descriptionController = useTextEditingController(
+      text: initialState.description,
+    );
 
-    final targetPlatforms = ref.watch(identityProvider.select((s) => s.targetPlatforms));
-    final flutterVersion = ref.watch(identityProvider.select((s) => s.flutterVersion));
-    final projectPath = ref.watch(identityProvider.select((s) => s.projectPath));
+    final targetPlatforms = ref.watch(
+      identityProvider.select((s) => s.targetPlatforms),
+    );
+    final flutterVersion = ref.watch(
+      identityProvider.select((s) => s.flutterVersion),
+    );
+    final projectPath = ref.watch(
+      identityProvider.select((s) => s.projectPath),
+    );
     final state = ref.watch(identityProvider);
     useEffect(() {
       pathController.text = projectPath;
@@ -71,7 +83,9 @@ class IdentityScreen extends HookConsumerWidget {
                       NeatTextField(
                         controller: descriptionController,
                         onChanged: notifier.updateDescription,
-                        decoration: const InputDecoration(hintText: 'my flutter app description'),
+                        decoration: const InputDecoration(
+                          hintText: 'my flutter app description',
+                        ),
                       ),
 
                       32.gapH,
@@ -135,8 +149,20 @@ class IdentityScreen extends HookConsumerWidget {
                       targetPlatforms,
                       notifier,
                     ),
-                    _buildPlatformCheckbox(context, 'iOS', 'ios', targetPlatforms, notifier),
-                    _buildPlatformCheckbox(context, 'Web', 'web', targetPlatforms, notifier),
+                    _buildPlatformCheckbox(
+                      context,
+                      'iOS',
+                      'ios',
+                      targetPlatforms,
+                      notifier,
+                    ),
+                    _buildPlatformCheckbox(
+                      context,
+                      'Web',
+                      'web',
+                      targetPlatforms,
+                      notifier,
+                    ),
                     _buildPlatformCheckbox(
                       context,
                       'macOS / Windows / Linux (Desktop)',
@@ -152,7 +178,8 @@ class IdentityScreen extends HookConsumerWidget {
                         SectionHeader(label: 'Environment Setup'),
                         12.gapW,
                         Tooltip(
-                          message: 'Generates .fvmrc to sync Flutter SDK version across your team',
+                          message:
+                              'Generates .fvmrc to sync Flutter SDK version across your team',
                           child: Icon(Icons.info_outline),
                         ),
                       ],
@@ -194,7 +221,9 @@ class IdentityScreen extends HookConsumerWidget {
         decoration: BoxDecoration(
           color: context.neatColors.dark,
           borderRadius: .circular(8),
-          border: .all(color: isChecked ? accent : context.neatColors.surface10),
+          border: .all(
+            color: isChecked ? accent : context.neatColors.surface10,
+          ),
         ),
         child: Row(
           spacing: 12,
@@ -207,7 +236,9 @@ class IdentityScreen extends HookConsumerWidget {
               child: Text(
                 label,
                 style: context.textTheme.bodyLarge!.copyWith(
-                  color: isChecked ? context.neatColors.surface : Colors.grey[400],
+                  color: isChecked
+                      ? context.neatColors.surface
+                      : Colors.grey[400],
                   fontWeight: isChecked ? FontWeight.bold : FontWeight.normal,
                 ),
               ),
@@ -220,7 +251,10 @@ class IdentityScreen extends HookConsumerWidget {
 }
 
 class _FlutterVersionDropdown extends ConsumerWidget {
-  const _FlutterVersionDropdown({required this.selectedVersion, required this.onChanged});
+  const _FlutterVersionDropdown({
+    required this.selectedVersion,
+    required this.onChanged,
+  });
 
   final String selectedVersion;
   final ValueChanged<String> onChanged;
@@ -236,21 +270,29 @@ class _FlutterVersionDropdown extends ConsumerWidget {
         child: Center(
           child: Text(
             'Impossible de charger les versions',
-            style: context.textTheme.bodyMedium!.copyWith(color: context.neatColors.errorColor),
+            style: context.textTheme.bodyMedium!.copyWith(
+              color: context.neatColors.errorColor,
+            ),
           ),
         ),
       ),
       _ => const SizedBox(
         height: 48,
         child: Center(
-          child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+          child: SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
         ),
       ),
     };
   }
 
   Widget _buildDropdown(BuildContext context, List<String> versions) {
-    final effectiveValue = versions.contains(selectedVersion) ? selectedVersion : versions.first;
+    final effectiveValue = versions.contains(selectedVersion)
+        ? selectedVersion
+        : versions.first;
 
     return Container(
       padding: const .symmetric(horizontal: 16),
@@ -270,7 +312,9 @@ class _FlutterVersionDropdown extends ConsumerWidget {
                   value: v,
                   child: Text(
                     v,
-                    style: context.textTheme.bodyLarge!.copyWith(color: context.neatColors.surface),
+                    style: context.textTheme.bodyLarge!.copyWith(
+                      color: context.neatColors.surface,
+                    ),
                   ),
                 ),
               )

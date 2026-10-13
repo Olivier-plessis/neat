@@ -70,7 +70,9 @@ class _ApproachCardState extends State<ApproachCard> {
               child: Icon(
                 widget.icon,
                 size: 40,
-                color: _hovered || widget.accent ? Palette.colorPrimaryCyan : Colors.white38,
+                color: _hovered || widget.accent
+                    ? Palette.colorPrimaryCyan
+                    : Colors.white38,
               ),
             ),
 
@@ -87,7 +89,11 @@ class _ApproachCardState extends State<ApproachCard> {
             10.gapH,
             Text(
               widget.subtitle,
-              style: const TextStyle(color: Colors.white38, fontSize: 13, height: 1.5),
+              style: const TextStyle(
+                color: Colors.white38,
+                fontSize: 13,
+                height: 1.5,
+              ),
               textAlign: TextAlign.center,
             ),
             24.gapH,
@@ -98,14 +104,22 @@ class _ApproachCardState extends State<ApproachCard> {
                     ? Palette.colorPrimaryCyan
                     : Colors.white54,
                 side: BorderSide(
-                  color: _hovered || widget.accent ? Palette.colorPrimaryCyan : Colors.white24,
+                  color: _hovered || widget.accent
+                      ? Palette.colorPrimaryCyan
+                      : Colors.white24,
                 ),
                 minimumSize: const Size(160, 44),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
               child: Text(
                 widget.button.toUpperCase(),
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1.2),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.2,
+                ),
               ),
             ),
             8.gapH,

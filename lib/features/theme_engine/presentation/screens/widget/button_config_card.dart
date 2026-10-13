@@ -70,7 +70,8 @@ class ButtonConfigCard extends StatelessWidget {
                           max: 8,
                           unit: '',
                           decimals: 0,
-                          onChanged: (v) => onChanged(config.copyWith(elevation: v)),
+                          onChanged: (v) =>
+                              onChanged(config.copyWith(elevation: v)),
                         ),
                       ),
                       16.gapW,
@@ -84,7 +85,8 @@ class ButtonConfigCard extends StatelessWidget {
                           max: 4,
                           unit: '',
                           decimals: 1,
-                          onChanged: (v) => onChanged(config.copyWith(strokeWidth: v)),
+                          onChanged: (v) =>
+                              onChanged(config.copyWith(strokeWidth: v)),
                         ),
                       ),
                       16.gapW,
@@ -95,8 +97,10 @@ class ButtonConfigCard extends StatelessWidget {
                         value: _effectiveRadius,
                         isOverridden: _hasRadiusOverride,
                         globalRadius: globalRadius,
-                        onChanged: (v) => onChanged(config.copyWith(radiusOverride: v)),
-                        onReset: () => onChanged(config.copyWith(radiusOverride: null)),
+                        onChanged: (v) =>
+                            onChanged(config.copyWith(radiusOverride: v)),
+                        onReset: () =>
+                            onChanged(config.copyWith(radiusOverride: null)),
                       ),
                     ),
                   ],
@@ -115,7 +119,8 @@ class ButtonConfigCard extends StatelessWidget {
                         max: 48,
                         unit: '',
                         decimals: 0,
-                        onChanged: (v) => onChanged(config.copyWith(hPadding: v)),
+                        onChanged: (v) =>
+                            onChanged(config.copyWith(hPadding: v)),
                       ),
                     ),
                     if (showElevation) ...[
@@ -128,7 +133,8 @@ class ButtonConfigCard extends StatelessWidget {
                           max: 24,
                           unit: '',
                           decimals: 0,
-                          onChanged: (v) => onChanged(config.copyWith(vPadding: v)),
+                          onChanged: (v) =>
+                              onChanged(config.copyWith(vPadding: v)),
                         ),
                       ),
                     ],
@@ -159,7 +165,10 @@ class ButtonConfigCard extends StatelessWidget {
                 color: previewColor,
                 borderRadius: .circular(_effectiveRadius),
                 border: showStroke
-                    ? .all(color: borderColor ?? Colors.white54, width: config.strokeWidth ?? 1.5)
+                    ? .all(
+                        color: borderColor ?? Colors.white54,
+                        width: config.strokeWidth ?? 1.5,
+                      )
                     : null,
                 boxShadow: showElevation && (config.elevation ?? 0) > 0
                     ? [

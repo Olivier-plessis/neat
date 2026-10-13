@@ -20,7 +20,9 @@ class AppTemplates {
     final envFile = singleEnv ? 'env' : '${flavor}_env';
     if (useEnvied) imports.writeln("import 'core/env/envs/$envFile.dart';");
 
-    final envClass = singleEnv ? 'Env' : '${flavor[0].toUpperCase()}${flavor.substring(1)}Env';
+    final envClass = singleEnv
+        ? 'Env'
+        : '${flavor[0].toUpperCase()}${flavor.substring(1)}Env';
     final call = useEnvied ? 'bootstrap($envClass())' : 'bootstrap()';
 
     return '''${imports.toString()}
@@ -92,10 +94,14 @@ void main() => $call;
       ..writeln()
       ..writeln("import 'package:flutter/widgets.dart';");
     if (isWeb) {
-      imports.writeln("import 'package:flutter_web_plugins/url_strategy.dart';");
+      imports.writeln(
+        "import 'package:flutter_web_plugins/url_strategy.dart';",
+      );
     }
     if (hasSupabase) {
-      imports.writeln("import 'package:supabase_flutter/supabase_flutter.dart';");
+      imports.writeln(
+        "import 'package:supabase_flutter/supabase_flutter.dart';",
+      );
     }
     if (hasFirebase) {
       imports
@@ -126,15 +132,21 @@ void main() => $call;
       imports.writeln("import 'package:$packageName/core/env/app_env.dart';");
     }
     if (bridgesApiBaseUrl) {
-      imports.writeln("import 'package:$corePackageName/core/network/api_config.dart';");
+      imports.writeln(
+        "import 'package:$corePackageName/core/network/api_config.dart';",
+      );
     }
-    imports.writeln("import 'package:$packageName/core/error/error_handler.dart';");
+    imports.writeln(
+      "import 'package:$packageName/core/error/error_handler.dart';",
+    );
     imports.writeln(
       "import 'package:${corePackageName ?? packageName}/core/utils/app_logger.dart';",
     );
 
     if (hasRiverpod) {
-      imports.writeln("import 'package:$packageName/core/observers/provider_observer.dart';");
+      imports.writeln(
+        "import 'package:$packageName/core/observers/provider_observer.dart';",
+      );
     }
     if (registersChopper) {
       imports
@@ -168,7 +180,9 @@ void main() => $call;
     final sig = useEnvied
         ? 'Future<void> bootstrap(AppEnv env) async'
         : 'Future<void> bootstrap() async';
-    final apiConfigLine = bridgesApiBaseUrl ? '  ApiConfig.baseUrl = env.apiBaseUrl;\n' : '';
+    final apiConfigLine = bridgesApiBaseUrl
+        ? '  ApiConfig.baseUrl = env.apiBaseUrl;\n'
+        : '';
     final setEnv = useEnvied ? '  AppEnv.setEnv(env);\n$apiConfigLine' : '';
     final pathUrl = isWeb ? '\n      usePathUrlStrategy();' : '';
     final supaInit = hasSupabase
@@ -235,8 +249,12 @@ void main() => $call;
     // a real Sentry project or burn its quota. Sentry treats an empty DSN as
     // "disabled", so this needs no separate if/else around the init call
     // itself.
-    final dsnExpr = useEnvied ? "kDebugMode ? '' : AppEnv.current.sentryDsn" : "''";
-    final dsnTodo = useEnvied ? '' : '\n        // TODO: set your Sentry DSN (see .env.example).';
+    final dsnExpr = useEnvied
+        ? "kDebugMode ? '' : AppEnv.current.sentryDsn"
+        : "''";
+    final dsnTodo = useEnvied
+        ? ''
+        : '\n        // TODO: set your Sentry DSN (see .env.example).';
     final runAppCall = hasSentry
         ? '''await SentryFlutter.init($dsnTodo
         (options) => options.dsn = $dsnExpr,
@@ -278,7 +296,8 @@ $setEnv  await runZonedGuarded(
     // would each watch a different provider instance and drift out of sync.
     String? corePackageName,
   }) {
-    final imports = StringBuffer()..writeln("import 'package:flutter/material.dart';");
+    final imports = StringBuffer()
+      ..writeln("import 'package:flutter/material.dart';");
     if (hasI18n) {
       // packageSplit: strings.g.dart lives in the core package (see
       // LaunchGenerationUsecase's i18n block) — a plain relative import
@@ -288,11 +307,15 @@ $setEnv  await runZonedGuarded(
           ? "import 'package:$corePackageName/i18n/strings.g.dart';"
           : "import 'i18n/strings.g.dart';";
       imports
-        ..writeln("import 'package:flutter_localizations/flutter_localizations.dart';")
+        ..writeln(
+          "import 'package:flutter_localizations/flutter_localizations.dart';",
+        )
         ..writeln(stringsImport);
     }
     if (useScreenUtil) {
-      imports.writeln("import 'package:flutter_screenutil/flutter_screenutil.dart';");
+      imports.writeln(
+        "import 'package:flutter_screenutil/flutter_screenutil.dart';",
+      );
     }
     // AppTheme lives in the <app>_ui package when UI is extracted, else in the app.
     imports.writeln(
@@ -346,7 +369,9 @@ $setEnv  await runZonedGuarded(
     if (hasGoRouter) {
       // The router is only a Riverpod provider when go_router_builder + riverpod
       // annotations are both on; otherwise it's a top-level `appRouter` global.
-      final router = routerIsProvider ? 'ref.watch(appRouterProvider)' : 'appRouter';
+      final router = routerIsProvider
+          ? 'ref.watch(appRouterProvider)'
+          : 'appRouter';
       materialApp =
           '''MaterialApp.router(
       title: '$name',

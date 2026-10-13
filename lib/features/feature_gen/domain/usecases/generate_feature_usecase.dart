@@ -12,7 +12,8 @@ import 'package:neat/features/generation/domain/services/parent_tables.dart';
 import 'package:neat/features/generation/domain/services/sync_parents.dart';
 import 'package:neat/features/generation/domain/services/templates/core_package_templates.dart';
 import 'package:neat/features/generation/domain/services/templates/core_templates.dart';
-import 'package:neat/features/generation/domain/services/templates/dart/_template_utils.dart' show outboxResourceFor;
+import 'package:neat/features/generation/domain/services/templates/dart/_template_utils.dart'
+    show outboxResourceFor;
 import 'package:neat/features/generation/domain/services/templates/local_storage_templates.dart';
 import 'package:neat/features/generation/domain/services/templates/supabase_templates.dart';
 import 'package:neat/features/generation/domain/usecases/writers/i18n_writer.dart';
@@ -228,7 +229,11 @@ class GenerateFeatureUsecase {
             localStoragePackage: localStoragePackage,
             clientIds: needsClientIds,
             sdkConstraint: PubspecWriter.projectSdkConstraint(project.path),
-            uiPackage: c.extractUiPackage && Directory('${project.path}/packages/${c.projectName}_ui').existsSync()
+            uiPackage:
+                c.extractUiPackage &&
+                    Directory(
+                      '${project.path}/packages/${c.projectName}_ui',
+                    ).existsSync()
                 ? '${c.projectName}_ui'
                 : null,
           ),
@@ -264,7 +269,8 @@ class GenerateFeatureUsecase {
 
     // Supabase: a `<feature>_id` field pointing at another feature's table
     // becomes a `uuid` foreign key in this feature's migration.
-    final foreignKeys = httpClient == 'supabase' && effHasHttp && !options.useCustomEndpoints
+    final foreignKeys =
+        httpClient == 'supabase' && effHasHttp && !options.useCustomEndpoints
         ? await ParentTables.referencesFor(
             projectPath: project.path,
             featureName: featureName,
@@ -598,7 +604,9 @@ class GenerateFeatureUsecase {
       onLog("[▶] Running 'dart run slang' (i18n codegen)...");
       await const I18nImporter().runSlang(
         Directory(
-          packageSplit ? '${project.path}/packages/$corePackageName' : project.path,
+          packageSplit
+              ? '${project.path}/packages/$corePackageName'
+              : project.path,
         ),
         onLog,
       );
@@ -883,7 +891,10 @@ class GenerateFeatureUsecase {
     );
     await daoFile.create(recursive: true);
     await daoFile.writeAsString(
-      LocalStorageTemplates.featureDaoFile(featureName, cascadeFields: cascadeFields),
+      LocalStorageTemplates.featureDaoFile(
+        featureName,
+        cascadeFields: cascadeFields,
+      ),
     );
 
     // Bump the schema version + add a migration step so a device that
@@ -1128,14 +1139,22 @@ class GenerateFeatureUsecase {
     if (corePackageName != null) {
       final coreDir = Directory('$projectPath/packages/$corePackageName/lib');
       if (coreDir.existsSync()) {
-        await _replaceInDartFiles(coreDir, 'AppRoutePath.welcome', 'AppRoutePath.$camel');
+        await _replaceInDartFiles(
+          coreDir,
+          'AppRoutePath.welcome',
+          'AppRoutePath.$camel',
+        );
       }
     }
 
     onLog('[✓] "$featureName" set as home page — welcome placeholder removed.');
   }
 
-  Future<void> _replaceInDartFiles(Directory dir, String from, String to) async {
+  Future<void> _replaceInDartFiles(
+    Directory dir,
+    String from,
+    String to,
+  ) async {
     await for (final entity in dir.list(recursive: true)) {
       if (entity is! File || !entity.path.endsWith('.dart')) continue;
       final s = await entity.readAsString();
@@ -2092,7 +2111,10 @@ class GenerateFeatureUsecase {
     if (!file.existsSync()) return;
     final s = await file.readAsString();
     if (RegExp('^  $name:', multiLine: true).hasMatch(s)) return;
-    final block = RegExp(r'^dependencies:[ \t]*\r?\n', multiLine: true).firstMatch(s);
+    final block = RegExp(
+      r'^dependencies:[ \t]*\r?\n',
+      multiLine: true,
+    ).firstMatch(s);
     if (block == null) return;
     await file.writeAsString(
       '${s.substring(0, block.end)}  $name: $constraint\n${s.substring(block.end)}',

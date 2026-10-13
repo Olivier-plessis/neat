@@ -1069,7 +1069,8 @@ and review `firestore.rules` before shipping.
 
   /// A short guide on the generated Supabase auth wiring + the one manual
   /// Dashboard step NEAT can't automate.
-  static String supabaseDoc(String packageName) => '''# Supabase
+  static String supabaseDoc(String packageName) =>
+      '''# Supabase
 
 This project uses **Supabase** for authentication (login/signup/forgot-password).
 

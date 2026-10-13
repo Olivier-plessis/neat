@@ -13,7 +13,10 @@ class AddStyleDialog extends StatelessWidget {
     return AlertDialog(
       backgroundColor: context.neatColors.colorSurfaceCard,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      title: const Text('Add text style', style: TextStyle(color: Colors.white, fontSize: 16)),
+      title: const Text(
+        'Add text style',
+        style: TextStyle(color: Colors.white, fontSize: 16),
+      ),
       content: SizedBox(
         width: 280,
         child: Column(
@@ -29,7 +32,10 @@ class AddStyleDialog extends StatelessWidget {
                     ),
                     subtitle: Text(
                       '${kM3Defaults[k]!.fontSize.round().toDouble()} · w${kM3Defaults[k]!.fontWeight}',
-                      style: const TextStyle(color: Colors.white38, fontSize: 12),
+                      style: const TextStyle(
+                        color: Colors.white38,
+                        fontSize: 12,
+                      ),
                     ),
                     onTap: () {
                       onAdd(k);

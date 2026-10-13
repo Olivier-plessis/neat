@@ -32,7 +32,11 @@ class DependenciesScreen extends HookConsumerWidget {
           children: [
             const Text(
               'Project Dependencies',
-              style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white),
+              style: TextStyle(
+                fontSize: 32,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
             ),
           ],
         ),
@@ -49,7 +53,11 @@ class DependenciesScreen extends HookConsumerWidget {
           style: const TextStyle(color: Colors.white),
           decoration: InputDecoration(
             hintText: 'Search packages on pub.dev...',
-            prefixIcon: const Icon(Icons.search, color: Palette.colorPrimaryCyan, size: 20),
+            prefixIcon: const Icon(
+              Icons.search,
+              color: Palette.colorPrimaryCyan,
+              size: 20,
+            ),
             suffixIcon: query.isNotEmpty
                 ? IconButton(
                     icon: const Icon(Icons.clear, color: Colors.grey, size: 18),
@@ -171,7 +179,11 @@ class _TabButton extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 14, color: isSelected ? Palette.colorPrimaryCyan : Colors.white24),
+              Icon(
+                icon,
+                size: 14,
+                color: isSelected ? Palette.colorPrimaryCyan : Colors.white24,
+              ),
               8.gapW,
               Text(
                 label,
@@ -211,7 +223,11 @@ class _ManagedPackagesPanel extends ConsumerWidget {
             padding: const EdgeInsets.all(16),
             child: Row(
               children: [
-                const Icon(Icons.inventory_2_outlined, color: Palette.colorPrimaryCyan, size: 16),
+                const Icon(
+                  Icons.inventory_2_outlined,
+                  color: Palette.colorPrimaryCyan,
+                  size: 16,
+                ),
                 const SizedBox(width: 8),
                 Text(
                   '${packages.length} SELECTED PACKAGES',
@@ -229,7 +245,10 @@ class _ManagedPackagesPanel extends ConsumerWidget {
           if (packages.isEmpty)
             const Expanded(
               child: Center(
-                child: Text('No packages added yet.', style: TextStyle(color: Colors.grey)),
+                child: Text(
+                  'No packages added yet.',
+                  style: TextStyle(color: Colors.grey),
+                ),
               ),
             )
           else
@@ -275,7 +294,9 @@ class _SheetPackageTileState extends ConsumerState<_SheetPackageTile> {
   }
 
   void _commit() {
-    ref.read(selectedPackagesProvider.notifier).setVersion(widget.package.name, _ctrl.text);
+    ref
+        .read(selectedPackagesProvider.notifier)
+        .setVersion(widget.package.name, _ctrl.text);
     setState(() => _editing = false);
   }
 
@@ -283,7 +304,9 @@ class _SheetPackageTileState extends ConsumerState<_SheetPackageTile> {
   Widget build(BuildContext context) {
     final isPreselected = ref.watch(
       selectedPackagesProvider.select(
-        (list) => presetFor(backendOf(list)).any((p) => p.name == widget.package.name),
+        (list) => presetFor(
+          backendOf(list),
+        ).any((p) => p.name == widget.package.name),
       ),
     );
 
@@ -317,7 +340,10 @@ class _SheetPackageTileState extends ConsumerState<_SheetPackageTile> {
                             child: TextField(
                               controller: _ctrl,
                               autofocus: true,
-                              style: const TextStyle(color: Colors.white, fontSize: 12),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                              ),
                               decoration: InputDecoration(
                                 isDense: true,
                                 contentPadding: const EdgeInsets.symmetric(
@@ -328,11 +354,15 @@ class _SheetPackageTileState extends ConsumerState<_SheetPackageTile> {
                                 fillColor: const Color(0xFF2A2A2E),
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(4),
-                                  borderSide: const BorderSide(color: Palette.colorPrimaryCyan),
+                                  borderSide: const BorderSide(
+                                    color: Palette.colorPrimaryCyan,
+                                  ),
                                 ),
                                 focusedBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(4),
-                                  borderSide: const BorderSide(color: Palette.colorPrimaryCyan),
+                                  borderSide: const BorderSide(
+                                    color: Palette.colorPrimaryCyan,
+                                  ),
                                 ),
                               ),
                               onSubmitted: (_) => _commit(),
@@ -345,7 +375,10 @@ class _SheetPackageTileState extends ConsumerState<_SheetPackageTile> {
                               setState(() => _editing = true);
                             },
                             child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
                               decoration: BoxDecoration(
                                 color: const Color(0xFF2A2A2E),
                                 borderRadius: BorderRadius.circular(4),
@@ -364,7 +397,10 @@ class _SheetPackageTileState extends ConsumerState<_SheetPackageTile> {
                     Container(
                       width: 3,
                       height: 3,
-                      decoration: BoxDecoration(color: Colors.grey[600], shape: BoxShape.circle),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[600],
+                        shape: BoxShape.circle,
+                      ),
                     ),
                     const SizedBox(width: 8),
                     Text(
@@ -384,8 +420,14 @@ class _SheetPackageTileState extends ConsumerState<_SheetPackageTile> {
           ),
           if (!isPreselected)
             IconButton(
-              icon: const Icon(Icons.delete_outline, color: Colors.grey, size: 20),
-              onPressed: () => ref.read(selectedPackagesProvider.notifier).toggle(widget.package),
+              icon: const Icon(
+                Icons.delete_outline,
+                color: Colors.grey,
+                size: 20,
+              ),
+              onPressed: () => ref
+                  .read(selectedPackagesProvider.notifier)
+                  .toggle(widget.package),
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(),
             ),
@@ -413,18 +455,29 @@ class _SearchResults extends ConsumerWidget {
     return switch (searchAsync) {
       AsyncData(:final value) => _buildList(value, ref),
       AsyncError() => Center(
-        child: Text('Error connecting to pub.dev', style: TextStyle(color: Colors.redAccent[100])),
+        child: Text(
+          'Error connecting to pub.dev',
+          style: TextStyle(color: Colors.redAccent[100]),
+        ),
       ),
-      _ => const Center(child: CircularProgressIndicator(color: Palette.colorPrimaryCyan)),
+      _ => const Center(
+        child: CircularProgressIndicator(color: Palette.colorPrimaryCyan),
+      ),
     };
   }
 
   Widget _buildList(List<PubPackage> packages, WidgetRef ref) {
     if (query.isEmpty) {
-      return const _Placeholder(icon: Icons.search, message: 'Start typing to search packages.');
+      return const _Placeholder(
+        icon: Icons.search,
+        message: 'Start typing to search packages.',
+      );
     }
     if (packages.isEmpty) {
-      return _Placeholder(icon: Icons.inbox_outlined, message: "No packages found for '$query'.");
+      return _Placeholder(
+        icon: Icons.inbox_outlined,
+        message: "No packages found for '$query'.",
+      );
     }
 
     return ListView.separated(
@@ -435,8 +488,10 @@ class _SearchResults extends ConsumerWidget {
         final isSelected = selectedForDetail?.name == pkg.name;
         final selectedPkg = ref.watch(
           selectedPackagesProvider.select(
-            (list) =>
-                list.cast<PubPackage?>().firstWhere((p) => p!.name == pkg.name, orElse: () => null),
+            (list) => list.cast<PubPackage?>().firstWhere(
+              (p) => p!.name == pkg.name,
+              orElse: () => null,
+            ),
           ),
         );
         final blocked = isUnsupportedPackage(pkg.name);
@@ -446,7 +501,9 @@ class _SearchResults extends ConsumerWidget {
           isAdded: selectedPkg != null,
           isDev: selectedPkg?.isDev ?? false,
           isBlocked: blocked,
-          onTap: blocked ? () {} : () => ref.read(packageForDetailProvider.notifier).select(pkg),
+          onTap: blocked
+              ? () {}
+              : () => ref.read(packageForDetailProvider.notifier).select(pkg),
         );
       },
     );
@@ -509,7 +566,10 @@ class _PackageListTile extends StatelessWidget {
                         if (isBlocked) ...[
                           const SizedBox(width: 8),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(4),
                               border: Border.all(color: Colors.white24),
@@ -541,18 +601,28 @@ class _PackageListTile extends StatelessWidget {
                 if (isDev)
                   Container(
                     margin: const EdgeInsets.only(right: 8),
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFF2D2010),
                       borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: const Color(0xFFFFA726), width: 0.5),
+                      border: Border.all(
+                        color: const Color(0xFFFFA726),
+                        width: 0.5,
+                      ),
                     ),
                     child: const Text(
                       'dev',
                       style: TextStyle(color: Color(0xFFFFA726), fontSize: 10),
                     ),
                   ),
-                const Icon(Icons.check_circle, color: Palette.colorPrimaryCyan, size: 20),
+                const Icon(
+                  Icons.check_circle,
+                  color: Palette.colorPrimaryCyan,
+                  size: 20,
+                ),
               ],
             ],
           ),
@@ -573,8 +643,10 @@ class _PackageDetailCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final selectedPkg = ref.watch(
       selectedPackagesProvider.select(
-        (list) =>
-            list.cast<PubPackage?>().firstWhere((p) => p!.name == package.name, orElse: () => null),
+        (list) => list.cast<PubPackage?>().firstWhere(
+          (p) => p!.name == package.name,
+          orElse: () => null,
+        ),
       ),
     );
     final isAdded = selectedPkg != null;
@@ -615,7 +687,11 @@ class _PackageDetailCard extends ConsumerWidget {
           const SizedBox(height: 12),
           Text(
             package.description,
-            style: TextStyle(color: Colors.grey[400], fontSize: 13, height: 1.5),
+            style: TextStyle(
+              color: Colors.grey[400],
+              fontSize: 13,
+              height: 1.5,
+            ),
           ),
           const SizedBox(height: 20),
           Row(
@@ -624,7 +700,10 @@ class _PackageDetailCard extends ConsumerWidget {
               const SizedBox(width: 12),
               _MetricBadge(label: 'PUB POINTS', value: '${package.pubPoints}'),
               const SizedBox(width: 12),
-              _MetricBadge(label: 'POPULARITY', value: '${package.popularity}%'),
+              _MetricBadge(
+                label: 'POPULARITY',
+                value: '${package.popularity}%',
+              ),
             ],
           ),
           const SizedBox(height: 20),
@@ -634,7 +713,9 @@ class _PackageDetailCard extends ConsumerWidget {
             isAdded: isAdded,
             onChanged: (value) {
               if (isAdded) {
-                ref.read(selectedPackagesProvider.notifier).setDev(package.name, isDev: value);
+                ref
+                    .read(selectedPackagesProvider.notifier)
+                    .setDev(package.name, isDev: value);
               }
             },
           ),
@@ -665,10 +746,17 @@ class _PackageDetailCard extends ConsumerWidget {
                         backgroundColor: isAdded
                             ? const Color(0xFF2A1A1A)
                             : Palette.colorPrimaryCyan,
-                        foregroundColor: isAdded ? Colors.redAccent : Palette.colorNeutralBg,
-                        side: isAdded ? const BorderSide(color: Colors.redAccent) : BorderSide.none,
+                        foregroundColor: isAdded
+                            ? Colors.redAccent
+                            : Palette.colorNeutralBg,
+                        side: isAdded
+                            ? const BorderSide(color: Colors.redAccent)
+                            : BorderSide.none,
                       ),
-                      icon: Icon(isAdded ? Icons.remove_circle_outline : Icons.add, size: 18),
+                      icon: Icon(
+                        isAdded ? Icons.remove_circle_outline : Icons.add,
+                        size: 18,
+                      ),
                       label: Text(isAdded ? 'Remove' : 'Add'),
                       onPressed: () => ref
                           .read(selectedPackagesProvider.notifier)
@@ -765,7 +853,11 @@ class _MetricBadge extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               label,
-              style: TextStyle(color: Colors.grey[500], fontSize: 10, letterSpacing: 0.5),
+              style: TextStyle(
+                color: Colors.grey[500],
+                fontSize: 10,
+                letterSpacing: 0.5,
+              ),
             ),
           ],
         ),
@@ -804,15 +896,18 @@ class _DevToggle extends StatelessWidget {
                 Text(
                   isDev ? 'dev_dependencies' : 'dependencies',
                   style: TextStyle(
-                    color: isDev ? const Color(0xFFFFA726) : Palette.colorPrimaryCyan,
+                    color: isDev
+                        ? const Color(0xFFFFA726)
+                        : Palette.colorPrimaryCyan,
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
-                    
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  isDev ? 'Build-time only (generators, linters…)' : 'Shipped with the app',
+                  isDev
+                      ? 'Build-time only (generators, linters…)'
+                      : 'Shipped with the app',
                   style: TextStyle(color: Colors.grey[600], fontSize: 11),
                 ),
               ],
@@ -847,7 +942,9 @@ class _EmptyDetailCard extends StatelessWidget {
       ),
       child: _Placeholder(
         icon: Icons.open_in_new_outlined,
-        message: hasQuery ? 'Click a package to see details.' : 'Search a package first.',
+        message: hasQuery
+            ? 'Click a package to see details.'
+            : 'Search a package first.',
       ),
     );
   }
@@ -867,7 +964,10 @@ class _Placeholder extends StatelessWidget {
         children: [
           Icon(icon, color: Colors.white12, size: 40),
           const SizedBox(height: 12),
-          Text(message, style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+          Text(
+            message,
+            style: TextStyle(color: Colors.grey[600], fontSize: 13),
+          ),
         ],
       ),
     );

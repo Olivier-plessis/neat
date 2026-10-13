@@ -28,7 +28,9 @@ class FeatureGenScreen extends ConsumerWidget {
               spacing: 12,
               children: [
                 InkWell(
-                  onTap: () => ref.read(currentStepProvider.notifier).setStep(NeatStep.hub),
+                  onTap: () => ref
+                      .read(currentStepProvider.notifier)
+                      .setStep(NeatStep.hub),
                   child: Container(
                     width: 40,
                     height: 40,
@@ -36,14 +38,23 @@ class FeatureGenScreen extends ConsumerWidget {
                       color: context.neatColors.colorSurfaceCard,
                       borderRadius: .circular(10),
                       border: .all(
-                        color: context.neatColors.colorPrimaryCyan.withValues(alpha: 0.4),
+                        color: context.neatColors.colorPrimaryCyan.withValues(
+                          alpha: 0.4,
+                        ),
                       ),
                     ),
-                    child: Icon(Icons.bolt, color: context.neatColors.colorPrimaryCyan, size: 22),
+                    child: Icon(
+                      Icons.bolt,
+                      color: context.neatColors.colorPrimaryCyan,
+                      size: 22,
+                    ),
                   ),
                 ),
 
-                Text('Feature Workshop', style: context.textTheme.headlineLarge),
+                Text(
+                  'Feature Workshop',
+                  style: context.textTheme.headlineLarge,
+                ),
               ],
             ),
           ),

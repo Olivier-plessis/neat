@@ -22,10 +22,9 @@ class FeatureOptions {
     FeatureRouting? routing,
     bool? includeRemote,
     bool? includeUseCase,
-  }) =>
-      FeatureOptions(
-        routing: routing ?? this.routing,
-        includeRemote: includeRemote ?? this.includeRemote,
-        includeUseCase: includeUseCase ?? this.includeUseCase,
-      );
+  }) => FeatureOptions(
+    routing: routing ?? this.routing,
+    includeRemote: includeRemote ?? this.includeRemote,
+    includeUseCase: includeUseCase ?? this.includeUseCase,
+  );
 }

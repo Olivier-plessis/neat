@@ -163,7 +163,8 @@ class FeatureScaffolder {
     // stray includeLocalSource/localStoragePackage can't sneak in a local
     // source with nothing behind it.
     final writeLocal =
-        !useCustomEndpoints && (offlineFirst || (!hasHttpClient && includeLocalSource));
+        !useCustomEndpoints &&
+        (offlineFirst || (!hasHttpClient && includeLocalSource));
     // No data source at all (both toggles off) → this is a pure
     // entity+presentation feature: skip domain/repositories, domain/usecases,
     // and the whole data/ layer entirely, since there'd be nothing behind
@@ -174,7 +175,11 @@ class FeatureScaffolder {
     // Custom-endpoints features never have this graph (no entity, no
     // repository — see the useCustomEndpoints branch below), regardless of
     // what the caller passes for useAnnotations/includeUseCases.
-    final dataList = !useCustomEndpoints && useAnnotations && hasHttpClient && includeUseCases;
+    final dataList =
+        !useCustomEndpoints &&
+        useAnnotations &&
+        hasHttpClient &&
+        includeUseCases;
     // Realtime needs the full DI graph (repository provider + list notifier).
     final liveList = realtime && dataList;
     // Offline-first + sync: Drift is the source of truth the UI watches — the
@@ -221,9 +226,14 @@ class FeatureScaffolder {
     // adds one more directory level and moves the sibling layer's own
     // `$featureName/` folder into the path — see DataTemplates.featureModel's
     // domainCross doc.
-    final crossLayerNested = mergeBase != null || (!packageSplit && !isFeatureFirst);
-    final domainCross = crossLayerNested ? '../../../domain/$featureName' : '../../domain';
-    final dataCross = crossLayerNested ? '../../../data/$featureName' : '../../data';
+    final crossLayerNested =
+        mergeBase != null || (!packageSplit && !isFeatureFirst);
+    final domainCross = crossLayerNested
+        ? '../../../domain/$featureName'
+        : '../../domain';
+    final dataCross = crossLayerNested
+        ? '../../../data/$featureName'
+        : '../../data';
 
     if (useCustomEndpoints) {
       // domain/usecases — one per endpoint, calling the ApiSource directly
@@ -489,7 +499,10 @@ class FeatureScaffolder {
       // (ApiSource/LocalSource/Repository/Sync) live in data/, written above.
       // Custom-endpoints features have no repository (and their own usecases
       // call the ApiSource directly, wired by the caller) — never this file.
-      if (!useCustomEndpoints && useAnnotations && hasHttpClient && includeUseCases) {
+      if (!useCustomEndpoints &&
+          useAnnotations &&
+          hasHttpClient &&
+          includeUseCases) {
         await _write(
           '$presentationBase/providers/${featureName}_usecase_providers.dart',
           PresentationTemplates.featureUsecaseProviders(
@@ -564,9 +577,15 @@ class FeatureScaffolder {
 
     // Mirror test structure
     if (mirrorTestStructure) {
-      await _write('${domainBase.replaceFirst('/lib/', '/test/')}/.gitkeep', '');
+      await _write(
+        '${domainBase.replaceFirst('/lib/', '/test/')}/.gitkeep',
+        '',
+      );
       await _write('${dataBase.replaceFirst('/lib/', '/test/')}/.gitkeep', '');
-      await _write('${presentationBase.replaceFirst('/lib/', '/test/')}/.gitkeep', '');
+      await _write(
+        '${presentationBase.replaceFirst('/lib/', '/test/')}/.gitkeep',
+        '',
+      );
     }
 
     // The offline-first repository's contract as an executable test (Drift
@@ -625,7 +644,11 @@ class FeatureScaffolder {
   /// `package:` URI of a directory under the project root: a path inside
   /// `packages/<pkg>/lib/` becomes `package:<pkg>/…`, one inside `lib/`
   /// becomes `package:<app>/…`.
-  static String _packageUri(String projectRoot, String absDir, String appPackage) {
+  static String _packageUri(
+    String projectRoot,
+    String absDir,
+    String appPackage,
+  ) {
     final parts = absDir.substring(projectRoot.length + 1).split('/');
     return parts.first == 'packages'
         ? 'package:${parts[1]}/${parts.skip(3).join('/')}'

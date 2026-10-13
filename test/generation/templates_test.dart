@@ -5,7 +5,9 @@ import 'package:neat/features/generation/domain/services/templates/dart/app_temp
 
 /// Detects template placeholders that were never substituted. A leftover like
 /// `{feature}` or `{app_name}` means a generation bug.
-final _unsubstitutedPlaceholder = RegExp(r'\{(feature|app_name|package|name)\}');
+final _unsubstitutedPlaceholder = RegExp(
+  r'\{(feature|app_name|package|name)\}',
+);
 
 void main() {
   // A multi-word, snake_case feature name is the stress case: identifiers must
@@ -37,8 +39,14 @@ void main() {
     });
 
     test('hasOnboarding registers the /onboarding constant', () {
-      final withOnboarding = CoreTemplates.appRoutePath(featureName: feature, hasOnboarding: true);
-      expect(withOnboarding, contains("static const String onboarding = '/onboarding';"));
+      final withOnboarding = CoreTemplates.appRoutePath(
+        featureName: feature,
+        hasOnboarding: true,
+      );
+      expect(
+        withOnboarding,
+        contains("static const String onboarding = '/onboarding';"),
+      );
     });
   });
 
@@ -63,38 +71,47 @@ void main() {
       expect(out, contains('routes: appRoutes'));
     });
 
-    test('no redirect/refreshListenable when neither auth nor onboarding is on', () {
-      expect(out, isNot(contains('redirect')));
-      expect(out, isNot(contains('refreshListenable')));
-    });
+    test(
+      'no redirect/refreshListenable when neither auth nor onboarding is on',
+      () {
+        expect(out, isNot(contains('redirect')));
+        expect(out, isNot(contains('refreshListenable')));
+      },
+    );
 
-    test('hasOnboarding (no auth): wires a standalone OnboardingSeen guard', () {
-      final withOnboarding = CoreTemplates.appRouterBuilder(
-        packageName: pkgName,
-        featureName: feature,
-        useAnnotations: true,
-        hasOnboarding: true,
-      );
-      expect(withOnboarding, contains('onboarding_seen_provider.dart'));
-      expect(withOnboarding, contains('refreshListenable: seen'));
-      expect(withOnboarding, contains('AppRoutePath.onboarding'));
-      expect(withOnboarding, contains('AppRoutePath.userProfile'));
-    });
+    test(
+      'hasOnboarding (no auth): wires a standalone OnboardingSeen guard',
+      () {
+        final withOnboarding = CoreTemplates.appRouterBuilder(
+          packageName: pkgName,
+          featureName: feature,
+          useAnnotations: true,
+          hasOnboarding: true,
+        );
+        expect(withOnboarding, contains('onboarding_seen_provider.dart'));
+        expect(withOnboarding, contains('refreshListenable: seen'));
+        expect(withOnboarding, contains('AppRoutePath.onboarding'));
+        expect(withOnboarding, contains('AppRoutePath.userProfile'));
+      },
+    );
 
-    test('hasAuth + hasOnboarding: guard stays RouterNotifier-only (merge happens there)', () {
-      final withBoth = CoreTemplates.appRouterBuilder(
-        packageName: pkgName,
-        featureName: feature,
-        useAnnotations: true,
-        hasAuth: true,
-        hasOnboarding: true,
-      );
-      expect(withBoth, contains('router_notifier.dart'));
-      expect(withBoth, contains('refreshListenable: guard'));
-      // The standalone onboarding guard must not also appear — merged into
-      // RouterNotifier instead (see AuthTemplates.routerNotifier).
-      expect(withBoth, isNot(contains('onboarding_seen_provider.dart')));
-    });
+    test(
+      'hasAuth + hasOnboarding: guard stays RouterNotifier-only (merge happens there)',
+      () {
+        final withBoth = CoreTemplates.appRouterBuilder(
+          packageName: pkgName,
+          featureName: feature,
+          useAnnotations: true,
+          hasAuth: true,
+          hasOnboarding: true,
+        );
+        expect(withBoth, contains('router_notifier.dart'));
+        expect(withBoth, contains('refreshListenable: guard'));
+        // The standalone onboarding guard must not also appear — merged into
+        // RouterNotifier instead (see AuthTemplates.routerNotifier).
+        expect(withBoth, isNot(contains('onboarding_seen_provider.dart')));
+      },
+    );
   });
 
   group('packageSplit: AppRoutePath is single-sourced in the core package', () {
@@ -111,8 +128,14 @@ void main() {
         featureName: feature,
         corePackageName: core,
       );
-      expect(out, contains("import 'package:core/core/constants/app_route_path.dart';"));
-      expect(out, isNot(contains('package:$pkgName/core/constants/app_route_path.dart')));
+      expect(
+        out,
+        contains("import 'package:core/core/constants/app_route_path.dart';"),
+      );
+      expect(
+        out,
+        isNot(contains('package:$pkgName/core/constants/app_route_path.dart')),
+      );
     });
 
     test('appRouterBuilder (typed)', () {
@@ -122,8 +145,14 @@ void main() {
         useAnnotations: true,
         corePackageName: core,
       );
-      expect(out, contains("import 'package:core/core/constants/app_route_path.dart';"));
-      expect(out, isNot(contains('package:$pkgName/core/constants/app_route_path.dart')));
+      expect(
+        out,
+        contains("import 'package:core/core/constants/app_route_path.dart';"),
+      );
+      expect(
+        out,
+        isNot(contains('package:$pkgName/core/constants/app_route_path.dart')),
+      );
     });
 
     test('routesManual (plain, with first feature)', () {
@@ -132,12 +161,18 @@ void main() {
         featureName: feature,
         corePackageName: core,
       );
-      expect(out, contains("import 'package:core/core/constants/app_route_path.dart';"));
+      expect(
+        out,
+        contains("import 'package:core/core/constants/app_route_path.dart';"),
+      );
     });
 
     test('routesManualWelcome / welcomeRoute (no first feature)', () {
       expect(
-        CoreTemplates.routesManualWelcome(packageName: pkgName, corePackageName: core),
+        CoreTemplates.routesManualWelcome(
+          packageName: pkgName,
+          corePackageName: core,
+        ),
         contains("import 'package:core/core/constants/app_route_path.dart';"),
       );
       expect(
@@ -165,50 +200,86 @@ void main() {
       );
     });
 
-    test('no corePackageName: falls back to the app\'s own package (non-split default)', () {
-      final out = CoreTemplates.appRouterBuilder(
-        packageName: pkgName,
-        featureName: feature,
-        useAnnotations: true,
-      );
-      expect(out, contains("import 'package:$pkgName/core/constants/app_route_path.dart';"));
-    });
+    test(
+      'no corePackageName: falls back to the app\'s own package (non-split default)',
+      () {
+        final out = CoreTemplates.appRouterBuilder(
+          packageName: pkgName,
+          featureName: feature,
+          useAnnotations: true,
+        );
+        expect(
+          out,
+          contains(
+            "import 'package:$pkgName/core/constants/app_route_path.dart';",
+          ),
+        );
+      },
+    );
   });
 
   group('CoreTemplates.featureRoutes (typed go_router)', () {
-    final out = CoreTemplates.featureRoutes(packageName: pkgName, featureName: feature);
+    final out = CoreTemplates.featureRoutes(
+      packageName: pkgName,
+      featureName: feature,
+    );
 
     test('uses PascalCase route class + camelCase path', () {
-      expect(out, contains('@TypedGoRoute<UserProfileRoute>(path: AppRoutePath.userProfile)'));
-      expect(out, contains(r'class UserProfileRoute extends GoRouteData with $UserProfileRoute'));
-    });
-
-    test('imports the feature page (relative — same package) and emits a part directive', () {
-      // Relative, not package:$pkgName/features/... — works unchanged whether
-      // the feature is flat or split into its own workspace package (see
-      // ROADMAP.md §6a): only the depth between routes/ and pages/ matters,
-      // and that's identical either way.
-      expect(out, contains("import '../pages/user_profile_page.dart';"));
-      expect(out, contains("part 'user_profile_routes.g.dart';"));
-    });
-
-    test('packageSplit: AppRoutePath crosses into the core package instead of the app', () {
-      final split = CoreTemplates.featureRoutes(
-        packageName: pkgName,
-        featureName: feature,
-        corePackageName: '${pkgName}_core',
+      expect(
+        out,
+        contains(
+          '@TypedGoRoute<UserProfileRoute>(path: AppRoutePath.userProfile)',
+        ),
       );
       expect(
-        split,
-        contains("import 'package:${pkgName}_core/core/constants/app_route_path.dart';"),
+        out,
+        contains(
+          r'class UserProfileRoute extends GoRouteData with $UserProfileRoute',
+        ),
       );
-      expect(split, isNot(contains('package:$pkgName/')),
-          reason: 'a split feature package must never import from the app — that would be a cycle');
     });
+
+    test(
+      'imports the feature page (relative — same package) and emits a part directive',
+      () {
+        // Relative, not package:$pkgName/features/... — works unchanged whether
+        // the feature is flat or split into its own workspace package (see
+        // ROADMAP.md §6a): only the depth between routes/ and pages/ matters,
+        // and that's identical either way.
+        expect(out, contains("import '../pages/user_profile_page.dart';"));
+        expect(out, contains("part 'user_profile_routes.g.dart';"));
+      },
+    );
+
+    test(
+      'packageSplit: AppRoutePath crosses into the core package instead of the app',
+      () {
+        final split = CoreTemplates.featureRoutes(
+          packageName: pkgName,
+          featureName: feature,
+          corePackageName: '${pkgName}_core',
+        );
+        expect(
+          split,
+          contains(
+            "import 'package:${pkgName}_core/core/constants/app_route_path.dart';",
+          ),
+        );
+        expect(
+          split,
+          isNot(contains('package:$pkgName/')),
+          reason:
+              'a split feature package must never import from the app — that would be a cycle',
+        );
+      },
+    );
   });
 
   group('CoreTemplates.routesAggregator', () {
-    final out = CoreTemplates.routesAggregator(packageName: pkgName, featureName: feature);
+    final out = CoreTemplates.routesAggregator(
+      packageName: pkgName,
+      featureName: feature,
+    );
 
     test('spreads the feature\'s generated \$appRoutes', () {
       expect(out, contains(r'...user_profile.$appRoutes'));
@@ -224,13 +295,19 @@ void main() {
       expect(out, contains('static AppEnv get current'));
     });
 
-    test('flavorEnv wires @Envied to the matching .env file (PascalCase impl)', () {
-      final dev = CoreTemplates.flavorEnv(packageName: pkgName, flavor: 'dev');
-      expect(dev, contains("@Envied(path: '.env.dev', obfuscate: true)"));
-      expect(dev, contains('abstract class DevEnvVars'));
-      expect(dev, contains('class DevEnv implements AppEnv'));
-      expect(dev, contains("part 'dev_env.g.dart';"));
-    });
+    test(
+      'flavorEnv wires @Envied to the matching .env file (PascalCase impl)',
+      () {
+        final dev = CoreTemplates.flavorEnv(
+          packageName: pkgName,
+          flavor: 'dev',
+        );
+        expect(dev, contains("@Envied(path: '.env.dev', obfuscate: true)"));
+        expect(dev, contains('abstract class DevEnvVars'));
+        expect(dev, contains('class DevEnv implements AppEnv'));
+        expect(dev, contains("part 'dev_env.g.dart';"));
+      },
+    );
 
     test('envFile carries the app name', () {
       final out = CoreTemplates.envFile(appName: 'My App');
@@ -238,18 +315,32 @@ void main() {
       expect(out, contains('API_BASE_URL='));
     });
 
-    test('hasSentry: a single sentryDsn field (no per-flavor pair, unlike supabase)', () {
-      final env = CoreTemplates.appEnv(hasSentry: true);
-      expect(env, contains('abstract final String sentryDsn;'));
+    test(
+      'hasSentry: a single sentryDsn field (no per-flavor pair, unlike supabase)',
+      () {
+        final env = CoreTemplates.appEnv(hasSentry: true);
+        expect(env, contains('abstract final String sentryDsn;'));
 
-      final dev = CoreTemplates.flavorEnv(packageName: pkgName, flavor: 'dev', hasSentry: true);
-      expect(dev, contains("@EnviedField(varName: 'SENTRY_DSN')"));
-      expect(dev, contains('static final String sentryDsn = _DevEnvVars.sentryDsn;'));
-      expect(dev, contains('final String sentryDsn = DevEnvVars.sentryDsn;'));
+        final dev = CoreTemplates.flavorEnv(
+          packageName: pkgName,
+          flavor: 'dev',
+          hasSentry: true,
+        );
+        expect(dev, contains("@EnviedField(varName: 'SENTRY_DSN')"));
+        expect(
+          dev,
+          contains('static final String sentryDsn = _DevEnvVars.sentryDsn;'),
+        );
+        expect(dev, contains('final String sentryDsn = DevEnvVars.sentryDsn;'));
 
-      final file = CoreTemplates.envFile(appName: 'My App', hasSentry: true, sentryDsn: 'https://x');
-      expect(file, contains('SENTRY_DSN=https://x'));
-    });
+        final file = CoreTemplates.envFile(
+          appName: 'My App',
+          hasSentry: true,
+          sentryDsn: 'https://x',
+        );
+        expect(file, contains('SENTRY_DSN=https://x'));
+      },
+    );
 
     test('hasSentry off: no trace of it in any of the three env artifacts', () {
       expect(CoreTemplates.appEnv(), isNot(contains('sentryDsn')));
@@ -257,7 +348,10 @@ void main() {
         CoreTemplates.flavorEnv(packageName: pkgName, flavor: 'dev'),
         isNot(contains('sentryDsn')),
       );
-      expect(CoreTemplates.envFile(appName: 'My App'), isNot(contains('SENTRY_DSN')));
+      expect(
+        CoreTemplates.envFile(appName: 'My App'),
+        isNot(contains('SENTRY_DSN')),
+      );
     });
   });
 
@@ -267,13 +361,21 @@ void main() {
     // FormatException at runtime. This registry-backed converter is the fix —
     // see the executable probes in full_generation_integration_test.dart for
     // proof it actually decodes real responses.
-    final out = CoreTemplates.chopperModelConverter(packageName: pkgName, featureName: feature);
+    final out = CoreTemplates.chopperModelConverter(
+      packageName: pkgName,
+      featureName: feature,
+    );
 
     test('registers the witness feature\'s Model', () {
-      expect(out, contains('UserProfileModel: (json) => UserProfileModel.fromJson(json)'));
       expect(
         out,
-        contains("import 'package:my_app/features/user_profile/data/models/user_profile_model.dart';"),
+        contains('UserProfileModel: (json) => UserProfileModel.fromJson(json)'),
+      );
+      expect(
+        out,
+        contains(
+          "import 'package:my_app/features/user_profile/data/models/user_profile_model.dart';",
+        ),
       );
     });
 
@@ -283,13 +385,22 @@ void main() {
     });
 
     test('falls back to the default converter for unregistered types', () {
-      expect(out, contains('return super.convertResponse<BodyType, InnerType>(response);'));
+      expect(
+        out,
+        contains(
+          'return super.convertResponse<BodyType, InnerType>(response);',
+        ),
+      );
     });
   });
 
   group('AppTemplates.mainDart', () {
     final riverpod = [
-      const PubPackage(name: 'hooks_riverpod', version: '3.3.1', description: ''),
+      const PubPackage(
+        name: 'hooks_riverpod',
+        version: '3.3.1',
+        description: '',
+      ),
     ];
 
     test('without envied: main calls bootstrap()', () {
@@ -299,7 +410,11 @@ void main() {
     });
 
     test('with envied: main calls bootstrap(DevEnv())', () {
-      final out = AppTemplates.mainDart(riverpod, packageName: pkgName, useEnvied: true);
+      final out = AppTemplates.mainDart(
+        riverpod,
+        packageName: pkgName,
+        useEnvied: true,
+      );
       expect(out, contains('void main() => bootstrap(DevEnv());'));
       expect(out, contains('core/env/envs/dev_env.dart'));
     });
@@ -318,7 +433,12 @@ void main() {
       expect(out, contains('runZonedGuarded'));
       expect(out, contains('registerErrorHandler();'));
       expect(out, contains('WidgetsFlutterBinding.ensureInitialized();'));
-      expect(out, contains('ProviderScope(observers: [RiverpodObserver()], child: const App())'));
+      expect(
+        out,
+        contains(
+          'ProviderScope(observers: [RiverpodObserver()], child: const App())',
+        ),
+      );
       expect(out, contains("AppLogger.f('Uncaught exception'"));
       expect(out, isNot(contains('usePathUrlStrategy')));
     });
@@ -335,25 +455,43 @@ void main() {
       expect(out, contains('AppEnv.setEnv(env);'));
     });
 
-    test('hasOnboarding: pre-warms a ProviderContainer and loads the seen flag before runApp', () {
-      final out = AppTemplates.bootstrap(
-        packageName: pkgName,
-        hasRiverpod: true,
-        useAnnotations: true,
-        useEnvied: false,
-        isWeb: false,
-        hasOnboarding: true,
-      );
-      expect(out, contains('onboarding_seen_provider.dart'));
-      expect(out, contains('final container = ProviderContainer(observers: [RiverpodObserver()]);'));
-      expect(out, contains('await container.read(onboardingSeenProvider.notifier).load();'));
-      expect(out, contains('UncontrolledProviderScope(container: container, child: const App())'));
-      // The load must happen before runApp, not after.
-      expect(
-        out.indexOf('container.read(onboardingSeenProvider.notifier).load()'),
-        lessThan(out.indexOf('runApp(')),
-      );
-    });
+    test(
+      'hasOnboarding: pre-warms a ProviderContainer and loads the seen flag before runApp',
+      () {
+        final out = AppTemplates.bootstrap(
+          packageName: pkgName,
+          hasRiverpod: true,
+          useAnnotations: true,
+          useEnvied: false,
+          isWeb: false,
+          hasOnboarding: true,
+        );
+        expect(out, contains('onboarding_seen_provider.dart'));
+        expect(
+          out,
+          contains(
+            'final container = ProviderContainer(observers: [RiverpodObserver()]);',
+          ),
+        );
+        expect(
+          out,
+          contains(
+            'await container.read(onboardingSeenProvider.notifier).load();',
+          ),
+        );
+        expect(
+          out,
+          contains(
+            'UncontrolledProviderScope(container: container, child: const App())',
+          ),
+        );
+        // The load must happen before runApp, not after.
+        expect(
+          out.indexOf('container.read(onboardingSeenProvider.notifier).load()'),
+          lessThan(out.indexOf('runApp(')),
+        );
+      },
+    );
 
     test('web target adds usePathUrlStrategy', () {
       final out = AppTemplates.bootstrap(
@@ -392,11 +530,17 @@ void main() {
           hasSentry: true,
         );
         expect(out, contains("import 'package:flutter/foundation.dart';"));
-        expect(out, contains("import 'package:sentry_flutter/sentry_flutter.dart';"));
+        expect(
+          out,
+          contains("import 'package:sentry_flutter/sentry_flutter.dart';"),
+        );
         expect(out, contains('await SentryFlutter.init('));
         // Disabled in debug mode (kDebugMode, not the dev/staging/prod
         // flavor) — local iteration shouldn't spam a real Sentry project.
-        expect(out, contains("options.dsn = kDebugMode ? '' : AppEnv.current.sentryDsn"));
+        expect(
+          out,
+          contains("options.dsn = kDebugMode ? '' : AppEnv.current.sentryDsn"),
+        );
         expect(
           out,
           contains(
@@ -436,7 +580,10 @@ void main() {
         // No kDebugMode reference here (DSN is unconditionally blank without
         // envied) — the foundation.dart import would otherwise go unused.
         expect(out, isNot(contains('kDebugMode')));
-        expect(out, isNot(contains("import 'package:flutter/foundation.dart';")));
+        expect(
+          out,
+          isNot(contains("import 'package:flutter/foundation.dart';")),
+        );
         expect(out, isNot(contains('AppEnv')));
       },
     );

@@ -7,7 +7,9 @@ import 'package:neat/features/theme_engine/presentation/providers/theme_engine_p
 import 'package:neat_ui/neat_ui.dart';
 
 Future<void> _openPlayground() async {
-  await Process.run('open', ['https://rydmike.com/flexcolorscheme/themesplayground-latest/']);
+  await Process.run('open', [
+    'https://rydmike.com/flexcolorscheme/themesplayground-latest/',
+  ]);
 }
 
 class FlexColorSchemeTab extends HookConsumerWidget {
@@ -16,7 +18,9 @@ class FlexColorSchemeTab extends HookConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final codeCtrl = useTextEditingController(
-      text: ref.read(themeEngineProvider.select((s) => s.flexColorSchemeCode)) ?? '',
+      text:
+          ref.read(themeEngineProvider.select((s) => s.flexColorSchemeCode)) ??
+          '',
     );
 
     return SingleChildScrollView(
@@ -29,12 +33,20 @@ class FlexColorSchemeTab extends HookConsumerWidget {
             child: OutlinedButton.icon(
               onPressed: _openPlayground,
               icon: const Icon(Icons.open_in_new, size: 14),
-              label: const Text('Open Playground', style: TextStyle(fontSize: 12)),
+              label: const Text(
+                'Open Playground',
+                style: TextStyle(fontSize: 12),
+              ),
               style: OutlinedButton.styleFrom(
                 foregroundColor: Palette.colorPrimaryCyan,
                 side: const BorderSide(color: Palette.colorPrimaryCyan),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
             ),
           ),
@@ -59,14 +71,23 @@ class FlexColorSchemeTab extends HookConsumerWidget {
               children: [
                 // Top bar
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
                   decoration: const BoxDecoration(
                     color: Color(0xFF18181C),
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(10)),
+                    borderRadius: BorderRadius.vertical(
+                      top: Radius.circular(10),
+                    ),
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.insert_drive_file_outlined, size: 14, color: Colors.white38),
+                      const Icon(
+                        Icons.insert_drive_file_outlined,
+                        size: 14,
+                        color: Colors.white38,
+                      ),
                       const SizedBox(width: 8),
                       const Text(
                         'IMPORT CONFIGURATION',
@@ -93,7 +114,7 @@ class FlexColorSchemeTab extends HookConsumerWidget {
                   maxLines: 14,
                   style: const TextStyle(
                     color: Color(0xFF9ECE6A),
-                    
+
                     fontSize: 12,
                     height: 1.6,
                   ),
@@ -113,7 +134,7 @@ class FlexColorSchemeTab extends HookConsumerWidget {
                         '}',
                     hintStyle: const TextStyle(
                       color: Colors.white12,
-                      
+
                       fontSize: 12,
                       height: 1.6,
                     ),
@@ -122,10 +143,17 @@ class FlexColorSchemeTab extends HookConsumerWidget {
 
                 // Footer hint
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   child: Row(
                     children: [
-                      const Icon(Icons.info_outline, size: 11, color: Colors.white12),
+                      const Icon(
+                        Icons.info_outline,
+                        size: 11,
+                        color: Colors.white12,
+                      ),
                       const SizedBox(width: 6),
                       const Expanded(
                         child: Text(
@@ -135,7 +163,11 @@ class FlexColorSchemeTab extends HookConsumerWidget {
                       ),
                       const Text(
                         'FLEXCOLORSCHEME 8.x',
-                        style: TextStyle(color: Colors.white12, fontSize: 10, letterSpacing: 0.8),
+                        style: TextStyle(
+                          color: Colors.white12,
+                          fontSize: 10,
+                          letterSpacing: 0.8,
+                        ),
                       ),
                     ],
                   ),

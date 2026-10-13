@@ -35,12 +35,16 @@ PubPackage pkg(String name, String version, {bool isDev = false}) =>
 
 /// Parses [content] as YAML and returns the merged dependency/dev_dependency
 /// maps, failing the test with a readable message if the YAML is malformed.
-({Map<dynamic, dynamic> deps, Map<dynamic, dynamic> devDeps}) parseDeps(String content) {
+({Map<dynamic, dynamic> deps, Map<dynamic, dynamic> devDeps}) parseDeps(
+  String content,
+) {
   late final YamlMap doc;
   try {
     doc = loadYaml(content) as YamlMap;
   } catch (e) {
-    fail('Generated pubspec is not valid YAML:\n$e\n\n--- content ---\n$content');
+    fail(
+      'Generated pubspec is not valid YAML:\n$e\n\n--- content ---\n$content',
+    );
   }
   return (
     deps: (doc['dependencies'] as YamlMap?) ?? YamlMap(),
@@ -55,36 +59,39 @@ void main() {
       expect(() => parseDeps(out), returnsNormally);
     });
 
-    test('produces valid YAML for a full realistic stack (the envied regression)', () {
-      // Mirrors the package set that previously generated malformed YAML
-      // (envied at the dependency boundary).
-      final packages = [
-        pkg('hooks_riverpod', '3.3.1'),
-        pkg('flutter_hooks', '0.21.3+1'),
-        pkg('riverpod_annotation', '4.0.2'),
-        pkg('json_annotation', '4.11.0'),
-        pkg('freezed_annotation', '3.1.0'),
-        pkg('dio', '5.9.2'),
-        pkg('chopper', '8.6.0'),
-        pkg('go_router', '17.2.3'),
-        pkg('envied', '1.3.5'),
-        pkg('riverpod_generator', '4.0.3', isDev: true),
-        pkg('envied_generator', '1.3.5', isDev: true),
-        pkg('build_runner', '2.15.0', isDev: true),
-        pkg('freezed', '3.2.5', isDev: true),
-        pkg('go_router_builder', '4.3.0', isDev: true),
-      ];
+    test(
+      'produces valid YAML for a full realistic stack (the envied regression)',
+      () {
+        // Mirrors the package set that previously generated malformed YAML
+        // (envied at the dependency boundary).
+        final packages = [
+          pkg('hooks_riverpod', '3.3.1'),
+          pkg('flutter_hooks', '0.21.3+1'),
+          pkg('riverpod_annotation', '4.0.2'),
+          pkg('json_annotation', '4.11.0'),
+          pkg('freezed_annotation', '3.1.0'),
+          pkg('dio', '5.9.2'),
+          pkg('chopper', '8.6.0'),
+          pkg('go_router', '17.2.3'),
+          pkg('envied', '1.3.5'),
+          pkg('riverpod_generator', '4.0.3', isDev: true),
+          pkg('envied_generator', '1.3.5', isDev: true),
+          pkg('build_runner', '2.15.0', isDev: true),
+          pkg('freezed', '3.2.5', isDev: true),
+          pkg('go_router_builder', '4.3.0', isDev: true),
+        ];
 
-      final out = PubspecWriter.buildPubspecContent(_basePubspec, packages);
-      final parsed = parseDeps(out);
+        final out = PubspecWriter.buildPubspecContent(_basePubspec, packages);
+        final parsed = parseDeps(out);
 
-      expect(parsed.deps['envied'], '^1.3.5');
-      expect(parsed.deps['dio'], '^5.9.2');
-      expect(parsed.devDeps['build_runner'], '^2.15.0');
-      // Original cupertino_icons / flutter_lints survive the merge.
-      expect(parsed.deps['cupertino_icons'], '^1.0.8');
-      expect(parsed.devDeps['flutter_lints'], '^6.0.0');
-    });
+        expect(parsed.deps['envied'], '^1.3.5');
+        expect(parsed.deps['dio'], '^5.9.2');
+        expect(parsed.devDeps['build_runner'], '^2.15.0');
+        // Original cupertino_icons / flutter_lints survive the merge.
+        expect(parsed.deps['cupertino_icons'], '^1.0.8');
+        expect(parsed.devDeps['flutter_lints'], '^6.0.0');
+      },
+    );
   });
 
   group('buildPubspecContent — dependency placement', () {
@@ -107,20 +114,26 @@ void main() {
     });
   });
 
-  group('buildPubspecContent — deduplication (no side effects across runs)', () {
-    test('duplicate package entries collapse to one', () {
-      final out = PubspecWriter.buildPubspecContent(_basePubspec, [
-        pkg('dio', '5.9.2'),
-        pkg('dio', '5.9.2'),
-        pkg('dio', '5.9.2'),
-      ]);
-      // A second caret-line would break YAML or duplicate the key; assert the
-      // raw text only contains the dependency once.
-      final occurrences = RegExp(r'^\s{2}dio:', multiLine: true).allMatches(out).length;
-      expect(occurrences, 1);
-      expect(() => parseDeps(out), returnsNormally);
-    });
-  });
+  group(
+    'buildPubspecContent — deduplication (no side effects across runs)',
+    () {
+      test('duplicate package entries collapse to one', () {
+        final out = PubspecWriter.buildPubspecContent(_basePubspec, [
+          pkg('dio', '5.9.2'),
+          pkg('dio', '5.9.2'),
+          pkg('dio', '5.9.2'),
+        ]);
+        // A second caret-line would break YAML or duplicate the key; assert the
+        // raw text only contains the dependency once.
+        final occurrences = RegExp(
+          r'^\s{2}dio:',
+          multiLine: true,
+        ).allMatches(out).length;
+        expect(occurrences, 1);
+        expect(() => parseDeps(out), returnsNormally);
+      });
+    },
+  );
 
   group('buildPubspecContent — auto-injection', () {
     test('google_fonts is always injected when absent', () {
@@ -132,25 +145,38 @@ void main() {
       final out = PubspecWriter.buildPubspecContent(_basePubspec, [
         pkg('google_fonts', '7.0.0'),
       ]);
-      final occurrences =
-          RegExp(r'^\s{2}google_fonts:', multiLine: true).allMatches(out).length;
+      final occurrences = RegExp(
+        r'^\s{2}google_fonts:',
+        multiLine: true,
+      ).allMatches(out).length;
       expect(occurrences, 1);
       // The user's chosen version wins (no override).
       expect(parseDeps(out).deps['google_fonts'], '^7.0.0');
     });
 
-    test('flutter_screenutil injected by default, skipped when addScreenUtil=false', () {
-      final withSu =
-          PubspecWriter.buildPubspecContent(_basePubspec, const []);
-      expect(parseDeps(withSu).deps.containsKey('flutter_screenutil'), isTrue);
+    test(
+      'flutter_screenutil injected by default, skipped when addScreenUtil=false',
+      () {
+        final withSu = PubspecWriter.buildPubspecContent(
+          _basePubspec,
+          const [],
+        );
+        expect(
+          parseDeps(withSu).deps.containsKey('flutter_screenutil'),
+          isTrue,
+        );
 
-      final webOnly = PubspecWriter.buildPubspecContent(
-        _basePubspec,
-        const [],
-        addScreenUtil: false,
-      );
-      expect(parseDeps(webOnly).deps.containsKey('flutter_screenutil'), isFalse);
-    });
+        final webOnly = PubspecWriter.buildPubspecContent(
+          _basePubspec,
+          const [],
+          addScreenUtil: false,
+        );
+        expect(
+          parseDeps(webOnly).deps.containsKey('flutter_screenutil'),
+          isFalse,
+        );
+      },
+    );
 
     test('go_router_builder pulls in go_router as a runtime dep', () {
       final out = PubspecWriter.buildPubspecContent(_basePubspec, [
@@ -161,29 +187,39 @@ void main() {
       expect(parsed.deps.containsKey('go_router'), isTrue);
     });
 
-    test('go_router not duplicated when explicitly selected alongside builder', () {
-      final out = PubspecWriter.buildPubspecContent(_basePubspec, [
-        pkg('go_router', '17.2.3'),
-        pkg('go_router_builder', '4.3.0', isDev: true),
-      ]);
-      final occurrences =
-          RegExp(r'^\s{2}go_router:', multiLine: true).allMatches(out).length;
-      expect(occurrences, 1);
-    });
+    test(
+      'go_router not duplicated when explicitly selected alongside builder',
+      () {
+        final out = PubspecWriter.buildPubspecContent(_basePubspec, [
+          pkg('go_router', '17.2.3'),
+          pkg('go_router_builder', '4.3.0', isDev: true),
+        ]);
+        final occurrences = RegExp(
+          r'^\s{2}go_router:',
+          multiLine: true,
+        ).allMatches(out).length;
+        expect(occurrences, 1);
+      },
+    );
 
-    test('flutter_bloc injected when only the plain bloc package was selected', () {
-      final out = PubspecWriter.buildPubspecContent(_basePubspec, [
-        pkg('bloc', '9.0.1'),
-      ]);
-      expect(parseDeps(out).deps.containsKey('flutter_bloc'), isTrue);
-    });
+    test(
+      'flutter_bloc injected when only the plain bloc package was selected',
+      () {
+        final out = PubspecWriter.buildPubspecContent(_basePubspec, [
+          pkg('bloc', '9.0.1'),
+        ]);
+        expect(parseDeps(out).deps.containsKey('flutter_bloc'), isTrue);
+      },
+    );
 
     test('flutter_bloc not duplicated when explicitly selected', () {
       final out = PubspecWriter.buildPubspecContent(_basePubspec, [
         pkg('flutter_bloc', '9.1.1'),
       ]);
-      final occurrences =
-          RegExp(r'^\s{2}flutter_bloc:', multiLine: true).allMatches(out).length;
+      final occurrences = RegExp(
+        r'^\s{2}flutter_bloc:',
+        multiLine: true,
+      ).allMatches(out).length;
       expect(occurrences, 1);
     });
 
@@ -225,7 +261,10 @@ void main() {
         1,
       );
       expect(
-        RegExp(r'^\s{2}envied_generator:', multiLine: true).allMatches(out).length,
+        RegExp(
+          r'^\s{2}envied_generator:',
+          multiLine: true,
+        ).allMatches(out).length,
         1,
       );
     });
@@ -251,26 +290,35 @@ void main() {
       expect(workspace, contains('packages/my_app_local_storage'));
 
       final deps = parseDeps(out).deps;
-      expect((deps['my_app_local_storage'] as YamlMap)['path'], 'packages/my_app_local_storage');
+      expect(
+        (deps['my_app_local_storage'] as YamlMap)['path'],
+        'packages/my_app_local_storage',
+      );
       expect(deps.containsKey('connectivity_plus'), isTrue);
 
       // §5g's `sqlparser: ">=0.44.0 <0.44.6"` override is gone (reverted in
       // §5u): on Dart 3.13 pub picks drift_dev 2.35.x, which requires
       // sqlparser ^0.45 — the old pin forced an incompatible version and
       // broke Drift's build_runner. See ROADMAP.md.
-      expect(doc['dependency_overrides'], isNull,
-          reason: 'offline-first must not pin sqlparser any more');
+      expect(
+        doc['dependency_overrides'],
+        isNull,
+        reason: 'offline-first must not pin sqlparser any more',
+      );
     });
 
-    test('no offline-first (addConnectivity=false) → no dependency_overrides', () {
-      final out = PubspecWriter.buildPubspecContent(
-        _basePubspec,
-        const [],
-        pathPackages: ['my_app_ui'],
-      );
-      final doc = loadYaml(out) as YamlMap;
-      expect(doc['dependency_overrides'], isNull);
-    });
+    test(
+      'no offline-first (addConnectivity=false) → no dependency_overrides',
+      () {
+        final out = PubspecWriter.buildPubspecContent(
+          _basePubspec,
+          const [],
+          pathPackages: ['my_app_ui'],
+        );
+        final doc = loadYaml(out) as YamlMap;
+        expect(doc['dependency_overrides'], isNull);
+      },
+    );
 
     test('multiple path packages + extra members (widgetbook)', () {
       final out = PubspecWriter.buildPubspecContent(
@@ -280,11 +328,14 @@ void main() {
         extraWorkspaceMembers: ['widgetbook'],
       );
       final workspace = (loadYaml(out) as YamlMap)['workspace'] as YamlList;
-      expect(workspace, containsAll(<String>[
-        'packages/my_app_ui',
-        'packages/my_app_local_storage',
-        'widgetbook',
-      ]));
+      expect(
+        workspace,
+        containsAll(<String>[
+          'packages/my_app_ui',
+          'packages/my_app_local_storage',
+          'widgetbook',
+        ]),
+      );
       final deps = parseDeps(out).deps;
       expect((deps['my_app_ui'] as YamlMap)['path'], 'packages/my_app_ui');
       // widgetbook is a member but NOT an app dependency.
@@ -320,15 +371,18 @@ void main() {
       expect(parseDeps(out).deps.containsKey('shared_preferences'), isFalse);
     });
 
-    test('addSlang + addOnboarding together: shared_preferences added once, not duplicated', () {
-      final out = PubspecWriter.buildPubspecContent(
-        _basePubspec,
-        const [],
-        addSlang: true,
-        addOnboarding: true,
-      );
-      expect(() => parseDeps(out), returnsNormally);
-      expect('shared_preferences:'.allMatches(out).length, 1);
-    });
+    test(
+      'addSlang + addOnboarding together: shared_preferences added once, not duplicated',
+      () {
+        final out = PubspecWriter.buildPubspecContent(
+          _basePubspec,
+          const [],
+          addSlang: true,
+          addOnboarding: true,
+        );
+        expect(() => parseDeps(out), returnsNormally);
+        expect('shared_preferences:'.allMatches(out).length, 1);
+      },
+    );
   });
 }

@@ -31,15 +31,25 @@ class LayerToggle extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Text(title, style: const TextStyle(color: Colors.white, fontSize: 14)),
+                    Text(
+                      title,
+                      style: const TextStyle(color: Colors.white, fontSize: 14),
+                    ),
                     if (locked) ...[
                       6.gapW,
-                      const Icon(Icons.lock_outline, size: 12, color: Colors.white38),
+                      const Icon(
+                        Icons.lock_outline,
+                        size: 12,
+                        color: Colors.white38,
+                      ),
                     ],
                   ],
                 ),
                 2.gapH,
-                Text(subtitle, style: TextStyle(color: Colors.grey[500], fontSize: 12)),
+                Text(
+                  subtitle,
+                  style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                ),
               ],
             ),
           ),

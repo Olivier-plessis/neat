@@ -22,7 +22,8 @@ void main() {
       '${projectDir.path}/android/app/src/main/AndroidManifest.xml',
     );
     await manifest.create(recursive: true);
-    await manifest.writeAsString('''<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    await manifest.writeAsString(
+      '''<manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application android:label="demo_app" android:name="\${applicationName}" android:icon="@mipmap/ic_launcher">
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
@@ -32,7 +33,8 @@ void main() {
         </activity>
     </application>
 </manifest>
-''');
+''',
+    );
     final infoPlist = File('${projectDir.path}/ios/Runner/Info.plist');
     await infoPlist.create(recursive: true);
     await infoPlist.writeAsString('''<?xml version="1.0" encoding="UTF-8"?>
@@ -71,7 +73,9 @@ void main() {
       ).readAsString();
       expect(
         manifest,
-        contains('<data android:scheme="demo_app" android:host="login-callback"/>'),
+        contains(
+          '<data android:scheme="demo_app" android:host="login-callback"/>',
+        ),
       );
       expect(manifest, contains('android:name="android.intent.action.VIEW"'));
       // The original launcher intent-filter is still there, untouched.
@@ -107,29 +111,26 @@ void main() {
     expect('CFBundleURLTypes'.allMatches(infoPlist).length, 1);
   });
 
-  test(
-    'Firebase backend: native files are left untouched (different, '
-    'out-of-scope deep-link mechanism)',
-    () async {
-      await AuthWriter.write(
-        projectDir: projectDir,
-        lib: '${projectDir.path}/lib',
-        packageName: 'demo_app',
-        featureName: 'product',
-        backend: 'firebase',
-      );
+  test('Firebase backend: native files are left untouched (different, '
+      'out-of-scope deep-link mechanism)', () async {
+    await AuthWriter.write(
+      projectDir: projectDir,
+      lib: '${projectDir.path}/lib',
+      packageName: 'demo_app',
+      featureName: 'product',
+      backend: 'firebase',
+    );
 
-      final manifest = await File(
-        '${projectDir.path}/android/app/src/main/AndroidManifest.xml',
-      ).readAsString();
-      expect(manifest, isNot(contains('login-callback')));
+    final manifest = await File(
+      '${projectDir.path}/android/app/src/main/AndroidManifest.xml',
+    ).readAsString();
+    expect(manifest, isNot(contains('login-callback')));
 
-      final infoPlist = await File(
-        '${projectDir.path}/ios/Runner/Info.plist',
-      ).readAsString();
-      expect(infoPlist, isNot(contains('CFBundleURLTypes')));
-    },
-  );
+    final infoPlist = await File(
+      '${projectDir.path}/ios/Runner/Info.plist',
+    ).readAsString();
+    expect(infoPlist, isNot(contains('CFBundleURLTypes')));
+  });
 
   test(
     'missing platform directories: no-op instead of throwing (web/desktop-only target)',

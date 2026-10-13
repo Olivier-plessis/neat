@@ -68,7 +68,10 @@ class OnboardingSeen extends _\$OnboardingSeen implements Listenable {
   /// `launch_generation_usecase.dart` actually did (`autoWireOnboarding` —
   /// true only for go_router_builder) — it only changes this doc comment, so
   /// a mismatch wouldn't break anything, just mislead whoever reads it.
-  static String onboardingPage({required String packageName, bool autoWired = false}) {
+  static String onboardingPage({
+    required String packageName,
+    bool autoWired = false,
+  }) {
     final wiringDoc = autoWired
         ? '''/// NEAT already wired the routing gate — see `core/router/app_router.dart`
 /// (or `core/router/router_notifier.dart` if this project also has Auth,

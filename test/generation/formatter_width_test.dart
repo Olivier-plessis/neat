@@ -29,20 +29,31 @@ linter:
     });
 
     test('never overwrites a width the developer chose', () {
-      const custom = 'include: package:flutter_lints/flutter.yaml\n\nformatter:\n  page_width: 100\n';
+      const custom =
+          'include: package:flutter_lints/flutter.yaml\n\nformatter:\n  page_width: 100\n';
       expect(ConfigTemplates.withFormatterWidth(custom), custom);
     });
 
     test('a file without a final newline still gets a clean block', () {
-      final out = ConfigTemplates.withFormatterWidth('include: package:flutter_lints/flutter.yaml');
-      expect(out, startsWith('include: package:flutter_lints/flutter.yaml\n\n'));
+      final out = ConfigTemplates.withFormatterWidth(
+        'include: package:flutter_lints/flutter.yaml',
+      );
+      expect(
+        out,
+        startsWith('include: package:flutter_lints/flutter.yaml\n\n'),
+      );
       expect(out, contains('formatter:\n  page_width: 80\n'));
     });
 
-    test('a comment mentioning the formatter is not mistaken for the section', () {
-      final out = ConfigTemplates.withFormatterWidth('# formatter: page_width: 120 is not set here\ninclude: x\n');
-      expect(out, contains('\nformatter:\n  page_width: 80\n'));
-    });
+    test(
+      'a comment mentioning the formatter is not mistaken for the section',
+      () {
+        final out = ConfigTemplates.withFormatterWidth(
+          '# formatter: page_width: 120 is not set here\ninclude: x\n',
+        );
+        expect(out, contains('\nformatter:\n  page_width: 80\n'));
+      },
+    );
   });
 
   test('the full analysis_options template pins it too', () {

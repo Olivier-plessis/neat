@@ -16,7 +16,9 @@ class AppTheme {
         displayLarge: StyleTheme.displayLarge,
         displayMedium: StyleTheme.displayMedium,
         displaySmall: StyleTheme.displaySmall,
-        headlineLarge: StyleTheme.headlineLarge.copyWith(color: Palette.surface),
+        headlineLarge: StyleTheme.headlineLarge.copyWith(
+          color: Palette.surface,
+        ),
         headlineMedium: StyleTheme.headlineMedium,
         headlineSmall: StyleTheme.headlineSmall,
         titleLarge: StyleTheme.titleLarge,
@@ -27,7 +29,9 @@ class AppTheme {
         bodySmall: StyleTheme.bodySmall,
         labelLarge: StyleTheme.bodyMedium.copyWith(fontWeight: FontWeight.w600),
         labelMedium: StyleTheme.labelMedium,
-        labelSmall: StyleTheme.bodySmall.copyWith(fontSize: FontSizeTheme.bodySmall),
+        labelSmall: StyleTheme.bodySmall.copyWith(
+          fontSize: FontSizeTheme.bodySmall,
+        ),
       ),
 
       // Configuration globale des couleurs
@@ -42,7 +46,10 @@ class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: Palette.mainDark,
-        hintStyle: const TextStyle(color: Palette.mainFont, fontSize: FontSizeTheme.bodyLarge),
+        hintStyle: const TextStyle(
+          color: Palette.mainFont,
+          fontSize: FontSizeTheme.bodyLarge,
+        ),
         contentPadding: const .symmetric(horizontal: 16, vertical: 12),
         border: OutlineInputBorder(
           borderRadius: .circular(8),
@@ -54,7 +61,10 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: .circular(8),
-          borderSide: const BorderSide(color: Palette.colorPrimaryCyan, width: 1.5),
+          borderSide: const BorderSide(
+            color: Palette.colorPrimaryCyan,
+            width: 1.5,
+          ),
         ),
       ),
 

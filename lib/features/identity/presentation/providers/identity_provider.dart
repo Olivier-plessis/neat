@@ -11,13 +11,17 @@ class IdentityNotifier extends _$IdentityNotifier {
 
   void updateName(String val) => state = state.copyWith(name: val);
 
-  void updateOrganization(String val) => state = state.copyWith(organization: val);
+  void updateOrganization(String val) =>
+      state = state.copyWith(organization: val);
 
-  void updateDescription(String val) => state = state.copyWith(description: val);
+  void updateDescription(String val) =>
+      state = state.copyWith(description: val);
 
-  void updateProjectPath(String val) => state = state.copyWith(projectPath: val);
+  void updateProjectPath(String val) =>
+      state = state.copyWith(projectPath: val);
 
-  void updateFlutterVersion(String val) => state = state.copyWith(flutterVersion: val);
+  void updateFlutterVersion(String val) =>
+      state = state.copyWith(flutterVersion: val);
 
   void togglePlatform(String platform) {
     final platforms = List<String>.from(state.targetPlatforms);

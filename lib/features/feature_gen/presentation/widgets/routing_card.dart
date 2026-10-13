@@ -28,7 +28,9 @@ class RoutingCard extends StatelessWidget {
         child: Container(
           padding: const .all(16),
           decoration: BoxDecoration(
-            color: isSelected ? cyan.withValues(alpha: 0.08) : const Color(0xFF161619),
+            color: isSelected
+                ? cyan.withValues(alpha: 0.08)
+                : const Color(0xFF161619),
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
               color: isSelected ? cyan : Colors.white12,
@@ -69,7 +71,10 @@ class RoutingCard extends StatelessWidget {
                 ],
               ),
               4.gapH,
-              Text(subtitle, style: TextStyle(color: Colors.grey[500], fontSize: 11)),
+              Text(
+                subtitle,
+                style: TextStyle(color: Colors.grey[500], fontSize: 11),
+              ),
             ],
           ),
         ),

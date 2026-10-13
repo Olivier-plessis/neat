@@ -88,10 +88,17 @@ class ColorPickerDialog extends HookWidget {
                   Expanded(
                     child: TextField(
                       controller: hexCtrl,
-                      style: context.textTheme.bodyMedium!.copyWith(color: Colors.white),
-                      decoration: const InputDecoration(border: InputBorder.none, isDense: true),
+                      style: context.textTheme.bodyMedium!.copyWith(
+                        color: Colors.white,
+                      ),
+                      decoration: const InputDecoration(
+                        border: InputBorder.none,
+                        isDense: true,
+                      ),
                       inputFormatters: [
-                        FilteringTextInputFormatter.allow(RegExp(r'[0-9a-fA-Fx]')),
+                        FilteringTextInputFormatter.allow(
+                          RegExp(r'[0-9a-fA-Fx]'),
+                        ),
                         LengthLimitingTextInputFormatter(10),
                       ],
                       onSubmitted: (_) => submitHex(),
@@ -138,7 +145,10 @@ class ColorPickerDialog extends HookWidget {
               onReset!();
               Navigator.pop(context);
             },
-            child: const Text('Reset to auto', style: TextStyle(color: Colors.white38)),
+            child: const Text(
+              'Reset to auto',
+              style: TextStyle(color: Colors.white38),
+            ),
           ),
         TextButton(
           onPressed: () => Navigator.pop(context),
@@ -149,7 +159,9 @@ class ColorPickerDialog extends HookWidget {
             onPicked(current.value);
             Navigator.pop(context);
           },
-          style: FilledButton.styleFrom(backgroundColor: context.neatColors.colorPrimaryCyan),
+          style: FilledButton.styleFrom(
+            backgroundColor: context.neatColors.colorPrimaryCyan,
+          ),
           child: const Text('Apply'),
         ),
       ],

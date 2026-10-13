@@ -10,28 +10,46 @@ void main() {
         'TextColumn get name => text()();',
       );
       expect(
-        const FieldSpec(jsonKey: 'stock', dartName: 'stock', dartType: 'int').driftColumnLine(),
+        const FieldSpec(
+          jsonKey: 'stock',
+          dartName: 'stock',
+          dartType: 'int',
+        ).driftColumnLine(),
         'IntColumn get stock => integer()();',
       );
       expect(
-        const FieldSpec(jsonKey: 'price', dartName: 'price', dartType: 'double').driftColumnLine(),
+        const FieldSpec(
+          jsonKey: 'price',
+          dartName: 'price',
+          dartType: 'double',
+        ).driftColumnLine(),
         'RealColumn get price => real()();',
       );
       expect(
-        const FieldSpec(jsonKey: 'active', dartName: 'active', dartType: 'bool').driftColumnLine(),
+        const FieldSpec(
+          jsonKey: 'active',
+          dartName: 'active',
+          dartType: 'bool',
+        ).driftColumnLine(),
         'BoolColumn get active => boolean()();',
       );
       expect(
-        const FieldSpec(jsonKey: 'createdAt', dartName: 'createdAt', dartType: 'DateTime')
-            .driftColumnLine(),
+        const FieldSpec(
+          jsonKey: 'createdAt',
+          dartName: 'createdAt',
+          dartType: 'DateTime',
+        ).driftColumnLine(),
         'DateTimeColumn get createdAt => dateTime()();',
       );
     });
 
     test('nullable adds .nullable()', () {
       expect(
-        const FieldSpec(jsonKey: 'note', dartName: 'note', nullable: true)
-            .driftColumnLine(),
+        const FieldSpec(
+          jsonKey: 'note',
+          dartName: 'note',
+          nullable: true,
+        ).driftColumnLine(),
         'TextColumn get note => text().nullable()();',
       );
     });
@@ -40,41 +58,61 @@ void main() {
   group('fromJson / toJson', () {
     test('num coercion + DateTime parse (non-null)', () {
       expect(
-        const FieldSpec(jsonKey: 'price', dartName: 'price', dartType: 'double').fromJsonExpr(),
+        const FieldSpec(
+          jsonKey: 'price',
+          dartName: 'price',
+          dartType: 'double',
+        ).fromJsonExpr(),
         "(json['price'] as num).toDouble()",
       );
       expect(
-        const FieldSpec(jsonKey: 'created_at', dartName: 'createdAt', dartType: 'DateTime')
-            .fromJsonExpr(),
+        const FieldSpec(
+          jsonKey: 'created_at',
+          dartName: 'createdAt',
+          dartType: 'DateTime',
+        ).fromJsonExpr(),
         "DateTime.parse(json['created_at'] as String)",
       );
     });
 
     test('nullable variants guard null', () {
       expect(
-        const FieldSpec(jsonKey: 'qty', dartName: 'qty', dartType: 'int', nullable: true)
-            .fromJsonExpr(),
+        const FieldSpec(
+          jsonKey: 'qty',
+          dartName: 'qty',
+          dartType: 'int',
+          nullable: true,
+        ).fromJsonExpr(),
         "(json['qty'] as num?)?.toInt()",
       );
       expect(
-        const FieldSpec(jsonKey: 'at', dartName: 'at', dartType: 'DateTime', nullable: true)
-            .fromJsonExpr(),
+        const FieldSpec(
+          jsonKey: 'at',
+          dartName: 'at',
+          dartType: 'DateTime',
+          nullable: true,
+        ).fromJsonExpr(),
         "json['at'] == null ? null : DateTime.parse(json['at'] as String)",
       );
     });
 
     test('DateTime toJson serialises to ISO', () {
       expect(
-        const FieldSpec(jsonKey: 'createdAt', dartName: 'createdAt', dartType: 'DateTime')
-            .toJsonValue(),
+        const FieldSpec(
+          jsonKey: 'createdAt',
+          dartName: 'createdAt',
+          dartType: 'DateTime',
+        ).toJsonValue(),
         'createdAt.toIso8601String()',
       );
     });
 
     test('@JsonKey only when renamed', () {
       expect(
-        const FieldSpec(jsonKey: 'created_at', dartName: 'createdAt')
-            .jsonKeyAnnotation,
+        const FieldSpec(
+          jsonKey: 'created_at',
+          dartName: 'createdAt',
+        ).jsonKeyAnnotation,
         "@JsonKey(name: 'created_at')",
       );
       expect(
@@ -89,7 +127,11 @@ void main() {
       // int payload — silently, if the caller swallows the exception (the
       // offline-first repository does, to fall back to cache on network
       // errors). Regression for that bug: the id must convert, not cast.
-      final id = const FieldSpec(jsonKey: 'id', dartName: 'id', isId: true).fromJsonExpr();
+      final id = const FieldSpec(
+        jsonKey: 'id',
+        dartName: 'id',
+        isId: true,
+      ).fromJsonExpr();
       expect(id, "json['id'].toString()");
       expect(id, isNot(contains('as String')));
     });
@@ -124,11 +166,46 @@ void main() {
 
   group('placeholder literals', () {
     test('type-appropriate dummies, null when nullable', () {
-      expect(const FieldSpec(jsonKey: 'id', dartName: 'id', isId: true).entityPlaceholder(), "'000000'");
-      expect(const FieldSpec(jsonKey: 'qty', dartName: 'qty', dartType: 'int').entityPlaceholder(), '0');
-      expect(const FieldSpec(jsonKey: 'p', dartName: 'p', dartType: 'double').entityPlaceholder(), '0.0');
-      expect(const FieldSpec(jsonKey: 'a', dartName: 'a', dartType: 'bool').entityPlaceholder(), 'false');
-      expect(const FieldSpec(jsonKey: 'n', dartName: 'n', nullable: true).entityPlaceholder(), 'null');
+      expect(
+        const FieldSpec(
+          jsonKey: 'id',
+          dartName: 'id',
+          isId: true,
+        ).entityPlaceholder(),
+        "'000000'",
+      );
+      expect(
+        const FieldSpec(
+          jsonKey: 'qty',
+          dartName: 'qty',
+          dartType: 'int',
+        ).entityPlaceholder(),
+        '0',
+      );
+      expect(
+        const FieldSpec(
+          jsonKey: 'p',
+          dartName: 'p',
+          dartType: 'double',
+        ).entityPlaceholder(),
+        '0.0',
+      );
+      expect(
+        const FieldSpec(
+          jsonKey: 'a',
+          dartName: 'a',
+          dartType: 'bool',
+        ).entityPlaceholder(),
+        'false',
+      );
+      expect(
+        const FieldSpec(
+          jsonKey: 'n',
+          dartName: 'n',
+          nullable: true,
+        ).entityPlaceholder(),
+        'null',
+      );
     });
   });
 }

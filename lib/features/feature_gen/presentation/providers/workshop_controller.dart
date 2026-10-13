@@ -37,7 +37,9 @@ class WorkshopController extends _$WorkshopController {
   Future<void> openProject(String path) async {
     final project = await const ProjectLoader().load(path);
     if (project == null) {
-      state = const WorkshopState(error: 'Not a NEAT project — no readable .neat.json found.');
+      state = const WorkshopState(
+        error: 'Not a NEAT project — no readable .neat.json found.',
+      );
       return;
     }
     state = WorkshopState(project: project);
@@ -74,7 +76,10 @@ class WorkshopController extends _$WorkshopController {
         },
       );
       collected.add('[✓] Traductions importées (${locales.join(', ')}).');
-      state = state.copyWith(isGenerating: false, logs: List.unmodifiable(collected));
+      state = state.copyWith(
+        isGenerating: false,
+        logs: List.unmodifiable(collected),
+      );
     } catch (e) {
       state = state.copyWith(isGenerating: false, error: e.toString());
     }
@@ -98,7 +103,10 @@ class WorkshopController extends _$WorkshopController {
         },
       );
       final refreshed = await const ProjectLoader().load(project.path);
-      state = state.copyWith(project: refreshed ?? project, isGenerating: false);
+      state = state.copyWith(
+        project: refreshed ?? project,
+        isGenerating: false,
+      );
     } catch (e) {
       state = state.copyWith(isGenerating: false, error: e.toString());
     }

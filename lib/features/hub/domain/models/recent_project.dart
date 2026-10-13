@@ -9,18 +9,18 @@ class RecentProject {
   });
 
   factory RecentProject.fromJson(Map<String, dynamic> json) => RecentProject(
-        path: json['path'] as String,
-        name: json['name'] as String,
-        lastOpened: DateTime.parse(json['lastOpened'] as String),
-      );
+    path: json['path'] as String,
+    name: json['name'] as String,
+    lastOpened: DateTime.parse(json['lastOpened'] as String),
+  );
 
   final String path;
   final String name;
   final DateTime lastOpened;
 
   Map<String, dynamic> toJson() => {
-        'path': path,
-        'name': name,
-        'lastOpened': lastOpened.toIso8601String(),
-      };
+    'path': path,
+    'name': name,
+    'lastOpened': lastOpened.toIso8601String(),
+  };
 }

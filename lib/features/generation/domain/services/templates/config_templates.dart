@@ -35,7 +35,8 @@ flutter:
 ''';
 
   /// `.fvmrc` — pins the Flutter SDK version for FVM users.
-  static String fvmrc({required String flutterVersion}) => '''
+  static String fvmrc({required String flutterVersion}) =>
+      '''
 {
   "flutter": "$flutterVersion"
 }
@@ -56,7 +57,9 @@ flutter:
     if (RegExp(r'^formatter:', multiLine: true).hasMatch(analysisOptions)) {
       return analysisOptions;
     }
-    final body = analysisOptions.endsWith('\n') ? analysisOptions : '$analysisOptions\n';
+    final body = analysisOptions.endsWith('\n')
+        ? analysisOptions
+        : '$analysisOptions\n';
     return '$body\n# Pinned so `dart format`, the CI and every IDE agree on the width.\n$formatterBlock';
   }
 
@@ -123,7 +126,8 @@ app.*.map.json
 /android/app/release
 ''';
 
-  static String readme({required String name, required String description}) => '''# $name
+  static String readme({required String name, required String description}) =>
+      '''# $name
 
 $description
 

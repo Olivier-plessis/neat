@@ -20,19 +20,31 @@ void main() {
     test('the placeholder list is a top-level final, computed once', () {
       expect(
         code,
-        contains('final _recipeSkeletonItems = List.generate(8, (_) => RecipeEntity('),
+        contains(
+          'final _recipeSkeletonItems = List.generate(8, (_) => RecipeEntity(',
+        ),
       );
     });
 
-    test('build() references the hoisted variable, not an inline List.generate', () {
-      expect(code, contains('Skeletonizer(child: _RecipeList(items: _recipeSkeletonItems))'));
-      expect(code, isNot(contains('items: List.generate(\n')));
-    });
+    test(
+      'build() references the hoisted variable, not an inline List.generate',
+      () {
+        expect(
+          code,
+          contains(
+            'Skeletonizer(child: _RecipeList(items: _recipeSkeletonItems))',
+          ),
+        );
+        expect(code, isNot(contains('items: List.generate(\n')));
+      },
+    );
 
     test('the hoisted variable sits before the class, not inside build()', () {
       final varIdx = code.indexOf('final _recipeSkeletonItems');
       final classIdx = code.indexOf('class RecipePage');
-      final buildIdx = code.indexOf('Widget build(BuildContext context, WidgetRef ref)');
+      final buildIdx = code.indexOf(
+        'Widget build(BuildContext context, WidgetRef ref)',
+      );
       expect(varIdx, greaterThan(-1));
       expect(varIdx, lessThan(classIdx));
       expect(varIdx, lessThan(buildIdx));

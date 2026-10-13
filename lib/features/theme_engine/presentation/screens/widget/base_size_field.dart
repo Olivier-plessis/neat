@@ -3,7 +3,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 
 class BaseSizeField extends HookWidget {
-  const BaseSizeField({required this.value, required this.onChanged, super.key});
+  const BaseSizeField({
+    required this.value,
+    required this.onChanged,
+    super.key,
+  });
 
   final double value;
   final ValueChanged<double> onChanged;

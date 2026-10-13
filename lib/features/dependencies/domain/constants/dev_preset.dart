@@ -32,8 +32,16 @@ const devPresetPackages = [
     version: '8.6.0',
     description: 'HTTP client generator using annotations.',
   ),
-  PubPackage(name: 'go_router', version: '17.5.0', description: 'Declarative routing for Flutter.'),
-  PubPackage(name: 'envied', version: '1.3.5', description: 'Declarative env for Flutter.'),
+  PubPackage(
+    name: 'go_router',
+    version: '17.5.0',
+    description: 'Declarative routing for Flutter.',
+  ),
+  PubPackage(
+    name: 'envied',
+    version: '1.3.5',
+    description: 'Declarative env for Flutter.',
+  ),
 
   // ── Dev dependencies ──────────────────────────────────────────────────────
   PubPackage(

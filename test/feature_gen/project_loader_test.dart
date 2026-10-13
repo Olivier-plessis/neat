@@ -18,8 +18,9 @@ void main() {
   });
 
   void writeContract(NeatContract c) {
-    File('${tempRoot.path}/.neat.json')
-        .writeAsStringSync(jsonEncode(c.toJson()));
+    File(
+      '${tempRoot.path}/.neat.json',
+    ).writeAsStringSync(jsonEncode(c.toJson()));
   }
 
   void makeFeatures(List<String> names) {
@@ -51,10 +52,13 @@ void main() {
     expect(project.features, ['auth', 'home', 'profile']); // sorted, from disk
   });
 
-  test('returns null when there is no .neat.json (not a NEAT project)', () async {
-    makeFeatures(['home']);
-    expect(await loader.load(tempRoot.path), isNull);
-  });
+  test(
+    'returns null when there is no .neat.json (not a NEAT project)',
+    () async {
+      makeFeatures(['home']);
+      expect(await loader.load(tempRoot.path), isNull);
+    },
+  );
 
   test('returns null on a malformed contract', () async {
     File('${tempRoot.path}/.neat.json').writeAsStringSync('{ not valid json');
@@ -70,28 +74,32 @@ void main() {
 
   test('scanFeatures ignores hidden dirs', () async {
     Directory('${tempRoot.path}/lib/features/home').createSync(recursive: true);
-    Directory('${tempRoot.path}/lib/features/.DS_cache').createSync(recursive: true);
+    Directory(
+      '${tempRoot.path}/lib/features/.DS_cache',
+    ).createSync(recursive: true);
     expect(loader.scanFeatures(tempRoot.path, contract), ['home']);
   });
 
   test(
-      'packageSplit: scans packages/ for unprefixed feature packages, excluding '
-      'core/local_storage/auth/<projectName>_ui/<projectName>_database', () async {
-    final split = contract.copyWith(packageSplit: true);
-    writeContract(split);
-    for (final pkg in [
-      'core',
-      'local_storage',
-      'auth',
-      'demo_ui',
-      'demo_database',
-      'home',
-      'orders',
-    ]) {
-      Directory('${tempRoot.path}/packages/$pkg').createSync(recursive: true);
-    }
-    final project = await loader.load(tempRoot.path);
-    expect(project, isNotNull);
-    expect(project!.features, ['home', 'orders']);
-  });
+    'packageSplit: scans packages/ for unprefixed feature packages, excluding '
+    'core/local_storage/auth/<projectName>_ui/<projectName>_database',
+    () async {
+      final split = contract.copyWith(packageSplit: true);
+      writeContract(split);
+      for (final pkg in [
+        'core',
+        'local_storage',
+        'auth',
+        'demo_ui',
+        'demo_database',
+        'home',
+        'orders',
+      ]) {
+        Directory('${tempRoot.path}/packages/$pkg').createSync(recursive: true);
+      }
+      final project = await loader.load(tempRoot.path);
+      expect(project, isNotNull);
+      expect(project!.features, ['home', 'orders']);
+    },
+  );
 }

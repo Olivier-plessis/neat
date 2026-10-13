@@ -6,7 +6,8 @@ import 'package:neat/features/generation/domain/models/field_spec.dart';
 /// the Supabase migration, which is named after the JSON key). A field inferred
 /// from a pasted JSON (`start_date` ↔ `startDate`) keeps its JSON key: renaming
 /// the Dart identifier never changes what the API sends.
-FieldSpec renameField(FieldSpec field, String name) => field.jsonKey == field.dartName
+FieldSpec renameField(FieldSpec field, String name) =>
+    field.jsonKey == field.dartName
     ? field.copyWith(dartName: name, jsonKey: name)
     : field.copyWith(dartName: name);
 

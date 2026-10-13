@@ -20,8 +20,9 @@ class NeatSlider extends StatelessWidget {
   final int decimals;
   final ValueChanged<double> onChanged;
 
-  String _format(double v) =>
-      decimals == 0 ? '${v.round()}$unit' : '${v.toStringAsFixed(decimals)}$unit';
+  String _format(double v) => decimals == 0
+      ? '${v.round()}$unit'
+      : '${v.toStringAsFixed(decimals)}$unit';
 
   @override
   Widget build(BuildContext context) {
@@ -33,7 +34,11 @@ class NeatSlider extends StatelessWidget {
           children: [
             Text(
               label,
-              style: const TextStyle(color: Colors.white38, fontSize: 10, letterSpacing: 1.0),
+              style: const TextStyle(
+                color: Colors.white38,
+                fontSize: 10,
+                letterSpacing: 1.0,
+              ),
             ),
             Text(
               _format(value),
@@ -55,7 +60,12 @@ class NeatSlider extends StatelessWidget {
             overlayColor: Palette.colorPrimaryCyan.withValues(alpha: 0.12),
             thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
           ),
-          child: Slider(value: value.clamp(min, max), min: min, max: max, onChanged: onChanged),
+          child: Slider(
+            value: value.clamp(min, max),
+            min: min,
+            max: max,
+            onChanged: onChanged,
+          ),
         ),
       ],
     );

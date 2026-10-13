@@ -31,7 +31,11 @@ class WidgetBookToggleCard extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(Icons.menu_book_outlined, color: context.neatColors.colorPrimaryCyan, size: 20),
+            Icon(
+              Icons.menu_book_outlined,
+              color: context.neatColors.colorPrimaryCyan,
+              size: 20,
+            ),
             14.gapW,
             Expanded(
               child: Column(
@@ -51,7 +55,11 @@ class WidgetBookToggleCard extends StatelessWidget {
                         ? 'An interactive catalog of your components with knobs & light/dark '
                               'themes. Run: flutter run -t widgetbook/main.dart'
                         : 'Select at least one component above to enable the catalog.',
-                    style: TextStyle(color: Colors.grey[500], fontSize: 12, height: 1.4),
+                    style: TextStyle(
+                      color: Colors.grey[500],
+                      fontSize: 12,
+                      height: 1.4,
+                    ),
                   ),
                 ],
               ),
@@ -65,28 +73,40 @@ class WidgetBookToggleCard extends StatelessWidget {
                 height: 28,
                 decoration: BoxDecoration(
                   color: active
-                      ? context.neatColors.colorPrimaryCyan.withValues(alpha: 0.15)
+                      ? context.neatColors.colorPrimaryCyan.withValues(
+                          alpha: 0.15,
+                        )
                       : Colors.white10,
                   borderRadius: .circular(14),
                   border: .all(
-                    color: active ? context.neatColors.colorPrimaryCyan : Colors.white12,
+                    color: active
+                        ? context.neatColors.colorPrimaryCyan
+                        : Colors.white12,
                     width: 1.5,
                   ),
                 ),
                 child: AnimatedAlign(
                   duration: const Duration(milliseconds: 200),
-                  alignment: active ? Alignment.centerRight : Alignment.centerLeft,
+                  alignment: active
+                      ? Alignment.centerRight
+                      : Alignment.centerLeft,
                   child: Padding(
                     padding: const .all(3),
                     child: Container(
                       width: 20,
                       height: 20,
                       decoration: BoxDecoration(
-                        color: active ? context.neatColors.colorPrimaryCyan : Colors.grey[700],
+                        color: active
+                            ? context.neatColors.colorPrimaryCyan
+                            : Colors.grey[700],
                         shape: BoxShape.circle,
                       ),
                       child: active
-                          ? const Icon(Icons.check, size: 11, color: Color(0xFF0E0E0E))
+                          ? const Icon(
+                              Icons.check,
+                              size: 11,
+                              color: Color(0xFF0E0E0E),
+                            )
                           : null,
                     ),
                   ),

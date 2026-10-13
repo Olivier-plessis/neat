@@ -28,7 +28,10 @@ class SectionHeader extends StatelessWidget {
             : Container(
                 width: 4,
                 height: 16,
-                decoration: BoxDecoration(color: accent, borderRadius: .circular(2)),
+                decoration: BoxDecoration(
+                  color: accent,
+                  borderRadius: .circular(2),
+                ),
               ),
         8.gapW,
         Text(label, style: context.textTheme.headlineMedium),
