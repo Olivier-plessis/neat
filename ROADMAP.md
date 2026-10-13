@@ -1322,11 +1322,8 @@ Harness-proven: `pubspec_builder_test.dart` gained two cases (override present
   once released it does, with no failed attempt) and the reverse (an older child
   is not held back by a newer parent write).
 - **Docs of the generated project**: `AGENTS.md` and `docs/OFFLINE.md` tell a
-  child to declare its parent, and a parent's local delete to drop the child
-  rows **and their queued Outbox writes** in the same transaction (they could
-  only fail once the parent is gone from the server) — archy does it in
-  `WorksiteLocalSource.deleteById`. Not generated: it edits the *parent's*
-  files, which a child's generation does not touch.
+  child to declare its parent. The matching cleanup when a parent is deleted on
+  the device is generated since §5ac.
 - Tests: `sync_dependency_test.dart` (new: the template, the provider,
   `SyncParents` on every layout, the scaffolder, docs, the shipped test), and
   the Workshop scenario of `offline_sync_integration_test.dart` now adds a
@@ -1367,6 +1364,46 @@ Harness-proven: `pubspec_builder_test.dart` gained two cases (override present
   `offline_sync_integration_test.dart` asserts the `note` migration's
   `person_id uuid not null … references public.people (id) on delete cascade`
   and its index.
+
+### 5ac. Deleting a parent on the device cleans up its children — found building archy
+
+> Drift has no foreign key, so deleting a worksite left its tasks in the local
+> database — and, worse, their writes in the Outbox, which could only fail on
+> the server's foreign key once the worksite was gone (retried 5 times, parked,
+> retried at every launch). archy fixed it by hand in
+> `WorksiteLocalSource.deleteById`.
+- **An anchor in the parent**: the generated local source's `deleteById` now
+  runs in a transaction (`_db.transaction`) and carries
+  `// neat:on-delete-children` before the parent's own delete.
+- **Inserted when a child is generated** (`ParentCleanup`): for each *required*
+  `<parent>_id` reference (same convention as §5aa / §5ab, the parent being a
+  feature of the project that has a local source), two lines go before the
+  anchor — `await _db.<child>Dao.deleteBy<Field>(id);` and, with sync,
+  `await _db.outboxDao.discardWrites(resource: '<child resource>', field:
+  '<json key>', value: id);`. The anchor stays, so a second child goes after the
+  first; the insertion is idempotent. Whatever the layout (split package,
+  merged child, feature-first folder).
+- **Supporting API**: the child's DAO gets `deleteBy<Field>(value)` (one per
+  required reference), and the Outbox DAO gets
+  `discardWrites({resource, field, value})` — the queued writes of a resource
+  whose JSON payload has `field == value`, matched on the endpoint's leading
+  path like `SyncService` does, conflicting ones included. A payload that isn't
+  JSON is left queued.
+- **Mirrors the delete rule of §5ab**: `cascade` ⇒ delete locally. An optional
+  reference (`set null`) is **reported, not guessed** — the Workshop logs that
+  clearing it on the children is left to the developer. A parent generated
+  before the anchor existed is reported the same way (the lines to write are
+  named); nothing is rewritten.
+- **Shipped test**: the generated `sync_service_test.dart` covers
+  `discardWrites` (a parent's children, an update of one, another parent's
+  child, another resource with the same payload). `AGENTS.md` / `OFFLINE.md`
+  describe the mechanism and the manual cases.
+- Tests: `parent_cleanup_test.dart` (new: the templates, the parent links on
+  every layout, the insertion, a second child, idempotence, no-sync, optional,
+  anchor-less parent), and the Workshop scenario of
+  `offline_sync_integration_test.dart` asserts the generated cleanup in
+  `person_local_source.dart` and `deleteByPersonId` in the note DAO — the
+  generated workspace then analyzes (exit 0) and passes its own tests.
 
 ### 6. Multiple architectures — later, with caution
 

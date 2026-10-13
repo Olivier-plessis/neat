@@ -3,8 +3,8 @@ import 'dart:io';
 import 'package:neat/features/generation/domain/models/field_spec.dart';
 
 /// How a feature's entity says "my rows belong to another feature's": a
-/// `<feature>_id` field (`worksite_id` → the `worksite` feature). The id itself
-/// and a reference to the feature itself don't count.
+/// `<feature>_id` String field (`worksite_id` → the `worksite` feature). The id
+/// itself and a reference to the feature itself don't count.
 ///
 /// Shared by what follows from it: the sync order (SyncParents) and the
 /// foreign key of the Supabase migration (ParentTables).
@@ -16,6 +16,7 @@ class ParentReferences {
     for (final f in fields)
       if (!f.isId &&
           f.isScalar &&
+          f.dartType == 'String' &&
           f.jsonKey.endsWith('_id') &&
           f.jsonKey.length > 3)
         if (f.jsonKey.substring(0, f.jsonKey.length - 3) != featureName)

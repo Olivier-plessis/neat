@@ -979,7 +979,12 @@ class ${p}LocalSource {
 
   Future<void> upsert(${p}Model model) => _db.${c}Dao.upsert$p(_toRow(model));
 
-  Future<void> deleteById(String id) => _db.${c}Dao.delete$p(id);
+  /// In a transaction: a child feature added later inserts its own cleanup
+  /// (its rows, its queued writes) at the anchor — see ParentCleanup.
+  Future<void> deleteById(String id) => _db.transaction(() async {
+    // neat:on-delete-children
+    await _db.${c}Dao.delete$p(id);
+  });
 
   ${p}Model _toModel(${p}Row row) => ${p}Model($toModelArgs);
 

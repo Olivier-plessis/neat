@@ -7,10 +7,12 @@ import 'package:neat/features/feature_gen/domain/services/project_constraints.da
 import 'package:neat/features/generation/domain/models/field_spec.dart';
 import 'package:neat/features/generation/domain/services/feature_scaffolder.dart';
 import 'package:neat/features/generation/domain/services/i18n_importer.dart';
+import 'package:neat/features/generation/domain/services/parent_cleanup.dart';
 import 'package:neat/features/generation/domain/services/parent_tables.dart';
 import 'package:neat/features/generation/domain/services/sync_parents.dart';
 import 'package:neat/features/generation/domain/services/templates/core_package_templates.dart';
 import 'package:neat/features/generation/domain/services/templates/core_templates.dart';
+import 'package:neat/features/generation/domain/services/templates/dart/_template_utils.dart' show outboxResourceFor;
 import 'package:neat/features/generation/domain/services/templates/local_storage_templates.dart';
 import 'package:neat/features/generation/domain/services/templates/supabase_templates.dart';
 import 'package:neat/features/generation/domain/usecases/writers/i18n_writer.dart';
@@ -502,12 +504,38 @@ class GenerateFeatureUsecase {
     // package (only when the feature actually keeps a Drift-backed local source).
     if (needsDriftTable) {
       onLog('[▶] Injecting Drift table for "$featureName"...');
+      // Its references to a parent feature: deleting the parent on the device
+      // must delete these rows and their queued writes (Drift has no foreign
+      // key) — the DAO gets the delete, the parent's local source calls it.
+      final parentLinks = await ParentCleanup.linksFor(
+        projectPath: project.path,
+        featureName: featureName,
+        fields: options.fields,
+      );
       await _injectDriftTable(
         project.path,
         localStoragePackage,
         featureName,
         options.fields,
+        cascadeFields: [
+          for (final link in parentLinks)
+            if (link.cascades) link.field,
+        ],
       );
+      for (final note in await ParentCleanup.patch(
+        links: parentLinks,
+        childFeature: featureName,
+        resource: hasSync
+            ? outboxResourceFor(
+                httpClient: httpClient,
+                featureName: featureName,
+                apiPath: options.apiPath.isEmpty ? null : options.apiPath,
+                tableName: options.tableName.isEmpty ? null : options.tableName,
+              )
+            : null,
+      )) {
+        onLog(note);
+      }
       // The feature DI references the shared infrastructure providers; create
       // them if this project predates that file (self-heal).
       if (useAnnotations) {
@@ -814,8 +842,9 @@ class GenerateFeatureUsecase {
     String projectPath,
     String localStoragePackage,
     String featureName,
-    List<FieldSpec> fields,
-  ) async {
+    List<FieldSpec> fields, {
+    List<FieldSpec> cascadeFields = const [],
+  }) async {
     final db = File(
       '$projectPath/packages/$localStoragePackage/lib/src/database.dart',
     );
@@ -854,7 +883,7 @@ class GenerateFeatureUsecase {
     );
     await daoFile.create(recursive: true);
     await daoFile.writeAsString(
-      LocalStorageTemplates.featureDaoFile(featureName),
+      LocalStorageTemplates.featureDaoFile(featureName, cascadeFields: cascadeFields),
     );
 
     // Bump the schema version + add a migration step so a device that
