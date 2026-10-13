@@ -11,7 +11,7 @@ jobs:
   analyze-and-test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: subosito/flutter-action@v2
         with:
@@ -40,7 +40,7 @@ jobs:
   generation:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: subosito/flutter-action@v2
         with:
@@ -53,7 +53,7 @@ jobs:
       # Best-effort key (the generated deps aren't in this repo's lockfile), so
       # restore-keys let us reuse the latest cache regardless of the hash.
       - name: Cache pub dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.pub-cache
           key: pub-cache-${{ runner.os }}-${{ hashFiles('.github/workflows/flutter.yml', 'test/generation/full_generation_integration_test.dart') }}
