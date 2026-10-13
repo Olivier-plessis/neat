@@ -1,0 +1,5 @@
+# Revisions `git blame` skips (GitHub reads this file by itself; locally:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs).
+
+# style: dart format the whole tree (no functional change)
+b9dcb7589b24c43b5c43843bb509a8a0f0f9646c

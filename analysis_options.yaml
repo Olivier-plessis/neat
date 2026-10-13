@@ -1,5 +1,10 @@
 include: package:flutter_lints/flutter.yaml
 
+# Pinned so `dart format`, the CI, the pre-push hook and every IDE agree on the width
+# (80 is Dart's default, and the width of the generated projects).
+formatter:
+  page_width: 80
+
 analyzer:
   exclude:
     - "**/*.g.dart"

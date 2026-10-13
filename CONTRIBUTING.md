@@ -37,21 +37,19 @@ State models live in `domain/models` (freezed). Domain code never imports presen
 
 ## Formatting
 
-Generated projects are `dart format`-clean and their CI checks it
-(`dart format --output=none --set-exit-if-changed .`); their `analysis_options.yaml`
-pins `formatter: page_width: 80`. NEAT's own source is **not** formatted as a whole
-yet (about half of the files would change), so its CI step stays commented out.
-
-`.githooks/pre-push` checks the Dart files a push touches, so formatting can be
-adopted file by file:
+The whole tree is `dart format`-clean (width 80, pinned in `analysis_options.yaml`) and the CI
+checks it (`dart format --output=none --set-exit-if-changed .`), like the CI of the projects NEAT
+generates. `.githooks/pre-push` runs the same check before a push:
 
 ```bash
-git config core.hooksPath .githooks   # once per clone
-git push --no-verify                  # skip it for one push
+git config core.hooksPath .githooks                       # once per clone
+git config blame.ignoreRevsFile .git-blame-ignore-revs    # optional: blame skips the format commit
+git push --no-verify                                      # skip the hook for one push
 ```
 
-Run `dart format <file>` on a file before you push it. The better end state is one
-dedicated "format everything" commit, then the hook and the CI step both check `.`.
+Format from the terminal (`dart format .`) or set your IDE's Dart line length to 80. In Android Studio
+that is Settings → Editor → Code Style → Dart (or the general hard wrap) — its own Reformat Code can
+otherwise produce a different layout than `dart format` and fail the CI.
 
 ## Scope
 
