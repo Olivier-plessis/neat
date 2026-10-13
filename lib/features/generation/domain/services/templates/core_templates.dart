@@ -1598,6 +1598,11 @@ ref.watch(${c}SyncProvider);
   of that resource are sent, so a child never reaches the server before its
   parent. The Workshop sets it when a `<feature>_id` field points at an
   existing synced feature. Waiting is not an attempt and logs nothing.
+- Deleting a parent on the device also deletes its children's rows and their
+  still-queued writes (`OutboxDao.discardWrites`): Drift has no foreign key, and
+  once the parent is gone from the server those writes could only fail. The
+  parent's `deleteById` carries a `// neat:on-delete-children` anchor where the
+  Workshop inserts it when a child has a required `<parent>_id` field.
 - Successful replays are removed from the queue.
 - A failed replay is logged (`AppLogger.w`: operation, endpoint, attempt,
   error). Failing ones back off exponentially (5s, 10s, 20s... capped at 5

@@ -141,7 +141,8 @@ class AgentsMdTemplate {
       b.writeln('- **Anchors (do not reformat away):** NEAT inserts new routes at `// neat:route-imports` '
           'and `// neat:route-entries` in `routes.dart`, and constants above `// neat:routes` in '
           '`app_route_path.dart`. Child/shell routes use `// neat:${builder ? 'typed-' : ''}children:<parent>` / '
-          '`// neat:shell-branches` / `// neat:shell-destinations`.\n');
+          '`// neat:shell-branches` / `// neat:shell-destinations`, and `// neat:on-delete-children` in a local source '
+          '(the Workshop inserts a child\'s cleanup there).\n');
     }
 
     // ── Networking ──────────────────────────────────────────────────────────
@@ -248,9 +249,13 @@ class AgentsMdTemplate {
             'when a `<feature>_id` field points at an existing synced feature. Its writes then wait until the '
             'older writes of that resource are sent. Without it, both services flush at the same moment when '
             'the network returns and the child can reach the server before its parent (foreign key violation).');
-        b.writeln('  - Deleting a parent locally must also drop the child rows **and their writes still in the '
-            'Outbox** (they could only fail once the parent is gone from the server) — do it in the same '
-            'transaction as the parent\'s local delete.');
+        b.writeln('  - **Deleting a parent on the device** must also delete its children\'s rows **and their '
+            'writes still in the Outbox** (Drift has no foreign key, and once the parent is gone from the '
+            'server those writes could only fail). The parent\'s `deleteById` runs in a transaction with a '
+            '`// neat:on-delete-children` anchor: the Workshop inserts `<child>Dao.deleteBy<Field>(id)` and '
+            '`outboxDao.discardWrites(…)` there when you add a child with a **required** `<parent>_id` field. '
+            'An optional one (`set null`), or a parent generated before the anchor existed, is yours to do '
+            'by hand, in the same transaction.');
         if (c.generateAuth) {
           b.writeln('- **Signing out wipes the local database** (`clearLocalDataProvider` → '
               '`AppDatabase.clearAll()`): it belongs to the device, not to an account, so the next account '

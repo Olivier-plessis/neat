@@ -24,6 +24,7 @@ class OfflineTestTemplates {
     required String resource,
   }) =>
       '''import 'dart:async';
+import 'dart:convert';
 
 import 'package:$corePackage/core/network/network_info.dart';
 import 'package:$corePackage/core/sync/sync_service.dart';
@@ -137,6 +138,24 @@ void main() {
     expect(replayed.single.endpoint, '/$resource/42');
     final left = await pending();
     expect(left.map((e) => e.endpoint), ['/other_resource']);
+  });
+
+  test('discardWrites drops only the queued writes of a deleted parent', () async {
+    Future<void> enqueueFor(String endpoint, String parent) => db.outboxDao.enqueueOutbox(
+      operation: 'create',
+      endpoint: endpoint,
+      payload: jsonEncode({'id': endpoint, 'parent_id': parent}),
+    );
+    await enqueueFor('/${resource}_child', 'p1');
+    await enqueueFor('/${resource}_child/7', 'p1'); // an update of the same child
+    await enqueueFor('/${resource}_child', 'p2'); // a child of another parent
+    await enqueueFor('/$resource', 'p1'); // another resource, same payload
+
+    await db.outboxDao.discardWrites(resource: '${resource}_child', field: 'parent_id', value: 'p1');
+
+    final left = await pending();
+    expect(left.map((e) => e.endpoint), ['/${resource}_child', '/$resource']);
+    expect((jsonDecode(left.first.payload!) as Map)['parent_id'], 'p2');
   });
 
   group('a resource that depends on another', () {

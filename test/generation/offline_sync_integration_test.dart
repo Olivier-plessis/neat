@@ -412,6 +412,21 @@ void main() {
       expect(noteMigration, contains('person_id uuid not null\n    references public.people (id) on delete cascade'));
       expect(noteMigration, contains('create index notes_person_id_idx on public.notes (person_id);'));
 
+      // §5ac: deleting a person on the device deletes its notes and discards
+      // their queued writes — generated into the parent's local source (it
+      // compiles and runs, as `flutter analyze` / `flutter test` below prove).
+      // (The Workshop formats the project, so the call may span several lines.)
+      final personSource = read('packages/person/lib/data/sources/person_local_source.dart');
+      final compact = personSource.replaceAll(RegExp(r'\s+'), '');
+      expect(compact, contains('deleteById(Stringid)=>_db.transaction(()async{'));
+      expect(compact, contains('await_db.noteDao.deleteByPersonId(id);'));
+      expect(compact, contains("await_db.outboxDao.discardWrites(resource:'notes',field:'person_id',value:id"));
+      expect(personSource, contains('// neat:on-delete-children'));
+      expect(
+        read('packages/neat_workshop_sync_test_database/lib/src/dao/note_dao.dart'),
+        contains('Future<void> deleteByPersonId(String value) =>'),
+      );
+
       await expectCiGreen(projectDir);
     },
     timeout: const Timeout(Duration(minutes: 20)),
