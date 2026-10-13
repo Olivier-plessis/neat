@@ -7,9 +7,12 @@ import 'package:neat/features/feature_gen/domain/services/project_constraints.da
 import 'package:neat/features/generation/domain/models/field_spec.dart';
 import 'package:neat/features/generation/domain/services/feature_scaffolder.dart';
 import 'package:neat/features/generation/domain/services/i18n_importer.dart';
+import 'package:neat/features/generation/domain/services/parent_tables.dart';
+import 'package:neat/features/generation/domain/services/sync_parents.dart';
 import 'package:neat/features/generation/domain/services/templates/core_package_templates.dart';
 import 'package:neat/features/generation/domain/services/templates/core_templates.dart';
 import 'package:neat/features/generation/domain/services/templates/local_storage_templates.dart';
+import 'package:neat/features/generation/domain/services/templates/supabase_templates.dart';
 import 'package:neat/features/generation/domain/usecases/writers/i18n_writer.dart';
 import 'package:neat/features/generation/domain/usecases/writers/pubspec_writer.dart';
 
@@ -247,6 +250,26 @@ class GenerateFeatureUsecase {
           corePackageName: corePackageName,
         );
 
+    // A `<feature>_id` field pointing at an already-synced feature: this one's
+    // sync must wait for that parent's older writes.
+    final syncDependsOn = hasSync && !options.useCustomEndpoints
+        ? await SyncParents.resourcesFor(
+            projectPath: project.path,
+            featureName: featureName,
+            fields: options.fields,
+          )
+        : const <String>[];
+
+    // Supabase: a `<feature>_id` field pointing at another feature's table
+    // becomes a `uuid` foreign key in this feature's migration.
+    final foreignKeys = httpClient == 'supabase' && effHasHttp && !options.useCustomEndpoints
+        ? await ParentTables.referencesFor(
+            projectPath: project.path,
+            featureName: featureName,
+            fields: options.fields,
+          )
+        : const <String, ForeignKey>{};
+
     onLog(
       '[▶] Generating feature "$featureName" (matching the project stack)...',
     );
@@ -296,6 +319,8 @@ class GenerateFeatureUsecase {
       needsShellRegistration:
           asShell || (asChild && parentIsShellBranch && !mergeIntoParent),
       mergeBase: mergeBase,
+      syncDependsOn: syncDependsOn,
+      foreignKeys: foreignKeys,
     );
     onLog('[✓] Feature files written.');
 

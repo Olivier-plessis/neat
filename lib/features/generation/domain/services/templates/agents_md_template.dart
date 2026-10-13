@@ -243,6 +243,14 @@ class AgentsMdTemplate {
         if (isSupabase) {
           b.writeln('  - Creates are replayed with `upsert`, so a replay after a crash is harmless.');
         }
+        b.writeln('  - **A feature whose rows reference another\'s** (a `worksite_id` field) declares it: '
+            '`SyncService(…, resource: \'tasks\', dependsOn: const {\'worksites\'})` — the Workshop writes it '
+            'when a `<feature>_id` field points at an existing synced feature. Its writes then wait until the '
+            'older writes of that resource are sent. Without it, both services flush at the same moment when '
+            'the network returns and the child can reach the server before its parent (foreign key violation).');
+        b.writeln('  - Deleting a parent locally must also drop the child rows **and their writes still in the '
+            'Outbox** (they could only fail once the parent is gone from the server) — do it in the same '
+            'transaction as the parent\'s local delete.');
         if (c.generateAuth) {
           b.writeln('- **Signing out wipes the local database** (`clearLocalDataProvider` → '
               '`AppDatabase.clearAll()`): it belongs to the device, not to an account, so the next account '
@@ -347,6 +355,10 @@ class AgentsMdTemplate {
           'model, entity and Drift table: the app never sends them, the column defaults and the trigger '
           'fill them. By default a table is owned by the signed-in user (`owner_id` + row level security); '
           'the Workshop\'s "Owned by the signed-in user" turns that off for a shared table.');
+      b.writeln('- **A `<feature>_id` field that points at another feature** (`worksite_id` on a task) is '
+          'generated as a `uuid` foreign key with an index, `on delete cascade` when required (`set null` when '
+          'optional) — when that feature\'s migration is in `supabase/migrations/`. Check the delete rule fits '
+          'your data; the Dart field stays a `String`.');
     }
     b.writeln('- Do not add a second routing / state-management / backend library.\n');
 

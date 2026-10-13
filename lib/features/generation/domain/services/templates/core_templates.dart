@@ -1353,8 +1353,20 @@ typedef OutboxReplay = Future<ReplaySyncResult> Function(OutboxEntry entry);
 /// The Outbox table is shared by every feature, so each service only handles
 /// the entries of its own [resource] — the leading path of the entry's endpoint
 /// (`/products/42` → `products`) — and leaves the others alone.
+///
+/// A resource whose rows point at another's (a task's `worksite_id`) names it
+/// in [dependsOn]: its writes then wait until the older writes of that
+/// resource have been sent. Without that, both services flush at the same
+/// time when the network returns and a child can reach the server before its
+/// parent exists (foreign key violation).
 class SyncService {
-  SyncService(this._db, this._network, this._replay, {required this.resource});
+  SyncService(
+    this._db,
+    this._network,
+    this._replay, {
+    required this.resource,
+    this.dependsOn = const {},
+  });
 
   final AppDatabase _db;
   final NetworkInfo _network;
@@ -1364,6 +1376,10 @@ class SyncService {
   /// (`products`) or a REST resource (`products`, or `api/v1/products` behind
   /// a prefix). An entry belongs to it when its path is, or sits under, it.
   final String resource;
+
+  /// Resources whose older writes must go out before this one's, written like
+  /// [resource] — e.g. `{'worksites'}` for the tasks.
+  final Set<String> dependsOn;
 
   /// A write that keeps failing is parked after this many attempts (kept in the
   /// table for inspection, but no longer retried) so it can't loop forever.
@@ -1375,14 +1391,31 @@ class SyncService {
   bool _flushing = false;
   bool _flushAgain = false;
 
-  bool _owns(OutboxEntry entry) {
-    // Path only (an absolute URL's scheme/host don't count), no empty segments.
-    final path = (Uri.tryParse(entry.endpoint)?.path ?? entry.endpoint)
-        .split('/')
-        .where((s) => s.isNotEmpty)
-        .join('/');
-    return path == resource || path.startsWith('\$resource/');
-  }
+  /// The entry's endpoint path only (an absolute URL's scheme/host don't
+  /// count), without empty segments.
+  static String _pathOf(OutboxEntry entry) =>
+      (Uri.tryParse(entry.endpoint)?.path ?? entry.endpoint)
+          .split('/')
+          .where((s) => s.isNotEmpty)
+          .join('/');
+
+  /// A path belongs to a resource when it is, or sits under, it.
+  static bool _isUnder(String path, String resource) =>
+      path == resource || path.startsWith('\$resource/');
+
+  bool _owns(OutboxEntry entry) => _isUnder(_pathOf(entry), resource);
+
+  /// Whether a write queued before [entry] is still waiting for a resource it
+  /// depends on. Entries are numbered in the order they were queued, across
+  /// every resource. A parked write (retries exhausted) still blocks: the
+  /// child could not be accepted without it either.
+  bool _waitsForParent(OutboxEntry entry, List<OutboxEntry> pending) =>
+      dependsOn.isNotEmpty &&
+      pending.any(
+        (other) =>
+            other.id < entry.id &&
+            dependsOn.any((parent) => _isUnder(_pathOf(other), parent)),
+      );
 
   /// Flushes right away, then again whenever a write is queued or connectivity
   /// comes back. The queue's first emission carries what is already pending, so
@@ -1449,8 +1482,12 @@ class SyncService {
       if (nextWait == null || wait < nextWait!) nextWait = wait;
     }
 
-    for (final entry in (await _db.outboxDao.pendingOutbox()).where(_owns)) {
+    final pending = await _db.outboxDao.pendingOutbox();
+    for (final entry in pending.where(_owns)) {
       if (entry.retryCount >= maxRetries) continue; // parked — give up
+      // Not a failure and not counted as an attempt: the parent's service
+      // emptying its part of the queue triggers another flush here.
+      if (_waitsForParent(entry, pending)) continue;
       final due = entry.nextRetryAt;
       if (due != null && due.isAfter(now)) {
         scheduleRetry(due.difference(now));
@@ -1556,6 +1593,11 @@ ref.watch(${c}SyncProvider);
 - The Outbox table is **shared by every feature**: each `SyncService` is
   created with its `resource` (the leading path of the entry's endpoint — the
   Supabase table name, or the REST resource) and only replays its own entries.
+- A feature whose rows reference another's (a `worksite_id` field) passes
+  `dependsOn: const {'worksites'}`: its writes then wait until the older writes
+  of that resource are sent, so a child never reaches the server before its
+  parent. The Workshop sets it when a `<feature>_id` field points at an
+  existing synced feature. Waiting is not an attempt and logs nothing.
 - Successful replays are removed from the queue.
 - A failed replay is logged (`AppLogger.w`: operation, endpoint, attempt,
   error). Failing ones back off exponentially (5s, 10s, 20s... capped at 5
