@@ -325,7 +325,11 @@ void main() {
       tableName: tableName,
     );
     final entityArgs = fields
-        .map((f) => f.isId ? '${f.dartName}: id' : '${f.dartName}: ${f.entityPlaceholder()}')
+        .map(
+          (f) => f.isId
+              ? '${f.dartName}: id'
+              : '${f.dartName}: ${f.entityPlaceholder()}',
+        )
         .join(', ');
     return '''import 'dart:convert';
 

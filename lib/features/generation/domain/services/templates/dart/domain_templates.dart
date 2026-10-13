@@ -22,7 +22,9 @@ class DomainTemplates {
     final objects = collectObjectSpecs(fields);
     // Enum fields: the entity types them as the domain enum, and re-exports it
     // so whatever imports the entity (model, page, tests) gets the enum too.
-    final enumFiles = [for (final e in collectEnumSpecs(fields)) '${e.enumFileName}.dart'];
+    final enumFiles = [
+      for (final e in collectEnumSpecs(fields)) '${e.enumFileName}.dart',
+    ];
     final enumImports = enumFiles.map((f) => "import '$f';").join('\n');
     final enumExports = enumFiles.map((f) => "export '$f';").join('\n');
     final enumLines = enumFiles.isEmpty ? '' : '$enumImports\n$enumExports\n';
@@ -56,10 +58,16 @@ $classes
     final id = idField(fields);
     final params = [
       for (final f in fields)
-        if (!f.isId) f.nullable ? '${f.entityType} ${f.dartName}' : 'required ${f.entityType} ${f.dartName}',
+        if (!f.isId)
+          f.nullable
+              ? '${f.entityType} ${f.dartName}'
+              : 'required ${f.entityType} ${f.dartName}',
     ].join(', ');
     final args = [
-      for (final f in fields) f.isId ? '${f.dartName}: const Uuid().v4()' : '${f.dartName}: ${f.dartName}',
+      for (final f in fields)
+        f.isId
+            ? '${f.dartName}: const Uuid().v4()'
+            : '${f.dartName}: ${f.dartName}',
     ].join(', ');
     return '''
   /// A $base that does not exist yet. [${id.dartName}] is generated here, on the
@@ -70,11 +78,17 @@ $classes
 
   /// One freezed entity class ([base] → `<base>Entity`). [entityType] already
   /// carries the nullability suffix.
-  static String _entityFreezed(String base, List<FieldSpec> fields, {bool clientId = false}) {
+  static String _entityFreezed(
+    String base,
+    List<FieldSpec> fields, {
+    bool clientId = false,
+  }) {
     final params = fields
-        .map((f) => f.nullable
-            ? '    ${f.entityType} ${f.dartName},'
-            : '    required ${f.entityType} ${f.dartName},')
+        .map(
+          (f) => f.nullable
+              ? '    ${f.entityType} ${f.dartName},'
+              : '    required ${f.entityType} ${f.dartName},',
+        )
         .join('\n');
     final create = clientId ? '\n${_createFactory(base, fields)}\n' : '';
     return '''@freezed
@@ -86,11 +100,21 @@ $create}''';
   }
 
   /// One plain entity class ([base] → `<base>Entity`).
-  static String _entityPlain(String base, List<FieldSpec> fields, {bool clientId = false}) {
+  static String _entityPlain(
+    String base,
+    List<FieldSpec> fields, {
+    bool clientId = false,
+  }) {
     final ctorParams = fields
-        .map((f) => f.nullable ? '    this.${f.dartName},' : '    required this.${f.dartName},')
+        .map(
+          (f) => f.nullable
+              ? '    this.${f.dartName},'
+              : '    required this.${f.dartName},',
+        )
         .join('\n');
-    final decls = fields.map((f) => '  final ${f.entityType} ${f.dartName};').join('\n');
+    final decls = fields
+        .map((f) => '  final ${f.entityType} ${f.dartName};')
+        .join('\n');
     final create = clientId ? '\n${_createFactory(base, fields)}\n' : '';
     return '''class ${base}Entity {
   const ${base}Entity({
@@ -115,7 +139,9 @@ $create}''';
     String? checkedBy,
   }) {
     final name = field.resolvedEnumName;
-    final values = field.enumValues.isEmpty ? FieldSpec.defaultEnumValues : field.enumValues;
+    final values = field.enumValues.isEmpty
+        ? FieldSpec.defaultEnumValues
+        : field.enumValues;
     final used = <String>{};
     final members = [
       for (final v in values)

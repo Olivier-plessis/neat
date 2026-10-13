@@ -57,7 +57,8 @@ class LaunchGenerationUsecase {
     // since ThemeWriter writes it into its own directory instead. A locally
     // -scoped addition, not a mutation of identity.targetPlatforms itself:
     // isWeb (just below) must still reflect the user's own choice, not this.
-    final needsWidgetbookWeb = theme.generateWidgetbook && !theme.extractUiPackage;
+    final needsWidgetbookWeb =
+        theme.generateWidgetbook && !theme.extractUiPackage;
     final requestedPlatforms = {
       ...identity.targetPlatforms,
       if (needsWidgetbookWeb) 'web',
@@ -100,7 +101,9 @@ class LaunchGenerationUsecase {
     final analysisOptions = File('${projectDir.path}/analysis_options.yaml');
     if (analysisOptions.existsSync()) {
       await analysisOptions.writeAsString(
-        ConfigTemplates.withFormatterWidth(await analysisOptions.readAsString()),
+        ConfigTemplates.withFormatterWidth(
+          await analysisOptions.readAsString(),
+        ),
       );
     }
 
@@ -388,7 +391,9 @@ class LaunchGenerationUsecase {
         // not generatable template text — see CoreTemplates.driftWebSetupDoc.
         await _write(
           '${projectDir.path}/docs/DRIFT_WEB_SETUP.md',
-          CoreTemplates.driftWebSetupDoc(localStoragePackage: localStoragePackage),
+          CoreTemplates.driftWebSetupDoc(
+            localStoragePackage: localStoragePackage,
+          ),
         );
       }
     }

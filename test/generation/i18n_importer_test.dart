@@ -23,10 +23,14 @@ void main() {
       expect(I18nImporter.parseLocales(''), isEmpty);
     });
 
-    test('excludes the (comments) column slang uses for per-key descriptions', () {
-      const csv = 'key,(comments),en,fr\ninboxCount.one,,1 message,1 message\n';
-      expect(I18nImporter.parseLocales(csv), ['en', 'fr']);
-    });
+    test(
+      'excludes the (comments) column slang uses for per-key descriptions',
+      () {
+        const csv =
+            'key,(comments),en,fr\ninboxCount.one,,1 message,1 message\n';
+        expect(I18nImporter.parseLocales(csv), ['en', 'fr']);
+      },
+    );
   });
 
   group('I18nImporter.slangCsvConfig', () {

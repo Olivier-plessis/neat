@@ -61,63 +61,106 @@ void main() {
   // lives in data/; usecase-level DI (built from the repository provider) is
   // the only DI-graph piece left in presentation/ (see the architecture-reference-inspired
   // layering fix — presentation never references a concrete Data class).
-  const repoProviders = 'features/orders/data/repositories/orders_repository_providers.dart';
-  const di = 'features/orders/presentation/providers/orders_usecase_providers.dart';
-
-  test('full feature (offline-first + usecases) scaffolds every layer', () async {
-    // Local source is only ever referenced by the offline-first 3-source
-    // repository — that requires a Drift-backed project (localStoragePackage),
-    // not just includeLocalSource: true on its own (see the test below).
-    await scaffold(
-      hasHttpClient: true,
-      includeLocalSource: true,
-      includeUseCases: true,
-      localStoragePackage: 'demo_local_storage',
-    );
-    expect(exists(api), isTrue);
-    expect(exists(local), isTrue);
-    expect(exists(repo), isTrue);
-    expect(exists(getUc), isTrue);
-    expect(exists(crudUc), isTrue);
-    expect(exists(repoProviders), isTrue);
-    expect(exists(di), isTrue);
-  });
-
-  test('remote-only feature (no local source) omits the local source', () async {
-    await scaffold(hasHttpClient: true, includeLocalSource: false, includeUseCases: true);
-    expect(exists(api), isTrue);
-    expect(exists(local), isFalse);
-    expect(exists(repo), isTrue);
-  });
+  const repoProviders =
+      'features/orders/data/repositories/orders_repository_providers.dart';
+  const di =
+      'features/orders/presentation/providers/orders_usecase_providers.dart';
 
   test(
-    'remote-only storage (no Drift package) omits the local source even with '
-    'includeLocalSource: true — the remote-only repository never takes one, '
-    'so writing it would be dead code',
+    'full feature (offline-first + usecases) scaffolds every layer',
     () async {
-      await scaffold(hasHttpClient: true, includeLocalSource: true, includeUseCases: true);
+      // Local source is only ever referenced by the offline-first 3-source
+      // repository — that requires a Drift-backed project (localStoragePackage),
+      // not just includeLocalSource: true on its own (see the test below).
+      await scaffold(
+        hasHttpClient: true,
+        includeLocalSource: true,
+        includeUseCases: true,
+        localStoragePackage: 'demo_local_storage',
+      );
+      expect(exists(api), isTrue);
+      expect(exists(local), isTrue);
+      expect(exists(repo), isTrue);
+      expect(exists(getUc), isTrue);
+      expect(exists(crudUc), isTrue);
+      expect(exists(repoProviders), isTrue);
+      expect(exists(di), isTrue);
+    },
+  );
+
+  test(
+    'remote-only feature (no local source) omits the local source',
+    () async {
+      await scaffold(
+        hasHttpClient: true,
+        includeLocalSource: false,
+        includeUseCases: true,
+      );
       expect(exists(api), isTrue);
       expect(exists(local), isFalse);
       expect(exists(repo), isTrue);
     },
   );
 
-  test('local-only feature (no remote) omits the API source & CRUD usecases', () async {
-    await scaffold(hasHttpClient: false, includeLocalSource: true, includeUseCases: true);
-    expect(exists(api), isFalse);
-    expect(exists(local), isTrue, reason: 'a local-only feature always keeps its local source');
-    expect(exists(repo), isTrue);
-    expect(exists(getUc), isTrue);
-    expect(exists(crudUc), isFalse, reason: 'no remote → no write CRUD usecases');
-  });
+  test(
+    'remote-only storage (no Drift package) omits the local source even with '
+    'includeLocalSource: true — the remote-only repository never takes one, '
+    'so writing it would be dead code',
+    () async {
+      await scaffold(
+        hasHttpClient: true,
+        includeLocalSource: true,
+        includeUseCases: true,
+      );
+      expect(exists(api), isTrue);
+      expect(exists(local), isFalse);
+      expect(exists(repo), isTrue);
+    },
+  );
+
+  test(
+    'local-only feature (no remote) omits the API source & CRUD usecases',
+    () async {
+      await scaffold(
+        hasHttpClient: false,
+        includeLocalSource: true,
+        includeUseCases: true,
+      );
+      expect(exists(api), isFalse);
+      expect(
+        exists(local),
+        isTrue,
+        reason: 'a local-only feature always keeps its local source',
+      );
+      expect(exists(repo), isTrue);
+      expect(exists(getUc), isTrue);
+      expect(
+        exists(crudUc),
+        isFalse,
+        reason: 'no remote → no write CRUD usecases',
+      );
+    },
+  );
 
   test('usecases off → no usecase files and no DI graph', () async {
-    await scaffold(hasHttpClient: true, includeLocalSource: true, includeUseCases: false);
+    await scaffold(
+      hasHttpClient: true,
+      includeLocalSource: true,
+      includeUseCases: false,
+    );
     expect(exists(getUc), isFalse);
     expect(exists(crudUc), isFalse);
-    expect(exists(repoProviders), isFalse,
-        reason: 'repository-level DI wires into the usecase graph — skipped when they are off');
-    expect(exists(di), isFalse, reason: 'the DI graph wires usecases — skipped when they are off');
+    expect(
+      exists(repoProviders),
+      isFalse,
+      reason:
+          'repository-level DI wires into the usecase graph — skipped when they are off',
+    );
+    expect(
+      exists(di),
+      isFalse,
+      reason: 'the DI graph wires usecases — skipped when they are off',
+    );
   });
 
   // ── mergeIntoParent (Workshop opt-in, child routes only) ────────────────────
@@ -126,56 +169,81 @@ void main() {
   // feature — see FeatureGenOptions.mergeIntoParent / GenerateFeatureUsecase's
   // mergeBase computation.
 
+  test('mergeBase re-roots domain/data/presentation under it, nested in an '
+      'orders/ subfolder per layer, instead of lib/features/orders/', () async {
+    await scaffold(
+      hasHttpClient: true,
+      includeLocalSource: true,
+      includeUseCases: true,
+      localStoragePackage: 'demo_local_storage',
+      mergeBase: '$lib/features/profile',
+    );
+    expect(
+      exists('features/profile/data/orders/sources/orders_api_source.dart'),
+      isTrue,
+    );
+    expect(
+      exists('features/profile/data/orders/sources/orders_local_source.dart'),
+      isTrue,
+    );
+    expect(
+      exists(
+        'features/profile/data/orders/repositories/orders_repository_impl.dart',
+      ),
+      isTrue,
+    );
+    expect(
+      exists('features/profile/domain/orders/entities/orders_entity.dart'),
+      isTrue,
+    );
+    expect(
+      exists('features/profile/presentation/orders/pages/orders_page.dart'),
+      isTrue,
+    );
+    // Not written at the old, non-merged top-level location.
+    expect(exists(api), isFalse);
+    expect(exists(repo), isFalse);
+
+    // Cross-layer relative imports must account for the extra orders/
+    // subfolder nested inside each layer (one more `../` than the default
+    // 'lib/features/orders/data/...' shape, plus orders/ re-inserted on
+    // the target side) — the real bug an existence-only check would miss.
+    expect(
+      read('features/profile/data/orders/models/orders_model.dart'),
+      contains("import '../../../domain/orders/entities/orders_entity.dart';"),
+    );
+    expect(
+      read(
+        'features/profile/data/orders/repositories/orders_repository_impl.dart',
+      ),
+      contains("import '../../../domain/orders/entities/orders_entity.dart';"),
+    );
+    expect(
+      read('features/profile/presentation/orders/pages/orders_page.dart'),
+      contains("import '../../../domain/orders/entities/orders_entity.dart';"),
+    );
+  });
+
   test(
-    'mergeBase re-roots domain/data/presentation under it, nested in an '
-    'orders/ subfolder per layer, instead of lib/features/orders/',
+    'mergeBase takes priority over isFeatureFirst when both are set',
     () async {
       await scaffold(
         hasHttpClient: true,
-        includeLocalSource: true,
+        includeLocalSource: false,
         includeUseCases: true,
-        localStoragePackage: 'demo_local_storage',
+        isFeatureFirst: false,
         mergeBase: '$lib/features/profile',
       );
-      expect(exists('features/profile/data/orders/sources/orders_api_source.dart'), isTrue);
-      expect(exists('features/profile/data/orders/sources/orders_local_source.dart'), isTrue);
-      expect(exists('features/profile/data/orders/repositories/orders_repository_impl.dart'), isTrue);
-      expect(exists('features/profile/domain/orders/entities/orders_entity.dart'), isTrue);
-      expect(exists('features/profile/presentation/orders/pages/orders_page.dart'), isTrue);
-      // Not written at the old, non-merged top-level location.
-      expect(exists(api), isFalse);
-      expect(exists(repo), isFalse);
-
-      // Cross-layer relative imports must account for the extra orders/
-      // subfolder nested inside each layer (one more `../` than the default
-      // 'lib/features/orders/data/...' shape, plus orders/ re-inserted on
-      // the target side) — the real bug an existence-only check would miss.
       expect(
-        read('features/profile/data/orders/models/orders_model.dart'),
-        contains("import '../../../domain/orders/entities/orders_entity.dart';"),
+        exists('features/profile/domain/orders/entities/orders_entity.dart'),
+        isTrue,
       );
+      // Neither the isFeatureFirst nor the layer-first (non-merged) shape.
       expect(
-        read('features/profile/data/orders/repositories/orders_repository_impl.dart'),
-        contains("import '../../../domain/orders/entities/orders_entity.dart';"),
+        exists('features/orders/domain/entities/orders_entity.dart'),
+        isFalse,
       );
-      expect(
-        read('features/profile/presentation/orders/pages/orders_page.dart'),
-        contains("import '../../../domain/orders/entities/orders_entity.dart';"),
-      );
+      expect(exists('domain/orders/entities/orders_entity.dart'), isFalse);
     },
   );
-
-  test('mergeBase takes priority over isFeatureFirst when both are set', () async {
-    await scaffold(
-      hasHttpClient: true,
-      includeLocalSource: false,
-      includeUseCases: true,
-      isFeatureFirst: false,
-      mergeBase: '$lib/features/profile',
-    );
-    expect(exists('features/profile/domain/orders/entities/orders_entity.dart'), isTrue);
-    // Neither the isFeatureFirst nor the layer-first (non-merged) shape.
-    expect(exists('features/orders/domain/entities/orders_entity.dart'), isFalse);
-    expect(exists('domain/orders/entities/orders_entity.dart'), isFalse);
-  });
 }

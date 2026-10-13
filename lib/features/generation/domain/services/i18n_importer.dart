@@ -25,7 +25,10 @@ class I18nImporter {
         .firstWhere((l) => l.trim().isNotEmpty, orElse: () => '');
     final cols = firstLine.split(',').map((c) => c.trim()).toList();
     if (cols.length <= 1) return const [];
-    return cols.sublist(1).where((c) => c.isNotEmpty && !c.startsWith('(')).toList();
+    return cols
+        .sublist(1)
+        .where((c) => c.isNotEmpty && !c.startsWith('('))
+        .toList();
   }
 
   /// slang.yaml pointing at the compact CSV. [baseLocale] must be one of the
@@ -57,7 +60,8 @@ string_interpolation: braces
     final locales = parseLocales(csvContent);
     final baseLocale = locales.isEmpty ? 'en' : locales.first;
 
-    final i18nDir = Directory('$projectPath/lib/i18n')..createSync(recursive: true);
+    final i18nDir = Directory('$projectPath/lib/i18n')
+      ..createSync(recursive: true);
     await File('${i18nDir.path}/strings.i18n.csv').writeAsString(csvContent);
 
     // The CSV is the single source — drop the default JSON scaffold if present.
@@ -66,7 +70,9 @@ string_interpolation: braces
       if (file.existsSync()) file.deleteSync();
     }
 
-    await File('$projectPath/slang.yaml').writeAsString(slangCsvConfig(baseLocale));
+    await File(
+      '$projectPath/slang.yaml',
+    ).writeAsString(slangCsvConfig(baseLocale));
 
     log('[▶] Importing translations (CSV) + regenerating (dart run slang)...');
     await runSlang(Directory(projectPath), log);
@@ -75,14 +81,18 @@ string_interpolation: braces
 
   /// Runs `dart run slang` to (re)generate `lib/i18n/strings.g.dart`.
   /// Best-effort: a failure is logged, not fatal.
-  Future<void> runSlang(Directory projectDir, void Function(String) onLog) async {
+  Future<void> runSlang(
+    Directory projectDir,
+    void Function(String) onLog,
+  ) async {
     final result = await Process.run(
       'dart',
       ['run', 'slang'],
       workingDirectory: projectDir.path,
       environment: {
         ...Platform.environment,
-        'PATH': '${Platform.environment['PATH']}:/usr/local/bin:/opt/homebrew/bin',
+        'PATH':
+            '${Platform.environment['PATH']}:/usr/local/bin:/opt/homebrew/bin',
       },
     );
     if (result.stdout.toString().trim().isNotEmpty) {

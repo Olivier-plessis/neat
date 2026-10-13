@@ -16,23 +16,35 @@ class ArchitectureScreen extends ConsumerWidget {
     final state = ref.watch(architectureProvider);
     final notifier = ref.read(architectureProvider.notifier);
     final hasRiverpod = ref.watch(
-      selectedPackagesProvider.select((list) => list.any((p) => p.name.contains('riverpod'))),
+      selectedPackagesProvider.select(
+        (list) => list.any((p) => p.name.contains('riverpod')),
+      ),
     );
     final hasBloc = ref.watch(
-      selectedPackagesProvider.select((list) => list.any((p) => p.name.contains('bloc'))),
+      selectedPackagesProvider.select(
+        (list) => list.any((p) => p.name.contains('bloc')),
+      ),
     );
     final hasGoRouter = ref.watch(
-      selectedPackagesProvider.select((list) => list.any((p) => p.name.contains('go_router'))),
+      selectedPackagesProvider.select(
+        (list) => list.any((p) => p.name.contains('go_router')),
+      ),
     );
     // Auth requires the typed router (a provider GoRouter) + the Supabase backend.
     final hasGoRouterBuilder = ref.watch(
-      selectedPackagesProvider.select((list) => list.any((p) => p.name == 'go_router_builder')),
+      selectedPackagesProvider.select(
+        (list) => list.any((p) => p.name == 'go_router_builder'),
+      ),
     );
     final hasSupabase = ref.watch(
-      selectedPackagesProvider.select((list) => list.any((p) => p.name == 'supabase_flutter')),
+      selectedPackagesProvider.select(
+        (list) => list.any((p) => p.name == 'supabase_flutter'),
+      ),
     );
     final hasFirebase = ref.watch(
-      selectedPackagesProvider.select((list) => list.any((p) => p.name == 'cloud_firestore')),
+      selectedPackagesProvider.select(
+        (list) => list.any((p) => p.name == 'cloud_firestore'),
+      ),
     );
     // A single backend drives the opt-ins; Firebase takes precedence if both.
     final hasBackend = hasSupabase || hasFirebase;
@@ -42,10 +54,14 @@ class ArchitectureScreen extends ConsumerWidget {
     // OnboardingTemplates) — same annotations requirement as Realtime/Storage.
     final canOnboarding = hasRiverpod && state.useRiverpodAnnotations;
     final hasDio = ref.watch(
-      selectedPackagesProvider.select((list) => list.any((p) => p.name == 'dio')),
+      selectedPackagesProvider.select(
+        (list) => list.any((p) => p.name == 'dio'),
+      ),
     );
     final hasChopper = ref.watch(
-      selectedPackagesProvider.select((list) => list.any((p) => p.name == 'chopper')),
+      selectedPackagesProvider.select(
+        (list) => list.any((p) => p.name == 'chopper'),
+      ),
     );
     // packageSplit combo (see ROADMAP.md §6a): dio/chopper/supabase/firebase,
     // any storage strategy (remote-only, offline-first read, or offline-first
@@ -82,8 +98,10 @@ class ArchitectureScreen extends ConsumerWidget {
     final subtitle = switch (tab) {
       ArchitectureTab.structure =>
         'Choose how your code is organized, tested, and split across packages.',
-      ArchitectureTab.storage => 'Choose how data is fetched, cached, and kept in sync.',
-      ArchitectureTab.features => 'Choose which optional features and flows to scaffold.',
+      ArchitectureTab.storage =>
+        'Choose how data is fetched, cached, and kept in sync.',
+      ArchitectureTab.features =>
+        'Choose which optional features and flows to scaffold.',
     };
 
     return ScreenForScaffold(
@@ -103,7 +121,10 @@ class ArchitectureScreen extends ConsumerWidget {
                 backendLabel: backendLabel,
                 canPackageSplit: canPackageSplit,
               ),
-              ArchitectureTab.storage => _StorageTab(state: state, notifier: notifier),
+              ArchitectureTab.storage => _StorageTab(
+                state: state,
+                notifier: notifier,
+              ),
               ArchitectureTab.features => _FeaturesTab(
                 state: state,
                 notifier: notifier,
@@ -150,7 +171,10 @@ class _StructureTab extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SectionHeader(icon: Icons.view_quilt_outlined, label: 'Structural Pattern'),
+          SectionHeader(
+            icon: Icons.view_quilt_outlined,
+            label: 'Structural Pattern',
+          ),
           const SizedBox(height: 12),
           IntrinsicHeight(
             child: Row(
@@ -162,7 +186,8 @@ class _StructureTab extends StatelessWidget {
                         'Organizes code by functional features. Recommended for scalability and team collaboration.',
                     isSelected: state.pattern == StructuralPattern.featureFirst,
                     isRecommended: true,
-                    onTap: () => notifier.setPattern(StructuralPattern.featureFirst),
+                    onTap: () =>
+                        notifier.setPattern(StructuralPattern.featureFirst),
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -183,7 +208,10 @@ class _StructureTab extends StatelessWidget {
           ),
 
           const SizedBox(height: 28),
-          SectionHeader(icon: Icons.layers_outlined, label: 'Clean Architecture Layers'),
+          SectionHeader(
+            icon: Icons.layers_outlined,
+            label: 'Clean Architecture Layers',
+          ),
           const SizedBox(height: 12),
           ToggleTile(
             title: 'Include Data Mappers',
@@ -193,7 +221,10 @@ class _StructureTab extends StatelessWidget {
           ),
 
           const SizedBox(height: 28),
-          SectionHeader(icon: Icons.bug_report_outlined, label: 'Testing Architecture'),
+          SectionHeader(
+            icon: Icons.bug_report_outlined,
+            label: 'Testing Architecture',
+          ),
           const SizedBox(height: 12),
           ToggleTile(
             title: 'Mirror Structure in /test',
@@ -230,7 +261,10 @@ class _StructureTab extends StatelessWidget {
 
           if (hasGoRouter && canAuth) ...[
             const SizedBox(height: 28),
-            SectionHeader(icon: Icons.space_dashboard_outlined, label: 'Navigation'),
+            SectionHeader(
+              icon: Icons.space_dashboard_outlined,
+              label: 'Navigation',
+            ),
             const SizedBox(height: 12),
             ToggleTile(
               title: 'Generate Auth ($backendLabel)',
@@ -290,12 +324,17 @@ class _StorageTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final selected = _options.firstWhere((o) => o.strategy == state.storageStrategy);
+    final selected = _options.firstWhere(
+      (o) => o.strategy == state.storageStrategy,
+    );
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SectionHeader(icon: Icons.cloud_off_outlined, label: 'Storage Strategy'),
+          SectionHeader(
+            icon: Icons.cloud_off_outlined,
+            label: 'Storage Strategy',
+          ),
           const SizedBox(height: 12),
           IntrinsicHeight(
             child: Row(
@@ -346,7 +385,11 @@ class _StorageTab extends StatelessWidget {
                       const SizedBox(height: 6),
                       Text(
                         selected.description,
-                        style: TextStyle(color: Colors.grey[500], fontSize: 12, height: 1.5),
+                        style: TextStyle(
+                          color: Colors.grey[500],
+                          fontSize: 12,
+                          height: 1.5,
+                        ),
                       ),
                     ],
                   ),
@@ -419,13 +462,20 @@ class _StorageCard extends StatelessWidget {
               ),
             ),
             4.gapH,
-            Text(subtitle, style: TextStyle(color: Colors.grey[500], fontSize: 12)),
+            Text(
+              subtitle,
+              style: TextStyle(color: Colors.grey[500], fontSize: 12),
+            ),
             const SizedBox(height: 12),
             if (active)
               const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.check_circle, color: Palette.colorPrimaryCyan, size: 14),
+                  Icon(
+                    Icons.check_circle,
+                    color: Palette.colorPrimaryCyan,
+                    size: 14,
+                  ),
                   SizedBox(width: 6),
                   Text(
                     'SELECTED',
@@ -486,11 +536,15 @@ class _FeaturesTab extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SectionHeader(icon: Icons.bookmark_added_outlined, label: 'First Feature'),
+          SectionHeader(
+            icon: Icons.bookmark_added_outlined,
+            label: 'First Feature',
+          ),
           const SizedBox(height: 12),
           ToggleTile(
             title: 'Generate example feature',
-            description: (hasRiverpod && !state.useRiverpodAnnotations) || hasBloc
+            description:
+                (hasRiverpod && !state.useRiverpodAnnotations) || hasBloc
                 ? 'FakeStore Products — with ${hasBloc ? (state.useCubit ? 'Cubit' : 'Bloc') : 'manual NotifierProvider'} '
                       '(no @riverpod annotations) this is a placeholder page + '
                       '${hasBloc ? (state.useCubit ? 'Cubit' : 'Bloc') : 'Notifier'} stub, not the '
@@ -557,7 +611,10 @@ class _FeaturesTab extends StatelessWidget {
 
           if (hasBackend && hasRiverpod) ...[
             const SizedBox(height: 28),
-            SectionHeader(icon: Icons.cloud_outlined, label: 'Backend ($backendLabel)'),
+            SectionHeader(
+              icon: Icons.cloud_outlined,
+              label: 'Backend ($backendLabel)',
+            ),
             const SizedBox(height: 12),
             // Backend credentials (URLs / keys / Firebase config) live
             // on the Dependencies screen now.
@@ -603,7 +660,11 @@ class _TreePreview extends StatelessWidget {
       children: [
         Row(
           children: [
-            const Icon(Icons.remove_red_eye_outlined, color: Palette.colorPrimaryCyan, size: 14),
+            const Icon(
+              Icons.remove_red_eye_outlined,
+              color: Palette.colorPrimaryCyan,
+              size: 14,
+            ),
             const SizedBox(width: 6),
             const Text(
               'FOLDER STRUCTURE PREVIEW',
@@ -652,7 +713,9 @@ class _FeatureNameField extends StatefulWidget {
 }
 
 class _FeatureNameFieldState extends State<_FeatureNameField> {
-  late final TextEditingController _ctrl = TextEditingController(text: widget.initialValue);
+  late final TextEditingController _ctrl = TextEditingController(
+    text: widget.initialValue,
+  );
 
   @override
   void didUpdateWidget(_FeatureNameField old) {
@@ -725,7 +788,9 @@ class _PatternCard extends StatelessWidget {
               children: [
                 Icon(
                   Icons.layers,
-                  color: isSelected ? Palette.colorPrimaryCyan : Colors.grey[600],
+                  color: isSelected
+                      ? Palette.colorPrimaryCyan
+                      : Colors.grey[600],
                   size: 22,
                 ),
                 const Spacer(),
@@ -735,14 +800,22 @@ class _PatternCard extends StatelessWidget {
                   height: 20,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: isSelected ? Palette.colorPrimaryCyan : Colors.transparent,
+                    color: isSelected
+                        ? Palette.colorPrimaryCyan
+                        : Colors.transparent,
                     border: Border.all(
-                      color: isSelected ? Palette.colorPrimaryCyan : Colors.white24,
+                      color: isSelected
+                          ? Palette.colorPrimaryCyan
+                          : Colors.white24,
                       width: 2,
                     ),
                   ),
                   child: isSelected
-                      ? const Icon(Icons.check, size: 12, color: Color(0xFF0E0E0E))
+                      ? const Icon(
+                          Icons.check,
+                          size: 12,
+                          color: Color(0xFF0E0E0E),
+                        )
                       : null,
                 ),
               ],
@@ -757,11 +830,21 @@ class _PatternCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            Text(description, style: TextStyle(color: Colors.grey[500], fontSize: 12, height: 1.5)),
+            Text(
+              description,
+              style: TextStyle(
+                color: Colors.grey[500],
+                fontSize: 12,
+                height: 1.5,
+              ),
+            ),
             if (isRecommended || disabled) ...[
               const SizedBox(height: 14),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   border: Border.all(
                     color: disabled

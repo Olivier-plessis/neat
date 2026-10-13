@@ -29,14 +29,16 @@ extension FieldCodegen on FieldSpec {
   /// [enumName], or — before generation has resolved it (see
   /// [resolveEnumNames]) — the PascalCase JSON key, so a template called
   /// directly still renders something that compiles.
-  String get resolvedEnumName => enumName.isNotEmpty ? enumName : pascal(jsonKey);
+  String get resolvedEnumName =>
+      enumName.isNotEmpty ? enumName : pascal(jsonKey);
 
   /// The generated enum's file name (without `.dart`): `worksite_status`.
   String get enumFileName => snakeCase(resolvedEnumName);
 
   /// `@JsonKey(name: 'json_key')` when the Dart name was renamed; empty
   /// otherwise. The caller places it (indentation differs per context).
-  String get jsonKeyAnnotation => needsJsonKey ? "@JsonKey(name: '$jsonKey')" : '';
+  String get jsonKeyAnnotation =>
+      needsJsonKey ? "@JsonKey(name: '$jsonKey')" : '';
 
   /// The id is always typed `String` in NEAT's contract (CRUD/Drift/realtime all
   /// key on it), but a real API may emit an int/num id (e.g. FakeStore). A plain
@@ -60,7 +62,8 @@ extension FieldCodegen on FieldSpec {
             ? '$raw == null ? null : $ctor($raw as Map<String, dynamic>)'
             : '$ctor($raw as Map<String, dynamic>)';
       case FieldKind.list:
-        final mapExpr = '($raw as List).map((e) => ${_elementFromJson('e')}).toList()';
+        final mapExpr =
+            '($raw as List).map((e) => ${_elementFromJson('e')}).toList()';
         return nullable ? '$raw == null ? null : $mapExpr' : mapExpr;
     }
   }
@@ -69,7 +72,8 @@ extension FieldCodegen on FieldSpec {
   String _elementFromJson(String e) {
     final el = element!;
     return switch (el.kind) {
-      FieldKind.object => '${el.objectName}Model.fromJson($e as Map<String, dynamic>)',
+      FieldKind.object =>
+        '${el.objectName}Model.fromJson($e as Map<String, dynamic>)',
       FieldKind.scalar => _scalarFromJson(e, el.dartType, false),
       FieldKind.enumeration => _scalarFromJson(e, 'String', false),
       FieldKind.list => e, // nested lists-of-lists not inferred in V1.5
@@ -98,7 +102,9 @@ extension FieldCodegen on FieldSpec {
     switch (kind) {
       case FieldKind.scalar:
         if (dartType == 'DateTime') {
-          return nullable ? '$dartName?.toIso8601String()' : '$dartName.toIso8601String()';
+          return nullable
+              ? '$dartName?.toIso8601String()'
+              : '$dartName.toIso8601String()';
         }
         return dartName;
       case FieldKind.enumeration:
@@ -109,7 +115,8 @@ extension FieldCodegen on FieldSpec {
         final el = element!;
         final inner = switch (el.kind) {
           FieldKind.object => '(e) => e.toJson()',
-          FieldKind.scalar => el.dartType == 'DateTime' ? '(e) => e.toIso8601String()' : null,
+          FieldKind.scalar =>
+            el.dartType == 'DateTime' ? '(e) => e.toIso8601String()' : null,
           FieldKind.enumeration || FieldKind.list => null,
         };
         if (inner == null) return dartName; // list of plain scalars
@@ -200,9 +207,10 @@ extension FieldCodegen on FieldSpec {
     final bang = nullable ? '!' : '';
     final encodeBody = switch (kind) {
       FieldKind.object => 'jsonEncode($ref$bang.toJson())',
-      FieldKind.list => element!.kind == FieldKind.object
-          ? 'jsonEncode($ref$bang.map((e) => e.toJson()).toList())'
-          : 'jsonEncode($ref$bang)',
+      FieldKind.list =>
+        element!.kind == FieldKind.object
+            ? 'jsonEncode($ref$bang.map((e) => e.toJson()).toList())'
+            : 'jsonEncode($ref$bang)',
       FieldKind.scalar || FieldKind.enumeration => ref,
     };
     return nullable ? '$ref == null ? null : $encodeBody' : encodeBody;
@@ -215,9 +223,10 @@ extension FieldCodegen on FieldSpec {
     final decodeBody = switch (kind) {
       FieldKind.object =>
         '${objectName}Model.fromJson(jsonDecode($ref${nullable ? '!' : ''}) as Map<String, dynamic>)',
-      FieldKind.list => element!.kind == FieldKind.object
-          ? '(jsonDecode($ref${nullable ? '!' : ''}) as List).map((e) => ${element!.objectName}Model.fromJson(e as Map<String, dynamic>)).toList()'
-          : '(jsonDecode($ref${nullable ? '!' : ''}) as List).cast<${element!.dartType}>()',
+      FieldKind.list =>
+        element!.kind == FieldKind.object
+            ? '(jsonDecode($ref${nullable ? '!' : ''}) as List).map((e) => ${element!.objectName}Model.fromJson(e as Map<String, dynamic>)).toList()'
+            : '(jsonDecode($ref${nullable ? '!' : ''}) as List).cast<${element!.dartType}>()',
       FieldKind.scalar || FieldKind.enumeration => ref,
     };
     return nullable ? '$ref == null ? null : $decodeBody' : decodeBody;
@@ -240,7 +249,9 @@ extension FieldCodegen on FieldSpec {
             ? '$resolvedEnumName.values.first'
             : '$resolvedEnumName.${enumMemberName(enumValues.first)}';
       case FieldKind.object:
-        final args = children.map((c) => '${c.dartName}: ${c.entityPlaceholder()}').join(', ');
+        final args = children
+            .map((c) => '${c.dartName}: ${c.entityPlaceholder()}')
+            .join(', ');
         return '${objectName}Entity($args)';
       case FieldKind.list:
         return 'const []';
@@ -253,7 +264,10 @@ extension FieldCodegen on FieldSpec {
 /// the names the generated enum or `Enum` itself declares) — those get a
 /// `Value` suffix so the member is always valid and never shadows `value`.
 String enumMemberName(String value) {
-  final cleaned = value.trim().toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_');
+  final cleaned = value.trim().toLowerCase().replaceAll(
+    RegExp(r'[^a-z0-9]+'),
+    '_',
+  );
   var member = camel(cleaned.replaceAll(RegExp(r'^_+|_+$'), ''));
   if (member.isEmpty) member = 'empty';
   if (RegExp(r'^[0-9]').hasMatch(member)) member = 'v$member';
@@ -312,7 +326,11 @@ List<FieldSpec> resolveEnumNames(String featureName, List<FieldSpec> fields) {
   final taken = <String, List<String>>{};
   String claim(String base, List<String> values) {
     var name = base;
-    for (var n = 2; taken.containsKey(name) && !_sameValues(taken[name]!, values); n++) {
+    for (
+      var n = 2;
+      taken.containsKey(name) && !_sameValues(taken[name]!, values);
+      n++
+    ) {
       name = '$base$n';
     }
     taken[name] = values;
@@ -322,19 +340,23 @@ List<FieldSpec> resolveEnumNames(String featureName, List<FieldSpec> fields) {
   FieldSpec visit(FieldSpec f) => switch (f.kind) {
     FieldKind.enumeration => f.copyWith(
       enumName: claim(
-        f.enumName.isNotEmpty ? f.enumName : '${pascal(featureName)}${pascal(f.jsonKey)}',
+        f.enumName.isNotEmpty
+            ? f.enumName
+            : '${pascal(featureName)}${pascal(f.jsonKey)}',
         f.enumValues,
       ),
     ),
     FieldKind.object => f.copyWith(children: f.children.map(visit).toList()),
-    FieldKind.list => f.element == null ? f : f.copyWith(element: visit(f.element!)),
+    FieldKind.list =>
+      f.element == null ? f : f.copyWith(element: visit(f.element!)),
     FieldKind.scalar => f,
   };
   return fields.map(visit).toList();
 }
 
 bool _sameValues(List<String> a, List<String> b) =>
-    a.length == b.length && [for (final (i, v) in a.indexed) v == b[i]].every((same) => same);
+    a.length == b.length &&
+    [for (final (i, v) in a.indexed) v == b[i]].every((same) => same);
 
 /// All distinct object specs reachable from [fields] (object fields + list
 /// element objects), recursively — one generated sub-class per entry. Dedupes
@@ -371,7 +393,9 @@ List<FieldSpec> collectObjectSpecs(List<FieldSpec> fields) {
 FieldSpec titleField(List<FieldSpec> fields) {
   const preferred = {'name', 'title', 'label'};
   for (final f in fields) {
-    if (f.isScalar && f.dartType == 'String' && preferred.contains(f.dartName.toLowerCase())) {
+    if (f.isScalar &&
+        f.dartType == 'String' &&
+        preferred.contains(f.dartName.toLowerCase())) {
       return f;
     }
   }

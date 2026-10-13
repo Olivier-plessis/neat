@@ -31,20 +31,33 @@ void main() {
     );
   }
 
-  testWidgets('a nested object field is collapsed by default — no child rows visible', (
+  testWidgets(
+    'a nested object field is collapsed by default — no child rows visible',
+    (tester) async {
+      await tester.pumpWidget(
+        harness(
+          fields: FieldSpec.fakeStoreProduct,
+          onChildrenChanged: (_, _) {},
+        ),
+      );
+
+      expect(find.text('rating'), findsOneWidget);
+      expect(
+        find.text('List<Rating>'),
+        findsNothing,
+      ); // it's an object, not a list
+      expect(find.text('Rating'), findsOneWidget); // the type label
+      expect(find.text('rate'), findsNothing);
+      expect(find.text('count'), findsNothing);
+    },
+  );
+
+  testWidgets('expanding the nested object row reveals its own children', (
     tester,
   ) async {
-    await tester.pumpWidget(harness(fields: FieldSpec.fakeStoreProduct, onChildrenChanged: (_, _) {}));
-
-    expect(find.text('rating'), findsOneWidget);
-    expect(find.text('List<Rating>'), findsNothing); // it's an object, not a list
-    expect(find.text('Rating'), findsOneWidget); // the type label
-    expect(find.text('rate'), findsNothing);
-    expect(find.text('count'), findsNothing);
-  });
-
-  testWidgets('expanding the nested object row reveals its own children', (tester) async {
-    await tester.pumpWidget(harness(fields: FieldSpec.fakeStoreProduct, onChildrenChanged: (_, _) {}));
+    await tester.pumpWidget(
+      harness(fields: FieldSpec.fakeStoreProduct, onChildrenChanged: (_, _) {}),
+    );
 
     // Tap the non-editable type label ("Rating"), not the editable name
     // field ("rating") — a tap on the TextField just places a cursor there
@@ -84,24 +97,38 @@ void main() {
       // row (disabled — tapping it is a no-op), not `rate`'s. Scope to the
       // Checkbox living in the same title Row as the "rate" text instead.
       final rateCheckbox = find.descendant(
-        of: find.ancestor(of: find.text('rate'), matching: find.byType(Row)).first,
+        of: find
+            .ancestor(of: find.text('rate'), matching: find.byType(Row))
+            .first,
         matching: find.byType(Checkbox),
       );
       await tester.ensureVisible(rateCheckbox);
       await tester.tap(rateCheckbox);
       await tester.pumpAndSettle();
 
-      final ratingIndex = FieldSpec.fakeStoreProduct.indexWhere((f) => f.dartName == 'rating');
+      final ratingIndex = FieldSpec.fakeStoreProduct.indexWhere(
+        (f) => f.dartName == 'rating',
+      );
       expect(reportedIndex, ratingIndex);
       expect(reportedChildren, isNotNull);
-      expect(reportedChildren!.firstWhere((f) => f.dartName == 'rate').nullable, isTrue);
+      expect(
+        reportedChildren!.firstWhere((f) => f.dartName == 'rate').nullable,
+        isTrue,
+      );
       // The sibling child is untouched.
-      expect(reportedChildren!.firstWhere((f) => f.dartName == 'count').nullable, isFalse);
+      expect(
+        reportedChildren!.firstWhere((f) => f.dartName == 'count').nullable,
+        isFalse,
+      );
     },
   );
 
-  testWidgets('a plain scalar field never shows an expand affordance', (tester) async {
-    await tester.pumpWidget(harness(fields: FieldSpec.idName, onChildrenChanged: (_, _) {}));
+  testWidgets('a plain scalar field never shows an expand affordance', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      harness(fields: FieldSpec.idName, onChildrenChanged: (_, _) {}),
+    );
 
     expect(find.byType(ExpansionTile), findsNothing);
   });

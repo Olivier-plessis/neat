@@ -24,7 +24,9 @@ class NeatTextField extends StatelessWidget {
       controller: controller,
       onChanged: onChanged,
       readOnly: readOnly,
-      style: context.textTheme.bodyLarge!.copyWith(color: context.neatColors.surface),
+      style: context.textTheme.bodyLarge!.copyWith(
+        color: context.neatColors.surface,
+      ),
       decoration: decoration,
     );
   }

@@ -66,262 +66,250 @@ void main() {
     }
   });
 
-  test(
-    'generates a full chopper + offline-sync project that analyzes cleanly',
-    () async {
-      const projectName = 'neat_gen_test';
-      final logs = <String>[];
+  test('generates a full chopper + offline-sync project that analyzes cleanly', () async {
+    const projectName = 'neat_gen_test';
+    final logs = <String>[];
 
-      final identity = IdentityState(
-        name: projectName,
-        organization: 'com.neat.test',
-        projectPath: tempRoot.path,
-        description: 'NEAT generation integration test',
-        // macOS-friendly target so analyze runs without mobile toolchains.
-        targetPlatforms: const ['macos'],
+    final identity = IdentityState(
+      name: projectName,
+      organization: 'com.neat.test',
+      projectPath: tempRoot.path,
+      description: 'NEAT generation integration test',
+      // macOS-friendly target so analyze runs without mobile toolchains.
+      targetPlatforms: const ['macos'],
+    );
+
+    const architecture = ArchitectureState(
+      firstFeatureName: 'user_profile', // multi-word → camelCase stress case
+      // Chopper + offline-sync: proves the chopper Outbox replay path.
+      storageStrategy: StorageStrategy.offlineFirstSync,
+    );
+
+    const cicd = CicdState();
+
+    const theme = ThemeEngineState(
+      approach: ThemeApproach.customM3,
+      components: {
+        AppComponent.button,
+        AppComponent.card,
+        AppComponent.textField,
+      },
+      generateWidgetbook: true,
+    );
+
+    try {
+      await const LaunchGenerationUsecase().execute(
+        identity: identity,
+        packages: packages,
+        architecture: architecture,
+        cicd: cicd,
+        theme: theme,
+        onLog: logs.add,
       );
+    } catch (e) {
+      fail('Generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+    }
 
-      const architecture = ArchitectureState(
-        firstFeatureName: 'user_profile', // multi-word → camelCase stress case
-        // Chopper + offline-sync: proves the chopper Outbox replay path.
-        storageStrategy: StorageStrategy.offlineFirstSync,
-      );
+    final projectDir = Directory('${tempRoot.path}/$projectName');
+    expect(
+      projectDir.existsSync(),
+      isTrue,
+      reason: 'project dir was not created',
+    );
 
-      const cicd = CicdState();
-
-      const theme = ThemeEngineState(
-        approach: ThemeApproach.customM3,
-        components: {
-          AppComponent.button,
-          AppComponent.card,
-          AppComponent.textField,
-        },
-        generateWidgetbook: true,
-      );
-
-      try {
-        await const LaunchGenerationUsecase().execute(
-          identity: identity,
-          packages: packages,
-          architecture: architecture,
-          cicd: cicd,
-          theme: theme,
-          onLog: logs.add,
-        );
-      } catch (e) {
-        fail('Generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
-      }
-
-      final projectDir = Directory('${tempRoot.path}/$projectName');
+    // Prove the generation actually ran (guards against a vacuous pass where
+    // analyze finds nothing because the project is empty/broken).
+    for (final relPath in const [
+      'pubspec.yaml',
+      'lib/main.dart',
+      'lib/app.dart',
+      'lib/core/env/app_env.dart', // envied was selected
+      'lib/features/user_profile/presentation/pages/user_profile_page.dart',
+    ]) {
       expect(
-        projectDir.existsSync(),
+        File('${projectDir.path}/$relPath').existsSync(),
         isTrue,
-        reason: 'project dir was not created',
+        reason: 'expected generated file missing: $relPath',
       );
+    }
 
-      // Prove the generation actually ran (guards against a vacuous pass where
-      // analyze finds nothing because the project is empty/broken).
-      for (final relPath in const [
-        'pubspec.yaml',
-        'lib/main.dart',
-        'lib/app.dart',
-        'lib/core/env/app_env.dart', // envied was selected
-        'lib/features/user_profile/presentation/pages/user_profile_page.dart',
-      ]) {
-        expect(
-          File('${projectDir.path}/$relPath').existsSync(),
-          isTrue,
-          reason: 'expected generated file missing: $relPath',
-        );
-      }
+    // build_runner must have produced generated parts (riverpod/freezed/envied).
+    final generatedParts = projectDir
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where(
+          (f) => f.path.endsWith('.g.dart') || f.path.endsWith('.freezed.dart'),
+        )
+        .toList();
+    expect(
+      generatedParts,
+      isNotEmpty,
+      reason:
+          'build_runner produced no .g.dart/.freezed.dart parts — codegen failed',
+    );
 
-      // build_runner must have produced generated parts (riverpod/freezed/envied).
-      final generatedParts = projectDir
-          .listSync(recursive: true)
-          .whereType<File>()
-          .where(
-            (f) =>
-                f.path.endsWith('.g.dart') || f.path.endsWith('.freezed.dart'),
-          )
-          .toList();
+    // Full CRUD surface on the API source (chopper variant here).
+    final apiSrc = File(
+      '${projectDir.path}/lib/features/user_profile/data/sources/'
+      'user_profile_api_source.dart',
+    ).readAsStringSync();
+    expect(apiSrc, contains('getAll()'));
+    expect(apiSrc, contains('add('));
+    expect(apiSrc, contains('update('));
+    expect(apiSrc, contains('delete('));
+
+    // The feature ships a real list screen with Skeletonizer loading states.
+    final page = File(
+      '${projectDir.path}/lib/features/user_profile/presentation/pages/'
+      'user_profile_page.dart',
+    ).readAsStringSync();
+    expect(page, contains('Skeletonizer('));
+    expect(page, contains('ListView.separated('));
+    final provider = File(
+      '${projectDir.path}/lib/features/user_profile/presentation/providers/'
+      'user_profile_provider.dart',
+    ).readAsStringSync();
+    // Offline-first + sync (this scenario): the list is a stream over the
+    // local Drift table that also starts the sync engine (ROADMAP §5w) — the
+    // plain `Future` list is for remote-only / offline-read projects.
+    expect(provider, contains('Stream<List<UserProfileEntity>> build()'));
+    expect(provider, contains('ref.watch(userProfileSyncProvider);'));
+    expect(provider, contains('getUserProfileUsecaseProvider'));
+    expect(
+      File('${projectDir.path}/pubspec.yaml').readAsStringSync(),
+      contains('skeletonizer:'),
+    );
+
+    // Widgetbook — extractUiPackage defaults to true, so this is member
+    // mode (its own workspace package, not the loose lib/-relative file):
+    // it gets its own separate `flutter create` (web) below, independent
+    // of the app's own targetPlatforms (macos only here) — widgetbook is
+    // meant to be browsed on a big screen, not a phone. `isWeb`-gated app
+    // behavior must stay OFF regardless — this is a widgetbook-only
+    // addition, not a genuine change to the app's own chosen platforms.
+    expect(
+      File('${projectDir.path}/widgetbook/lib/main.dart').existsSync(),
+      isTrue,
+    );
+    expect(
+      Directory('${projectDir.path}/widgetbook/web').existsSync(),
+      isTrue,
+      reason: 'widgetbook needs a big-screen target to run on',
+    );
+    expect(
+      Directory('${projectDir.path}/web').existsSync(),
+      isFalse,
+      reason: 'the app itself only targeted macos — web is widgetbook-only',
+    );
+    expect(
+      Directory('${projectDir.path}/macos').existsSync(),
+      isTrue,
+      reason: 'the app itself still targets macos, as chosen',
+    );
+    expect(
+      File('${projectDir.path}/lib/core/bootstrap.dart').readAsStringSync(),
+      isNot(contains('usePathUrlStrategy')),
+      reason:
+          'isWeb must reflect the app\'s own targetPlatforms (macos only) — '
+          'widgetbook\'s own web/ folder must not flip it on',
+    );
+
+    // Observability + networking bricks (chopper variant).
+    for (final relPath in const [
+      'lib/core/utils/app_logger.dart',
+      'lib/core/observers/provider_observer.dart',
+      'lib/core/observers/logger_interceptor.dart',
+      'lib/core/network/chopper_client_provider.dart',
+      'lib/core/bootstrap.dart',
+      'lib/core/error/error_handler.dart',
+    ]) {
       expect(
-        generatedParts,
-        isNotEmpty,
-        reason:
-            'build_runner produced no .g.dart/.freezed.dart parts — codegen failed',
-      );
-
-      // Full CRUD surface on the API source (chopper variant here).
-      final apiSrc = File(
-        '${projectDir.path}/lib/features/user_profile/data/sources/'
-        'user_profile_api_source.dart',
-      ).readAsStringSync();
-      expect(apiSrc, contains('getAll()'));
-      expect(apiSrc, contains('add('));
-      expect(apiSrc, contains('update('));
-      expect(apiSrc, contains('delete('));
-
-      // The feature ships a real list screen with Skeletonizer loading states.
-      final page = File(
-        '${projectDir.path}/lib/features/user_profile/presentation/pages/'
-        'user_profile_page.dart',
-      ).readAsStringSync();
-      expect(page, contains('Skeletonizer('));
-      expect(page, contains('ListView.separated('));
-      final provider = File(
-        '${projectDir.path}/lib/features/user_profile/presentation/providers/'
-        'user_profile_provider.dart',
-      ).readAsStringSync();
-      // Offline-first + sync (this scenario): the list is a stream over the
-      // local Drift table that also starts the sync engine (ROADMAP §5w) — the
-      // plain `Future` list is for remote-only / offline-read projects.
-      expect(provider, contains('Stream<List<UserProfileEntity>> build()'));
-      expect(provider, contains('ref.watch(userProfileSyncProvider);'));
-      expect(provider, contains('getUserProfileUsecaseProvider'));
-      expect(
-        File('${projectDir.path}/pubspec.yaml').readAsStringSync(),
-        contains('skeletonizer:'),
-      );
-
-      // Widgetbook — extractUiPackage defaults to true, so this is member
-      // mode (its own workspace package, not the loose lib/-relative file):
-      // it gets its own separate `flutter create` (web) below, independent
-      // of the app's own targetPlatforms (macos only here) — widgetbook is
-      // meant to be browsed on a big screen, not a phone. `isWeb`-gated app
-      // behavior must stay OFF regardless — this is a widgetbook-only
-      // addition, not a genuine change to the app's own chosen platforms.
-      expect(
-        File('${projectDir.path}/widgetbook/lib/main.dart').existsSync(),
+        File('${projectDir.path}/$relPath').existsSync(),
         isTrue,
+        reason: 'expected observability file missing: $relPath',
       );
-      expect(
-        Directory('${projectDir.path}/widgetbook/web').existsSync(),
-        isTrue,
-        reason: 'widgetbook needs a big-screen target to run on',
-      );
-      expect(
-        Directory('${projectDir.path}/web').existsSync(),
-        isFalse,
-        reason: 'the app itself only targeted macos — web is widgetbook-only',
-      );
-      expect(
-        Directory('${projectDir.path}/macos').existsSync(),
-        isTrue,
-        reason: 'the app itself still targets macos, as chosen',
-      );
-      expect(
-        File('${projectDir.path}/lib/core/bootstrap.dart').readAsStringSync(),
-        isNot(contains('usePathUrlStrategy')),
-        reason:
-            'isWeb must reflect the app\'s own targetPlatforms (macos only) — '
-            'widgetbook\'s own web/ folder must not flip it on',
-      );
+    }
+    // main delegates to bootstrap; bootstrap guards the zone + wires the observer.
+    // ArchitectureState() defaults to a single `prod` env → collapses to the
+    // unprefixed Env() (see the mono-env-by-default design).
+    final mainDart = File(
+      '${projectDir.path}/lib/main.dart',
+    ).readAsStringSync();
+    expect(mainDart, contains('bootstrap(Env())'));
+    final bootstrap = File(
+      '${projectDir.path}/lib/core/bootstrap.dart',
+    ).readAsStringSync();
+    expect(bootstrap, contains('runZonedGuarded'));
+    expect(bootstrap, contains('observers: [RiverpodObserver()]'));
 
-      // Observability + networking bricks (chopper variant).
-      for (final relPath in const [
-        'lib/core/utils/app_logger.dart',
-        'lib/core/observers/provider_observer.dart',
-        'lib/core/observers/logger_interceptor.dart',
-        'lib/core/network/chopper_client_provider.dart',
-        'lib/core/bootstrap.dart',
-        'lib/core/error/error_handler.dart',
-      ]) {
-        expect(
-          File('${projectDir.path}/$relPath').existsSync(),
-          isTrue,
-          reason: 'expected observability file missing: $relPath',
-        );
-      }
-      // main delegates to bootstrap; bootstrap guards the zone + wires the observer.
-      // ArchitectureState() defaults to a single `prod` env → collapses to the
-      // unprefixed Env() (see the mono-env-by-default design).
-      final mainDart = File(
-        '${projectDir.path}/lib/main.dart',
-      ).readAsStringSync();
-      expect(mainDart, contains('bootstrap(Env())'));
-      final bootstrap = File(
-        '${projectDir.path}/lib/core/bootstrap.dart',
-      ).readAsStringSync();
-      expect(bootstrap, contains('runZonedGuarded'));
-      expect(bootstrap, contains('observers: [RiverpodObserver()]'));
+    // Repository-level DI (data/) wires the chopper-backed API source + sync.
+    // Presentation never references a concrete Data class — only the
+    // abstract-typed repository provider exposed here (architecture-reference-style split).
+    final repoProviders = File(
+      '${projectDir.path}/lib/features/user_profile/data/repositories/'
+      'user_profile_repository_providers.dart',
+    ).readAsStringSync();
+    expect(
+      repoProviders,
+      contains('UserProfileApiSource.create(ref.watch(chopperClientProvider))'),
+    );
+    // Offline-sync: repository is the 3-arg variant + the sync engine is wired.
+    expect(repoProviders, contains('ref.watch(networkInfoProvider)'));
+    expect(repoProviders, contains('SyncService userProfileSync(Ref ref)'));
+    expect(repoProviders, contains('api.add(UserProfileModel.fromJson(data))'));
 
-      // Repository-level DI (data/) wires the chopper-backed API source + sync.
-      // Presentation never references a concrete Data class — only the
-      // abstract-typed repository provider exposed here (architecture-reference-style split).
-      final repoProviders = File(
-        '${projectDir.path}/lib/features/user_profile/data/repositories/'
-        'user_profile_repository_providers.dart',
-      ).readAsStringSync();
-      expect(
-        repoProviders,
-        contains(
-          'UserProfileApiSource.create(ref.watch(chopperClientProvider))',
-        ),
-      );
-      // Offline-sync: repository is the 3-arg variant + the sync engine is wired.
-      expect(repoProviders, contains('ref.watch(networkInfoProvider)'));
-      expect(repoProviders, contains('SyncService userProfileSync(Ref ref)'));
-      expect(
-        repoProviders,
-        contains('api.add(UserProfileModel.fromJson(data))'),
-      );
+    // Usecase-level DI (presentation/) is built from the repository provider
+    // above — its only import into data/ is the abstract-typed provider.
+    final usecaseProviders = File(
+      '${projectDir.path}/lib/features/user_profile/presentation/providers/'
+      'user_profile_usecase_providers.dart',
+    ).readAsStringSync();
+    expect(usecaseProviders, contains('GetUserProfileUsecase'));
+    expect(usecaseProviders, contains('CreateUserProfileUsecase'));
+    expect(
+      usecaseProviders,
+      isNot(contains('UserProfileApiSource')),
+      reason: 'presentation must never reference a concrete Data class',
+    );
+    expect(
+      usecaseProviders,
+      isNot(contains('UserProfileRepositoryImpl')),
+      reason: 'presentation must never reference a concrete Data class',
+    );
 
-      // Usecase-level DI (presentation/) is built from the repository provider
-      // above — its only import into data/ is the abstract-typed provider.
-      final usecaseProviders = File(
-        '${projectDir.path}/lib/features/user_profile/presentation/providers/'
-        'user_profile_usecase_providers.dart',
-      ).readAsStringSync();
-      expect(usecaseProviders, contains('GetUserProfileUsecase'));
-      expect(usecaseProviders, contains('CreateUserProfileUsecase'));
-      expect(
-        usecaseProviders,
-        isNot(contains('UserProfileApiSource')),
-        reason: 'presentation must never reference a concrete Data class',
-      );
-      expect(
-        usecaseProviders,
-        isNot(contains('UserProfileRepositoryImpl')),
-        reason: 'presentation must never reference a concrete Data class',
-      );
+    // docs/REMOVE_FIRST_FEATURE.md: a feature isn't self-contained in its
+    // own folder, so this guide should cover every shared file this exact
+    // combo (chopper + offline-sync, no packageSplit, no shell) touched —
+    // and only those.
+    final removeDoc = File(
+      '${projectDir.path}/docs/REMOVE_FIRST_FEATURE.md',
+    ).readAsStringSync();
+    expect(removeDoc, contains('lib/features/user_profile/'));
+    expect(removeDoc, contains('// neat:route-imports'));
+    expect(removeDoc, contains('chopper_model_converter.dart'));
+    expect(removeDoc, contains('database.dart'));
+    expect(removeDoc, contains('// neat:migrations'), reason: 'hasSync is on');
+    expect(
+      removeDoc,
+      isNot(contains('packageSplit)')),
+      reason: 'not a packageSplit project',
+    );
+    expect(
+      removeDoc,
+      isNot(contains('Navigation shell')),
+      reason: 'no shell branch here',
+    );
 
-      // docs/REMOVE_FIRST_FEATURE.md: a feature isn't self-contained in its
-      // own folder, so this guide should cover every shared file this exact
-      // combo (chopper + offline-sync, no packageSplit, no shell) touched —
-      // and only those.
-      final removeDoc = File(
-        '${projectDir.path}/docs/REMOVE_FIRST_FEATURE.md',
-      ).readAsStringSync();
-      expect(removeDoc, contains('lib/features/user_profile/'));
-      expect(removeDoc, contains('// neat:route-imports'));
-      expect(removeDoc, contains('chopper_model_converter.dart'));
-      expect(removeDoc, contains('database.dart'));
-      expect(
-        removeDoc,
-        contains('// neat:migrations'),
-        reason: 'hasSync is on',
-      );
-      expect(
-        removeDoc,
-        isNot(contains('packageSplit)')),
-        reason: 'not a packageSplit project',
-      );
-      expect(
-        removeDoc,
-        isNot(contains('Navigation shell')),
-        reason: 'no shell branch here',
-      );
-
-      // Executable regression probe for Chopper's JsonConverter bug: the
-      // built-in converter only decodes to Map/List — it never calls a custom
-      // Model's fromJson — so `Response<List<XModel>>` throws
-      // `FormatException: expected ... to be XModel, but got Map` at runtime.
-      // `flutter analyze` can't catch this (the generated code compiles fine;
-      // it only fails against a real decoded response). This drives the real
-      // chopper pipeline: an http.Response → ModelJsonConverter.convertResponse.
-      await File(
-        '${projectDir.path}/test/_chopper_converter_probe_test.dart',
-      ).writeAsString('''
+    // Executable regression probe for Chopper's JsonConverter bug: the
+    // built-in converter only decodes to Map/List — it never calls a custom
+    // Model's fromJson — so `Response<List<XModel>>` throws
+    // `FormatException: expected ... to be XModel, but got Map` at runtime.
+    // `flutter analyze` can't catch this (the generated code compiles fine;
+    // it only fails against a real decoded response). This drives the real
+    // chopper pipeline: an http.Response → ModelJsonConverter.convertResponse.
+    await File(
+      '${projectDir.path}/test/_chopper_converter_probe_test.dart',
+    ).writeAsString('''
 import 'package:chopper/chopper.dart' as chopper;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -362,64 +350,62 @@ void main() {
   });
 }
 ''');
-      final probe = await Process.run('flutter', [
-        'test',
-        'test/_chopper_converter_probe_test.dart',
-      ], workingDirectory: projectDir.path);
-      expect(
-        probe.exitCode,
-        0,
-        reason:
-            'chopper-converter regression probe failed:\n${probe.stdout}\n${probe.stderr}',
-      );
+    final probe = await Process.run('flutter', [
+      'test',
+      'test/_chopper_converter_probe_test.dart',
+    ], workingDirectory: projectDir.path);
+    expect(
+      probe.exitCode,
+      0,
+      reason:
+          'chopper-converter regression probe failed:\n${probe.stdout}\n${probe.stderr}',
+    );
 
-      // Workspace Contract (.neat.json) captures the stack for feature gen.
-      final contractFile = File('${projectDir.path}/.neat.json');
-      expect(contractFile.existsSync(), isTrue, reason: '.neat.json missing');
-      final contract =
-          jsonDecode(contractFile.readAsStringSync()) as Map<String, dynamic>;
-      expect(contract['schemaVersion'], 1);
-      expect(contract['projectName'], projectName);
-      expect(contract['stateManagement'], 'riverpod');
-      expect(contract['httpClient'], 'chopper');
-      expect(contract['storageStrategy'], 'offlineFirstSync');
-      expect(contract['architecture'], 'feature_first');
+    // Workspace Contract (.neat.json) captures the stack for feature gen.
+    final contractFile = File('${projectDir.path}/.neat.json');
+    expect(contractFile.existsSync(), isTrue, reason: '.neat.json missing');
+    final contract =
+        jsonDecode(contractFile.readAsStringSync()) as Map<String, dynamic>;
+    expect(contract['schemaVersion'], 1);
+    expect(contract['projectName'], projectName);
+    expect(contract['stateManagement'], 'riverpod');
+    expect(contract['httpClient'], 'chopper');
+    expect(contract['storageStrategy'], 'offlineFirstSync');
+    expect(contract['architecture'], 'feature_first');
 
-      // Run the analyzer on the generated project.
-      final analyze = await Process.run('flutter', [
-        'analyze',
-        '--no-pub',
-      ], workingDirectory: projectDir.path);
-      final out = '${analyze.stdout}\n${analyze.stderr}';
+    // Run the analyzer on the generated project.
+    final analyze = await Process.run('flutter', [
+      'analyze',
+      '--no-pub',
+    ], workingDirectory: projectDir.path);
+    final out = '${analyze.stdout}\n${analyze.stderr}';
 
-      // Sanity: analyze actually executed and produced its summary line. Without
-      // this, a failure to launch the analyzer would masquerade as "no errors".
-      expect(
-        RegExp(r'(\d+ issues? found|No issues found)').hasMatch(out),
-        isTrue,
-        reason: 'flutter analyze did not run as expected:\n$out',
-      );
+    // Sanity: analyze actually executed and produced its summary line. Without
+    // this, a failure to launch the analyzer would masquerade as "no errors".
+    expect(
+      RegExp(r'(\d+ issues? found|No issues found)').hasMatch(out),
+      isTrue,
+      reason: 'flutter analyze did not run as expected:\n$out',
+    );
 
-      // Generated code must be error- AND warning-free (infos are tolerated).
-      final errorLines = const LineSplitter()
-          .convert(out)
-          .where(
-            (l) =>
-                (l.contains(' error •') || l.contains(' warning •')) &&
-                !l.contains('• build/'),
-          )
-          .toList();
+    // Generated code must be error- AND warning-free (infos are tolerated).
+    final errorLines = const LineSplitter()
+        .convert(out)
+        .where(
+          (l) =>
+              (l.contains(' error •') || l.contains(' warning •')) &&
+              !l.contains('• build/'),
+        )
+        .toList();
 
-      expect(
-        errorLines,
-        isEmpty,
-        reason:
-            'flutter analyze reported errors:\n${errorLines.join('\n')}\n\n'
-            '--- full analyze output ---\n$out',
-      );
-    },
-    timeout: const Timeout(Duration(minutes: 12)),
-  );
+    expect(
+      errorLines,
+      isEmpty,
+      reason:
+          'flutter analyze reported errors:\n${errorLines.join('\n')}\n\n'
+          '--- full analyze output ---\n$out',
+    );
+  }, timeout: const Timeout(Duration(minutes: 12)));
 
   test(
     'manual Riverpod (useRiverpodAnnotations: false): Notifier/NotifierProvider '
@@ -1534,7 +1520,9 @@ void main() {
       // Sanity: the welcome placeholder really is there pre-add, same as
       // the other no-first-feature tests.
       expect(
-        File('${projectDir.path}/lib/core/router/welcome_route.dart').existsSync(),
+        File(
+          '${projectDir.path}/lib/core/router/welcome_route.dart',
+        ).existsSync(),
         isTrue,
       );
       expect(
@@ -1558,20 +1546,28 @@ void main() {
           onLog: logs.add,
         );
       } catch (e) {
-        fail('Feature generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+        fail(
+          'Feature generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}',
+        );
       }
 
       // The placeholder's own files are gone.
       expect(
-        File('${projectDir.path}/lib/core/router/welcome_route.dart').existsSync(),
+        File(
+          '${projectDir.path}/lib/core/router/welcome_route.dart',
+        ).existsSync(),
         isFalse,
       );
       expect(
-        File('${projectDir.path}/lib/core/router/welcome_route.g.dart').existsSync(),
+        File(
+          '${projectDir.path}/lib/core/router/welcome_route.g.dart',
+        ).existsSync(),
         isFalse,
       );
       expect(
-        File('${projectDir.path}/lib/core/pages/welcome_page.dart').existsSync(),
+        File(
+          '${projectDir.path}/lib/core/pages/welcome_page.dart',
+        ).existsSync(),
         isFalse,
       );
 
@@ -1588,7 +1584,9 @@ void main() {
       expect(router, contains('AppRoutePath.recipes'));
 
       // AppRoutePath: the dead constant is gone, the real one is there.
-      final routePath = read('${projectDir.path}/lib/core/constants/app_route_path.dart');
+      final routePath = read(
+        '${projectDir.path}/lib/core/constants/app_route_path.dart',
+      );
       expect(routePath, isNot(contains('welcome')));
       expect(routePath, contains("static const String recipes = '/recipes';"));
 
@@ -1619,62 +1617,60 @@ void main() {
     timeout: const Timeout(Duration(minutes: 12)),
   );
 
-  test(
-    'FeatureGenOptions.setAsHomePage: false (opt-out) — the welcome '
-    'placeholder stays untouched, coexisting with the new feature exactly '
-    'like before this option existed',
-    () async {
-      const projectName = 'neat_gen_home_page_optout_test';
-      final logs = <String>[];
+  test('FeatureGenOptions.setAsHomePage: false (opt-out) — the welcome '
+      'placeholder stays untouched, coexisting with the new feature exactly '
+      'like before this option existed', () async {
+    const projectName = 'neat_gen_home_page_optout_test';
+    final logs = <String>[];
 
-      final identity = IdentityState(
-        name: projectName,
-        organization: 'com.neat.test',
-        projectPath: tempRoot.path,
-        description: 'NEAT setAsHomePage opt-out integration test',
-        targetPlatforms: const ['macos'],
+    final identity = IdentityState(
+      name: projectName,
+      organization: 'com.neat.test',
+      projectPath: tempRoot.path,
+      description: 'NEAT setAsHomePage opt-out integration test',
+      targetPlatforms: const ['macos'],
+    );
+    const architecture = ArchitectureState(generateFirstFeature: false);
+
+    try {
+      await const LaunchGenerationUsecase().execute(
+        identity: identity,
+        packages: packages,
+        architecture: architecture,
+        cicd: const CicdState(),
+        theme: const ThemeEngineState(approach: ThemeApproach.customM3),
+        onLog: logs.add,
       );
-      const architecture = ArchitectureState(generateFirstFeature: false);
+    } catch (e) {
+      fail('Base generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+    }
 
-      try {
-        await const LaunchGenerationUsecase().execute(
-          identity: identity,
-          packages: packages,
-          architecture: architecture,
-          cicd: const CicdState(),
-          theme: const ThemeEngineState(approach: ThemeApproach.customM3),
-          onLog: logs.add,
-        );
-      } catch (e) {
-        fail('Base generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
-      }
+    final projectDir = Directory('${tempRoot.path}/$projectName');
+    final loaded = await const ProjectLoader().load(projectDir.path);
 
-      final projectDir = Directory('${tempRoot.path}/$projectName');
-      final loaded = await const ProjectLoader().load(projectDir.path);
-
-      try {
-        await const GenerateFeatureUsecase().execute(
-          project: loaded!,
-          options: const FeatureGenOptions(name: 'recipes', setAsHomePage: false),
-          onLog: logs.add,
-        );
-      } catch (e) {
-        fail('Feature generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
-      }
-
-      expect(
-        File('${projectDir.path}/lib/core/router/welcome_route.dart').existsSync(),
-        isTrue,
-        reason: 'opted out — the placeholder must be left alone',
+    try {
+      await const GenerateFeatureUsecase().execute(
+        project: loaded!,
+        options: const FeatureGenOptions(name: 'recipes', setAsHomePage: false),
+        onLog: logs.add,
       );
-      final routes = File(
-        '${projectDir.path}/lib/core/router/routes.dart',
-      ).readAsStringSync();
-      expect(routes, contains('welcome.\$appRoutes'));
-      expect(routes, contains('recipes.\$appRoutes'));
-    },
-    timeout: const Timeout(Duration(minutes: 12)),
-  );
+    } catch (e) {
+      fail('Feature generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+    }
+
+    expect(
+      File(
+        '${projectDir.path}/lib/core/router/welcome_route.dart',
+      ).existsSync(),
+      isTrue,
+      reason: 'opted out — the placeholder must be left alone',
+    );
+    final routes = File(
+      '${projectDir.path}/lib/core/router/routes.dart',
+    ).readAsStringSync();
+    expect(routes, contains('welcome.\$appRoutes'));
+    expect(routes, contains('recipes.\$appRoutes'));
+  }, timeout: const Timeout(Duration(minutes: 12)));
 
   test(
     'packageSplit=true (Phase 1): shared <app>_core workspace package plus a '
@@ -3524,17 +3520,11 @@ void main() {
     final localSource = read(
       '$featureRoot/lib/data/sources/home_local_source.dart',
     );
-    expect(
-      localSource,
-      contains("import 'package:$dbPkg/$dbPkg.dart';"),
-    );
+    expect(localSource, contains("import 'package:$dbPkg/$dbPkg.dart';"));
 
     // The feature package's own pubspec depends on the Drift package too.
     final featurePubspec = read('$featureRoot/pubspec.yaml');
-    expect(
-      featurePubspec,
-      contains('$dbPkg:\n    path: ../$dbPkg'),
-    );
+    expect(featurePubspec, contains('$dbPkg:\n    path: ../$dbPkg'));
 
     // Root pubspec wires all three packages into the workspace.
     final rootPubspec = read('${projectDir.path}/pubspec.yaml');
@@ -3923,7 +3913,8 @@ void main() {
         name: projectName,
         organization: 'com.neat.test',
         projectPath: tempRoot.path,
-        description: 'NEAT packageSplit + chopper, no first feature, integration test',
+        description:
+            'NEAT packageSplit + chopper, no first feature, integration test',
         targetPlatforms: const ['macos'],
       );
       // The exact combo that exposed this: no first feature at launch — chopper
@@ -4604,207 +4595,203 @@ void main() {
     timeout: const Timeout(Duration(minutes: 12)),
   );
 
-  test(
-    'offline-first generates a valid Dart workspace that analyzes cleanly',
-    () async {
-      const projectName = 'neat_ws_test';
-      final logs = <String>[];
+  test('offline-first generates a valid Dart workspace that analyzes cleanly', () async {
+    const projectName = 'neat_ws_test';
+    final logs = <String>[];
 
-      // Riverpod (annotations) + dio + go_router. Enough to exercise the witness
-      // feature; the focus here is the workspace wrapping, not the heavy codegen
-      // stack already covered by the first test.
-      final offlinePackages = <PubPackage>[
-        _dep('hooks_riverpod', '3.4.3'),
-        _dep('flutter_hooks', '0.21.3+1'),
-        _dep('riverpod_annotation', '4.0.7'),
-        _dep('dio', '5.9.2'),
-        _dep('go_router', '17.5.0'),
-        _dev('riverpod_generator', '4.0.9'),
-        _dev('build_runner', '2.16.2'),
-      ];
+    // Riverpod (annotations) + dio + go_router. Enough to exercise the witness
+    // feature; the focus here is the workspace wrapping, not the heavy codegen
+    // stack already covered by the first test.
+    final offlinePackages = <PubPackage>[
+      _dep('hooks_riverpod', '3.4.3'),
+      _dep('flutter_hooks', '0.21.3+1'),
+      _dep('riverpod_annotation', '4.0.7'),
+      _dep('dio', '5.9.2'),
+      _dep('go_router', '17.5.0'),
+      _dev('riverpod_generator', '4.0.9'),
+      _dev('build_runner', '2.16.2'),
+    ];
 
-      final identity = IdentityState(
-        name: projectName,
-        organization: 'com.neat.test',
-        projectPath: tempRoot.path,
-        description: 'NEAT offline-first workspace integration test',
-        targetPlatforms: const ['macos'],
+    final identity = IdentityState(
+      name: projectName,
+      organization: 'com.neat.test',
+      projectPath: tempRoot.path,
+      description: 'NEAT offline-first workspace integration test',
+      targetPlatforms: const ['macos'],
+    );
+
+    const architecture = ArchitectureState(
+      firstFeatureName: 'user_profile',
+      storageStrategy: StorageStrategy.offlineFirstRead,
+    );
+
+    try {
+      await const LaunchGenerationUsecase().execute(
+        identity: identity,
+        packages: offlinePackages,
+        architecture: architecture,
+        cicd: const CicdState(),
+        theme: const ThemeEngineState(approach: ThemeApproach.customM3),
+        onLog: logs.add,
       );
-
-      const architecture = ArchitectureState(
-        firstFeatureName: 'user_profile',
-        storageStrategy: StorageStrategy.offlineFirstRead,
+    } catch (e) {
+      fail(
+        'Offline-first generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}',
       );
+    }
 
-      try {
-        await const LaunchGenerationUsecase().execute(
-          identity: identity,
-          packages: offlinePackages,
-          architecture: architecture,
-          cicd: const CicdState(),
-          theme: const ThemeEngineState(approach: ThemeApproach.customM3),
-          onLog: logs.add,
-        );
-      } catch (e) {
-        fail(
-          'Offline-first generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}',
-        );
-      }
+    final projectDir = Directory('${tempRoot.path}/$projectName');
+    final pkg = '${projectName}_database';
 
-      final projectDir = Directory('${tempRoot.path}/$projectName');
-      final pkg = '${projectName}_database';
-
-      // The workspace member package exists, is wired up, and its Drift
-      // codegen ran (database.g.dart proves build_runner ran in the package).
-      for (final relPath in [
-        'pubspec.yaml',
-        'packages/$pkg/pubspec.yaml',
-        'packages/$pkg/lib/$pkg.dart',
-        'packages/$pkg/lib/src/database.dart',
-        'packages/$pkg/lib/src/database.g.dart',
-      ]) {
-        expect(
-          File('${projectDir.path}/$relPath').existsSync(),
-          isTrue,
-          reason: 'expected workspace file missing: $relPath',
-        );
-      }
-
-      // Not a web target — the web-only DriftWebOptions branch and its setup
-      // doc shouldn't appear (see the dedicated web test below).
-      final dbSource = File(
-        '${projectDir.path}/packages/$pkg/lib/src/database.dart',
-      ).readAsStringSync();
-      expect(dbSource, isNot(contains('kIsWeb')));
-      expect(dbSource, isNot(contains('DriftWebOptions')));
+    // The workspace member package exists, is wired up, and its Drift
+    // codegen ran (database.g.dart proves build_runner ran in the package).
+    for (final relPath in [
+      'pubspec.yaml',
+      'packages/$pkg/pubspec.yaml',
+      'packages/$pkg/lib/$pkg.dart',
+      'packages/$pkg/lib/src/database.dart',
+      'packages/$pkg/lib/src/database.g.dart',
+    ]) {
       expect(
-        File('${projectDir.path}/docs/DRIFT_WEB_SETUP.md').existsSync(),
-        isFalse,
-      );
-
-      // Offline-first bricks landed in the app.
-      expect(
-        File(
-          '${projectDir.path}/lib/core/network/network_info.dart',
-        ).existsSync(),
+        File('${projectDir.path}/$relPath').existsSync(),
         isTrue,
-        reason: 'core/network/network_info.dart missing',
+        reason: 'expected workspace file missing: $relPath',
       );
+    }
 
-      // Dio provider + logging interceptor (dio variant) make the API source wirable.
-      final dioProvider = File(
-        '${projectDir.path}/lib/core/network/dio_provider.dart',
-      );
-      expect(
-        dioProvider.existsSync(),
-        isTrue,
-        reason: 'core/network/dio_provider.dart missing',
-      );
-      expect(dioProvider.readAsStringSync(), contains('LoggerInterceptor()'));
-      expect(
-        File(
-          '${projectDir.path}/lib/core/observers/logger_interceptor.dart',
-        ).existsSync(),
-        isTrue,
-        reason: 'logger_interceptor.dart missing',
-      );
+    // Not a web target — the web-only DriftWebOptions branch and its setup
+    // doc shouldn't appear (see the dedicated web test below).
+    final dbSource = File(
+      '${projectDir.path}/packages/$pkg/lib/src/database.dart',
+    ).readAsStringSync();
+    expect(dbSource, isNot(contains('kIsWeb')));
+    expect(dbSource, isNot(contains('DriftWebOptions')));
+    expect(
+      File('${projectDir.path}/docs/DRIFT_WEB_SETUP.md').existsSync(),
+      isFalse,
+    );
 
-      // Repository-level DI (data/): dio-backed source + local source + repo.
-      // The shared Drift db + NetworkInfo singletons live in core, not here, so
-      // the feature DI references them instead of redeclaring them.
-      final di = File(
-        '${projectDir.path}/lib/features/user_profile/data/repositories/'
-        'user_profile_repository_providers.dart',
-      ).readAsStringSync();
-      expect(di, contains('UserProfileApiSource(ref.watch(dioProvider))'));
-      expect(di, contains('ref.watch(appDatabaseProvider)'));
-      expect(di, contains('ref.watch(networkInfoProvider)'));
-      expect(
-        di,
-        contains(
-          "import 'package:$projectName/core/providers/infrastructure_providers.dart'",
-        ),
-      );
-      // The feature DI must NOT redeclare the shared singletons.
-      expect(di, isNot(contains('AppDatabase appDatabase(Ref ref)')));
-      expect(di, isNot(contains('NetworkInfo networkInfo(Ref ref)')));
+    // Offline-first bricks landed in the app.
+    expect(
+      File(
+        '${projectDir.path}/lib/core/network/network_info.dart',
+      ).existsSync(),
+      isTrue,
+      reason: 'core/network/network_info.dart missing',
+    );
 
-      // Shared infrastructure providers exist once, in core.
-      final infra = File(
-        '${projectDir.path}/lib/core/providers/infrastructure_providers.dart',
-      );
-      expect(
-        infra.existsSync(),
-        isTrue,
-        reason: 'core infrastructure_providers.dart missing',
-      );
-      final infraSrc = infra.readAsStringSync();
-      expect(infraSrc, contains('AppDatabase appDatabase(Ref ref)'));
-      expect(infraSrc, contains('NetworkInfo networkInfo(Ref ref)'));
+    // Dio provider + logging interceptor (dio variant) make the API source wirable.
+    final dioProvider = File(
+      '${projectDir.path}/lib/core/network/dio_provider.dart',
+    );
+    expect(
+      dioProvider.existsSync(),
+      isTrue,
+      reason: 'core/network/dio_provider.dart missing',
+    );
+    expect(dioProvider.readAsStringSync(), contains('LoggerInterceptor()'));
+    expect(
+      File(
+        '${projectDir.path}/lib/core/observers/logger_interceptor.dart',
+      ).existsSync(),
+      isTrue,
+      reason: 'logger_interceptor.dart missing',
+    );
 
-      // Offline usage guide ships with the project.
-      expect(
-        File('${projectDir.path}/docs/OFFLINE.md').existsSync(),
-        isTrue,
-        reason: 'docs/OFFLINE.md missing',
-      );
+    // Repository-level DI (data/): dio-backed source + local source + repo.
+    // The shared Drift db + NetworkInfo singletons live in core, not here, so
+    // the feature DI references them instead of redeclaring them.
+    final di = File(
+      '${projectDir.path}/lib/features/user_profile/data/repositories/'
+      'user_profile_repository_providers.dart',
+    ).readAsStringSync();
+    expect(di, contains('UserProfileApiSource(ref.watch(dioProvider))'));
+    expect(di, contains('ref.watch(appDatabaseProvider)'));
+    expect(di, contains('ref.watch(networkInfoProvider)'));
+    expect(
+      di,
+      contains(
+        "import 'package:$projectName/core/providers/infrastructure_providers.dart'",
+      ),
+    );
+    // The feature DI must NOT redeclare the shared singletons.
+    expect(di, isNot(contains('AppDatabase appDatabase(Ref ref)')));
+    expect(di, isNot(contains('NetworkInfo networkInfo(Ref ref)')));
 
-      // The witness repository is the offline-first variant (remote + cache).
-      final repoImpl = File(
-        '${projectDir.path}/lib/features/user_profile/data/repositories/'
-        'user_profile_repository_impl.dart',
-      ).readAsStringSync();
-      expect(repoImpl, contains('NetworkInfo'));
-      expect(repoImpl, contains('_local.cacheAll'));
+    // Shared infrastructure providers exist once, in core.
+    final infra = File(
+      '${projectDir.path}/lib/core/providers/infrastructure_providers.dart',
+    );
+    expect(
+      infra.existsSync(),
+      isTrue,
+      reason: 'core infrastructure_providers.dart missing',
+    );
+    final infraSrc = infra.readAsStringSync();
+    expect(infraSrc, contains('AppDatabase appDatabase(Ref ref)'));
+    expect(infraSrc, contains('NetworkInfo networkInfo(Ref ref)'));
 
-      // The local source is Drift-backed (imports the workspace package).
-      final localSrc = File(
-        '${projectDir.path}/lib/features/user_profile/data/sources/'
-        'user_profile_local_source.dart',
-      ).readAsStringSync();
-      expect(localSrc, contains('package:$pkg/$pkg.dart'));
-      expect(localSrc, contains('AppDatabase'));
+    // Offline usage guide ships with the project.
+    expect(
+      File('${projectDir.path}/docs/OFFLINE.md').existsSync(),
+      isTrue,
+      reason: 'docs/OFFLINE.md missing',
+    );
 
-      // Root pubspec declares the workspace + connectivity_plus; member carries resolution.
-      final rootPubspec = File(
-        '${projectDir.path}/pubspec.yaml',
-      ).readAsStringSync();
-      expect(rootPubspec, contains('workspace:'));
-      expect(rootPubspec, contains('packages/$pkg'));
-      expect(rootPubspec, contains('connectivity_plus'));
-      final pkgPubspec = File(
-        '${projectDir.path}/packages/$pkg/pubspec.yaml',
-      ).readAsStringSync();
-      expect(pkgPubspec, contains('resolution: workspace'));
+    // The witness repository is the offline-first variant (remote + cache).
+    final repoImpl = File(
+      '${projectDir.path}/lib/features/user_profile/data/repositories/'
+      'user_profile_repository_impl.dart',
+    ).readAsStringSync();
+    expect(repoImpl, contains('NetworkInfo'));
+    expect(repoImpl, contains('_local.cacheAll'));
 
-      // The whole workspace analyzes without errors.
-      final analyze = await Process.run('flutter', [
-        'analyze',
-        '--no-pub',
-      ], workingDirectory: projectDir.path);
-      final out = '${analyze.stdout}\n${analyze.stderr}';
-      expect(
-        RegExp(r'(\d+ issues? found|No issues found)').hasMatch(out),
-        isTrue,
-        reason: 'flutter analyze did not run as expected:\n$out',
-      );
-      final errorLines = const LineSplitter()
-          .convert(out)
-          .where(
-            (l) =>
-                (l.contains(' error •') || l.contains(' warning •')) &&
-                !l.contains('• build/'),
-          )
-          .toList();
-      expect(
-        errorLines,
-        isEmpty,
-        reason:
-            'workspace analyze reported errors:\n${errorLines.join('\n')}\n\n$out',
-      );
-    },
-    timeout: const Timeout(Duration(minutes: 12)),
-  );
+    // The local source is Drift-backed (imports the workspace package).
+    final localSrc = File(
+      '${projectDir.path}/lib/features/user_profile/data/sources/'
+      'user_profile_local_source.dart',
+    ).readAsStringSync();
+    expect(localSrc, contains('package:$pkg/$pkg.dart'));
+    expect(localSrc, contains('AppDatabase'));
+
+    // Root pubspec declares the workspace + connectivity_plus; member carries resolution.
+    final rootPubspec = File(
+      '${projectDir.path}/pubspec.yaml',
+    ).readAsStringSync();
+    expect(rootPubspec, contains('workspace:'));
+    expect(rootPubspec, contains('packages/$pkg'));
+    expect(rootPubspec, contains('connectivity_plus'));
+    final pkgPubspec = File(
+      '${projectDir.path}/packages/$pkg/pubspec.yaml',
+    ).readAsStringSync();
+    expect(pkgPubspec, contains('resolution: workspace'));
+
+    // The whole workspace analyzes without errors.
+    final analyze = await Process.run('flutter', [
+      'analyze',
+      '--no-pub',
+    ], workingDirectory: projectDir.path);
+    final out = '${analyze.stdout}\n${analyze.stderr}';
+    expect(
+      RegExp(r'(\d+ issues? found|No issues found)').hasMatch(out),
+      isTrue,
+      reason: 'flutter analyze did not run as expected:\n$out',
+    );
+    final errorLines = const LineSplitter()
+        .convert(out)
+        .where(
+          (l) =>
+              (l.contains(' error •') || l.contains(' warning •')) &&
+              !l.contains('• build/'),
+        )
+        .toList();
+    expect(
+      errorLines,
+      isEmpty,
+      reason:
+          'workspace analyze reported errors:\n${errorLines.join('\n')}\n\n$out',
+    );
+  }, timeout: const Timeout(Duration(minutes: 12)));
 
   test(
     'offline + sync generates the Outbox + SyncService and analyzes cleanly',
@@ -4953,180 +4940,176 @@ void main() {
     timeout: const Timeout(Duration(minutes: 12)),
   );
 
-  test(
-    'extracted UI package + Widgetbook form a clean workspace',
-    () async {
-      const projectName = 'neat_ui_test';
-      final logs = <String>[];
-      const uiPkg = '${projectName}_ui';
+  test('extracted UI package + Widgetbook form a clean workspace', () async {
+    const projectName = 'neat_ui_test';
+    final logs = <String>[];
+    const uiPkg = '${projectName}_ui';
 
-      final uiPackages = <PubPackage>[
-        _dep('hooks_riverpod', '3.4.3'),
-        _dep('flutter_hooks', '0.21.3+1'),
-        _dep('riverpod_annotation', '4.0.7'),
-        _dep('dio', '5.9.2'),
-        _dep('go_router', '17.5.0'),
-        _dev('riverpod_generator', '4.0.9'),
-        _dev('build_runner', '2.16.2'),
-      ];
+    final uiPackages = <PubPackage>[
+      _dep('hooks_riverpod', '3.4.3'),
+      _dep('flutter_hooks', '0.21.3+1'),
+      _dep('riverpod_annotation', '4.0.7'),
+      _dep('dio', '5.9.2'),
+      _dep('go_router', '17.5.0'),
+      _dev('riverpod_generator', '4.0.9'),
+      _dev('build_runner', '2.16.2'),
+    ];
 
-      final identity = IdentityState(
-        name: projectName,
-        organization: 'com.neat.test',
-        projectPath: tempRoot.path,
-        description: 'NEAT UI-package integration test',
-        targetPlatforms: const ['macos'],
+    final identity = IdentityState(
+      name: projectName,
+      organization: 'com.neat.test',
+      projectPath: tempRoot.path,
+      description: 'NEAT UI-package integration test',
+      targetPlatforms: const ['macos'],
+    );
+
+    const architecture = ArchitectureState(firstFeatureName: 'user_profile');
+
+    const theme = ThemeEngineState(
+      approach: ThemeApproach.customM3,
+      components: {AppComponent.button, AppComponent.card},
+      generateWidgetbook: true,
+    );
+
+    try {
+      await const LaunchGenerationUsecase().execute(
+        identity: identity,
+        packages: uiPackages,
+        architecture: architecture,
+        cicd: const CicdState(),
+        theme: theme,
+        onLog: logs.add,
       );
-
-      const architecture = ArchitectureState(firstFeatureName: 'user_profile');
-
-      const theme = ThemeEngineState(
-        approach: ThemeApproach.customM3,
-        components: {AppComponent.button, AppComponent.card},
-        generateWidgetbook: true,
+    } catch (e) {
+      fail(
+        'UI-package generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}',
       );
+    }
 
-      try {
-        await const LaunchGenerationUsecase().execute(
-          identity: identity,
-          packages: uiPackages,
-          architecture: architecture,
-          cicd: const CicdState(),
-          theme: theme,
-          onLog: logs.add,
-        );
-      } catch (e) {
-        fail(
-          'UI-package generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}',
-        );
-      }
+    final projectDir = Directory('${tempRoot.path}/$projectName');
 
-      final projectDir = Directory('${tempRoot.path}/$projectName');
-
-      // The <app>_ui package: pubspec, barrel, relocated theme + components.
-      for (final relPath in [
-        'packages/$uiPkg/pubspec.yaml',
-        'packages/$uiPkg/lib/$uiPkg.dart',
-        'packages/$uiPkg/lib/core/theme/app_theme.dart',
-        'packages/$uiPkg/lib/components/app_button.dart',
-        'packages/$uiPkg/lib/components/app_card.dart',
-        'widgetbook/pubspec.yaml',
-        'widgetbook/lib/main.dart',
-      ]) {
-        expect(
-          File('${projectDir.path}/$relPath').existsSync(),
-          isTrue,
-          reason: 'expected file missing: $relPath',
-        );
-      }
-
-      // Theme no longer in the app.
+    // The <app>_ui package: pubspec, barrel, relocated theme + components.
+    for (final relPath in [
+      'packages/$uiPkg/pubspec.yaml',
+      'packages/$uiPkg/lib/$uiPkg.dart',
+      'packages/$uiPkg/lib/core/theme/app_theme.dart',
+      'packages/$uiPkg/lib/components/app_button.dart',
+      'packages/$uiPkg/lib/components/app_card.dart',
+      'widgetbook/pubspec.yaml',
+      'widgetbook/lib/main.dart',
+    ]) {
       expect(
-        File('${projectDir.path}/lib/core/theme/app_theme.dart').existsSync(),
-        isFalse,
-        reason: 'app_theme.dart should have moved to the UI package',
-      );
-      // State stays in the app.
-      expect(
-        File(
-          '${projectDir.path}/lib/core/theme/theme_mode_controller.dart',
-        ).existsSync(),
+        File('${projectDir.path}/$relPath').existsSync(),
         isTrue,
-        reason: 'theme_mode_controller stays in the app',
+        reason: 'expected file missing: $relPath',
       );
+    }
 
-      // Barrel exports + app imports the package.
-      final barrel = File(
-        '${projectDir.path}/packages/$uiPkg/lib/$uiPkg.dart',
-      ).readAsStringSync();
-      expect(barrel, contains("export 'core/theme/app_theme.dart';"));
-      expect(barrel, contains("export 'components/app_button.dart';"));
-      expect(barrel, contains("export 'widgets/asset_images.dart';"));
-      expect(barrel, contains("export 'gen/assets.dart';"));
-      final appDart = File(
-        '${projectDir.path}/lib/app.dart',
-      ).readAsStringSync();
-      expect(appDart, contains("import 'package:$uiPkg/$uiPkg.dart';"));
+    // Theme no longer in the app.
+    expect(
+      File('${projectDir.path}/lib/core/theme/app_theme.dart').existsSync(),
+      isFalse,
+      reason: 'app_theme.dart should have moved to the UI package',
+    );
+    // State stays in the app.
+    expect(
+      File(
+        '${projectDir.path}/lib/core/theme/theme_mode_controller.dart',
+      ).existsSync(),
+      isTrue,
+      reason: 'theme_mode_controller stays in the app',
+    );
 
-      // spider: typed asset paths (config + generated Assets class).
-      expect(
-        File('${projectDir.path}/packages/$uiPkg/spider.yaml').existsSync(),
-        isTrue,
-      );
-      final assetsClass = File(
-        '${projectDir.path}/packages/$uiPkg/lib/gen/assets.dart',
-      ).readAsStringSync();
-      expect(assetsClass, contains('class Assets'));
+    // Barrel exports + app imports the package.
+    final barrel = File(
+      '${projectDir.path}/packages/$uiPkg/lib/$uiPkg.dart',
+    ).readAsStringSync();
+    expect(barrel, contains("export 'core/theme/app_theme.dart';"));
+    expect(barrel, contains("export 'components/app_button.dart';"));
+    expect(barrel, contains("export 'widgets/asset_images.dart';"));
+    expect(barrel, contains("export 'gen/assets.dart';"));
+    final appDart = File('${projectDir.path}/lib/app.dart').readAsStringSync();
+    expect(appDart, contains("import 'package:$uiPkg/$uiPkg.dart';"));
 
-      // Shared SVG/image asset widgets ship in the UI package (flutter_svg dep +
-      // a package-scoped assets folder).
-      final assetWidgets = File(
-        '${projectDir.path}/packages/$uiPkg/lib/widgets/asset_images.dart',
-      ).readAsStringSync();
-      expect(assetWidgets, contains('class SvgPictureCustom'));
-      expect(assetWidgets, contains('class ImagePictureCustom'));
-      expect(assetWidgets, contains("package: '$uiPkg'"));
-      final uiPubspec = File(
-        '${projectDir.path}/packages/$uiPkg/pubspec.yaml',
-      ).readAsStringSync();
-      expect(uiPubspec, contains('flutter_svg'));
-      expect(uiPubspec, contains('assets/'));
-      expect(uiPubspec, contains('spider'));
+    // spider: typed asset paths (config + generated Assets class).
+    expect(
+      File('${projectDir.path}/packages/$uiPkg/spider.yaml').existsSync(),
+      isTrue,
+    );
+    final assetsClass = File(
+      '${projectDir.path}/packages/$uiPkg/lib/gen/assets.dart',
+    ).readAsStringSync();
+    expect(assetsClass, contains('class Assets'));
 
-      // Root workspace lists the UI package + widgetbook; widgetbook depends on it.
-      final rootPubspec = File(
-        '${projectDir.path}/pubspec.yaml',
-      ).readAsStringSync();
-      expect(rootPubspec, contains('packages/$uiPkg'));
-      expect(rootPubspec, contains('- widgetbook'));
-      final wbPubspec = File(
-        '${projectDir.path}/widgetbook/pubspec.yaml',
-      ).readAsStringSync();
-      expect(wbPubspec, contains('path: ../packages/$uiPkg'));
+    // Shared SVG/image asset widgets ship in the UI package (flutter_svg dep +
+    // a package-scoped assets folder).
+    final assetWidgets = File(
+      '${projectDir.path}/packages/$uiPkg/lib/widgets/asset_images.dart',
+    ).readAsStringSync();
+    expect(assetWidgets, contains('class SvgPictureCustom'));
+    expect(assetWidgets, contains('class ImagePictureCustom'));
+    expect(assetWidgets, contains("package: '$uiPkg'"));
+    final uiPubspec = File(
+      '${projectDir.path}/packages/$uiPkg/pubspec.yaml',
+    ).readAsStringSync();
+    expect(uiPubspec, contains('flutter_svg'));
+    expect(uiPubspec, contains('assets/'));
+    expect(uiPubspec, contains('spider'));
 
-      // Widgetbook is meant to be browsed on a big screen, not a phone — it
-      // gets its own `flutter create` (web), independent of the app's own
-      // targetPlatforms (macos only here, no web) — real gap: without it,
-      // the extracted widgetbook member had zero platform runner folders of
-      // its own at all, since `flutter create` never touched that directory
-      // (ThemeWriter only wrote its pubspec.yaml/lib/main.dart).
-      expect(
-        Directory('${projectDir.path}/widgetbook/web').existsSync(),
-        isTrue,
-        reason: 'widgetbook should have its own web/ runner folder',
-      );
-      // Confirms `flutter create` didn't clobber the hand-written pubspec/
-      // main.dart it found already there (verified — not assumed).
-      expect(wbPubspec, contains('path: ../packages/$uiPkg'));
-      expect(
-        File('${projectDir.path}/widgetbook/lib/main.dart').readAsStringSync(),
-        contains('WidgetbookApp'),
-      );
-      // The app itself never asked for web — untouched.
-      expect(
-        Directory('${projectDir.path}/web').existsSync(),
-        isFalse,
-        reason: 'the app itself only targeted macos — web is widgetbook-only',
-      );
+    // Root workspace lists the UI package + widgetbook; widgetbook depends on it.
+    final rootPubspec = File(
+      '${projectDir.path}/pubspec.yaml',
+    ).readAsStringSync();
+    expect(rootPubspec, contains('packages/$uiPkg'));
+    expect(rootPubspec, contains('- widgetbook'));
+    final wbPubspec = File(
+      '${projectDir.path}/widgetbook/pubspec.yaml',
+    ).readAsStringSync();
+    expect(wbPubspec, contains('path: ../packages/$uiPkg'));
 
-      // The extracted widgetbook member pulls in flutter_screenutil itself
-      // (see the probe just below for why).
-      expect(wbPubspec, contains('flutter_screenutil'));
+    // Widgetbook is meant to be browsed on a big screen, not a phone — it
+    // gets its own `flutter create` (web), independent of the app's own
+    // targetPlatforms (macos only here, no web) — real gap: without it,
+    // the extracted widgetbook member had zero platform runner folders of
+    // its own at all, since `flutter create` never touched that directory
+    // (ThemeWriter only wrote its pubspec.yaml/lib/main.dart).
+    expect(
+      Directory('${projectDir.path}/widgetbook/web').existsSync(),
+      isTrue,
+      reason: 'widgetbook should have its own web/ runner folder',
+    );
+    // Confirms `flutter create` didn't clobber the hand-written pubspec/
+    // main.dart it found already there (verified — not assumed).
+    expect(wbPubspec, contains('path: ../packages/$uiPkg'));
+    expect(
+      File('${projectDir.path}/widgetbook/lib/main.dart').readAsStringSync(),
+      contains('WidgetbookApp'),
+    );
+    // The app itself never asked for web — untouched.
+    expect(
+      Directory('${projectDir.path}/web').existsSync(),
+      isFalse,
+      reason: 'the app itself only targeted macos — web is widgetbook-only',
+    );
 
-      // Executable regression probe: real bug, found via a real generated
-      // project — WidgetbookApp threw `LateInitializationError: Field
-      // '_minTextAdapt' has not been initialized` the instant it rendered
-      // any design-system component using ScreenUtil's `.sp`/`.w` sizing,
-      // since (unlike the app's own AppTemplates.appDart) nothing ever ran
-      // ScreenUtilInit here. `flutter analyze` can't catch this — the
-      // generated code compiles fine either way, it only fails against a
-      // real widget tree. Drives the actual pipeline: pumps the generated
-      // WidgetbookApp for real.
-      final probeFile = File(
-        '${projectDir.path}/widgetbook/test/widgetbook_smoke_test.dart',
-      );
-      await probeFile.create(recursive: true);
-      await probeFile.writeAsString('''
+    // The extracted widgetbook member pulls in flutter_screenutil itself
+    // (see the probe just below for why).
+    expect(wbPubspec, contains('flutter_screenutil'));
+
+    // Executable regression probe: real bug, found via a real generated
+    // project — WidgetbookApp threw `LateInitializationError: Field
+    // '_minTextAdapt' has not been initialized` the instant it rendered
+    // any design-system component using ScreenUtil's `.sp`/`.w` sizing,
+    // since (unlike the app's own AppTemplates.appDart) nothing ever ran
+    // ScreenUtilInit here. `flutter analyze` can't catch this — the
+    // generated code compiles fine either way, it only fails against a
+    // real widget tree. Drives the actual pipeline: pumps the generated
+    // WidgetbookApp for real.
+    final probeFile = File(
+      '${projectDir.path}/widgetbook/test/widgetbook_smoke_test.dart',
+    );
+    await probeFile.create(recursive: true);
+    await probeFile.writeAsString('''
 import 'package:flutter_test/flutter_test.dart';
 import 'package:${projectName}_widgetbook/main.dart';
 
@@ -5141,238 +5124,232 @@ void main() {
   );
 }
 ''');
-      final probe = await Process.run('flutter', [
-        'test',
-        'test/widgetbook_smoke_test.dart',
-      ], workingDirectory: '${projectDir.path}/widgetbook');
-      expect(
-        probe.exitCode,
-        0,
-        reason: 'widgetbook ScreenUtilInit regression probe failed:\n${probe.stdout}\n${probe.stderr}',
+    final probe = await Process.run('flutter', [
+      'test',
+      'test/widgetbook_smoke_test.dart',
+    ], workingDirectory: '${projectDir.path}/widgetbook');
+    expect(
+      probe.exitCode,
+      0,
+      reason:
+          'widgetbook ScreenUtilInit regression probe failed:\n${probe.stdout}\n${probe.stderr}',
+    );
+
+    // Whole workspace analyzes without errors or warnings.
+    final analyze = await Process.run('flutter', [
+      'analyze',
+      '--no-pub',
+    ], workingDirectory: projectDir.path);
+    final out = '${analyze.stdout}\n${analyze.stderr}';
+    expect(
+      RegExp(r'(\d+ issues? found|No issues found)').hasMatch(out),
+      isTrue,
+      reason: 'flutter analyze did not run as expected:\n$out',
+    );
+    final errorLines = const LineSplitter()
+        .convert(out)
+        .where(
+          (l) =>
+              (l.contains(' error •') || l.contains(' warning •')) &&
+              !l.contains('• build/'),
+        )
+        .toList();
+    expect(
+      errorLines,
+      isEmpty,
+      reason:
+          'UI-package workspace analyze reported issues:\n${errorLines.join('\n')}\n\n$out',
+    );
+  }, timeout: const Timeout(Duration(minutes: 12)));
+
+  test('Widgetbook, loose mode (extractUiPackage: false): its catalog shares '
+      'the app\'s own flutter create — mobile-only targetPlatforms still gets '
+      'a web/ folder added so the catalog is browsable on a big screen, not '
+      'just a phone', () async {
+    const projectName = 'neat_widgetbook_loose_test';
+    final logs = <String>[];
+
+    final identity = IdentityState(
+      name: projectName,
+      organization: 'com.neat.test',
+      projectPath: tempRoot.path,
+      description: 'NEAT widgetbook loose-mode integration test',
+      // Mobile-only (the default) — no web, no macos: proves widgetbook's
+      // own web/ folder isn't just piggybacking on a platform the user
+      // already chose for an unrelated reason.
+    );
+
+    const theme = ThemeEngineState(
+      approach: ThemeApproach.customM3,
+      components: {AppComponent.button},
+      generateWidgetbook: true,
+      extractUiPackage: false,
+    );
+
+    try {
+      await const LaunchGenerationUsecase().execute(
+        identity: identity,
+        packages: packages,
+        architecture: const ArchitectureState(),
+        cicd: const CicdState(),
+        theme: theme,
+        onLog: logs.add,
       );
-
-      // Whole workspace analyzes without errors or warnings.
-      final analyze = await Process.run('flutter', [
-        'analyze',
-        '--no-pub',
-      ], workingDirectory: projectDir.path);
-      final out = '${analyze.stdout}\n${analyze.stderr}';
-      expect(
-        RegExp(r'(\d+ issues? found|No issues found)').hasMatch(out),
-        isTrue,
-        reason: 'flutter analyze did not run as expected:\n$out',
+    } catch (e) {
+      fail(
+        'Widgetbook loose-mode generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}',
       );
-      final errorLines = const LineSplitter()
-          .convert(out)
-          .where(
-            (l) =>
-                (l.contains(' error •') || l.contains(' warning •')) &&
-                !l.contains('• build/'),
-          )
-          .toList();
-      expect(
-        errorLines,
-        isEmpty,
-        reason:
-            'UI-package workspace analyze reported issues:\n${errorLines.join('\n')}\n\n$out',
+    }
+
+    final projectDir = Directory('${tempRoot.path}/$projectName');
+
+    // Loose mode: the catalog is a plain file next to the app, not its own
+    // workspace package.
+    expect(
+      File('${projectDir.path}/widgetbook/main.dart').existsSync(),
+      isTrue,
+    );
+    expect(
+      File('${projectDir.path}/widgetbook/pubspec.yaml').existsSync(),
+      isFalse,
+      reason: 'no extracted <ui> package — nothing for it to depend on',
+    );
+
+    // It shares the app's own flutter create — mobile-only chosen, but a
+    // web/ folder should still exist so the catalog runs somewhere sane.
+    expect(
+      Directory('${projectDir.path}/web').existsSync(),
+      isTrue,
+      reason: 'widgetbook needs a big-screen target to run on',
+    );
+    expect(Directory('${projectDir.path}/android').existsSync(), isTrue);
+    expect(Directory('${projectDir.path}/ios').existsSync(), isTrue);
+    // isWeb must reflect the app's own chosen platforms (mobile-only) —
+    // widgetbook's own web/ folder must not flip web-specific app
+    // behavior on behind the user's back.
+    expect(
+      File('${projectDir.path}/lib/core/bootstrap.dart').readAsStringSync(),
+      isNot(contains('usePathUrlStrategy')),
+    );
+
+    final analyze = await Process.run('flutter', [
+      'analyze',
+      '--no-pub',
+    ], workingDirectory: projectDir.path);
+    final out = '${analyze.stdout}\n${analyze.stderr}';
+    final errorLines = const LineSplitter()
+        .convert(out)
+        .where(
+          (l) =>
+              (l.contains(' error •') || l.contains(' warning •')) &&
+              !l.contains('• build/'),
+        )
+        .toList();
+    expect(
+      errorLines,
+      isEmpty,
+      reason:
+          'Widgetbook loose-mode workspace analyze reported issues:\n'
+          '${errorLines.join('\n')}\n\n$out',
+    );
+  }, timeout: const Timeout(Duration(minutes: 12)));
+
+  test('FlexColorScheme + extracted UI package form a clean workspace', () async {
+    const projectName = 'neat_flex_test';
+    final logs = <String>[];
+    const uiPkg = '${projectName}_ui';
+
+    final flexPackages = <PubPackage>[
+      _dep('hooks_riverpod', '3.4.3'),
+      _dep('flutter_hooks', '0.21.3+1'),
+      _dep('riverpod_annotation', '4.0.7'),
+      _dep('flex_color_scheme', '8.4.0'),
+      _dev('riverpod_generator', '4.0.9'),
+      _dev('build_runner', '2.16.2'),
+    ];
+
+    final identity = IdentityState(
+      name: projectName,
+      organization: 'com.neat.test',
+      projectPath: tempRoot.path,
+      description: 'NEAT flex + UI-package integration test',
+      targetPlatforms: const ['macos'],
+    );
+
+    const architecture = ArchitectureState(firstFeatureName: 'user_profile');
+
+    // FlexColorScheme approach (default config, no pasted code) + UI extraction.
+    const theme = ThemeEngineState(approach: ThemeApproach.flexColorScheme);
+
+    try {
+      await const LaunchGenerationUsecase().execute(
+        identity: identity,
+        packages: flexPackages,
+        architecture: architecture,
+        cicd: const CicdState(),
+        theme: theme,
+        onLog: logs.add,
       );
-    },
-    timeout: const Timeout(Duration(minutes: 12)),
-  );
-
-  test(
-    'Widgetbook, loose mode (extractUiPackage: false): its catalog shares '
-    'the app\'s own flutter create — mobile-only targetPlatforms still gets '
-    'a web/ folder added so the catalog is browsable on a big screen, not '
-    'just a phone',
-    () async {
-      const projectName = 'neat_widgetbook_loose_test';
-      final logs = <String>[];
-
-      final identity = IdentityState(
-        name: projectName,
-        organization: 'com.neat.test',
-        projectPath: tempRoot.path,
-        description: 'NEAT widgetbook loose-mode integration test',
-        // Mobile-only (the default) — no web, no macos: proves widgetbook's
-        // own web/ folder isn't just piggybacking on a platform the user
-        // already chose for an unrelated reason.
+    } catch (e) {
+      fail(
+        'Flex + UI-package generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}',
       );
+    }
 
-      const theme = ThemeEngineState(
-        approach: ThemeApproach.customM3,
-        components: {AppComponent.button},
-        generateWidgetbook: true,
-        extractUiPackage: false,
-      );
+    final projectDir = Directory('${tempRoot.path}/$projectName');
 
-      try {
-        await const LaunchGenerationUsecase().execute(
-          identity: identity,
-          packages: packages,
-          architecture: const ArchitectureState(),
-          cicd: const CicdState(),
-          theme: theme,
-          onLog: logs.add,
-        );
-      } catch (e) {
-        fail(
-          'Widgetbook loose-mode generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}',
-        );
-      }
+    // Flex theme relocated into the UI package + flex dep in the package.
+    final themeFile = File(
+      '${projectDir.path}/packages/$uiPkg/lib/core/theme/app_theme.dart',
+    );
+    expect(
+      themeFile.existsSync(),
+      isTrue,
+      reason: 'UI package app_theme.dart missing',
+    );
+    expect(themeFile.readAsStringSync(), contains('FlexThemeData'));
+    final uiPubspec = File(
+      '${projectDir.path}/packages/$uiPkg/pubspec.yaml',
+    ).readAsStringSync();
+    expect(uiPubspec, contains('flex_color_scheme'));
 
-      final projectDir = Directory('${tempRoot.path}/$projectName');
+    // App imports the package; workspace lists it.
+    expect(
+      File('${projectDir.path}/lib/app.dart').readAsStringSync(),
+      contains("import 'package:$uiPkg/$uiPkg.dart';"),
+    );
+    expect(
+      File('${projectDir.path}/pubspec.yaml').readAsStringSync(),
+      contains('packages/$uiPkg'),
+    );
 
-      // Loose mode: the catalog is a plain file next to the app, not its own
-      // workspace package.
-      expect(File('${projectDir.path}/widgetbook/main.dart').existsSync(), isTrue);
-      expect(
-        File('${projectDir.path}/widgetbook/pubspec.yaml').existsSync(),
-        isFalse,
-        reason: 'no extracted <ui> package — nothing for it to depend on',
-      );
-
-      // It shares the app's own flutter create — mobile-only chosen, but a
-      // web/ folder should still exist so the catalog runs somewhere sane.
-      expect(
-        Directory('${projectDir.path}/web').existsSync(),
-        isTrue,
-        reason: 'widgetbook needs a big-screen target to run on',
-      );
-      expect(Directory('${projectDir.path}/android').existsSync(), isTrue);
-      expect(Directory('${projectDir.path}/ios').existsSync(), isTrue);
-      // isWeb must reflect the app's own chosen platforms (mobile-only) —
-      // widgetbook's own web/ folder must not flip web-specific app
-      // behavior on behind the user's back.
-      expect(
-        File('${projectDir.path}/lib/core/bootstrap.dart').readAsStringSync(),
-        isNot(contains('usePathUrlStrategy')),
-      );
-
-      final analyze = await Process.run('flutter', [
-        'analyze',
-        '--no-pub',
-      ], workingDirectory: projectDir.path);
-      final out = '${analyze.stdout}\n${analyze.stderr}';
-      final errorLines = const LineSplitter()
-          .convert(out)
-          .where(
-            (l) =>
-                (l.contains(' error •') || l.contains(' warning •')) &&
-                !l.contains('• build/'),
-          )
-          .toList();
-      expect(
-        errorLines,
-        isEmpty,
-        reason:
-            'Widgetbook loose-mode workspace analyze reported issues:\n'
-            '${errorLines.join('\n')}\n\n$out',
-      );
-    },
-    timeout: const Timeout(Duration(minutes: 12)),
-  );
-
-  test(
-    'FlexColorScheme + extracted UI package form a clean workspace',
-    () async {
-      const projectName = 'neat_flex_test';
-      final logs = <String>[];
-      const uiPkg = '${projectName}_ui';
-
-      final flexPackages = <PubPackage>[
-        _dep('hooks_riverpod', '3.4.3'),
-        _dep('flutter_hooks', '0.21.3+1'),
-        _dep('riverpod_annotation', '4.0.7'),
-        _dep('flex_color_scheme', '8.4.0'),
-        _dev('riverpod_generator', '4.0.9'),
-        _dev('build_runner', '2.16.2'),
-      ];
-
-      final identity = IdentityState(
-        name: projectName,
-        organization: 'com.neat.test',
-        projectPath: tempRoot.path,
-        description: 'NEAT flex + UI-package integration test',
-        targetPlatforms: const ['macos'],
-      );
-
-      const architecture = ArchitectureState(firstFeatureName: 'user_profile');
-
-      // FlexColorScheme approach (default config, no pasted code) + UI extraction.
-      const theme = ThemeEngineState(approach: ThemeApproach.flexColorScheme);
-
-      try {
-        await const LaunchGenerationUsecase().execute(
-          identity: identity,
-          packages: flexPackages,
-          architecture: architecture,
-          cicd: const CicdState(),
-          theme: theme,
-          onLog: logs.add,
-        );
-      } catch (e) {
-        fail(
-          'Flex + UI-package generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}',
-        );
-      }
-
-      final projectDir = Directory('${tempRoot.path}/$projectName');
-
-      // Flex theme relocated into the UI package + flex dep in the package.
-      final themeFile = File(
-        '${projectDir.path}/packages/$uiPkg/lib/core/theme/app_theme.dart',
-      );
-      expect(
-        themeFile.existsSync(),
-        isTrue,
-        reason: 'UI package app_theme.dart missing',
-      );
-      expect(themeFile.readAsStringSync(), contains('FlexThemeData'));
-      final uiPubspec = File(
-        '${projectDir.path}/packages/$uiPkg/pubspec.yaml',
-      ).readAsStringSync();
-      expect(uiPubspec, contains('flex_color_scheme'));
-
-      // App imports the package; workspace lists it.
-      expect(
-        File('${projectDir.path}/lib/app.dart').readAsStringSync(),
-        contains("import 'package:$uiPkg/$uiPkg.dart';"),
-      );
-      expect(
-        File('${projectDir.path}/pubspec.yaml').readAsStringSync(),
-        contains('packages/$uiPkg'),
-      );
-
-      // Whole workspace analyzes without errors or warnings.
-      final analyze = await Process.run('flutter', [
-        'analyze',
-        '--no-pub',
-      ], workingDirectory: projectDir.path);
-      final out = '${analyze.stdout}\n${analyze.stderr}';
-      expect(
-        RegExp(r'(\d+ issues? found|No issues found)').hasMatch(out),
-        isTrue,
-        reason: 'flutter analyze did not run as expected:\n$out',
-      );
-      final errorLines = const LineSplitter()
-          .convert(out)
-          .where(
-            (l) =>
-                (l.contains(' error •') || l.contains(' warning •')) &&
-                !l.contains('• build/'),
-          )
-          .toList();
-      expect(
-        errorLines,
-        isEmpty,
-        reason:
-            'flex + UI-package workspace analyze reported issues:\n'
-            '${errorLines.join('\n')}\n\n$out',
-      );
-    },
-    timeout: const Timeout(Duration(minutes: 12)),
-  );
+    // Whole workspace analyzes without errors or warnings.
+    final analyze = await Process.run('flutter', [
+      'analyze',
+      '--no-pub',
+    ], workingDirectory: projectDir.path);
+    final out = '${analyze.stdout}\n${analyze.stderr}';
+    expect(
+      RegExp(r'(\d+ issues? found|No issues found)').hasMatch(out),
+      isTrue,
+      reason: 'flutter analyze did not run as expected:\n$out',
+    );
+    final errorLines = const LineSplitter()
+        .convert(out)
+        .where(
+          (l) =>
+              (l.contains(' error •') || l.contains(' warning •')) &&
+              !l.contains('• build/'),
+        )
+        .toList();
+    expect(
+      errorLines,
+      isEmpty,
+      reason:
+          'flex + UI-package workspace analyze reported issues:\n'
+          '${errorLines.join('\n')}\n\n$out',
+    );
+  }, timeout: const Timeout(Duration(minutes: 12)));
 
   test(
     'FlexColorScheme playground paste: a full file with an unrelated wrapper '
@@ -5969,202 +5946,196 @@ abstract final class Palette {
     );
   }, timeout: const Timeout(Duration(minutes: 12)));
 
-  test(
-    'Customize endpoints (Entity + CRUD, chopper): each of the 5 fixed '
-    'operations gets its own method + path instead of sharing one derived '
-    'base (dummyjson-style: POST /recipes/add to create), and the workspace '
-    'analyzes cleanly',
-    () async {
-      const projectName = 'neat_customize_endpoints_test';
-      final logs = <String>[];
+  test('Customize endpoints (Entity + CRUD, chopper): each of the 5 fixed '
+      'operations gets its own method + path instead of sharing one derived '
+      'base (dummyjson-style: POST /recipes/add to create), and the workspace '
+      'analyzes cleanly', () async {
+    const projectName = 'neat_customize_endpoints_test';
+    final logs = <String>[];
 
-      final pkgs = <PubPackage>[
-        _dep('hooks_riverpod', '3.4.3'),
-        _dep('flutter_hooks', '0.21.3+1'),
-        _dep('riverpod_annotation', '4.0.7'),
-        _dep('json_annotation', '4.11.0'),
-        _dep('freezed_annotation', '3.1.0'),
-        _dep('chopper', '8.6.0'),
-        _dep('go_router', '17.5.0'),
-        _dev('riverpod_generator', '4.0.9'),
-        _dev('riverpod_lint', '3.1.9'),
-        _dev('json_serializable', '6.14.1'),
-        _dev('build_runner', '2.16.2'),
-        _dev('freezed', '4.0.2'),
-        _dev('chopper_generator', '8.7.1'),
-      ];
+    final pkgs = <PubPackage>[
+      _dep('hooks_riverpod', '3.4.3'),
+      _dep('flutter_hooks', '0.21.3+1'),
+      _dep('riverpod_annotation', '4.0.7'),
+      _dep('json_annotation', '4.11.0'),
+      _dep('freezed_annotation', '3.1.0'),
+      _dep('chopper', '8.6.0'),
+      _dep('go_router', '17.5.0'),
+      _dev('riverpod_generator', '4.0.9'),
+      _dev('riverpod_lint', '3.1.9'),
+      _dev('json_serializable', '6.14.1'),
+      _dev('build_runner', '2.16.2'),
+      _dev('freezed', '4.0.2'),
+      _dev('chopper_generator', '8.7.1'),
+    ];
 
-      final identity = IdentityState(
-        name: projectName,
-        organization: 'com.neat.test',
-        projectPath: tempRoot.path,
-        description: 'NEAT customize endpoints integration test',
-        targetPlatforms: const ['macos'],
+    final identity = IdentityState(
+      name: projectName,
+      organization: 'com.neat.test',
+      projectPath: tempRoot.path,
+      description: 'NEAT customize endpoints integration test',
+      targetPlatforms: const ['macos'],
+    );
+    // No first feature — added via the Workshop, same as a real user would.
+    const architecture = ArchitectureState(generateFirstFeature: false);
+
+    try {
+      await const LaunchGenerationUsecase().execute(
+        identity: identity,
+        packages: pkgs,
+        architecture: architecture,
+        cicd: const CicdState(),
+        theme: const ThemeEngineState(approach: ThemeApproach.customM3),
+        onLog: logs.add,
       );
-      // No first feature — added via the Workshop, same as a real user would.
-      const architecture = ArchitectureState(generateFirstFeature: false);
+    } catch (e) {
+      fail('Base generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+    }
 
-      try {
-        await const LaunchGenerationUsecase().execute(
-          identity: identity,
-          packages: pkgs,
-          architecture: architecture,
-          cicd: const CicdState(),
-          theme: const ThemeEngineState(approach: ThemeApproach.customM3),
-          onLog: logs.add,
-        );
-      } catch (e) {
-        fail('Base generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
-      }
+    final projectDir = Directory('${tempRoot.path}/$projectName');
+    final project = await const ProjectLoader().load(projectDir.path);
+    expect(project, isNotNull);
+    expect(project!.contract.httpClient, 'chopper');
 
-      final projectDir = Directory('${tempRoot.path}/$projectName');
-      final project = await const ProjectLoader().load(projectDir.path);
-      expect(project, isNotNull);
-      expect(project!.contract.httpClient, 'chopper');
+    final options = FeatureGenOptions(
+      name: 'recipe',
+      apiPath: '/recipes',
+      customizeEndpoints: true,
+      endpointOverrides: CrudEndpointOverrides.defaultsFor('/recipes').copyWith(
+        createPath: '/recipes/add',
+        createName: 'createRecipe',
+        updateMethod: HttpMethod.patch,
+      ),
+    );
 
-      final options = FeatureGenOptions(
-        name: 'recipe',
-        apiPath: '/recipes',
-        customizeEndpoints: true,
-        endpointOverrides: CrudEndpointOverrides.defaultsFor('/recipes').copyWith(
-          createPath: '/recipes/add',
-          createName: 'createRecipe',
-          updateMethod: HttpMethod.patch,
-        ),
+    try {
+      await const GenerateFeatureUsecase().execute(
+        project: project,
+        options: options,
+        onLog: logs.add,
       );
-
-      try {
-        await const GenerateFeatureUsecase().execute(
-          project: project,
-          options: options,
-          onLog: logs.add,
-        );
-      } catch (e) {
-        fail(
-          'Customize endpoints generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}',
-        );
-      }
-
-      final apiSource = File(
-        '${projectDir.path}/lib/features/recipe/data/sources/recipe_api_source.dart',
-      ).readAsStringSync();
-      expect(apiSource, contains("@ChopperApi(baseUrl: '')"));
-      expect(apiSource, contains("@GET(path: '/recipes')"));
-      expect(apiSource, contains("@GET(path: '/recipes/{id}')"));
-      expect(apiSource, contains("@POST(path: '/recipes/add')"));
-      expect(apiSource, contains("@PATCH(path: '/recipes/{id}')"));
-      expect(apiSource, contains("@DELETE(path: '/recipes/{id}')"));
-      // The one overridden method name replaces the fixed 'add' — the other
-      // 4 stay their fixed default names since only createName was set.
-      expect(apiSource, contains('Future<Response<RecipeModel>> createRecipe('));
-      expect(apiSource, isNot(contains('Future<Response<RecipeModel>> add(')));
-      expect(apiSource, contains('Future<Response<List<RecipeModel>>> getAll('));
-      // The repository call site follows the renamed method, not the old
-      // fixed one — this is what makes the rename load-bearing rather than
-      // cosmetic.
-      final repositoryImpl = File(
-        '${projectDir.path}/lib/features/recipe/data/repositories/recipe_repository_impl.dart',
-      ).readAsStringSync();
-      expect(repositoryImpl, contains('.createRecipe(model)'));
-      expect(repositoryImpl, isNot(contains('.add(model)')));
-      // Still one shared entity/model — not one per operation (the whole
-      // point vs Custom Endpoints' per-endpoint models).
-      expect(
-        File(
-          '${projectDir.path}/lib/features/recipe/data/models/recipe_model.dart',
-        ).existsSync(),
-        isTrue,
+    } catch (e) {
+      fail(
+        'Customize endpoints generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}',
       );
-      expect(
-        File(
-          '${projectDir.path}/lib/features/recipe/domain/entities/recipe_entity.dart',
-        ).existsSync(),
-        isTrue,
+    }
+
+    final apiSource = File(
+      '${projectDir.path}/lib/features/recipe/data/sources/recipe_api_source.dart',
+    ).readAsStringSync();
+    expect(apiSource, contains("@ChopperApi(baseUrl: '')"));
+    expect(apiSource, contains("@GET(path: '/recipes')"));
+    expect(apiSource, contains("@GET(path: '/recipes/{id}')"));
+    expect(apiSource, contains("@POST(path: '/recipes/add')"));
+    expect(apiSource, contains("@PATCH(path: '/recipes/{id}')"));
+    expect(apiSource, contains("@DELETE(path: '/recipes/{id}')"));
+    // The one overridden method name replaces the fixed 'add' — the other
+    // 4 stay their fixed default names since only createName was set.
+    expect(apiSource, contains('Future<Response<RecipeModel>> createRecipe('));
+    expect(apiSource, isNot(contains('Future<Response<RecipeModel>> add(')));
+    expect(apiSource, contains('Future<Response<List<RecipeModel>>> getAll('));
+    // The repository call site follows the renamed method, not the old
+    // fixed one — this is what makes the rename load-bearing rather than
+    // cosmetic.
+    final repositoryImpl = File(
+      '${projectDir.path}/lib/features/recipe/data/repositories/recipe_repository_impl.dart',
+    ).readAsStringSync();
+    expect(repositoryImpl, contains('.createRecipe(model)'));
+    expect(repositoryImpl, isNot(contains('.add(model)')));
+    // Still one shared entity/model — not one per operation (the whole
+    // point vs Custom Endpoints' per-endpoint models).
+    expect(
+      File(
+        '${projectDir.path}/lib/features/recipe/data/models/recipe_model.dart',
+      ).existsSync(),
+      isTrue,
+    );
+    expect(
+      File(
+        '${projectDir.path}/lib/features/recipe/domain/entities/recipe_entity.dart',
+      ).existsSync(),
+      isTrue,
+    );
+
+    final analyze = await Process.run('flutter', [
+      'analyze',
+      '--no-pub',
+    ], workingDirectory: projectDir.path);
+    final out = '${analyze.stdout}\n${analyze.stderr}';
+    final errorLines = const LineSplitter()
+        .convert(out)
+        .where(
+          (l) =>
+              (l.contains(' error •') || l.contains(' warning •')) &&
+              !l.contains('• build/'),
+        )
+        .toList();
+    expect(
+      errorLines,
+      isEmpty,
+      reason:
+          'Customize endpoints workspace analyze reported issues:\n'
+          '${errorLines.join('\n')}\n\n$out',
+    );
+  }, timeout: const Timeout(Duration(minutes: 12)));
+
+  test('FeatureGenOptions.listEnvelopeKey (real bug from a real generated project: '
+      'dummyjson-style paginated envelopes broke getAll() at runtime with '
+      '"FormatException: JsonConverter expected response body to be Iterable<Model>, '
+      'but got Map"): getAll() decodes into a typed <Feature>ListModel wrapper '
+      'instead of a bare array', () async {
+    const projectName = 'neat_envelope_test';
+    final logs = <String>[];
+
+    final pkgs = <PubPackage>[
+      _dep('hooks_riverpod', '3.4.3'),
+      _dep('flutter_hooks', '0.21.3+1'),
+      _dep('riverpod_annotation', '4.0.7'),
+      _dep('json_annotation', '4.11.0'),
+      _dep('freezed_annotation', '3.1.0'),
+      _dep('chopper', '8.6.0'),
+      _dep('go_router', '17.5.0'),
+      _dev('riverpod_generator', '4.0.9'),
+      _dev('riverpod_lint', '3.1.9'),
+      _dev('json_serializable', '6.14.1'),
+      _dev('build_runner', '2.16.2'),
+      _dev('freezed', '4.0.2'),
+      _dev('chopper_generator', '8.7.1'),
+    ];
+
+    final identity = IdentityState(
+      name: projectName,
+      organization: 'com.neat.test',
+      projectPath: tempRoot.path,
+      description: 'NEAT paginated-envelope integration test',
+      targetPlatforms: const ['macos'],
+    );
+    // No first feature — added via the Workshop, same as a real user would.
+    const architecture = ArchitectureState(generateFirstFeature: false);
+
+    try {
+      await const LaunchGenerationUsecase().execute(
+        identity: identity,
+        packages: pkgs,
+        architecture: architecture,
+        cicd: const CicdState(),
+        theme: const ThemeEngineState(approach: ThemeApproach.customM3),
+        onLog: logs.add,
       );
+    } catch (e) {
+      fail('Base generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+    }
 
-      final analyze = await Process.run('flutter', [
-        'analyze',
-        '--no-pub',
-      ], workingDirectory: projectDir.path);
-      final out = '${analyze.stdout}\n${analyze.stderr}';
-      final errorLines = const LineSplitter()
-          .convert(out)
-          .where(
-            (l) =>
-                (l.contains(' error •') || l.contains(' warning •')) &&
-                !l.contains('• build/'),
-          )
-          .toList();
-      expect(
-        errorLines,
-        isEmpty,
-        reason:
-            'Customize endpoints workspace analyze reported issues:\n'
-            '${errorLines.join('\n')}\n\n$out',
-      );
-    },
-    timeout: const Timeout(Duration(minutes: 12)),
-  );
+    final projectDir = Directory('${tempRoot.path}/$projectName');
+    final project = await const ProjectLoader().load(projectDir.path);
+    expect(project, isNotNull);
+    expect(project!.contract.httpClient, 'chopper');
 
-  test(
-    'FeatureGenOptions.listEnvelopeKey (real bug from a real generated project: '
-    'dummyjson-style paginated envelopes broke getAll() at runtime with '
-    '"FormatException: JsonConverter expected response body to be Iterable<Model>, '
-    'but got Map"): getAll() decodes into a typed <Feature>ListModel wrapper '
-    'instead of a bare array',
-    () async {
-      const projectName = 'neat_envelope_test';
-      final logs = <String>[];
-
-      final pkgs = <PubPackage>[
-        _dep('hooks_riverpod', '3.4.3'),
-        _dep('flutter_hooks', '0.21.3+1'),
-        _dep('riverpod_annotation', '4.0.7'),
-        _dep('json_annotation', '4.11.0'),
-        _dep('freezed_annotation', '3.1.0'),
-        _dep('chopper', '8.6.0'),
-        _dep('go_router', '17.5.0'),
-        _dev('riverpod_generator', '4.0.9'),
-        _dev('riverpod_lint', '3.1.9'),
-        _dev('json_serializable', '6.14.1'),
-        _dev('build_runner', '2.16.2'),
-        _dev('freezed', '4.0.2'),
-        _dev('chopper_generator', '8.7.1'),
-      ];
-
-      final identity = IdentityState(
-        name: projectName,
-        organization: 'com.neat.test',
-        projectPath: tempRoot.path,
-        description: 'NEAT paginated-envelope integration test',
-        targetPlatforms: const ['macos'],
-      );
-      // No first feature — added via the Workshop, same as a real user would.
-      const architecture = ArchitectureState(generateFirstFeature: false);
-
-      try {
-        await const LaunchGenerationUsecase().execute(
-          identity: identity,
-          packages: pkgs,
-          architecture: architecture,
-          cicd: const CicdState(),
-          theme: const ThemeEngineState(approach: ThemeApproach.customM3),
-          onLog: logs.add,
-        );
-      } catch (e) {
-        fail('Base generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
-      }
-
-      final projectDir = Directory('${tempRoot.path}/$projectName');
-      final project = await const ProjectLoader().load(projectDir.path);
-      expect(project, isNotNull);
-      expect(project!.contract.httpClient, 'chopper');
-
-      // dummyjson.com/recipes' real shape — the exact JSON that exposed this
-      // bug — run through JsonEntityInferencer exactly like the Workshop's
-      // Entity Fields step does, so the envelope key comes from real
-      // inference, not a hand-picked constant.
-      const sampleJson = '''
+    // dummyjson.com/recipes' real shape — the exact JSON that exposed this
+    // bug — run through JsonEntityInferencer exactly like the Workshop's
+    // Entity Fields step does, so the envelope key comes from real
+    // inference, not a hand-picked constant.
+    const sampleJson = '''
 {
   "recipes": [
     {"id": 1, "name": "Kimchi", "cuisine": "Korean"}
@@ -6174,80 +6145,87 @@ abstract final class Palette {
   "limit": 30
 }
 ''';
-      final inferred = const JsonEntityInferencer().infer(sampleJson);
-      expect(inferred.envelopeKey, 'recipes');
+    final inferred = const JsonEntityInferencer().infer(sampleJson);
+    expect(inferred.envelopeKey, 'recipes');
 
-      final options = FeatureGenOptions(
-        name: 'recipe',
-        apiPath: '/recipes',
-        json: sampleJson,
-        fields: inferred.fields,
-        fieldWarnings: inferred.warnings,
-        listEnvelopeKey: inferred.envelopeKey ?? '',
-        envelopeFields: inferred.envelopeFields,
+    final options = FeatureGenOptions(
+      name: 'recipe',
+      apiPath: '/recipes',
+      json: sampleJson,
+      fields: inferred.fields,
+      fieldWarnings: inferred.warnings,
+      listEnvelopeKey: inferred.envelopeKey ?? '',
+      envelopeFields: inferred.envelopeFields,
+    );
+
+    try {
+      await const GenerateFeatureUsecase().execute(
+        project: project,
+        options: options,
+        onLog: logs.add,
       );
+    } catch (e) {
+      fail('Feature generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}');
+    }
 
-      try {
-        await const GenerateFeatureUsecase().execute(
-          project: project,
-          options: options,
-          onLog: logs.add,
-        );
-      } catch (e) {
-        fail(
-          'Feature generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}',
-        );
-      }
+    // The ApiSource: a List<Model>-typed return can't decode a wrapper
+    // object — getAll() decodes into the generated RecipeListModel wrapper
+    // instead (see DataTemplates.featureModel's own doc), fully typed.
+    final apiSource = File(
+      '${projectDir.path}/lib/features/recipe/data/sources/recipe_api_source.dart',
+    ).readAsStringSync();
+    expect(apiSource, contains('Future<Response<RecipeListModel>> getAll();'));
+    expect(
+      apiSource,
+      isNot(contains('Future<Response<List<RecipeModel>>> getAll();')),
+    );
 
-      // The ApiSource: a List<Model>-typed return can't decode a wrapper
-      // object — getAll() decodes into the generated RecipeListModel wrapper
-      // instead (see DataTemplates.featureModel's own doc), fully typed.
-      final apiSource = File(
-        '${projectDir.path}/lib/features/recipe/data/sources/recipe_api_source.dart',
-      ).readAsStringSync();
-      expect(apiSource, contains('Future<Response<RecipeListModel>> getAll();'));
-      expect(
-        apiSource,
-        isNot(contains('Future<Response<List<RecipeModel>>> getAll();')),
-      );
+    // The model file: the wrapper class carries the list field + its
+    // sibling pagination metadata, typed — not discarded.
+    final modelFile = File(
+      '${projectDir.path}/lib/features/recipe/data/models/recipe_model.dart',
+    ).readAsStringSync();
+    expect(modelFile, contains('abstract class RecipeListModel'));
+    expect(modelFile, contains('required List<RecipeModel> recipes,'));
+    expect(modelFile, contains('required int total,'));
+    expect(modelFile, contains('required int skip,'));
+    expect(modelFile, contains('required int limit,'));
 
-      // The model file: the wrapper class carries the list field + its
-      // sibling pagination metadata, typed — not discarded.
-      final modelFile = File(
-        '${projectDir.path}/lib/features/recipe/data/models/recipe_model.dart',
-      ).readAsStringSync();
-      expect(modelFile, contains('abstract class RecipeListModel'));
-      expect(modelFile, contains('required List<RecipeModel> recipes,'));
-      expect(modelFile, contains('required int total,'));
-      expect(modelFile, contains('required int skip,'));
-      expect(modelFile, contains('required int limit,'));
+    // The repository: accesses the wrapper's list field directly — no
+    // manual Map casting.
+    final repositoryImpl = File(
+      '${projectDir.path}/lib/features/recipe/data/repositories/recipe_repository_impl.dart',
+    ).readAsStringSync();
+    expect(
+      repositoryImpl,
+      contains('unwrapChopperResponse(await _remote.getAll()).recipes'),
+    );
+    expect(repositoryImpl, isNot(contains('as Map<String, dynamic>')));
 
-      // The repository: accesses the wrapper's list field directly — no
-      // manual Map casting.
-      final repositoryImpl = File(
-        '${projectDir.path}/lib/features/recipe/data/repositories/recipe_repository_impl.dart',
-      ).readAsStringSync();
-      expect(repositoryImpl, contains('unwrapChopperResponse(await _remote.getAll()).recipes'));
-      expect(repositoryImpl, isNot(contains('as Map<String, dynamic>')));
+    // The decoder registry: both the entity Model and the wrapper
+    // ListModel are registered — getAll() decodes into the latter.
+    final converter = File(
+      '${projectDir.path}/lib/core/network/chopper_model_converter.dart',
+    ).readAsStringSync();
+    expect(
+      converter,
+      contains('RecipeModel: (json) => RecipeModel.fromJson(json),'),
+    );
+    expect(
+      converter,
+      contains('RecipeListModel: (json) => RecipeListModel.fromJson(json),'),
+    );
 
-      // The decoder registry: both the entity Model and the wrapper
-      // ListModel are registered — getAll() decodes into the latter.
-      final converter = File(
-        '${projectDir.path}/lib/core/network/chopper_model_converter.dart',
-      ).readAsStringSync();
-      expect(converter, contains('RecipeModel: (json) => RecipeModel.fromJson(json),'));
-      expect(converter, contains('RecipeListModel: (json) => RecipeListModel.fromJson(json),'));
-
-      // Executable regression probe: proves the actual runtime bug (a
-      // `FormatException` chopper throws mid-decode, which `flutter analyze`
-      // can't catch — the generated code compiles fine either way) is gone.
-      // Drives the real pipeline end to end: a real HTTP response carrying
-      // the envelope body, through ModelJsonConverter.convertResponse with
-      // the actual registered RecipeListModel decoder — exactly what
-      // getAll()'s new typed declaration triggers at runtime.
-      await File(
-        '${projectDir.path}/test/_envelope_probe_test.dart',
-      ).writeAsString('''
+    // Executable regression probe: proves the actual runtime bug (a
+    // `FormatException` chopper throws mid-decode, which `flutter analyze`
+    // can't catch — the generated code compiles fine either way) is gone.
+    // Drives the real pipeline end to end: a real HTTP response carrying
+    // the envelope body, through ModelJsonConverter.convertResponse with
+    // the actual registered RecipeListModel decoder — exactly what
+    // getAll()'s new typed declaration triggers at runtime.
+    await File(
+      '${projectDir.path}/test/_envelope_probe_test.dart',
+    ).writeAsString('''
 import 'package:chopper/chopper.dart' as chopper;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -6277,39 +6255,38 @@ void main() {
   });
 }
 ''');
-      final probe = await Process.run('flutter', [
-        'test',
-        'test/_envelope_probe_test.dart',
-      ], workingDirectory: projectDir.path);
-      expect(
-        probe.exitCode,
-        0,
-        reason: 'envelope regression probe failed:\n${probe.stdout}\n${probe.stderr}',
-      );
+    final probe = await Process.run('flutter', [
+      'test',
+      'test/_envelope_probe_test.dart',
+    ], workingDirectory: projectDir.path);
+    expect(
+      probe.exitCode,
+      0,
+      reason:
+          'envelope regression probe failed:\n${probe.stdout}\n${probe.stderr}',
+    );
 
-      final analyze = await Process.run('flutter', [
-        'analyze',
-        '--no-pub',
-      ], workingDirectory: projectDir.path);
-      final out = '${analyze.stdout}\n${analyze.stderr}';
-      final errorLines = const LineSplitter()
-          .convert(out)
-          .where(
-            (l) =>
-                (l.contains(' error •') || l.contains(' warning •')) &&
-                !l.contains('• build/'),
-          )
-          .toList();
-      expect(
-        errorLines,
-        isEmpty,
-        reason:
-            'Paginated-envelope workspace analyze reported issues:\n'
-            '${errorLines.join('\n')}\n\n$out',
-      );
-    },
-    timeout: const Timeout(Duration(minutes: 12)),
-  );
+    final analyze = await Process.run('flutter', [
+      'analyze',
+      '--no-pub',
+    ], workingDirectory: projectDir.path);
+    final out = '${analyze.stdout}\n${analyze.stderr}';
+    final errorLines = const LineSplitter()
+        .convert(out)
+        .where(
+          (l) =>
+              (l.contains(' error •') || l.contains(' warning •')) &&
+              !l.contains('• build/'),
+        )
+        .toList();
+    expect(
+      errorLines,
+      isEmpty,
+      reason:
+          'Paginated-envelope workspace analyze reported issues:\n'
+          '${errorLines.join('\n')}\n\n$out',
+    );
+  }, timeout: const Timeout(Duration(minutes: 12)));
 
   test(
     'feature generation (chopper) registers the new feature in the decoder registry',
@@ -8990,7 +8967,9 @@ void main() {
       // logic bug, not a compile error — so it needs its own assertion.
       expect(
         notifier,
-        contains('if (!loggedIn && !onAuthRoute && !onOnboarding) return AppRoutePath.login;'),
+        contains(
+          'if (!loggedIn && !onAuthRoute && !onOnboarding) return AppRoutePath.login;',
+        ),
       );
 
       // app_router.dart uses the Auth guard's shape — no standalone onboarding guard.
@@ -9254,109 +9233,105 @@ void main() {
     );
   }, timeout: const Timeout(Duration(minutes: 12)));
 
-  test(
-    'offline-first + web target: driftDatabase gets a DriftWebOptions branch '
-    'and docs/DRIFT_WEB_SETUP.md, and the workspace still analyzes cleanly '
-    '(real bug: drift_flutter throws "the `web` parameter needs to be set" '
-    'without it — found running a real generated project in Chrome)',
-    () async {
-      const projectName = 'neat_web_drift_test';
-      final logs = <String>[];
+  test('offline-first + web target: driftDatabase gets a DriftWebOptions branch '
+      'and docs/DRIFT_WEB_SETUP.md, and the workspace still analyzes cleanly '
+      '(real bug: drift_flutter throws "the `web` parameter needs to be set" '
+      'without it — found running a real generated project in Chrome)', () async {
+    const projectName = 'neat_web_drift_test';
+    final logs = <String>[];
 
-      final offlinePackages = <PubPackage>[
-        _dep('hooks_riverpod', '3.4.3'),
-        _dep('flutter_hooks', '0.21.3+1'),
-        _dep('riverpod_annotation', '4.0.7'),
-        _dep('dio', '5.9.2'),
-        _dep('go_router', '17.5.0'),
-        _dev('riverpod_generator', '4.0.9'),
-        _dev('build_runner', '2.16.2'),
-      ];
+    final offlinePackages = <PubPackage>[
+      _dep('hooks_riverpod', '3.4.3'),
+      _dep('flutter_hooks', '0.21.3+1'),
+      _dep('riverpod_annotation', '4.0.7'),
+      _dep('dio', '5.9.2'),
+      _dep('go_router', '17.5.0'),
+      _dev('riverpod_generator', '4.0.9'),
+      _dev('build_runner', '2.16.2'),
+    ];
 
-      final identity = IdentityState(
-        name: projectName,
-        organization: 'com.neat.test',
-        projectPath: tempRoot.path,
-        description: 'NEAT offline-first + web integration test',
-        targetPlatforms: const ['web'],
+    final identity = IdentityState(
+      name: projectName,
+      organization: 'com.neat.test',
+      projectPath: tempRoot.path,
+      description: 'NEAT offline-first + web integration test',
+      targetPlatforms: const ['web'],
+    );
+
+    const architecture = ArchitectureState(
+      firstFeatureName: 'user_profile',
+      storageStrategy: StorageStrategy.offlineFirstRead,
+    );
+
+    try {
+      await const LaunchGenerationUsecase().execute(
+        identity: identity,
+        packages: offlinePackages,
+        architecture: architecture,
+        cicd: const CicdState(),
+        theme: const ThemeEngineState(approach: ThemeApproach.customM3),
+        onLog: logs.add,
       );
-
-      const architecture = ArchitectureState(
-        firstFeatureName: 'user_profile',
-        storageStrategy: StorageStrategy.offlineFirstRead,
+    } catch (e) {
+      fail(
+        'Offline-first + web generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}',
       );
+    }
 
-      try {
-        await const LaunchGenerationUsecase().execute(
-          identity: identity,
-          packages: offlinePackages,
-          architecture: architecture,
-          cicd: const CicdState(),
-          theme: const ThemeEngineState(approach: ThemeApproach.customM3),
-          onLog: logs.add,
-        );
-      } catch (e) {
-        fail(
-          'Offline-first + web generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}',
-        );
-      }
+    final projectDir = Directory('${tempRoot.path}/$projectName');
+    final pkg = '${projectName}_database';
 
-      final projectDir = Directory('${tempRoot.path}/$projectName');
-      final pkg = '${projectName}_database';
+    final dbSource = File(
+      '${projectDir.path}/packages/$pkg/lib/src/database.dart',
+    ).readAsStringSync();
+    expect(
+      dbSource,
+      contains("import 'package:flutter/foundation.dart' show kIsWeb;"),
+    );
+    expect(dbSource, contains('if (kIsWeb) {'));
+    expect(dbSource, contains('web: DriftWebOptions('));
+    expect(dbSource, contains("sqlite3Wasm: Uri.parse('sqlite3.wasm')"));
+    expect(
+      dbSource,
+      contains("driftWorker: Uri.parse('drift_worker.dart.js')"),
+    );
+    // Native fallback stays intact for platforms other than web.
+    expect(dbSource, contains("return driftDatabase(name: 'app_db');"));
 
-      final dbSource = File(
-        '${projectDir.path}/packages/$pkg/lib/src/database.dart',
-      ).readAsStringSync();
-      expect(
-        dbSource,
-        contains("import 'package:flutter/foundation.dart' show kIsWeb;"),
-      );
-      expect(dbSource, contains('if (kIsWeb) {'));
-      expect(dbSource, contains('web: DriftWebOptions('));
-      expect(dbSource, contains("sqlite3Wasm: Uri.parse('sqlite3.wasm')"));
-      expect(
-        dbSource,
-        contains("driftWorker: Uri.parse('drift_worker.dart.js')"),
-      );
-      // Native fallback stays intact for platforms other than web.
-      expect(dbSource, contains("return driftDatabase(name: 'app_db');"));
+    // The one manual step left (prebuilt release binaries, not
+    // template-generatable) is documented, not silently missing.
+    final setupDoc = File(
+      '${projectDir.path}/docs/DRIFT_WEB_SETUP.md',
+    ).readAsStringSync();
+    expect(setupDoc, contains('sqlite3.wasm'));
+    expect(setupDoc, contains('drift_worker.dart.js'));
+    expect(setupDoc, contains('packages/$pkg/pubspec.yaml'));
 
-      // The one manual step left (prebuilt release binaries, not
-      // template-generatable) is documented, not silently missing.
-      final setupDoc = File(
-        '${projectDir.path}/docs/DRIFT_WEB_SETUP.md',
-      ).readAsStringSync();
-      expect(setupDoc, contains('sqlite3.wasm'));
-      expect(setupDoc, contains('drift_worker.dart.js'));
-      expect(setupDoc, contains('packages/$pkg/pubspec.yaml'));
-
-      final analyze = await Process.run('flutter', [
-        'analyze',
-        '--no-pub',
-      ], workingDirectory: projectDir.path);
-      final out = '${analyze.stdout}\n${analyze.stderr}';
-      expect(
-        RegExp(r'(\d+ issues? found|No issues found)').hasMatch(out),
-        isTrue,
-        reason: 'flutter analyze did not run as expected:\n$out',
-      );
-      final errorLines = const LineSplitter()
-          .convert(out)
-          .where(
-            (l) =>
-                (l.contains(' error •') || l.contains(' warning •')) &&
-                !l.contains('• build/'),
-          )
-          .toList();
-      expect(
-        errorLines,
-        isEmpty,
-        reason:
-            'offline-first + web project analyze reported issues:\n${errorLines.join('\n')}\n\n$out',
-      );
-    },
-    timeout: const Timeout(Duration(minutes: 12)),
-  );
+    final analyze = await Process.run('flutter', [
+      'analyze',
+      '--no-pub',
+    ], workingDirectory: projectDir.path);
+    final out = '${analyze.stdout}\n${analyze.stderr}';
+    expect(
+      RegExp(r'(\d+ issues? found|No issues found)').hasMatch(out),
+      isTrue,
+      reason: 'flutter analyze did not run as expected:\n$out',
+    );
+    final errorLines = const LineSplitter()
+        .convert(out)
+        .where(
+          (l) =>
+              (l.contains(' error •') || l.contains(' warning •')) &&
+              !l.contains('• build/'),
+        )
+        .toList();
+    expect(
+      errorLines,
+      isEmpty,
+      reason:
+          'offline-first + web project analyze reported issues:\n${errorLines.join('\n')}\n\n$out',
+    );
+  }, timeout: const Timeout(Duration(minutes: 12)));
 }
 
 PubPackage _dep(String name, String version) =>

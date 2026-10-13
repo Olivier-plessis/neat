@@ -71,7 +71,8 @@ class SplashIconTab extends ConsumerWidget {
           DropZone(
             allowedExtensions: const ['png'],
             onFilePicked: notifier.setLogoPath,
-            onRejected: () => neatSnack(context, 'Drop a PNG logo', success: false),
+            onRejected: () =>
+                neatSnack(context, 'Drop a PNG logo', success: false),
             child: BrandingCard(
               logoPath: state.logoPath,
               onPick: () async {

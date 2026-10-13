@@ -10,7 +10,11 @@ String _toHex(Color c) {
 }
 
 class ColorHexField extends HookWidget {
-  const ColorHexField({required this.color, required this.onColorChanged, super.key});
+  const ColorHexField({
+    required this.color,
+    required this.onColorChanged,
+    super.key,
+  });
 
   final Color color;
   final ValueChanged<Color> onColorChanged;
@@ -69,7 +73,10 @@ class ColorHexField extends HookWidget {
               child: TextField(
                 controller: ctrl,
                 style: const TextStyle(color: Colors.white, fontSize: 14),
-                decoration: const InputDecoration(border: InputBorder.none, isDense: true),
+                decoration: const InputDecoration(
+                  border: InputBorder.none,
+                  isDense: true,
+                ),
                 inputFormatters: [
                   FilteringTextInputFormatter.allow(RegExp(r'[0-9a-fA-Fx]')),
                   LengthLimitingTextInputFormatter(10),
@@ -82,7 +89,11 @@ class ColorHexField extends HookWidget {
               ),
             ),
             IconButton(
-              icon: const Icon(Icons.colorize_outlined, size: 18, color: Colors.white38),
+              icon: const Icon(
+                Icons.colorize_outlined,
+                size: 18,
+                color: Colors.white38,
+              ),
               onPressed: () => showDialog<void>(
                 context: context,
                 builder: (_) => ColorPickerDialog(

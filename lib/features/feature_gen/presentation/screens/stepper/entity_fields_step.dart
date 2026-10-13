@@ -9,7 +9,11 @@ import 'package:neat_ui/neat_ui.dart';
 /// Step 3 (Entity + CRUD mode only): the feature's one entity — either typed
 /// by hand or inferred from a pasted JSON sample (see EntityFieldsEditor).
 class EntityFieldsStep extends StatelessWidget {
-  const EntityFieldsStep({required this.opts, required this.onChanged, super.key});
+  const EntityFieldsStep({
+    required this.opts,
+    required this.onChanged,
+    super.key,
+  });
 
   final FeatureGenOptions opts;
   final ValueChanged<FeatureGenOptions> onChanged;
@@ -74,16 +78,30 @@ class EntityFieldsStep extends StatelessWidget {
             );
           },
           onName: (i, v) => onChanged(
-            opts.copyWith(fields: editField(opts.fields, i, (f) => renameField(f, v.trim()))),
+            opts.copyWith(
+              fields: editField(
+                opts.fields,
+                i,
+                (f) => renameField(f, v.trim()),
+              ),
+            ),
           ),
           onType: (i, v) => onChanged(
             opts.copyWith(
-              fields: editField(opts.fields, i, (f) => f.isId ? f : f.withType(v)),
+              fields: editField(
+                opts.fields,
+                i,
+                (f) => f.isId ? f : f.withType(v),
+              ),
             ),
           ),
           onNullable: (i, v) => onChanged(
             opts.copyWith(
-              fields: editField(opts.fields, i, (f) => f.isId ? f : f.copyWith(nullable: v)),
+              fields: editField(
+                opts.fields,
+                i,
+                (f) => f.isId ? f : f.copyWith(nullable: v),
+              ),
             ),
           ),
           onRemove: (i) {
@@ -92,7 +110,11 @@ class EntityFieldsStep extends StatelessWidget {
           },
           onEnumValues: (i, values) => onChanged(
             opts.copyWith(
-              fields: editField(opts.fields, i, (f) => f.copyWith(enumValues: values)),
+              fields: editField(
+                opts.fields,
+                i,
+                (f) => f.copyWith(enumValues: values),
+              ),
             ),
           ),
           onChildrenChanged: (i, children) => onChanged(
@@ -101,7 +123,9 @@ class EntityFieldsStep extends StatelessWidget {
                 opts.fields,
                 i,
                 (f) => f.kind == FieldKind.list
-                    ? f.copyWith(element: f.element!.copyWith(children: children))
+                    ? f.copyWith(
+                        element: f.element!.copyWith(children: children),
+                      )
                     : f.copyWith(children: children),
               ),
             ),

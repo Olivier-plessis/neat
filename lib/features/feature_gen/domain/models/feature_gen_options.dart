@@ -15,7 +15,6 @@ abstract class FeatureGenOptions with _$FeatureGenOptions {
     @Default('') String name,
     @Default(FeatureRouting.root) FeatureRouting routing,
     @Default('') String parentFeature, // only when routing == child
-
     /// Opt-in, only when routing == child: instead of a separate
     /// feature/package, the new feature's files nest inside the parent's own
     /// package/folder (`data`/`domain`/`presentation`, each gaining a
@@ -25,7 +24,6 @@ abstract class FeatureGenOptions with _$FeatureGenOptions {
     @Default(false) bool mergeIntoParent,
     @Default('home') String shellIcon, // Material icon name, only when shell
     @Default('') String shellLabel, // NavigationBar label, only when shell
-
     /// Opt-in, only meaningful when this is the project's first real feature
     /// (Workshop only shows it then): replaces the launch-time "welcome"
     /// placeholder as the app's home route instead of leaving it in place
@@ -115,5 +113,6 @@ abstract class FeatureGenOptions with _$FeatureGenOptions {
     return null;
   }
 
-  bool get hasAnyDataSource => includeRemoteDataSource || includeLocalDataSource;
+  bool get hasAnyDataSource =>
+      includeRemoteDataSource || includeLocalDataSource;
 }

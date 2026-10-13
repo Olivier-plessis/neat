@@ -38,64 +38,75 @@ final List<RouteBase> appRoutes = [
     expect(out, contains("path: 'settings',"));
     expect(out, contains('const SettingsPage()'));
     // Child page import was added.
-    expect(out, contains('features/settings/presentation/pages/settings_page.dart'));
+    expect(
+      out,
+      contains('features/settings/presentation/pages/settings_page.dart'),
+    );
     // The child sits inside the parent's routes list, before the anchor.
     final childIdx = out.indexOf("path: 'settings',");
     final anchorIdx = out.indexOf('// neat:children:dashboard');
     expect(childIdx, lessThan(anchorIdx));
   });
 
-  test('a second child reuses the existing children anchor (no duplicate routes:[])', () {
-    final first = GenerateFeatureUsecase.wireChildIntoRoutes(
-      routesSource: routesWithParent(),
-      packageName: 'demo',
-      featureName: 'settings',
-      parentFeature: 'dashboard',
-    );
-    final second = GenerateFeatureUsecase.wireChildIntoRoutes(
-      routesSource: first,
-      packageName: 'demo',
-      featureName: 'profile',
-      parentFeature: 'dashboard',
-    );
+  test(
+    'a second child reuses the existing children anchor (no duplicate routes:[])',
+    () {
+      final first = GenerateFeatureUsecase.wireChildIntoRoutes(
+        routesSource: routesWithParent(),
+        packageName: 'demo',
+        featureName: 'settings',
+        parentFeature: 'dashboard',
+      );
+      final second = GenerateFeatureUsecase.wireChildIntoRoutes(
+        routesSource: first,
+        packageName: 'demo',
+        featureName: 'profile',
+        parentFeature: 'dashboard',
+      );
 
-    // Only one routes: [ clause and one children anchor for the parent.
-    expect('routes: ['.allMatches(second).length, 1);
-    expect('// neat:children:dashboard'.allMatches(second).length, 1);
-    // Both children are present.
-    expect(second, contains("path: 'settings',"));
-    expect(second, contains("path: 'profile',"));
-  });
-
-  test('unknown parent leaves the routes list untouched (safe no-op nesting)', () {
-    final out = GenerateFeatureUsecase.wireChildIntoRoutes(
-      routesSource: routesWithParent(),
-      packageName: 'demo',
-      featureName: 'settings',
-      parentFeature: 'nonexistent',
-    );
-    // No children anchor could be created → no nesting happened.
-    expect(out, isNot(contains('routes: [')));
-    expect(out, isNot(contains("path: 'settings',")));
-  });
+      // Only one routes: [ clause and one children anchor for the parent.
+      expect('routes: ['.allMatches(second).length, 1);
+      expect('// neat:children:dashboard'.allMatches(second).length, 1);
+      // Both children are present.
+      expect(second, contains("path: 'settings',"));
+      expect(second, contains("path: 'profile',"));
+    },
+  );
 
   test(
-    'packageSplit (§6a Phase 3): child import points at its own package, not '
-    'features/<name>/ — the app already depends on every feature package for '
-    'their own top-level routes, so no new dependency is needed here',
+    'unknown parent leaves the routes list untouched (safe no-op nesting)',
     () {
       final out = GenerateFeatureUsecase.wireChildIntoRoutes(
         routesSource: routesWithParent(),
         packageName: 'demo',
         featureName: 'settings',
-        parentFeature: 'dashboard',
-        childPackageName: 'demo_settings',
+        parentFeature: 'nonexistent',
       );
-      expect(out, contains("import 'package:demo_settings/presentation/pages/settings_page.dart';"));
-      expect(out, isNot(contains('features/settings/')));
-      expect(out, contains("path: 'settings',"));
+      // No children anchor could be created → no nesting happened.
+      expect(out, isNot(contains('routes: [')));
+      expect(out, isNot(contains("path: 'settings',")));
     },
   );
+
+  test('packageSplit (§6a Phase 3): child import points at its own package, not '
+      'features/<name>/ — the app already depends on every feature package for '
+      'their own top-level routes, so no new dependency is needed here', () {
+    final out = GenerateFeatureUsecase.wireChildIntoRoutes(
+      routesSource: routesWithParent(),
+      packageName: 'demo',
+      featureName: 'settings',
+      parentFeature: 'dashboard',
+      childPackageName: 'demo_settings',
+    );
+    expect(
+      out,
+      contains(
+        "import 'package:demo_settings/presentation/pages/settings_page.dart';",
+      ),
+    );
+    expect(out, isNot(contains('features/settings/')));
+    expect(out, contains("path: 'settings',"));
+  });
 
   test(
     'mergeIntoParent + packageSplit: child page import points at the parent\'s '
@@ -112,33 +123,32 @@ final List<RouteBase> appRoutes = [
       );
       expect(
         out,
-        contains("import 'package:dashboard/presentation/settings/pages/settings_page.dart';"),
+        contains(
+          "import 'package:dashboard/presentation/settings/pages/settings_page.dart';",
+        ),
       );
       expect(out, isNot(contains('demo_settings')));
       expect(out, contains("path: 'settings',"));
     },
   );
 
-  test(
-    'mergeIntoParent without packageSplit: child page import stays a '
-    'package:<app>/features/<parent>/… import, nested under the parent',
-    () {
-      final out = GenerateFeatureUsecase.wireChildIntoRoutes(
-        routesSource: routesWithParent(),
-        packageName: 'demo',
-        featureName: 'settings',
-        parentFeature: 'dashboard',
-        mergeIntoParent: true,
-      );
-      expect(
-        out,
-        contains(
-          "import 'package:demo/features/dashboard/presentation/settings/pages/settings_page.dart';",
-        ),
-      );
-      expect(out, contains("path: 'settings',"));
-    },
-  );
+  test('mergeIntoParent without packageSplit: child page import stays a '
+      'package:<app>/features/<parent>/… import, nested under the parent', () {
+    final out = GenerateFeatureUsecase.wireChildIntoRoutes(
+      routesSource: routesWithParent(),
+      packageName: 'demo',
+      featureName: 'settings',
+      parentFeature: 'dashboard',
+      mergeIntoParent: true,
+    );
+    expect(
+      out,
+      contains(
+        "import 'package:demo/features/dashboard/presentation/settings/pages/settings_page.dart';",
+      ),
+    );
+    expect(out, contains("path: 'settings',"));
+  });
 
   // ── go_router_builder (typed routes) ────────────────────────────────────────
 
@@ -174,35 +184,51 @@ class DashboardsRoute extends GoRouteData with \$DashboardsRoute {
     // Child is a relative-path nested TypedGoRoute.
     expect(out, contains("TypedGoRoute<SettingsRoute>(path: 'settings')"));
     // Child route class appended (builder will generate its mixin).
-    expect(out, contains(r'class SettingsRoute extends GoRouteData with $SettingsRoute'));
+    expect(
+      out,
+      contains(r'class SettingsRoute extends GoRouteData with $SettingsRoute'),
+    );
     expect(out, contains('const SettingsPage()'));
     // Child page import added.
-    expect(out, contains('features/settings/presentation/pages/settings_page.dart'));
+    expect(
+      out,
+      contains('features/settings/presentation/pages/settings_page.dart'),
+    );
     // The original flat annotation form is gone.
-    expect(out, isNot(contains('@TypedGoRoute<DashboardsRoute>(path: AppRoutePath.dashboards)')));
+    expect(
+      out,
+      isNot(
+        contains(
+          '@TypedGoRoute<DashboardsRoute>(path: AppRoutePath.dashboards)',
+        ),
+      ),
+    );
   });
 
-  test('typed: a second child reuses the anchor (one routes:[], two TypedGoRoutes)', () {
-    final first = GenerateFeatureUsecase.wireChildIntoTypedRoutes(
-      parentRoutesSource: typedParentRoutes(),
-      packageName: 'demo',
-      childFeature: 'settings',
-      parentFeature: 'dashboards',
-    );
-    final second = GenerateFeatureUsecase.wireChildIntoTypedRoutes(
-      parentRoutesSource: first,
-      packageName: 'demo',
-      childFeature: 'profile',
-      parentFeature: 'dashboards',
-    );
+  test(
+    'typed: a second child reuses the anchor (one routes:[], two TypedGoRoutes)',
+    () {
+      final first = GenerateFeatureUsecase.wireChildIntoTypedRoutes(
+        parentRoutesSource: typedParentRoutes(),
+        packageName: 'demo',
+        childFeature: 'settings',
+        parentFeature: 'dashboards',
+      );
+      final second = GenerateFeatureUsecase.wireChildIntoTypedRoutes(
+        parentRoutesSource: first,
+        packageName: 'demo',
+        childFeature: 'profile',
+        parentFeature: 'dashboards',
+      );
 
-    expect('routes: ['.allMatches(second).length, 1);
-    expect('// neat:typed-children:dashboards'.allMatches(second).length, 1);
-    expect(second, contains("TypedGoRoute<SettingsRoute>(path: 'settings')"));
-    expect(second, contains("TypedGoRoute<ProfileRoute>(path: 'profile')"));
-    expect(second, contains(r'class SettingsRoute extends GoRouteData'));
-    expect(second, contains(r'class ProfileRoute extends GoRouteData'));
-  });
+      expect('routes: ['.allMatches(second).length, 1);
+      expect('// neat:typed-children:dashboards'.allMatches(second).length, 1);
+      expect(second, contains("TypedGoRoute<SettingsRoute>(path: 'settings')"));
+      expect(second, contains("TypedGoRoute<ProfileRoute>(path: 'profile')"));
+      expect(second, contains(r'class SettingsRoute extends GoRouteData'));
+      expect(second, contains(r'class ProfileRoute extends GoRouteData'));
+    },
+  );
 
   test(
     'packageSplit (§6a Phase 3): typed child import points at its own '
@@ -218,7 +244,12 @@ class DashboardsRoute extends GoRouteData with \$DashboardsRoute {
         parentFeature: 'dashboards',
         childPackageName: 'demo_settings',
       );
-      expect(out, contains("import 'package:demo_settings/presentation/pages/settings_page.dart';"));
+      expect(
+        out,
+        contains(
+          "import 'package:demo_settings/presentation/pages/settings_page.dart';",
+        ),
+      );
       expect(out, isNot(contains('features/settings/')));
       expect(out, contains("TypedGoRoute<SettingsRoute>(path: 'settings')"));
     },
@@ -254,7 +285,10 @@ class DashboardsRoute extends GoRouteData with \$DashboardsRoute {
   // both branches already carry the proactive `// neat:typed-children:<f>`
   // anchor from the moment they're created.
   String newShellSource() {
-    final first = CoreTemplates.appShellRouteBuilder(packageName: 'demo', featureName: 'product');
+    final first = CoreTemplates.appShellRouteBuilder(
+      packageName: 'demo',
+      featureName: 'product',
+    );
     return GenerateFeatureUsecase.extendTypedShell(
       shellSource: first,
       packageName: 'demo',
@@ -329,9 +363,15 @@ class UsersRoute extends GoRouteData with \$UsersRoute {
       childFeature: 'reviews',
     );
     expect(out, contains("TypedGoRoute<ReviewsRoute>(path: 'reviews')"));
-    expect(out, contains(r'class ReviewsRoute extends GoRouteData with $ReviewsRoute'));
+    expect(
+      out,
+      contains(r'class ReviewsRoute extends GoRouteData with $ReviewsRoute'),
+    );
     expect(out, contains('const ReviewsPage()'));
-    expect(out, contains('features/reviews/presentation/pages/reviews_page.dart'));
+    expect(
+      out,
+      contains('features/reviews/presentation/pages/reviews_page.dart'),
+    );
     // Nested at product's own anchor — before it, not users'.
     final anchorIdx = out.indexOf('// neat:typed-children:product');
     final childIdx = out.indexOf("TypedGoRoute<ReviewsRoute>(path: 'reviews')");
@@ -356,26 +396,41 @@ class UsersRoute extends GoRouteData with \$UsersRoute {
       // Retrofit: product's flat route became anchored.
       expect(out, contains('// neat:typed-children:product'));
       expect(out, contains("TypedGoRoute<ReviewsRoute>(path: 'reviews')"));
-      expect(out, contains(r'class ReviewsRoute extends GoRouteData with $ReviewsRoute'));
+      expect(
+        out,
+        contains(r'class ReviewsRoute extends GoRouteData with $ReviewsRoute'),
+      );
       // users (the other branch) stays exactly flat.
-      expect(out, contains('TypedGoRoute<UsersRoute>(path: AppRoutePath.users)'));
+      expect(
+        out,
+        contains('TypedGoRoute<UsersRoute>(path: AppRoutePath.users)'),
+      );
       expect(out, isNot(contains('// neat:typed-children:users')));
     },
   );
 
-  test('typed: packageSplit child under a shell branch uses the registry, not a direct import', () {
-    final out = GenerateFeatureUsecase.wireChildIntoTypedShell(
-      shellSource: newShellSource(),
-      packageName: 'demo',
-      parentFeature: 'product',
-      childFeature: 'reviews',
-      childPackageName: 'reviews',
-      corePackageName: 'core',
-    );
-    expect(out, contains("lookupShellPage('reviews')(context, state)"));
-    expect(out, isNot(contains('reviews/presentation/pages/reviews_page.dart')));
-    expect(out, contains("import 'package:core/core/router/shell_page_registry.dart';"));
-  });
+  test(
+    'typed: packageSplit child under a shell branch uses the registry, not a direct import',
+    () {
+      final out = GenerateFeatureUsecase.wireChildIntoTypedShell(
+        shellSource: newShellSource(),
+        packageName: 'demo',
+        parentFeature: 'product',
+        childFeature: 'reviews',
+        childPackageName: 'reviews',
+        corePackageName: 'core',
+      );
+      expect(out, contains("lookupShellPage('reviews')(context, state)"));
+      expect(
+        out,
+        isNot(contains('reviews/presentation/pages/reviews_page.dart')),
+      );
+      expect(
+        out,
+        contains("import 'package:core/core/router/shell_page_registry.dart';"),
+      );
+    },
+  );
 
   test(
     'typed: mergeIntoParent under a shell branch skips the registry entirely — '
@@ -391,7 +446,9 @@ class UsersRoute extends GoRouteData with \$UsersRoute {
       );
       expect(
         out,
-        contains("import 'package:product/presentation/reviews/pages/reviews_page.dart';"),
+        contains(
+          "import 'package:product/presentation/reviews/pages/reviews_page.dart';",
+        ),
       );
       expect(out, isNot(contains('shell_page_registry.dart')));
       expect(out, isNot(contains('lookupShellPage')));
@@ -404,7 +461,10 @@ class UsersRoute extends GoRouteData with \$UsersRoute {
   // templates), mirroring _wireShellBranchPlain's own insertion for the
   // second branch.
   String newPlainRoutesSource() {
-    var s = CoreTemplates.routesManualShell(packageName: 'demo', featureName: 'product');
+    var s = CoreTemplates.routesManualShell(
+      packageName: 'demo',
+      featureName: 'product',
+    );
     s = s.replaceFirst(
       '// neat:route-imports',
       "import 'package:demo/features/users/presentation/pages/users_page.dart';\n"
@@ -425,7 +485,8 @@ class UsersRoute extends GoRouteData with \$UsersRoute {
   // `StatefulShellRoute.indexedStack(...)`'s 2-space-indented close instead
   // — after BOTH branches. The balanced-paren scan must land inside
   // product's own branch, before users'.
-  String legacyPlainRoutesSource() => '''import 'package:go_router/go_router.dart';
+  String legacyPlainRoutesSource() =>
+      '''import 'package:go_router/go_router.dart';
 import 'package:demo/core/constants/app_route_path.dart';
 import 'package:demo/core/router/scaffold_with_nav_bar.dart';
 import 'package:demo/features/product/presentation/pages/product_page.dart';
@@ -469,7 +530,10 @@ final List<RouteBase> appRoutes = [
     );
     expect(out, contains("path: 'reviews',"));
     expect(out, contains('const ReviewsPage()'));
-    expect(out, contains('features/reviews/presentation/pages/reviews_page.dart'));
+    expect(
+      out,
+      contains('features/reviews/presentation/pages/reviews_page.dart'),
+    );
     final anchorIdx = out.indexOf('// neat:children:product');
     final childIdx = out.indexOf("path: 'reviews',");
     expect(childIdx, lessThan(anchorIdx));
@@ -503,19 +567,28 @@ final List<RouteBase> appRoutes = [
     },
   );
 
-  test('plain: packageSplit child under a shell branch uses the registry, not a direct import', () {
-    final out = GenerateFeatureUsecase.wireChildIntoPlainShell(
-      routesSource: newPlainRoutesSource(),
-      packageName: 'demo',
-      parentFeature: 'product',
-      childFeature: 'reviews',
-      childPackageName: 'reviews',
-      corePackageName: 'core',
-    );
-    expect(out, contains("lookupShellPage('reviews')(context, state)"));
-    expect(out, isNot(contains('reviews/presentation/pages/reviews_page.dart')));
-    expect(out, contains("import 'package:core/core/router/shell_page_registry.dart';"));
-  });
+  test(
+    'plain: packageSplit child under a shell branch uses the registry, not a direct import',
+    () {
+      final out = GenerateFeatureUsecase.wireChildIntoPlainShell(
+        routesSource: newPlainRoutesSource(),
+        packageName: 'demo',
+        parentFeature: 'product',
+        childFeature: 'reviews',
+        childPackageName: 'reviews',
+        corePackageName: 'core',
+      );
+      expect(out, contains("lookupShellPage('reviews')(context, state)"));
+      expect(
+        out,
+        isNot(contains('reviews/presentation/pages/reviews_page.dart')),
+      );
+      expect(
+        out,
+        contains("import 'package:core/core/router/shell_page_registry.dart';"),
+      );
+    },
+  );
 
   test(
     'plain: mergeIntoParent under a shell branch skips the registry entirely — '
@@ -531,7 +604,9 @@ final List<RouteBase> appRoutes = [
       );
       expect(
         out,
-        contains("import 'package:product/presentation/reviews/pages/reviews_page.dart';"),
+        contains(
+          "import 'package:product/presentation/reviews/pages/reviews_page.dart';",
+        ),
       );
       expect(out, isNot(contains('shell_page_registry.dart')));
       expect(out, isNot(contains('lookupShellPage')));

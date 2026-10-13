@@ -44,13 +44,19 @@ class ComponentToggleCard extends StatelessWidget {
                 4.gapH,
                 Text(
                   component.description,
-                  style: TextStyle(color: Colors.grey[500], fontSize: 12, height: 1.4),
+                  style: TextStyle(
+                    color: Colors.grey[500],
+                    fontSize: 12,
+                    height: 1.4,
+                  ),
                 ),
                 6.gapH,
                 Text(
                   'lib/components/${component.fileName}',
                   style: TextStyle(
-                    color: context.neatColors.colorPrimaryCyan.withValues(alpha: 0.7),
+                    color: context.neatColors.colorPrimaryCyan.withValues(
+                      alpha: 0.7,
+                    ),
                     fontSize: 11,
                   ),
                 ),
@@ -66,28 +72,40 @@ class ComponentToggleCard extends StatelessWidget {
               height: 28,
               decoration: BoxDecoration(
                 color: enabled
-                    ? context.neatColors.colorPrimaryCyan.withValues(alpha: 0.15)
+                    ? context.neatColors.colorPrimaryCyan.withValues(
+                        alpha: 0.15,
+                      )
                     : Colors.white10,
                 borderRadius: .circular(14),
                 border: .all(
-                  color: enabled ? context.neatColors.colorPrimaryCyan : Colors.white12,
+                  color: enabled
+                      ? context.neatColors.colorPrimaryCyan
+                      : Colors.white12,
                   width: 1.5,
                 ),
               ),
               child: AnimatedAlign(
                 duration: const Duration(milliseconds: 200),
-                alignment: enabled ? Alignment.centerRight : Alignment.centerLeft,
+                alignment: enabled
+                    ? Alignment.centerRight
+                    : Alignment.centerLeft,
                 child: Padding(
                   padding: const .all(3),
                   child: Container(
                     width: 20,
                     height: 20,
                     decoration: BoxDecoration(
-                      color: enabled ? context.neatColors.colorPrimaryCyan : Colors.grey[700],
+                      color: enabled
+                          ? context.neatColors.colorPrimaryCyan
+                          : Colors.grey[700],
                       shape: BoxShape.circle,
                     ),
                     child: enabled
-                        ? const Icon(Icons.check, size: 11, color: Color(0xFF0E0E0E))
+                        ? const Icon(
+                            Icons.check,
+                            size: 11,
+                            color: Color(0xFF0E0E0E),
+                          )
                         : null,
                   ),
                 ),

@@ -30,7 +30,12 @@ class BrandingCard extends StatelessWidget {
           ClipRRect(
             borderRadius: .circular(10),
             child: hasLogo
-                ? Image.file(File(logoPath), width: 52, height: 52, fit: BoxFit.cover)
+                ? Image.file(
+                    File(logoPath),
+                    width: 52,
+                    height: 52,
+                    fit: BoxFit.cover,
+                  )
                 : Container(
                     width: 52,
                     height: 52,
@@ -45,7 +50,11 @@ class BrandingCard extends StatelessWidget {
               children: [
                 const Text(
                   'App icon & splash',
-                  style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 4.gapH,
                 Text(

@@ -15,7 +15,9 @@ class RecentProjects extends _$RecentProjects {
 
   /// Records [path] (with [name]) as just opened, moving it to the top.
   Future<void> register({required String path, required String name}) async {
-    await _store.add(RecentProject(path: path, name: name, lastOpened: DateTime.now()));
+    await _store.add(
+      RecentProject(path: path, name: name, lastOpened: DateTime.now()),
+    );
     state = AsyncData(await _store.load());
   }
 

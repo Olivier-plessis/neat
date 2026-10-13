@@ -3,7 +3,8 @@ class CoreDartTemplates {
 
   static String gitkeep() => '';
 
-  static String coreResultDart({required String packageName}) => '''import 'package:$packageName/core/error/failure.dart';
+  static String coreResultDart({required String packageName}) =>
+      '''import 'package:$packageName/core/error/failure.dart';
 
 sealed class Result<T> {
   const Result();

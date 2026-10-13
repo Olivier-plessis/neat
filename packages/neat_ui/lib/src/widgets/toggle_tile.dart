@@ -48,7 +48,10 @@ class ToggleTile extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  Text(description, style: TextStyle(color: Colors.grey[500], fontSize: 12)),
+                  Text(
+                    description,
+                    style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                  ),
                 ],
               ),
             ),
@@ -60,7 +63,9 @@ class ToggleTile extends StatelessWidget {
                 width: 48,
                 height: 28,
                 decoration: BoxDecoration(
-                  color: value ? Palette.colorPrimaryCyan.withValues(alpha: 0.15) : Colors.white10,
+                  color: value
+                      ? Palette.colorPrimaryCyan.withValues(alpha: 0.15)
+                      : Colors.white10,
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
                     color: value ? Palette.colorPrimaryCyan : Colors.white12,
@@ -72,18 +77,26 @@ class ToggleTile extends StatelessWidget {
                   children: [
                     AnimatedAlign(
                       duration: const Duration(milliseconds: 200),
-                      alignment: value ? Alignment.centerRight : Alignment.centerLeft,
+                      alignment: value
+                          ? Alignment.centerRight
+                          : Alignment.centerLeft,
                       child: Padding(
                         padding: const EdgeInsets.all(3),
                         child: Container(
                           width: 20,
                           height: 20,
                           decoration: BoxDecoration(
-                            color: value ? Palette.colorPrimaryCyan : Colors.grey[700],
+                            color: value
+                                ? Palette.colorPrimaryCyan
+                                : Colors.grey[700],
                             shape: BoxShape.circle,
                           ),
                           child: value
-                              ? const Icon(Icons.check, size: 11, color: Color(0xFF0E0E0E))
+                              ? const Icon(
+                                  Icons.check,
+                                  size: 11,
+                                  color: Color(0xFF0E0E0E),
+                                )
                               : null,
                         ),
                       ),

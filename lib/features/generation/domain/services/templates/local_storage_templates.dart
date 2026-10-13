@@ -110,15 +110,23 @@ ${featureTable(featureName, fields: fields)}
   /// (`worksite_id`). The table has no foreign key, so deleting the parent
   /// locally must delete these rows by hand: one `deleteBy<Field>` per field,
   /// which the parent's local source calls (see ParentCleanup).
-  static String featureDaoFile(String featureName, {List<FieldSpec> cascadeFields = const []}) {
+  static String featureDaoFile(
+    String featureName, {
+    List<FieldSpec> cascadeFields = const [],
+  }) {
     final p = pascal(featureName);
     final acc = '${camel(featureName)}Rows';
-    final cascade = cascadeFields.map((f) => '''
+    final cascade = cascadeFields
+        .map(
+          (f) =>
+              '''
 
   /// Removes the rows whose `${f.dartName}` is [value]: what deleting their
   /// parent must do here, as this table has no foreign key.
   Future<void> ${daoDeleteByReference(f)}(String value) =>
-      (delete($acc)..where((t) => t.${f.dartName}.equals(value))).go();''').join();
+      (delete($acc)..where((t) => t.${f.dartName}.equals(value))).go();''',
+        )
+        .join();
     return '''import 'package:drift/drift.dart';
 
 import '../database.dart';
@@ -152,7 +160,8 @@ class ${p}Dao extends DatabaseAccessor<AppDatabase> with _\$${p}DaoMixin {
 
   /// The DAO method that deletes a child's rows by one of its parent
   /// references (`worksiteId` → `deleteByWorksiteId`).
-  static String daoDeleteByReference(FieldSpec field) => 'deleteBy${pascal(field.dartName)}';
+  static String daoDeleteByReference(FieldSpec field) =>
+      'deleteBy${pascal(field.dartName)}';
 
   /// The Outbox queue's table definition as its own file
   /// (`lib/src/table/outbox_table.dart`) — same convention as

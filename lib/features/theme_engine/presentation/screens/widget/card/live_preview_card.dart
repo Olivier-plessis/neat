@@ -18,14 +18,17 @@ class LivePreviewCard extends ConsumerWidget {
     final scheme = state.activeScheme;
 
     // Resolve a configured text style (falls back to M3 default if removed).
-    TextStyle styleFor(TextStyleKey key, Color color, {double? size}) => neatTextStyle(
-      family: state.fontFamily,
-      cfg: state.textStyles[key] ?? kM3Defaults[key]!,
-      color: color,
-      sizeOverride: size,
-    );
+    TextStyle styleFor(TextStyleKey key, Color color, {double? size}) =>
+        neatTextStyle(
+          family: state.fontFamily,
+          cfg: state.textStyles[key] ?? kM3Defaults[key]!,
+          color: color,
+          sizeOverride: size,
+        );
 
-    final surfaceBg = isDark ? const Color(0xFF1C1C1F) : const Color(0xFFF9FAFB);
+    final surfaceBg = isDark
+        ? const Color(0xFF1C1C1F)
+        : const Color(0xFFF9FAFB);
     final cardBg = isDark ? const Color(0xFF2A2A2E) : Colors.white;
     final textPrimary = isDark ? Colors.white : const Color(0xFF111827);
     final textSecondary = isDark ? Colors.white54 : const Color(0xFF6B7280);
@@ -33,7 +36,9 @@ class LivePreviewCard extends ConsumerWidget {
     final shadow = state.cardElevation > 0
         ? [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.06 + state.cardElevation * 0.025),
+              color: Colors.black.withValues(
+                alpha: 0.06 + state.cardElevation * 0.025,
+              ),
               blurRadius: state.cardElevation * 3,
               offset: Offset(0, state.cardElevation),
             ),
@@ -61,7 +66,11 @@ class LivePreviewCard extends ConsumerWidget {
             const Expanded(
               child: Text(
                 'Live Preview',
-                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
             // View generated code
@@ -70,7 +79,8 @@ class LivePreviewCard extends ConsumerWidget {
                 final identity = ref.read(identityProvider);
                 final pkg = identity.name.trim();
                 final webOnly =
-                    identity.targetPlatforms.length == 1 && identity.targetPlatforms.first == 'web';
+                    identity.targetPlatforms.length == 1 &&
+                    identity.targetPlatforms.first == 'web';
                 final code = ThemeTemplates.appThemeForState(
                   theme: state,
                   packageName: pkg.isEmpty ? 'app' : pkg,
@@ -86,7 +96,9 @@ class LivePreviewCard extends ConsumerWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: Palette.colorPrimaryCyan.withValues(alpha: 0.4)),
+                  border: Border.all(
+                    color: Palette.colorPrimaryCyan.withValues(alpha: 0.4),
+                  ),
                 ),
                 child: const Row(
                   mainAxisSize: MainAxisSize.min,
@@ -108,23 +120,31 @@ class LivePreviewCard extends ConsumerWidget {
             Clickable(
               onTap: () => ref
                   .read(themeEngineProvider.notifier)
-                  .setDefaultBrightness(isDark ? Brightness.light : Brightness.dark),
+                  .setDefaultBrightness(
+                    isDark ? Brightness.light : Brightness.dark,
+                  ),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
                 height: 28,
                 width: 60,
                 padding: const EdgeInsets.all(3),
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF2A2A2E) : const Color(0xFFE5E7EB),
+                  color: isDark
+                      ? const Color(0xFF2A2A2E)
+                      : const Color(0xFFE5E7EB),
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: isDark ? Colors.white12 : Colors.black12),
+                  border: Border.all(
+                    color: isDark ? Colors.white12 : Colors.black12,
+                  ),
                 ),
                 child: Stack(
                   children: [
                     AnimatedAlign(
                       duration: const Duration(milliseconds: 200),
                       curve: Curves.easeInOut,
-                      alignment: isDark ? Alignment.centerRight : Alignment.centerLeft,
+                      alignment: isDark
+                          ? Alignment.centerRight
+                          : Alignment.centerLeft,
                       child: Container(
                         width: 22,
                         height: 22,
@@ -135,7 +155,9 @@ class LivePreviewCard extends ConsumerWidget {
                         child: Icon(
                           isDark ? Icons.dark_mode : Icons.light_mode,
                           size: 13,
-                          color: isDark ? Colors.white54 : const Color(0xFFF59E0B),
+                          color: isDark
+                              ? Colors.white54
+                              : const Color(0xFFF59E0B),
                         ),
                       ),
                     ),
@@ -164,7 +186,9 @@ class LivePreviewCard extends ConsumerWidget {
                 decoration: BoxDecoration(
                   color: cardBg,
                   borderRadius: BorderRadius.circular(state.containerRadius),
-                  border: isDark ? Border.all(color: Colors.white.withValues(alpha: 0.08)) : null,
+                  border: isDark
+                      ? Border.all(color: Colors.white.withValues(alpha: 0.08))
+                      : null,
                   boxShadow: shadow,
                 ),
                 child: Column(
@@ -178,7 +202,9 @@ class LivePreviewCard extends ConsumerWidget {
                           height: 34,
                           decoration: BoxDecoration(
                             color: scheme.primaryContainer,
-                            borderRadius: BorderRadius.circular(state.containerRadius * 0.6),
+                            borderRadius: BorderRadius.circular(
+                              state.containerRadius * 0.6,
+                            ),
                           ),
                           child: Icon(
                             Icons.auto_fix_high_outlined,
@@ -188,20 +214,30 @@ class LivePreviewCard extends ConsumerWidget {
                         ),
                         const Spacer(),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 7,
+                            vertical: 3,
+                          ),
                           decoration: BoxDecoration(
                             color: scheme.primary.withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
                             'NEW THEME',
-                            style: styleFor(TextStyleKey.labelSmall, scheme.primary, size: 8),
+                            style: styleFor(
+                              TextStyleKey.labelSmall,
+                              scheme.primary,
+                              size: 8,
+                            ),
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 10),
-                    Text('Card Anatomy', style: styleFor(TextStyleKey.titleMedium, textPrimary)),
+                    Text(
+                      'Card Anatomy',
+                      style: styleFor(TextStyleKey.titleMedium, textPrimary),
+                    ),
                     const SizedBox(height: 3),
                     Text(
                       'Observing the fluid radius dynamics.',
@@ -211,7 +247,11 @@ class LivePreviewCard extends ConsumerWidget {
                       const SizedBox(height: 8),
                       Row(
                         children: [
-                          Icon(Icons.layers_outlined, size: 10, color: textSecondary),
+                          Icon(
+                            Icons.layers_outlined,
+                            size: 10,
+                            color: textSecondary,
+                          ),
                           const SizedBox(width: 4),
                           Text(
                             '${state.cardElevation.round()}dp elevation',
@@ -241,8 +281,12 @@ class LivePreviewCard extends ConsumerWidget {
                       ? [
                           BoxShadow(
                             color: scheme.primary.withValues(alpha: 0.4),
-                            blurRadius: (state.filledButton.elevation ?? 0) * 2.5,
-                            offset: Offset(0, (state.filledButton.elevation ?? 0) * 0.6),
+                            blurRadius:
+                                (state.filledButton.elevation ?? 0) * 2.5,
+                            offset: Offset(
+                              0,
+                              (state.filledButton.elevation ?? 0) * 0.6,
+                            ),
                           ),
                         ]
                       : null,
@@ -287,7 +331,9 @@ class LivePreviewCard extends ConsumerWidget {
                 decoration: BoxDecoration(
                   color: isDark ? const Color(0xFF1A1A1E) : Colors.white,
                   borderRadius: BorderRadius.circular(outlinedRadius),
-                  border: Border.all(color: isDark ? Colors.white24 : const Color(0xFFD1D5DB)),
+                  border: Border.all(
+                    color: isDark ? Colors.white24 : const Color(0xFFD1D5DB),
+                  ),
                 ),
                 padding: const EdgeInsets.symmetric(horizontal: 10),
                 alignment: Alignment.centerLeft,

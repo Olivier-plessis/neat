@@ -82,8 +82,14 @@ class ShellBranchFields extends StatelessWidget {
                         child: Row(
                           spacing: 8,
                           children: [
-                            Icon(_iconData[i], size: 16, color: Palette.colorPrimaryCyan),
-                            Expanded(child: Text(i, overflow: TextOverflow.ellipsis)),
+                            Icon(
+                              _iconData[i],
+                              size: 16,
+                              color: Palette.colorPrimaryCyan,
+                            ),
+                            Expanded(
+                              child: Text(i, overflow: TextOverflow.ellipsis),
+                            ),
                           ],
                         ),
                       ),
@@ -108,19 +114,20 @@ class ShellBranchFields extends StatelessWidget {
     );
   }
 
-  InputDecoration _decoration(String label, BuildContext context) => InputDecoration(
-    labelText: label,
-    labelStyle: const TextStyle(color: Colors.white54, fontSize: 13),
-    filled: true,
-    fillColor: context.neatColors.colorNeutralBg,
-    contentPadding: const .symmetric(horizontal: 12, vertical: 2),
-    enabledBorder: OutlineInputBorder(
-      borderRadius: .circular(8),
-      borderSide: BorderSide(color: context.neatColors.surface10),
-    ),
-    focusedBorder: OutlineInputBorder(
-      borderRadius: .circular(8),
-      borderSide: BorderSide(color: context.neatColors.colorPrimaryCyan),
-    ),
-  );
+  InputDecoration _decoration(String label, BuildContext context) =>
+      InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(color: Colors.white54, fontSize: 13),
+        filled: true,
+        fillColor: context.neatColors.colorNeutralBg,
+        contentPadding: const .symmetric(horizontal: 12, vertical: 2),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: .circular(8),
+          borderSide: BorderSide(color: context.neatColors.surface10),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: .circular(8),
+          borderSide: BorderSide(color: context.neatColors.colorPrimaryCyan),
+        ),
+      );
 }

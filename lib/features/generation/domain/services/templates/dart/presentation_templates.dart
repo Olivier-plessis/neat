@@ -30,11 +30,20 @@ class PresentationTemplates {
     if (useAnnotations) {
       if (dataList) {
         if (localFirst) {
-          return _riverpodListLocalNotifier(featureName, dataCross, domainCross);
+          return _riverpodListLocalNotifier(
+            featureName,
+            dataCross,
+            domainCross,
+          );
         }
         return realtime
             ? _riverpodListStreamNotifier(featureName, dataCross, domainCross)
-            : _riverpodListNotifier(featureName, includeCrudUi, fields, domainCross);
+            : _riverpodListNotifier(
+                featureName,
+                includeCrudUi,
+                fields,
+                domainCross,
+              );
       }
       return _riverpodAnnotationTemplate(featureName);
     }
@@ -278,7 +287,9 @@ class ${p}Notifier extends Notifier<AsyncValue<void>> {
 
     // The tile's title is the inferred "display" field; the subtitle shows the id.
     final tf = titleField(fields);
-    final titleExpr = tf.nullable ? "item.${tf.dartName} ?? ''" : 'item.${tf.dartName}';
+    final titleExpr = tf.nullable
+        ? "item.${tf.dartName} ?? ''"
+        : 'item.${tf.dartName}';
     final idName = idField(fields).dartName;
     // Skeleton placeholder: a dummy entity per field. Not `const` — a DateTime
     // placeholder isn't a const expression. Hoisted to a top-level `final`
@@ -287,7 +298,9 @@ class ${p}Notifier extends Notifier<AsyncValue<void>> {
     // comparison (doctor_agenda_page.dart's own `_skeletonState`): an inline
     // `List.generate(8, ...)` reconstructs 8 full nested entities from
     // scratch on *every* rebuild while loading, not just once.
-    final placeholderArgs = fields.map((f) => '${f.dartName}: ${f.entityPlaceholder()}').join(', ');
+    final placeholderArgs = fields
+        .map((f) => '${f.dartName}: ${f.entityPlaceholder()}')
+        .join(', ');
 
     // This file lives in presentation/pages/ — the usecase providers live in
     // the sibling presentation/providers/, hence the `../providers/` prefix
@@ -328,10 +341,12 @@ class ${p}Notifier extends Notifier<AsyncValue<void>> {
     // never-passed constructor param is dead weight the analyzer flags.
     final onTapCtorParam = includeCrudUi ? ', this.onTap' : '';
     final onTapErrorAssign = includeCrudUi ? ', onTap = null' : '';
-    final onTapField =
-        includeCrudUi ? '  final void Function(${p}Entity item)? onTap;\n' : '';
-    final onTapTileProp =
-        includeCrudUi ? '\n          onTap: onTap == null ? null : () => onTap!(item),' : '';
+    final onTapField = includeCrudUi
+        ? '  final void Function(${p}Entity item)? onTap;\n'
+        : '';
+    final onTapTileProp = includeCrudUi
+        ? '\n          onTap: onTap == null ? null : () => onTap!(item),'
+        : '';
 
     final corePkg = corePackageName ?? packageName;
     return '''import 'package:flutter/material.dart';
@@ -448,7 +463,9 @@ $crudWidgets''';
         .map((f) => "Text('${f.dartName}: \${item.${f.dartName}}'),")
         .join('\n            ');
 
-    final formFields = fields.where((f) => !f.isId && f.isScalar && f.dartType != 'DateTime');
+    final formFields = fields.where(
+      (f) => !f.isId && f.isScalar && f.dartType != 'DateTime',
+    );
     final ctrlDecls = formFields
         .where((f) => f.dartType != 'bool')
         .map((f) => '  final _${f.dartName}Ctrl = TextEditingController();')
@@ -482,8 +499,10 @@ $crudWidgets''';
             return '${f.dartName}: ${f.entityPlaceholder()}';
           }
           return switch (f.dartType) {
-            'int' => '${f.dartName}: int.tryParse(_${f.dartName}Ctrl.text) ?? 0',
-            'double' => '${f.dartName}: double.tryParse(_${f.dartName}Ctrl.text) ?? 0.0',
+            'int' =>
+              '${f.dartName}: int.tryParse(_${f.dartName}Ctrl.text) ?? 0',
+            'double' =>
+              '${f.dartName}: double.tryParse(_${f.dartName}Ctrl.text) ?? 0.0',
             'bool' => '${f.dartName}: _${f.dartName}',
             _ => '${f.dartName}: _${f.dartName}Ctrl.text',
           };
@@ -629,8 +648,16 @@ $disposeLines
     final p = pascal(featureName);
 
     if (hasRiverpod && useAnnotations && dataList) {
-      return _riverpodListPage(featureName, packageName, i18n, fields, includeCrudUi,
-          corePackageName, domainCross, localFirst);
+      return _riverpodListPage(
+        featureName,
+        packageName,
+        i18n,
+        fields,
+        includeCrudUi,
+        corePackageName,
+        domainCross,
+        localFirst,
+      );
     }
 
     if (hasRiverpod) {
@@ -641,8 +668,12 @@ $disposeLines
           ? "import 'package:$i18nPkg/core/i18n/language_switcher.dart';\n"
                 "import 'package:$i18nPkg/i18n/strings.g.dart';\n"
           : '';
-      final titleWidget = i18n ? 'Text(context.t.$c.title)' : "const Text('$p')";
-      final switcherAction = i18n ? 'const LanguageSwitcher(),\n          ' : '';
+      final titleWidget = i18n
+          ? 'Text(context.t.$c.title)'
+          : "const Text('$p')";
+      final switcherAction = i18n
+          ? 'const LanguageSwitcher(),\n          '
+          : '';
       final body = useAnnotations
           ? '''switch (state) {
         AsyncData() => const Center(child: Text('$p')),

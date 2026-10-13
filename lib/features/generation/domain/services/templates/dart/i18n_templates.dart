@@ -23,7 +23,8 @@ class I18nTemplates {
   /// {name}` added later would otherwise render literally instead of
   /// substituting the variable (see [I18nImporter.slangCsvConfig], same fix
   /// for the CSV-upload path).
-  static String slangConfig({String baseLocale = 'en'}) => '''base_locale: $baseLocale
+  static String slangConfig({String baseLocale = 'en'}) =>
+      '''base_locale: $baseLocale
 fallback_strategy: base_locale
 input_directory: lib/i18n
 input_file_pattern: .i18n.json
@@ -126,7 +127,10 @@ string_interpolation: braces
       'it': 'Nessun elemento al momento.',
       'es': 'Todavía no hay elementos.',
     };
-    return {'title': pascal(featureName), 'empty': empty[locale] ?? empty['en']!};
+    return {
+      'title': pascal(featureName),
+      'empty': empty[locale] ?? empty['en']!,
+    };
   }
 
   // ── core/i18n/locale_store.dart (persistence) ─────────────────────────────

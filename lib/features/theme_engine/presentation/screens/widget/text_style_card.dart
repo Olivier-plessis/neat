@@ -66,7 +66,10 @@ class TextStyleCard extends StatelessWidget {
           Container(
             width: .infinity,
             padding: const .symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(color: const Color(0xFF0D0D0F), borderRadius: .circular(8)),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0D0D0F),
+              borderRadius: .circular(8),
+            ),
             child: Text(
               styleKey.previewText,
               style: neatTextStyle(
@@ -110,7 +113,8 @@ class TextStyleCard extends StatelessWidget {
                   max: 4,
                   unit: '',
                   decimals: 2,
-                  onChanged: (v) => onChanged(config.copyWith(letterSpacing: v)),
+                  onChanged: (v) =>
+                      onChanged(config.copyWith(letterSpacing: v)),
                 ),
               ),
             ],

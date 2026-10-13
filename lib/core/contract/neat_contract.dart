@@ -67,5 +67,6 @@ abstract class NeatContract with _$NeatContract {
     @Default(false) bool packageSplit,
   }) = _NeatContract;
 
-  factory NeatContract.fromJson(Map<String, dynamic> json) => _$NeatContractFromJson(json);
+  factory NeatContract.fromJson(Map<String, dynamic> json) =>
+      _$NeatContractFromJson(json);
 }

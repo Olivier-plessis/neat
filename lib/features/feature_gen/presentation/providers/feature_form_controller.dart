@@ -46,10 +46,12 @@ class FeatureFormController extends _$FeatureFormController {
 
   void setName(String name) => update(state.opts.copyWith(name: name));
 
-  void setShellLabel(String label) => update(state.opts.copyWith(shellLabel: label));
+  void setShellLabel(String label) =>
+      update(state.opts.copyWith(shellLabel: label));
 
   /// Supabase table / Firestore collection (empty → `<name>s`).
-  void setTableName(String tableName) => update(state.opts.copyWith(tableName: tableName));
+  void setTableName(String tableName) =>
+      update(state.opts.copyWith(tableName: tableName));
 
   /// Direct event-handler equivalent of what used to be a reactive "sync
   /// endpoint paths to apiPath" effect on ArchitectureLayersStep: called

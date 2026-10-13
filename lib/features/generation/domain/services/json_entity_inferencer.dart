@@ -42,10 +42,17 @@ class JsonEntityInferencer {
     // Only the CRUD entity flow falls back to the id/name placeholder — a
     // request/response body with no natural id just has no fields at all.
     final fallback = requireId ? FieldSpec.idName : const <FieldSpec>[];
-    final fallbackNote = requireId ? 'kept the default id/name fields' : 'kept an empty field list';
+    final fallbackNote = requireId
+        ? 'kept the default id/name fields'
+        : 'kept an empty field list';
 
     if (raw.trim().isEmpty) {
-      return (fields: fallback, warnings: const [], envelopeKey: null, envelopeFields: const []);
+      return (
+        fields: fallback,
+        warnings: const [],
+        envelopeKey: null,
+        envelopeFields: const [],
+      );
     }
 
     final Object? decoded;
@@ -109,7 +116,9 @@ class JsonEntityInferencer {
         0,
         const FieldSpec(jsonKey: 'id', dartName: 'id', isId: true),
       );
-      warnings.add('No "id" in the JSON → added a String id (required for CRUD).');
+      warnings.add(
+        'No "id" in the JSON → added a String id (required for CRUD).',
+      );
     }
 
     return (
@@ -146,7 +155,9 @@ class JsonEntityInferencer {
       final value = entry.value;
       if (value is List) {
         if (value.isEmpty || value.first is! Map) return null;
-        if (arrayKey != null) return null; // more than one array-of-objects field
+        if (arrayKey != null) {
+          return null; // more than one array-of-objects field
+        }
         arrayKey = entry.key.toString();
         firstElement = value.first as Map;
       } else if (value is Map) {
@@ -162,7 +173,11 @@ class JsonEntityInferencer {
 
   /// Builds the field specs for a JSON object. Each scope de-duplicates Dart
   /// names independently. Only the [topLevel] object enforces the id rules.
-  List<FieldSpec> _childrenOf(Map<dynamic, dynamic> map, List<String> warnings, {bool topLevel = false}) {
+  List<FieldSpec> _childrenOf(
+    Map<dynamic, dynamic> map,
+    List<String> warnings, {
+    bool topLevel = false,
+  }) {
     final fields = <FieldSpec>[];
     final usedNames = <String>{};
 
@@ -176,16 +191,22 @@ class JsonEntityInferencer {
           // The actual source key (e.g. "_id"), not a hardcoded "id" — a
           // Mongo-style sample would otherwise print a warning about a
           // field named "id" that doesn't exist in the pasted JSON at all.
-          warnings.add('"$jsonKey" was ${_typeName(value as Object)} → coerced to String '
-              '(NEAT keys CRUD on String ids).');
+          warnings.add(
+            '"$jsonKey" was ${_typeName(value as Object)} → coerced to String '
+            '(NEAT keys CRUD on String ids).',
+          );
         }
         fields.add(FieldSpec(jsonKey: jsonKey, dartName: dartName, isId: true));
         return;
       }
 
       if (value == null) {
-        warnings.add('"$jsonKey": null in the sample → typed as String? (edit if needed).');
-        fields.add(FieldSpec(jsonKey: jsonKey, dartName: dartName, nullable: true));
+        warnings.add(
+          '"$jsonKey": null in the sample → typed as String? (edit if needed).',
+        );
+        fields.add(
+          FieldSpec(jsonKey: jsonKey, dartName: dartName, nullable: true),
+        );
         return;
       }
 
@@ -196,7 +217,12 @@ class JsonEntityInferencer {
   }
 
   /// Infers a non-null value into a [FieldSpec] (scalar / object / list).
-  FieldSpec _specFor(String jsonKey, String dartName, Object value, List<String> warnings) {
+  FieldSpec _specFor(
+    String jsonKey,
+    String dartName,
+    Object value,
+    List<String> warnings,
+  ) {
     if (value is Map) {
       return FieldSpec(
         jsonKey: jsonKey,
@@ -209,7 +235,9 @@ class JsonEntityInferencer {
 
     if (value is List) {
       if (value.isEmpty) {
-        warnings.add('"$jsonKey": empty array → typed as List<String> (edit if needed).');
+        warnings.add(
+          '"$jsonKey": empty array → typed as List<String> (edit if needed).',
+        );
         return FieldSpec(
           jsonKey: jsonKey,
           dartName: dartName,
@@ -238,12 +266,20 @@ class JsonEntityInferencer {
         jsonKey: jsonKey,
         dartName: dartName,
         kind: FieldKind.list,
-        element: FieldSpec(jsonKey: '', dartName: '', dartType: _scalarType(first as Object)),
+        element: FieldSpec(
+          jsonKey: '',
+          dartName: '',
+          dartType: _scalarType(first as Object),
+        ),
       );
     }
 
     // Scalar.
-    return FieldSpec(jsonKey: jsonKey, dartName: dartName, dartType: _scalarType(value));
+    return FieldSpec(
+      jsonKey: jsonKey,
+      dartName: dartName,
+      dartType: _scalarType(value),
+    );
   }
 
   /// Matches `id` and Mongo/Mongoose's own `_id` convention (any casing) —
@@ -265,16 +301,20 @@ class JsonEntityInferencer {
   }
 
   String _typeName(Object value) => switch (value) {
-        bool() => 'bool',
-        int() => 'int',
-        double() => 'double',
-        _ => 'String',
-      };
+    bool() => 'bool',
+    int() => 'int',
+    double() => 'double',
+    _ => 'String',
+  };
 
   bool _looksIso8601(String s) =>
       RegExp(r'^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}.*)?$').hasMatch(s);
 
-  String _uniqueDartName(String jsonKey, Set<String> used, List<String> warnings) {
+  String _uniqueDartName(
+    String jsonKey,
+    Set<String> used,
+    List<String> warnings,
+  ) {
     var name = _toDartIdentifier(jsonKey);
     if (_dartReserved.contains(name)) {
       warnings.add('"$jsonKey" is a Dart keyword → renamed to "${name}Field".');
@@ -292,11 +332,18 @@ class JsonEntityInferencer {
   }
 
   String _toDartIdentifier(String key) {
-    final parts = key.split(RegExp(r'[^a-zA-Z0-9]+')).where((p) => p.isNotEmpty).toList();
+    final parts = key
+        .split(RegExp(r'[^a-zA-Z0-9]+'))
+        .where((p) => p.isNotEmpty)
+        .toList();
     if (parts.isEmpty) return 'field';
     final buf = StringBuffer();
     for (final (i, w) in parts.indexed) {
-      buf.write(i == 0 ? w[0].toLowerCase() + w.substring(1) : w[0].toUpperCase() + w.substring(1));
+      buf.write(
+        i == 0
+            ? w[0].toLowerCase() + w.substring(1)
+            : w[0].toUpperCase() + w.substring(1),
+      );
     }
     var id = buf.toString();
     if (RegExp(r'^[0-9]').hasMatch(id)) id = 'n$id';
@@ -304,8 +351,9 @@ class JsonEntityInferencer {
   }
 
   /// `createdAt` → `CreatedAt` (PascalCase for a sub-class base name).
-  String _pascal(String dartName) =>
-      dartName.isEmpty ? dartName : dartName[0].toUpperCase() + dartName.substring(1);
+  String _pascal(String dartName) => dartName.isEmpty
+      ? dartName
+      : dartName[0].toUpperCase() + dartName.substring(1);
 
   String _camelLower(String s) =>
       s.isEmpty ? s : s[0].toLowerCase() + s.substring(1);
@@ -313,20 +361,79 @@ class JsonEntityInferencer {
   /// Naive singularisation for list-element class names (`items` → `item`,
   /// `categories` → `category`). Good enough for class naming; user-editable.
   String _singular(String s) {
-    if (s.endsWith('ies') && s.length > 3) return '${s.substring(0, s.length - 3)}y';
+    if (s.endsWith('ies') && s.length > 3) {
+      return '${s.substring(0, s.length - 3)}y';
+    }
     if (s.endsWith('ses') && s.length > 3) return s.substring(0, s.length - 2);
-    if (s.endsWith('s') && !s.endsWith('ss') && s.length > 1) return s.substring(0, s.length - 1);
+    if (s.endsWith('s') && !s.endsWith('ss') && s.length > 1) {
+      return s.substring(0, s.length - 1);
+    }
     return s;
   }
 
   static const _dartReserved = <String>{
-    'abstract', 'as', 'assert', 'async', 'await', 'break', 'case', 'catch',
-    'class', 'const', 'continue', 'covariant', 'default', 'deferred', 'do',
-    'dynamic', 'else', 'enum', 'export', 'extends', 'extension', 'external',
-    'factory', 'false', 'final', 'finally', 'for', 'function', 'get', 'hide',
-    'if', 'implements', 'import', 'in', 'interface', 'is', 'late', 'library',
-    'mixin', 'new', 'null', 'on', 'operator', 'part', 'required', 'rethrow',
-    'return', 'set', 'show', 'static', 'super', 'switch', 'sync', 'this',
-    'throw', 'true', 'try', 'typedef', 'var', 'void', 'while', 'with', 'yield',
+    'abstract',
+    'as',
+    'assert',
+    'async',
+    'await',
+    'break',
+    'case',
+    'catch',
+    'class',
+    'const',
+    'continue',
+    'covariant',
+    'default',
+    'deferred',
+    'do',
+    'dynamic',
+    'else',
+    'enum',
+    'export',
+    'extends',
+    'extension',
+    'external',
+    'factory',
+    'false',
+    'final',
+    'finally',
+    'for',
+    'function',
+    'get',
+    'hide',
+    'if',
+    'implements',
+    'import',
+    'in',
+    'interface',
+    'is',
+    'late',
+    'library',
+    'mixin',
+    'new',
+    'null',
+    'on',
+    'operator',
+    'part',
+    'required',
+    'rethrow',
+    'return',
+    'set',
+    'show',
+    'static',
+    'super',
+    'switch',
+    'sync',
+    'this',
+    'throw',
+    'true',
+    'try',
+    'typedef',
+    'var',
+    'void',
+    'while',
+    'with',
+    'yield',
   };
 }

@@ -66,7 +66,10 @@ flutter:
       await dest.writeAsBytes(await File(logoPath).readAsBytes());
     }
     await writeFile('$root/spider.yaml', ThemeTemplates.spiderConfig());
-    await writeFile('$root/lib/gen/assets.dart', ThemeTemplates.assetsClass(hasLogo: hasLogo));
+    await writeFile(
+      '$root/lib/gen/assets.dart',
+      ThemeTemplates.assetsClass(hasLogo: hasLogo),
+    );
 
     // Public barrel.
     final exports = StringBuffer()
@@ -78,11 +81,14 @@ flutter:
     for (final c in components) {
       exports.writeln("export 'components/${c.fileName}';");
     }
-    await writeFile('$root/lib/$uiPackage.dart', '''/// Public API of the $uiPackage design system.
+    await writeFile(
+      '$root/lib/$uiPackage.dart',
+      '''/// Public API of the $uiPackage design system.
 library;
 
 ${exports.toString().trimRight()}
-''');
+''',
+    );
   }
 
   /// pubspec for the standalone Widgetbook workspace member (depends on `<ui>`).

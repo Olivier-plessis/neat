@@ -20,7 +20,7 @@ class AuthTemplates {
   }) {
     final oauthContract = oauth
         ? '\n  Future<Result<bool>> signInWithGoogle();'
-            '\n  Future<Result<bool>> signInWithApple();'
+              '\n  Future<Result<bool>> signInWithApple();'
         : '';
     return '''import 'package:${corePackageName ?? packageName}/core/result/result.dart';
 
@@ -69,7 +69,7 @@ abstract interface class IAuthRepository {
     final corePkg = corePackageName ?? packageName;
     final cleanupField = hasLocalData
         ? '\n  /// Wipes the on-device data (Drift tables + Outbox) — see signOut.\n'
-            '  final Future<void> Function() _clearLocalData;\n'
+              '  final Future<void> Function() _clearLocalData;\n'
         : '';
     final iAuthRepoImport = authPackageName != null
         ? "import '../../domain/repositories/i_auth_repository.dart';"
@@ -312,12 +312,14 @@ class AuthController extends _\$AuthController {
     final providerImport = isFirebase
         ? "import 'package:$corePkg/core/network/firebase_provider.dart';"
         : "import 'package:$corePkg/core/network/supabase_provider.dart';";
-    final clientProvider = isFirebase ? 'firebaseAuthProvider' : 'supabaseClientProvider';
+    final clientProvider = isFirebase
+        ? 'firebaseAuthProvider'
+        : 'supabaseClientProvider';
     final selfImports = authPackageName != null
         ? "import 'auth_repository_impl.dart';\n"
-            "import '../../domain/repositories/i_auth_repository.dart';"
+              "import '../../domain/repositories/i_auth_repository.dart';"
         : "import 'package:$packageName/features/auth/data/repositories/auth_repository_impl.dart';\n"
-            "import 'package:$packageName/features/auth/domain/repositories/i_auth_repository.dart';";
+              "import 'package:$packageName/features/auth/domain/repositories/i_auth_repository.dart';";
     final localImport = hasLocalData
         ? "\nimport 'package:$corePkg/core/providers/infrastructure_providers.dart';"
         : '';
@@ -441,18 +443,17 @@ $onboardingCheck
     bool oauth = false,
     String? corePackageName,
     String? authPackageName,
-  }) =>
-      _authForm(
-        packageName: packageName,
-        className: 'LoginScreen',
-        title: 'Sign in',
-        action: 'signIn',
-        buttonLabel: 'Sign in',
-        withPassword: true,
-        oauth: oauth,
-        corePackageName: corePackageName,
-        authPackageName: authPackageName,
-        footer: '''
+  }) => _authForm(
+    packageName: packageName,
+    className: 'LoginScreen',
+    title: 'Sign in',
+    action: 'signIn',
+    buttonLabel: 'Sign in',
+    withPassword: true,
+    oauth: oauth,
+    corePackageName: corePackageName,
+    authPackageName: authPackageName,
+    footer: '''
             TextButton(
               onPressed: () => context.go(AppRoutePath.signup),
               child: const Text('Create an account'),
@@ -461,33 +462,32 @@ $onboardingCheck
               onPressed: () => context.go(AppRoutePath.forgotPassword),
               child: const Text('Forgot password?'),
             ),''',
-      );
+  );
 
   static String signupScreen({
     required String packageName,
     String? corePackageName,
     String? authPackageName,
-  }) =>
-      _authForm(
-        packageName: packageName,
-        className: 'SignupScreen',
-        title: 'Create account',
-        action: 'signUp',
-        buttonLabel: 'Sign up',
-        withPassword: true,
-        corePackageName: corePackageName,
-        authPackageName: authPackageName,
-        // Minimal reaction to the outcome: with email confirmation on there is no
-        // session yet, so say so (and let the user ask for the email again)
-        // instead of leaving them on a form that appears to have done nothing.
-        extraImports: authPackageName != null
-            ? "import '../../domain/repositories/i_auth_repository.dart';"
-            : "import 'package:$packageName/features/auth/domain/repositories/i_auth_repository.dart';",
-        extraState: '''
+  }) => _authForm(
+    packageName: packageName,
+    className: 'SignupScreen',
+    title: 'Create account',
+    action: 'signUp',
+    buttonLabel: 'Sign up',
+    withPassword: true,
+    corePackageName: corePackageName,
+    authPackageName: authPackageName,
+    // Minimal reaction to the outcome: with email confirmation on there is no
+    // session yet, so say so (and let the user ask for the email again)
+    // instead of leaving them on a form that appears to have done nothing.
+    extraImports: authPackageName != null
+        ? "import '../../domain/repositories/i_auth_repository.dart';"
+        : "import 'package:$packageName/features/auth/domain/repositories/i_auth_repository.dart';",
+    extraState: '''
     final confirmationSent = useState(false);
     final resending = useState(false);
 ''',
-        extraFunctions: '''
+    extraFunctions: '''
     Future<void> resend() async {
       resending.value = true;
       final result = await ref
@@ -508,13 +508,13 @@ $onboardingCheck
     }
 
 ''',
-        onSuccessBody: '''(outcome) {
+    onSuccessBody: '''(outcome) {
           // Signed in already (email confirmation off): the router takes over.
           if (outcome == SignUpOutcome.confirmationEmailSent) {
             confirmationSent.value = true;
           }
         }''',
-        afterError: '''
+    afterError: '''
               if (confirmationSent.value) ...[
                 const SizedBox(height: 12),
                 Text(
@@ -526,33 +526,32 @@ $onboardingCheck
                   child: const Text('Resend the email'),
                 ),
               ],''',
-        footer: '''
+    footer: '''
             TextButton(
               onPressed: () => context.go(AppRoutePath.login),
               child: const Text('I already have an account'),
             ),''',
-      );
+  );
 
   static String forgotPasswordScreen({
     required String packageName,
     String? corePackageName,
     String? authPackageName,
-  }) =>
-      _authForm(
-        packageName: packageName,
-        className: 'ForgotPasswordScreen',
-        title: 'Reset password',
-        action: 'sendPasswordReset',
-        buttonLabel: 'Send reset link',
-        withPassword: false,
-        corePackageName: corePackageName,
-        authPackageName: authPackageName,
-        footer: '''
+  }) => _authForm(
+    packageName: packageName,
+    className: 'ForgotPasswordScreen',
+    title: 'Reset password',
+    action: 'sendPasswordReset',
+    buttonLabel: 'Send reset link',
+    withPassword: false,
+    corePackageName: corePackageName,
+    authPackageName: authPackageName,
+    footer: '''
             TextButton(
               onPressed: () => context.go(AppRoutePath.login),
               child: const Text('Back to sign in'),
             ),''',
-      );
+  );
 
   /// Shared email(+password) form used by the three auth screens.
   /// corePackageName/authPackageName: see authRepositoryImpl's doc — same
@@ -730,11 +729,11 @@ $extraFunctions    Future<void> submit() async {
         : "import 'package:$packageName/core/constants/app_route_path.dart';";
     final screenImports = authPackageName != null
         ? "import '../screens/login_screen.dart';\n"
-            "import '../screens/signup_screen.dart';\n"
-            "import '../screens/forgot_password_screen.dart';"
+              "import '../screens/signup_screen.dart';\n"
+              "import '../screens/forgot_password_screen.dart';"
         : "import 'package:$packageName/features/auth/presentation/screens/login_screen.dart';\n"
-            "import 'package:$packageName/features/auth/presentation/screens/signup_screen.dart';\n"
-            "import 'package:$packageName/features/auth/presentation/screens/forgot_password_screen.dart';";
+              "import 'package:$packageName/features/auth/presentation/screens/signup_screen.dart';\n"
+              "import 'package:$packageName/features/auth/presentation/screens/forgot_password_screen.dart';";
     return '''import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 $appRoutePathImport

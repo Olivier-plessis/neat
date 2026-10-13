@@ -40,11 +40,46 @@ class SupabaseTemplates {
   /// Postgres words a column can't be named without quoting (the common
   /// offenders for an entity field: `order`, `user`, `group`…).
   static const _reserved = {
-    'all', 'and', 'as', 'asc', 'by', 'case', 'check', 'column', 'create',
-    'default', 'desc', 'else', 'end', 'for', 'from', 'grant', 'group', 'in',
-    'is', 'like', 'limit', 'not', 'null', 'offset', 'on', 'or', 'order',
-    'primary', 'references', 'select', 'table', 'then', 'to', 'true', 'false',
-    'unique', 'user', 'when', 'where', 'with',
+    'all',
+    'and',
+    'as',
+    'asc',
+    'by',
+    'case',
+    'check',
+    'column',
+    'create',
+    'default',
+    'desc',
+    'else',
+    'end',
+    'for',
+    'from',
+    'grant',
+    'group',
+    'in',
+    'is',
+    'like',
+    'limit',
+    'not',
+    'null',
+    'offset',
+    'on',
+    'or',
+    'order',
+    'primary',
+    'references',
+    'select',
+    'table',
+    'then',
+    'to',
+    'true',
+    'false',
+    'unique',
+    'user',
+    'when',
+    'where',
+    'with',
   };
 
   /// A column name as it must be written in SQL: bare when it's a plain
@@ -52,7 +87,8 @@ class SupabaseTemplates {
   /// *different* column in Postgres unless quoted, and PostgREST matches JSON
   /// keys to columns case-sensitively).
   static String column(String jsonKey) =>
-      RegExp(r'^[a-z_][a-z0-9_]*$').hasMatch(jsonKey) && !_reserved.contains(jsonKey)
+      RegExp(r'^[a-z_][a-z0-9_]*$').hasMatch(jsonKey) &&
+          !_reserved.contains(jsonKey)
       ? jsonKey
       : '"${jsonKey.replaceAll('"', '""')}"';
 
@@ -109,7 +145,9 @@ class SupabaseTemplates {
     String modelName = '',
     Map<String, ForeignKey> references = const {},
   }) {
-    final table = (tableName == null || tableName.isEmpty) ? '${featureName}s' : tableName;
+    final table = (tableName == null || tableName.isEmpty)
+        ? '${featureName}s'
+        : tableName;
     final p = modelName.isEmpty ? pascal(featureName) : modelName;
     final id = idField(fields);
     final entityKeys = {for (final f in fields) f.jsonKey};
@@ -144,7 +182,9 @@ class SupabaseTemplates {
           'create index ${table}_${_identifier(f.jsonKey)}_idx on public.$table (${column(f.jsonKey)});\n',
     ].join();
 
-    final roles = ownedByUser || hasAuth ? 'authenticated' : 'anon, authenticated';
+    final roles = ownedByUser || hasAuth
+        ? 'authenticated'
+        : 'anon, authenticated';
     final ownerSql = ownedByUser ? 'owner_id = (select auth.uid())' : 'true';
 
     final dbOnly = [
@@ -242,7 +282,8 @@ grant select, insert, update, delete on public.$table to $roles;
   }
 
   /// A JSON key as a lower-case identifier fragment (for constraint and index names).
-  static String _identifier(String jsonKey) => jsonKey.toLowerCase().replaceAll(RegExp(r'[^a-z0-9_]'), '_');
+  static String _identifier(String jsonKey) =>
+      jsonKey.toLowerCase().replaceAll(RegExp(r'[^a-z0-9_]'), '_');
 
   static String _list(List<String> items) => items.length <= 1
       ? items.join()

@@ -78,8 +78,9 @@ class SelectedPackages extends _$SelectedPackages {
 
   void addAll(List<PubPackage> packages) {
     final existing = {for (final p in state) p.name};
-    final toAdd = packages
-        .where((p) => !existing.contains(p.name) && !isUnsupportedPackage(p.name));
+    final toAdd = packages.where(
+      (p) => !existing.contains(p.name) && !isUnsupportedPackage(p.name),
+    );
     state = [...state, ...toAdd];
   }
 
@@ -95,15 +96,20 @@ class SelectedPackages extends _$SelectedPackages {
   /// (regardless of which family), mirroring how backend switching never
   /// touches [RoutingStyle] either.
   void applyBackendPreset(List<PubPackage> preset) {
-    final stripped =
-        state.where((p) => !backendMarkerPackages.contains(p.name)).toList();
-    final hasStateManagement =
-        stripped.any((p) => stateManagementMarkerPackages.contains(p.name));
+    final stripped = state
+        .where((p) => !backendMarkerPackages.contains(p.name))
+        .toList();
+    final hasStateManagement = stripped.any(
+      (p) => stateManagementMarkerPackages.contains(p.name),
+    );
     final existing = {for (final p in stripped) p.name};
-    final toAdd = preset.where((p) =>
-        !existing.contains(p.name) &&
-        !isUnsupportedPackage(p.name) &&
-        !(hasStateManagement && stateManagementMarkerPackages.contains(p.name)));
+    final toAdd = preset.where(
+      (p) =>
+          !existing.contains(p.name) &&
+          !isUnsupportedPackage(p.name) &&
+          !(hasStateManagement &&
+              stateManagementMarkerPackages.contains(p.name)),
+    );
     state = [...stripped, ...toAdd];
   }
 
@@ -111,17 +117,20 @@ class SelectedPackages extends _$SelectedPackages {
   /// mechanism as [applyBackendPreset], just named for its own call sites
   /// (infrastructure_screen.dart's client picker, only shown for
   /// `BackendKind.rest`).
-  void applyHttpClientPreset(List<PubPackage> preset) => applyBackendPreset(preset);
+  void applyHttpClientPreset(List<PubPackage> preset) =>
+      applyBackendPreset(preset);
 
   /// Switches state management (Riverpod/Bloc) — independent of the backend/
   /// HTTP client choice, the same strip-then-add mechanism scoped to
   /// [stateManagementMarkerPackages] only (mirrors [applyBackendPreset]).
   void applyStateManagementPreset(List<PubPackage> preset) {
-    final stripped =
-        state.where((p) => !stateManagementMarkerPackages.contains(p.name)).toList();
+    final stripped = state
+        .where((p) => !stateManagementMarkerPackages.contains(p.name))
+        .toList();
     final existing = {for (final p in stripped) p.name};
-    final toAdd =
-        preset.where((p) => !existing.contains(p.name) && !isUnsupportedPackage(p.name));
+    final toAdd = preset.where(
+      (p) => !existing.contains(p.name) && !isUnsupportedPackage(p.name),
+    );
     state = [...stripped, ...toAdd];
   }
 

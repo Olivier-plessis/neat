@@ -124,7 +124,9 @@ abstract final class I18nWriter {
       } else if (existing is Map<String, dynamic>) {
         // The key is already a group (hand-written, or a feature of that name):
         // only fill in what the page reads, never overwrite a translation.
-        final missing = entries.keys.where((k) => !existing.containsKey(k)).toList();
+        final missing = entries.keys
+            .where((k) => !existing.containsKey(k))
+            .toList();
         if (missing.isEmpty) continue;
         for (final k in missing) {
           existing[k] = entries[k];
@@ -132,7 +134,9 @@ abstract final class I18nWriter {
       } else {
         return false; // the key is a plain string — `context.t.$key.title` can't exist
       }
-      await file.writeAsString('${const JsonEncoder.withIndent('  ').convert(decoded)}\n');
+      await file.writeAsString(
+        '${const JsonEncoder.withIndent('  ').convert(decoded)}\n',
+      );
     }
     return true;
   }

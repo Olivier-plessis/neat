@@ -75,7 +75,10 @@ class CrudEndpointRow extends HookWidget {
         children: [
           SizedBox(
             width: 62,
-            child: Text(label, style: const TextStyle(color: Colors.white38, fontSize: 11)),
+            child: Text(
+              label,
+              style: const TextStyle(color: Colors.white38, fontSize: 11),
+            ),
           ),
           8.gapW,
           Expanded(
@@ -96,10 +99,18 @@ class CrudEndpointRow extends HookWidget {
                 isDense: true,
                 isExpanded: true,
                 dropdownColor: context.neatColors.colorSurfaceCard,
-                style: TextStyle(color: context.neatColors.colorPrimaryCyan, fontSize: 12),
+                style: TextStyle(
+                  color: context.neatColors.colorPrimaryCyan,
+                  fontSize: 12,
+                ),
                 onChanged: enabled ? (m) => onMethod(m ?? method) : null,
                 items: HttpMethod.values
-                    .map((m) => DropdownMenuItem(value: m, child: Text(m.name.toUpperCase())))
+                    .map(
+                      (m) => DropdownMenuItem(
+                        value: m,
+                        child: Text(m.name.toUpperCase()),
+                      ),
+                    )
                     .toList(),
               ),
             ),

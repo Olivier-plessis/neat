@@ -68,7 +68,9 @@ class ButtonsShapesTab extends ConsumerWidget {
                   decoration: BoxDecoration(
                     color: Palette.colorPrimaryCyan.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(state.containerRadius),
-                    border: Border.all(color: Palette.colorPrimaryCyan.withValues(alpha: 0.5)),
+                    border: Border.all(
+                      color: Palette.colorPrimaryCyan.withValues(alpha: 0.5),
+                    ),
                   ),
                   child: Icon(
                     Icons.crop_square_outlined,

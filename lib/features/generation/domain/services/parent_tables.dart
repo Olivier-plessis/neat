@@ -18,7 +18,10 @@ class ParentTables {
   ParentTables._();
 
   static final _table = RegExp(r"\b_table = '([^']+)'");
-  static final _idColumn = RegExp(r'^\s*("?[A-Za-z_][A-Za-z0-9_]*"?)\s+uuid primary key', multiLine: true);
+  static final _idColumn = RegExp(
+    r'^\s*("?[A-Za-z_][A-Za-z0-9_]*"?)\s+uuid primary key',
+    multiLine: true,
+  );
 
   /// Field `jsonKey` → the table and column it references. Empty when none does.
   static Future<Map<String, ForeignKey>> referencesFor({
@@ -61,7 +64,9 @@ class ParentTables {
       final match = _idColumn.firstMatch(file.readAsStringSync());
       if (match == null) continue;
       final raw = match.group(1)!;
-      return raw.startsWith('"') ? raw.substring(1, raw.length - 1).replaceAll('""', '"') : raw;
+      return raw.startsWith('"')
+          ? raw.substring(1, raw.length - 1).replaceAll('""', '"')
+          : raw;
     }
     return null;
   }

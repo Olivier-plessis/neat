@@ -45,33 +45,36 @@ void main() {
     expect(md, isNot(contains('Hive')));
   });
 
-  test('minimal remote-only stack: omits offline/shell/builder sections entirely', () {
-    const c = NeatContract(
-      projectName: 'blog',
-      architecture: 'feature_first',
-      stateManagement: 'riverpod',
-      navigation: 'go_router',
-      httpClient: 'dio',
-      themeApproach: 'none',
-      storageStrategy: 'remoteOnly',
-    );
-    final md = AgentsMdTemplate.generate(c);
+  test(
+    'minimal remote-only stack: omits offline/shell/builder sections entirely',
+    () {
+      const c = NeatContract(
+        projectName: 'blog',
+        architecture: 'feature_first',
+        stateManagement: 'riverpod',
+        navigation: 'go_router',
+        httpClient: 'dio',
+        themeApproach: 'none',
+        storageStrategy: 'remoteOnly',
+      );
+      final md = AgentsMdTemplate.generate(c);
 
-    expect(md, contains('dioProvider'));
-    expect(md, contains('// neat:route-entries'));
+      expect(md, contains('dioProvider'));
+      expect(md, contains('// neat:route-entries'));
 
-    // None of the features it doesn't have should appear.
-    expect(md, isNot(contains('go_router_builder')));
-    expect(md, isNot(contains('TypedGoRoute')));
-    expect(md, isNot(contains('Drift')));
-    expect(md, isNot(contains('Outbox')));
-    expect(md, isNot(contains('app_shell')));
-    expect(md, isNot(contains('infrastructure_providers')));
-    expect(md, isNot(contains('chopperClientProvider')));
-    expect(md, isNot(contains('envied')));
-    expect(md, isNot(contains('MobX')));
-    expect(md, isNot(contains('Hive')));
-  });
+      // None of the features it doesn't have should appear.
+      expect(md, isNot(contains('go_router_builder')));
+      expect(md, isNot(contains('TypedGoRoute')));
+      expect(md, isNot(contains('Drift')));
+      expect(md, isNot(contains('Outbox')));
+      expect(md, isNot(contains('app_shell')));
+      expect(md, isNot(contains('infrastructure_providers')));
+      expect(md, isNot(contains('chopperClientProvider')));
+      expect(md, isNot(contains('envied')));
+      expect(md, isNot(contains('MobX')));
+      expect(md, isNot(contains('Hive')));
+    },
+  );
 
   test('no remote source: networking section says so, no client provider', () {
     const c = NeatContract(

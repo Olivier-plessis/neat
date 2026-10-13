@@ -36,7 +36,11 @@ class _ColorsTabState extends ConsumerState<ColorsTab> {
       ref.read(themeEngineProvider.notifier).clearColorOverrides();
       neatSnack(context, 'Seed color extracted from image');
     } else {
-      neatSnack(context, "Couldn't extract a color from this image", success: false);
+      neatSnack(
+        context,
+        "Couldn't extract a color from this image",
+        success: false,
+      );
     }
     extractingImage.set(false);
   }
@@ -67,8 +71,11 @@ class _ColorsTabState extends ConsumerState<ColorsTab> {
               DropZone(
                 allowedExtensions: const ['png', 'jpg', 'jpeg', 'webp'],
                 onFilePicked: _useImagePath,
-                onRejected: () =>
-                    neatSnack(context, 'Drop an image file (PNG/JPG/WEBP)', success: false),
+                onRejected: () => neatSnack(
+                  context,
+                  'Drop an image file (PNG/JPG/WEBP)',
+                  success: false,
+                ),
                 child: Clickable(
                   onTap: _pickImage,
                   child: AnimatedContainer(
@@ -79,8 +86,12 @@ class _ColorsTabState extends ConsumerState<ColorsTab> {
                       color: context.neatColors.colorSurfaceCard,
                       borderRadius: .circular(12),
                       border: .all(
-                        color: extractingImage ? Palette.colorPrimaryCyan : Colors.white12,
-                        style: imagePath == null ? BorderStyle.solid : BorderStyle.solid,
+                        color: extractingImage
+                            ? Palette.colorPrimaryCyan
+                            : Colors.white12,
+                        style: imagePath == null
+                            ? BorderStyle.solid
+                            : BorderStyle.solid,
                       ),
                     ),
                     child: imagePath != null
@@ -129,12 +140,18 @@ class _ColorsTabState extends ConsumerState<ColorsTab> {
                               ),
                               18.gapH,
                               Container(
-                                padding: const .symmetric(horizontal: 14, vertical: 6),
+                                padding: const .symmetric(
+                                  horizontal: 14,
+                                  vertical: 6,
+                                ),
                                 decoration: BoxDecoration(
                                   border: .all(color: Colors.white24),
                                   borderRadius: .circular(6),
                                 ),
-                                child: Text('BROWSE FILES', style: context.textTheme.labelSmall),
+                                child: Text(
+                                  'BROWSE FILES',
+                                  style: context.textTheme.labelSmall,
+                                ),
                               ),
                             ],
                           ),
@@ -160,7 +177,11 @@ class _ColorsTabState extends ConsumerState<ColorsTab> {
                           ),
                         ),
                         const Spacer(),
-                        const Icon(Icons.edit_outlined, color: Colors.white24, size: 14),
+                        const Icon(
+                          Icons.edit_outlined,
+                          color: Colors.white24,
+                          size: 14,
+                        ),
                       ],
                     ),
                     6.gapH,
@@ -168,7 +189,9 @@ class _ColorsTabState extends ConsumerState<ColorsTab> {
                       color: state.seedColor,
                       onColorChanged: (c) {
                         ref.read(themeEngineProvider.notifier).setSeedColor(c);
-                        ref.read(themeEngineProvider.notifier).clearColorOverrides();
+                        ref
+                            .read(themeEngineProvider.notifier)
+                            .clearColorOverrides();
                       },
                     ),
                     16.gapH,
@@ -177,7 +200,9 @@ class _ColorsTabState extends ConsumerState<ColorsTab> {
                         state.secondaryOverride != null ||
                         state.tertiaryOverride != null)
                       Clickable(
-                        onTap: () => ref.read(themeEngineProvider.notifier).clearColorOverrides(),
+                        onTap: () => ref
+                            .read(themeEngineProvider.notifier)
+                            .clearColorOverrides(),
                         child: const Text(
                           '↩ Reset all color overrides',
                           style: TextStyle(
@@ -214,9 +239,12 @@ class _ColorsTabState extends ConsumerState<ColorsTab> {
                   label: 'primary',
                   color: scheme.primary,
                   currentOverride: state.primaryOverride,
-                  onColorChanged: (c) =>
-                      ref.read(themeEngineProvider.notifier).setPrimaryOverride(c),
-                  onReset: () => ref.read(themeEngineProvider.notifier).setPrimaryOverride(null),
+                  onColorChanged: (c) => ref
+                      .read(themeEngineProvider.notifier)
+                      .setPrimaryOverride(c),
+                  onReset: () => ref
+                      .read(themeEngineProvider.notifier)
+                      .setPrimaryOverride(null),
                 ),
               ),
               Expanded(
@@ -224,10 +252,12 @@ class _ColorsTabState extends ConsumerState<ColorsTab> {
                   label: 'primaryContainer',
                   color: scheme.primaryContainer,
                   currentOverride: state.primaryContainerOverride,
-                  onColorChanged: (c) =>
-                      ref.read(themeEngineProvider.notifier).setPrimaryContainerOverride(c),
-                  onReset: () =>
-                      ref.read(themeEngineProvider.notifier).setPrimaryContainerOverride(null),
+                  onColorChanged: (c) => ref
+                      .read(themeEngineProvider.notifier)
+                      .setPrimaryContainerOverride(c),
+                  onReset: () => ref
+                      .read(themeEngineProvider.notifier)
+                      .setPrimaryContainerOverride(null),
                 ),
               ),
               Expanded(
@@ -235,9 +265,12 @@ class _ColorsTabState extends ConsumerState<ColorsTab> {
                   label: 'secondary',
                   color: scheme.secondary,
                   currentOverride: state.secondaryOverride,
-                  onColorChanged: (c) =>
-                      ref.read(themeEngineProvider.notifier).setSecondaryOverride(c),
-                  onReset: () => ref.read(themeEngineProvider.notifier).setSecondaryOverride(null),
+                  onColorChanged: (c) => ref
+                      .read(themeEngineProvider.notifier)
+                      .setSecondaryOverride(c),
+                  onReset: () => ref
+                      .read(themeEngineProvider.notifier)
+                      .setSecondaryOverride(null),
                 ),
               ),
               Expanded(
@@ -245,8 +278,9 @@ class _ColorsTabState extends ConsumerState<ColorsTab> {
                   label: 'surfaceHigh',
                   color: scheme.surfaceContainerHighest,
                   currentOverride: state.surfaceContainerHighestOverride,
-                  onColorChanged: (c) =>
-                      ref.read(themeEngineProvider.notifier).setSurfaceContainerHighestOverride(c),
+                  onColorChanged: (c) => ref
+                      .read(themeEngineProvider.notifier)
+                      .setSurfaceContainerHighestOverride(c),
                   onReset: () => ref
                       .read(themeEngineProvider.notifier)
                       .setSurfaceContainerHighestOverride(null),
@@ -264,9 +298,12 @@ class _ColorsTabState extends ConsumerState<ColorsTab> {
                   label: 'onPrimary',
                   color: scheme.onPrimary,
                   currentOverride: state.onPrimaryOverride,
-                  onColorChanged: (c) =>
-                      ref.read(themeEngineProvider.notifier).setOnPrimaryOverride(c),
-                  onReset: () => ref.read(themeEngineProvider.notifier).setOnPrimaryOverride(null),
+                  onColorChanged: (c) => ref
+                      .read(themeEngineProvider.notifier)
+                      .setOnPrimaryOverride(c),
+                  onReset: () => ref
+                      .read(themeEngineProvider.notifier)
+                      .setOnPrimaryOverride(null),
                 ),
               ),
               Expanded(
@@ -274,10 +311,12 @@ class _ColorsTabState extends ConsumerState<ColorsTab> {
                   label: 'onPrimaryContainer',
                   color: scheme.onPrimaryContainer,
                   currentOverride: state.onPrimaryContainerOverride,
-                  onColorChanged: (c) =>
-                      ref.read(themeEngineProvider.notifier).setOnPrimaryContainerOverride(c),
-                  onReset: () =>
-                      ref.read(themeEngineProvider.notifier).setOnPrimaryContainerOverride(null),
+                  onColorChanged: (c) => ref
+                      .read(themeEngineProvider.notifier)
+                      .setOnPrimaryContainerOverride(c),
+                  onReset: () => ref
+                      .read(themeEngineProvider.notifier)
+                      .setOnPrimaryContainerOverride(null),
                 ),
               ),
               Expanded(
@@ -285,10 +324,12 @@ class _ColorsTabState extends ConsumerState<ColorsTab> {
                   label: 'onSecondary',
                   color: scheme.onSecondary,
                   currentOverride: state.onSecondaryOverride,
-                  onColorChanged: (c) =>
-                      ref.read(themeEngineProvider.notifier).setOnSecondaryOverride(c),
-                  onReset: () =>
-                      ref.read(themeEngineProvider.notifier).setOnSecondaryOverride(null),
+                  onColorChanged: (c) => ref
+                      .read(themeEngineProvider.notifier)
+                      .setOnSecondaryOverride(c),
+                  onReset: () => ref
+                      .read(themeEngineProvider.notifier)
+                      .setOnSecondaryOverride(null),
                 ),
               ),
               Expanded(
@@ -296,9 +337,12 @@ class _ColorsTabState extends ConsumerState<ColorsTab> {
                   label: 'outline',
                   color: scheme.outline,
                   currentOverride: state.outlineOverride,
-                  onColorChanged: (c) =>
-                      ref.read(themeEngineProvider.notifier).setOutlineOverride(c),
-                  onReset: () => ref.read(themeEngineProvider.notifier).setOutlineOverride(null),
+                  onColorChanged: (c) => ref
+                      .read(themeEngineProvider.notifier)
+                      .setOutlineOverride(c),
+                  onReset: () => ref
+                      .read(themeEngineProvider.notifier)
+                      .setOutlineOverride(null),
                 ),
               ),
             ],
@@ -322,7 +366,8 @@ class _ColorsTabState extends ConsumerState<ColorsTab> {
                   label: 'accent',
                   color: state.accentColor,
                   currentOverride: state.accentColor,
-                  onColorChanged: (c) => ref.read(themeEngineProvider.notifier).setAccentColor(c),
+                  onColorChanged: (c) =>
+                      ref.read(themeEngineProvider.notifier).setAccentColor(c),
                   onReset: () => ref
                       .read(themeEngineProvider.notifier)
                       .setAccentColor(const Color(0xFF1E293B)),
@@ -333,8 +378,9 @@ class _ColorsTabState extends ConsumerState<ColorsTab> {
                   label: 'error',
                   color: state.destructiveColor,
                   currentOverride: state.destructiveColor,
-                  onColorChanged: (c) =>
-                      ref.read(themeEngineProvider.notifier).setDestructiveColor(c),
+                  onColorChanged: (c) => ref
+                      .read(themeEngineProvider.notifier)
+                      .setDestructiveColor(c),
                   onReset: () => ref
                       .read(themeEngineProvider.notifier)
                       .setDestructiveColor(const Color(0xFFEF4444)),

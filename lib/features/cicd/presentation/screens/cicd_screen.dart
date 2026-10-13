@@ -27,7 +27,11 @@ class CicdScreen extends HookConsumerWidget {
       children: [
         const Text(
           'CI/CD Pipeline Engine',
-          style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white),
+          style: TextStyle(
+            fontSize: 32,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
         ),
         const SizedBox(height: 8),
         Text(
@@ -56,12 +60,16 @@ class CicdScreen extends HookConsumerWidget {
                               child: _ToolCard(
                                 icon: Icons.hub_outlined,
                                 title: 'GitHub Actions',
-                                description: 'Workflows YAML dans `.github/workflows/`.',
+                                description:
+                                    'Workflows YAML dans `.github/workflows/`.',
                                 tags: const ['ubuntu-latest', 'macos-latest'],
                                 badge: 'CI',
                                 badgeColor: const Color(0xFF2E7D32),
-                                isSelected: state.isSelected(CiTool.githubActions),
-                                onTap: () => notifier.toggleTool(CiTool.githubActions),
+                                isSelected: state.isSelected(
+                                  CiTool.githubActions,
+                                ),
+                                onTap: () =>
+                                    notifier.toggleTool(CiTool.githubActions),
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -69,12 +77,14 @@ class CicdScreen extends HookConsumerWidget {
                               child: _ToolCard(
                                 icon: Icons.view_quilt_outlined,
                                 title: 'GitLab CI',
-                                description: 'Configuration `.gitlab-ci.yml` avec runners dédiés.',
+                                description:
+                                    'Configuration `.gitlab-ci.yml` avec runners dédiés.',
                                 tags: const ['flutter-docker', 'shared-runner'],
                                 badge: 'CI',
                                 badgeColor: const Color(0xFF2E7D32),
                                 isSelected: state.isSelected(CiTool.gitlabCi),
-                                onTap: () => notifier.toggleTool(CiTool.gitlabCi),
+                                onTap: () =>
+                                    notifier.toggleTool(CiTool.gitlabCi),
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -82,12 +92,14 @@ class CicdScreen extends HookConsumerWidget {
                               child: _ToolCard(
                                 icon: Icons.auto_fix_high_outlined,
                                 title: 'Codemagic',
-                                description: 'CI/CD mobile-first, `codemagic.yaml` tout-en-un.',
+                                description:
+                                    'CI/CD mobile-first, `codemagic.yaml` tout-en-un.',
                                 tags: const ['mac-mini-m1', 'linux'],
                                 badge: 'CI/CD',
                                 badgeColor: const Color(0xFF1565C0),
                                 isSelected: state.isSelected(CiTool.codemagic),
-                                onTap: () => notifier.toggleTool(CiTool.codemagic),
+                                onTap: () =>
+                                    notifier.toggleTool(CiTool.codemagic),
                               ),
                             ),
                           ],
@@ -110,7 +122,8 @@ class CicdScreen extends HookConsumerWidget {
                                 badge: 'CD',
                                 badgeColor: const Color(0xFF6A1B9A),
                                 isSelected: state.isSelected(CiTool.fastlane),
-                                onTap: () => notifier.toggleTool(CiTool.fastlane),
+                                onTap: () =>
+                                    notifier.toggleTool(CiTool.fastlane),
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -124,7 +137,8 @@ class CicdScreen extends HookConsumerWidget {
                                 badge: 'OTA',
                                 badgeColor: const Color(0xFFB71C1C),
                                 isSelected: state.isSelected(CiTool.shorebird),
-                                onTap: () => notifier.toggleTool(CiTool.shorebird),
+                                onTap: () =>
+                                    notifier.toggleTool(CiTool.shorebird),
                               ),
                             ),
                             const Expanded(child: SizedBox.shrink()),
@@ -155,22 +169,33 @@ class CicdScreen extends HookConsumerWidget {
                       ),
                       if (state.hasSentryDelivery) ...[
                         const SizedBox(height: 24),
-                        SectionHeader(fontSize: 15, label: 'Sentry DSN', icon: Icons.dns_outlined),
+                        SectionHeader(
+                          fontSize: 15,
+                          label: 'Sentry DSN',
+                          icon: Icons.dns_outlined,
+                        ),
                         const SizedBox(height: 12),
                         TextField(
                           controller: sentryDsnCtrl,
                           onChanged: notifier.setSentryDsn,
-                          style: const TextStyle(color: Colors.white, fontSize: 14),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                          ),
                           decoration: const InputDecoration(
                             labelText: 'DSN',
-                            hintText: 'https://examplePublicKey@o0.ingest.sentry.io/0',
+                            hintText:
+                                'https://examplePublicKey@o0.ingest.sentry.io/0',
                           ),
                         ),
                         const SizedBox(height: 4),
                         Text(
                           'Stored in .env (never hardcoded) — read back via AppEnv.current.sentryDsn '
                           'in bootstrap().',
-                          style: TextStyle(color: Colors.grey[600], fontSize: 11),
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 11,
+                          ),
                         ),
                       ],
 
@@ -189,7 +214,8 @@ class CicdScreen extends HookConsumerWidget {
                               _StageTile(
                                 icon: Icons.manage_search_outlined,
                                 title: 'Static Analysis & Linting',
-                                description: 'flutter analyze + dart format avant chaque merge.',
+                                description:
+                                    'flutter analyze + dart format avant chaque merge.',
                                 value: state.runAnalyze,
                                 onChanged: notifier.toggleAnalyze,
                               ),
@@ -202,7 +228,8 @@ class CicdScreen extends HookConsumerWidget {
                               _StageTile(
                                 icon: Icons.science_outlined,
                                 title: 'Unit & Widget Testing',
-                                description: 'flutter test avec rapport de couverture LCOV.',
+                                description:
+                                    'flutter test avec rapport de couverture LCOV.',
                                 value: state.runTests,
                                 onChanged: notifier.toggleTests,
                               ),
@@ -260,7 +287,10 @@ class CicdScreen extends HookConsumerWidget {
                           const Spacer(),
                           Text(
                             '${files.length} file${files.length > 1 ? 's' : ''}',
-                            style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 12,
+                            ),
                           ),
                         ],
                       ],
@@ -278,12 +308,19 @@ class CicdScreen extends HookConsumerWidget {
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.description_outlined, color: Colors.white12, size: 40),
+                                Icon(
+                                  Icons.description_outlined,
+                                  color: Colors.white12,
+                                  size: 40,
+                                ),
                                 const SizedBox(height: 12),
                                 Text(
                                   'Sélectionne au moins un outil\npour prévisualiser les fichiers.',
                                   textAlign: TextAlign.center,
-                                  style: TextStyle(color: Colors.grey[700], fontSize: 13),
+                                  style: TextStyle(
+                                    color: Colors.grey[700],
+                                    fontSize: 13,
+                                  ),
                                 ),
                               ],
                             ),
@@ -302,7 +339,10 @@ class CicdScreen extends HookConsumerWidget {
                               child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 150),
                                 margin: const EdgeInsets.only(right: 8),
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 6,
+                                ),
                                 decoration: BoxDecoration(
                                   color: selected
                                       ? const Color(0xFF0D0D0F)
@@ -311,16 +351,19 @@ class CicdScreen extends HookConsumerWidget {
                                     top: Radius.circular(6),
                                   ),
                                   border: Border.all(
-                                    color: selected ? Palette.colorPrimaryCyan : Colors.white10,
+                                    color: selected
+                                        ? Palette.colorPrimaryCyan
+                                        : Colors.white10,
                                     width: selected ? 1.5 : 1,
                                   ),
                                 ),
                                 child: Text(
                                   files[i].filename.split('/').last,
                                   style: TextStyle(
-                                    color: selected ? Palette.colorPrimaryCyan : Colors.grey[600],
+                                    color: selected
+                                        ? Palette.colorPrimaryCyan
+                                        : Colors.grey[600],
                                     fontSize: 11,
-                                    
                                   ),
                                 ),
                               ),
@@ -346,7 +389,7 @@ class CicdScreen extends HookConsumerWidget {
                               files[previewIndex.value].content,
                               style: const TextStyle(
                                 color: Color(0xFF9ECE6A),
-                                
+
                                 fontSize: 11.5,
                                 height: 1.55,
                               ),
@@ -413,20 +456,32 @@ class _ToolCard extends StatelessWidget {
               children: [
                 Icon(
                   icon,
-                  color: isSelected ? Palette.colorPrimaryCyan : Colors.grey[600],
+                  color: isSelected
+                      ? Palette.colorPrimaryCyan
+                      : Colors.grey[600],
                   size: 18,
                 ),
                 const Spacer(),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: badgeColor.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(4),
-                    border: Border.all(color: badgeColor.withValues(alpha: 0.5), width: 0.5),
+                    border: Border.all(
+                      color: badgeColor.withValues(alpha: 0.5),
+                      width: 0.5,
+                    ),
                   ),
                   child: Text(
                     badge,
-                    style: TextStyle(color: badgeColor, fontSize: 9, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      color: badgeColor,
+                      fontSize: 9,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -436,14 +491,22 @@ class _ToolCard extends StatelessWidget {
                   height: 16,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: isSelected ? Palette.colorPrimaryCyan : Colors.transparent,
+                    color: isSelected
+                        ? Palette.colorPrimaryCyan
+                        : Colors.transparent,
                     border: Border.all(
-                      color: isSelected ? Palette.colorPrimaryCyan : Colors.white24,
+                      color: isSelected
+                          ? Palette.colorPrimaryCyan
+                          : Colors.white24,
                       width: 1.5,
                     ),
                   ),
                   child: isSelected
-                      ? const Icon(Icons.check, size: 10, color: Color(0xFF0E0E0E))
+                      ? const Icon(
+                          Icons.check,
+                          size: 10,
+                          color: Color(0xFF0E0E0E),
+                        )
                       : null,
                 ),
               ],
@@ -458,7 +521,14 @@ class _ToolCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 6),
-            Text(description, style: TextStyle(color: Colors.grey[600], fontSize: 11, height: 1.4)),
+            Text(
+              description,
+              style: TextStyle(
+                color: Colors.grey[600],
+                fontSize: 11,
+                height: 1.4,
+              ),
+            ),
             const Spacer(),
             const SizedBox(height: 10),
             Wrap(
@@ -467,13 +537,22 @@ class _ToolCard extends StatelessWidget {
               children: tags
                   .map(
                     (t) => Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 7,
+                        vertical: 3,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFF141416),
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(color: Colors.white12),
                       ),
-                      child: Text(t, style: const TextStyle(color: Colors.white54, fontSize: 10)),
+                      child: Text(
+                        t,
+                        style: const TextStyle(
+                          color: Colors.white54,
+                          fontSize: 10,
+                        ),
+                      ),
                     ),
                   )
                   .toList(),
@@ -530,7 +609,10 @@ class _StageTile extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 2),
-                Text(description, style: TextStyle(color: Colors.grey[600], fontSize: 11)),
+                Text(
+                  description,
+                  style: TextStyle(color: Colors.grey[600], fontSize: 11),
+                ),
               ],
             ),
           ),
@@ -542,7 +624,9 @@ class _StageTile extends StatelessWidget {
               width: 44,
               height: 26,
               decoration: BoxDecoration(
-                color: value ? Palette.colorPrimaryCyan.withValues(alpha: 0.15) : Colors.white10,
+                color: value
+                    ? Palette.colorPrimaryCyan.withValues(alpha: 0.15)
+                    : Colors.white10,
                 borderRadius: BorderRadius.circular(13),
                 border: Border.all(
                   color: value ? Palette.colorPrimaryCyan : Colors.white12,
@@ -554,18 +638,26 @@ class _StageTile extends StatelessWidget {
                 children: [
                   AnimatedAlign(
                     duration: const Duration(milliseconds: 200),
-                    alignment: value ? Alignment.centerRight : Alignment.centerLeft,
+                    alignment: value
+                        ? Alignment.centerRight
+                        : Alignment.centerLeft,
                     child: Padding(
                       padding: const EdgeInsets.all(3),
                       child: Container(
                         width: 18,
                         height: 18,
                         decoration: BoxDecoration(
-                          color: value ? Palette.colorPrimaryCyan : Colors.grey[700],
+                          color: value
+                              ? Palette.colorPrimaryCyan
+                              : Colors.grey[700],
                           shape: BoxShape.circle,
                         ),
                         child: value
-                            ? const Icon(Icons.check, size: 10, color: Color(0xFF0E0E0E))
+                            ? const Icon(
+                                Icons.check,
+                                size: 10,
+                                color: Color(0xFF0E0E0E),
+                              )
                             : null,
                       ),
                     ),
