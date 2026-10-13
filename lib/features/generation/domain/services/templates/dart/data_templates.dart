@@ -321,6 +321,19 @@ $classes
     // this repository accesses its list field to get the plain typed list
     // every other call site already expects.
     String listEnvelopeKey = '',
+    // Supabase table / Firestore collection (default `<featureName>s`). Only
+    // those two backends address a table, not a REST path — the Outbox
+    // endpoint must carry the same name the API source writes to, or the
+    // SyncService's per-resource filter (see CoreTemplates.syncService) would
+    // never match the feature's own entries.
+    String? tableName,
+    // Offline-first + sync: the repository also exposes `watchAll()`, a live
+    // list read from the local Drift table — Drift is the source of truth the
+    // UI watches (see featureIRepository's doc). When set, the remote
+    // realtime `watchAll()` below is NOT generated (same method name, two
+    // meanings): realtime changes are written through into Drift instead (see
+    // featureRepositoryProviders' [realtime]).
+    bool localWatch = false,
   }) {
     final p = pascal(featureName);
     final isChopper = httpClient == 'chopper';
@@ -336,7 +349,12 @@ $classes
     // Outbox replay path (SyncService does `dio.request(e.endpoint, ...)`):
     // an absolute apiPath overrides Dio's baseUrl for free, same as the
     // live remote source.
-    final base = apiPath ?? '/${featureName}s';
+    final base = outboxEndpointBase(
+      httpClient: httpClient,
+      featureName: featureName,
+      apiPath: apiPath,
+      tableName: tableName,
+    );
 
     // Chopper wraps responses in Response<T> and doesn't throw on non-2xx by
     // default — unwrapChopperResponse throws ChopperApiException instead of a
@@ -357,8 +375,24 @@ $classes
         ? "import 'package:${corePackageName ?? packageName}/core/network/chopper_model_converter.dart';\n"
         : '';
 
+    // Offline-first + sync: the UI watches the local Drift table, which holds
+    // the rows pulled by getAll() *and* the writes still waiting in the
+    // Outbox. Showing getAll()'s remote result directly would hide those
+    // pending writes while online.
+    final localWatchMethod = localWatch
+        ? '''
+
+  /// What the UI shows: the local database, which holds the rows pulled by
+  /// [getAll] *and* the writes still waiting in the Outbox. Listing the remote
+  /// result directly would hide those pending writes while online.
+  @override
+  Stream<List<${p}Entity>> watchAll() => _local.watchAll().map(
+    (models) => [for (final model in models) model.toEntity()],
+  );'''
+        : '';
+
     // Realtime: surface the source's live stream, mapped models → entities.
-    final watchMethod = realtime
+    final watchMethod = realtime && !localWatch
         ? '''
 
   @override
@@ -502,7 +536,7 @@ class ${p}RepositoryImpl implements I${p}Repository {
       return Result.failure(const Failure(message: 'Not available offline.'));
     }
     return Result.success(cached.toEntity());
-  }$writeMethods$watchMethod
+  }$localWatchMethod$writeMethods$watchMethod
 }
 ''';
     }
@@ -605,8 +639,12 @@ class ${p}RepositoryImpl implements I${p}Repository {
     // key instead of decoding the response as a bare array. Empty (the
     // default) keeps the original bare-array behaviour unchanged.
     String listEnvelopeKey = '',
+    // Supabase table / Firestore collection (default `<featureName>s`) — see
+    // featureRepositoryImpl's tableName doc.
+    String? tableName,
   }) {
     final p = pascal(featureName);
+    final table = tableName ?? '${featureName}s';
     // An absolute apiPath (e.g. https://fakestoreapi.com/products) overrides
     // the client's configured base URL entirely — both Dio and Chopper ignore
     // their base URL when the request path is already absolute, so no second
@@ -726,7 +764,7 @@ class ${p}ApiSource {
 
   final SupabaseClient _client;
 
-  static const String _table = '${featureName}s';
+  static const String _table = '$table';
 
   Future<List<${p}Model>> getAll() async {
     final rows = await _client.from(_table).select();
@@ -747,6 +785,14 @@ ${realtime ? '''
 
   Future<${p}Model> add(${p}Model body) async {
     final row = await _client.from(_table).insert(body.toJson()).select().single();
+    return ${p}Model.fromJson(row);
+  }
+
+  /// Insert-or-update by primary key. The Outbox replays creates through this
+  /// so a write that reached the server but was never acknowledged locally
+  /// (crash before the queue entry was removed) is safe to send again.
+  Future<${p}Model> upsert(${p}Model body) async {
+    final row = await _client.from(_table).upsert(body.toJson()).select().single();
     return ${p}Model.fromJson(row);
   }
 
@@ -774,7 +820,7 @@ class ${p}ApiSource {
 
   final FirebaseFirestore _db;
 
-  static const String _collection = '${featureName}s';
+  static const String _collection = '$table';
 
   CollectionReference<Map<String, dynamic>> get _ref => _db.collection(_collection);
 
@@ -891,6 +937,15 @@ $dioGetAll
     if (offlineFirst && localStoragePackage != null) {
       final c = camel(featureName);
       // Sync mode adds an Outbox enqueue helper for offline writes.
+      // Sync mode also exposes the table as a live stream: Drift is the source
+      // of truth the UI watches (see featureRepositoryImpl's localWatch doc).
+      final watch = hasSync
+          ? '''
+
+  /// Live list from the local database — the source of truth for the UI.
+  Stream<List<${p}Model>> watchAll() =>
+      _db.${c}Dao.watch${p}s().map((rows) => rows.map(_toModel).toList());'''
+          : '';
       final enqueue = hasSync
           ? '''
 
@@ -912,7 +967,7 @@ class ${p}LocalSource {
   final AppDatabase _db;
 
   Future<List<${p}Model>> getAll() async =>
-      (await _db.${c}Dao.getAll${p}s()).map(_toModel).toList();
+      (await _db.${c}Dao.getAll${p}s()).map(_toModel).toList();$watch
 
   Future<${p}Model?> getById(String id) async {
     final row = await _db.${c}Dao.get$p(id);
@@ -977,9 +1032,28 @@ class ${p}LocalSource {
     // wrapper needs its own decoder registered too (getAll() decodes into it,
     // not the entity Model directly).
     String listEnvelopeKey = '',
+    // See featureRepositoryImpl's apiPath/tableName docs — both only decide the
+    // Outbox `resource` this feature's SyncService owns, which must match the
+    // endpoint its repository queues writes under.
+    String? apiPath,
+    String? tableName,
+    // Realtime + sync: the list reads Drift, not the remote stream, so the
+    // sync provider also pipes the API source's live stream into Drift (see
+    // the `live` block below).
+    bool realtime = false,
   }) {
     final p = pascal(featureName);
     final c = camel(featureName);
+    // A sync engine needs the Drift database + connectivity providers, which
+    // only exist for an offline-first feature (hasSync alone isn't enough: the
+    // Workshop's Local Data Source toggle can turn the local layer off).
+    final sync = hasSync && offlineFirst;
+    final resource = outboxResourceFor(
+      httpClient: httpClient,
+      featureName: featureName,
+      apiPath: apiPath,
+      tableName: tableName,
+    );
     // Split + chopper: this feature must register its Model's decoder into
     // core's chopperModelDecoders itself — core can't import it back the
     // other way (that would be the same forbidden app←feature cycle this
@@ -988,7 +1062,7 @@ class ${p}LocalSource {
         httpClient == 'chopper' && corePackageName != null;
 
     final imports = StringBuffer();
-    if (hasSync) imports.writeln("import 'dart:convert';\n");
+    if (sync) imports.writeln("import 'dart:convert';\n");
     imports.writeln(
       "import 'package:riverpod_annotation/riverpod_annotation.dart';",
     );
@@ -1009,15 +1083,22 @@ class ${p}LocalSource {
       _ =>
         "import 'package:${corePackageName ?? packageName}/core/network/dio_provider.dart';",
     });
-    if (registersChopperDecoder) {
+    // The sync replay unwraps chopper responses (a non-2xx doesn't throw on its
+    // own — without it a rejected write would count as sent and be dropped).
+    if (registersChopperDecoder || (sync && httpClient == 'chopper')) {
       imports.writeln(
-        "import 'package:$corePackageName/core/network/chopper_model_converter.dart';",
+        "import 'package:${corePackageName ?? packageName}/core/network/chopper_model_converter.dart';",
       );
     }
-    if (hasSync) {
+    if (sync) {
       imports.writeln(
         "import 'package:${corePackageName ?? packageName}/core/sync/sync_service.dart';",
       );
+      if (realtime) {
+        imports.writeln(
+          "import 'package:${corePackageName ?? packageName}/core/utils/app_logger.dart';",
+        );
+      }
     }
     imports
       ..writeln(
@@ -1025,7 +1106,7 @@ class ${p}LocalSource {
       )
       ..writeln("import '${featureName}_repository_impl.dart';")
       ..writeln("import '../sources/${featureName}_api_source.dart';");
-    if (hasSync || registersChopperDecoder) {
+    if (sync || registersChopperDecoder) {
       imports.writeln("import '../models/${featureName}_model.dart';");
     }
     if (offlineFirst) {
@@ -1052,12 +1133,43 @@ ${p}LocalSource ${c}LocalSource(Ref ref) => ${p}LocalSource(ref.watch(appDatabas
         ? '${p}RepositoryImpl(\n      ref.watch(${c}ApiSourceProvider),\n      ref.watch(${c}LocalSourceProvider),\n      ref.watch(networkInfoProvider),\n    )'
         : '${p}RepositoryImpl(ref.watch(${c}ApiSourceProvider))';
 
-    // Chopper API calls return Response<T>; the result is ignored either way.
-    final syncProvider = hasSync
+    // Replayed calls. Creates go through `upsert` where the source has one
+    // (Supabase): the queue entry is only removed once the send is
+    // acknowledged, so a crash in between replays the same create — an
+    // insert would then fail on the duplicate id. Chopper calls are unwrapped
+    // so a non-2xx response throws (and is retried) instead of counting as sent.
+    String call(String expr) =>
+        httpClient == 'chopper' ? 'unwrapChopperResponse(await $expr)' : 'await $expr';
+    final createCall = httpClient == 'supabase'
+        ? 'await api.upsert(${p}Model.fromJson(data));'
+        : '${call('api.add(${p}Model.fromJson(data))')};';
+    final updateCall = '${call('api.update(model.id, model)')};';
+    final deleteCall = '${call("api.delete(data['id'] as String)")};';
+
+    // Realtime changes land in Drift, which the list watches — the remote
+    // stream is never shown directly (it would hide the Outbox's pending writes).
+    final liveLink = realtime
         ? '''
 
-/// Drains the offline write queue via the API source when back online.
-/// Auto-starts on first read; cancels its subscription on dispose.
+  final local = ref.watch(${c}LocalSourceProvider);
+  final live = api.watchAll().listen(
+    local.cacheAll,
+    onError: (Object error, StackTrace stackTrace) => AppLogger.w(
+      '$featureName realtime stream failed',
+      error: error,
+      stackTrace: stackTrace,
+    ),
+  );
+  ref.onDispose(live.cancel);'''
+        : '';
+
+    final syncProvider = sync
+        ? '''
+
+/// Drains the offline write queue via the API source: at start-up, whenever a
+/// write is queued, and when back online. Handles only the `$resource` entries
+/// of the shared Outbox. Starts on first read (the list notifier watches it)
+/// and cancels its subscriptions on dispose.
 @Riverpod(keepAlive: true)
 SyncService ${c}Sync(Ref ref) {
   final api = ref.watch(${c}ApiSourceProvider);
@@ -1070,17 +1182,18 @@ SyncService ${c}Sync(Ref ref) {
           : jsonDecode(entry.payload!) as Map<String, dynamic>;
       switch (entry.operation) {
         case 'create':
-          await api.add(${p}Model.fromJson(data));
+          $createCall
         case 'update':
           final model = ${p}Model.fromJson(data);
-          await api.update(model.id, model);
+          $updateCall
         case 'delete':
-          await api.delete(data['id'] as String);
+          $deleteCall
       }
       return ReplaySyncResult.success;
     },
+    resource: '$resource',
   )..start();
-  ref.onDispose(service.dispose);
+  ref.onDispose(service.dispose);$liveLink
   return service;
 }'''
         : '';

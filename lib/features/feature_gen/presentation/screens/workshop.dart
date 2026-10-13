@@ -10,6 +10,7 @@ import 'package:neat/features/feature_gen/presentation/screens/stepper/architect
 import 'package:neat/features/feature_gen/presentation/screens/stepper/endpoints_step.dart';
 import 'package:neat/features/feature_gen/presentation/screens/stepper/entity_fields_step.dart';
 import 'package:neat/features/feature_gen/presentation/screens/stepper/identity_routing_step.dart';
+import 'package:neat/features/generation/domain/services/templates/supabase_templates.dart';
 import 'package:neat_ui/neat_ui.dart';
 
 class Workshop extends ConsumerStatefulWidget {
@@ -35,6 +36,7 @@ class _WorkshopState extends ConsumerState<Workshop> {
   late final TextEditingController _nameCtrl;
   late final TextEditingController _labelCtrl;
   late final TextEditingController _apiPathCtrl;
+  late final TextEditingController _tableNameCtrl;
   late final ScrollController _logsScrollController;
 
   @override
@@ -53,6 +55,8 @@ class _WorkshopState extends ConsumerState<Workshop> {
       ..addListener(() => notifier.setShellLabel(_labelCtrl.text.trim()));
     _apiPathCtrl = TextEditingController(text: initialOpts.apiPath)
       ..addListener(() => notifier.setApiPath(_apiPathCtrl.text.trim()));
+    _tableNameCtrl = TextEditingController(text: initialOpts.tableName)
+      ..addListener(() => notifier.setTableName(_tableNameCtrl.text.trim()));
     _logsScrollController = ScrollController();
   }
 
@@ -61,6 +65,7 @@ class _WorkshopState extends ConsumerState<Workshop> {
     _nameCtrl.dispose();
     _labelCtrl.dispose();
     _apiPathCtrl.dispose();
+    _tableNameCtrl.dispose();
     _logsScrollController.dispose();
     super.dispose();
   }
@@ -113,9 +118,15 @@ class _WorkshopState extends ConsumerState<Workshop> {
               (project.features.contains(opts.name)
                   ? 'feature "${opts.name}" already exists'
                   : null));
+    // Supabase / Firebase address a table / collection by name (see
+    // ArchitectureLayersStep): a name the SQL and the Dart side can both use
+    // as-is, or empty for the `<name>s` default.
+    final addressesByName = c.httpClient == 'supabase' || c.httpClient == 'firebase';
+    final tableNameError = addressesByName ? SupabaseTemplates.validateTableName(opts.tableName) : null;
     final canGenerate =
         opts.name.isNotEmpty &&
         nameError == null &&
+        tableNameError == null &&
         !parentMissing &&
         (!opts.useCustomEndpoints || endpointsValid) &&
         !widget.state.isGenerating;
@@ -155,6 +166,9 @@ class _WorkshopState extends ConsumerState<Workshop> {
               opts: opts,
               onChanged: formNotifier.update,
               apiPathCtrl: _apiPathCtrl,
+              tableNameCtrl: _tableNameCtrl,
+              tableNameError: tableNameError,
+              hasAuth: c.generateAuth,
               enabled: !widget.state.isGenerating,
               projectHasHttp: projectHasHttp,
               httpClient: c.httpClient,
@@ -463,7 +477,7 @@ class _BlueprintTree extends StatelessWidget {
                 child: Text(
                   l,
                   style: TextStyle(
-                    color: l.startsWith('lib/')
+                    color: l.startsWith('lib/') || l.startsWith('packages/') || l.startsWith('supabase/')
                         ? Colors.white
                         : context.neatColors.colorLightGreen.withValues(alpha: 0.85),
                     fontSize: 11.5,

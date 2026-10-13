@@ -31,6 +31,10 @@ class FeatureFormController extends _$FeatureFormController {
     opts: FeatureGenOptions(
       includeRemoteDataSource: contract.httpClient != 'none',
       includeLocalDataSource: contract.storageStrategy != 'remoteOnly',
+      // A per-user table needs someone to own the rows: on when the project
+      // has sign-in (Auth), off otherwise — owner-scoped RLS would lock every
+      // anonymous client out of a table nobody can sign in to reach.
+      ownedByUser: contract.generateAuth,
     ),
   );
 
@@ -43,6 +47,9 @@ class FeatureFormController extends _$FeatureFormController {
   void setName(String name) => update(state.opts.copyWith(name: name));
 
   void setShellLabel(String label) => update(state.opts.copyWith(shellLabel: label));
+
+  /// Supabase table / Firestore collection (empty → `<name>s`).
+  void setTableName(String tableName) => update(state.opts.copyWith(tableName: tableName));
 
   /// Direct event-handler equivalent of what used to be a reactive "sync
   /// endpoint paths to apiPath" effect on ArchitectureLayersStep: called

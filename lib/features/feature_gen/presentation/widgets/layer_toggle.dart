@@ -47,6 +47,18 @@ class LayerToggle extends StatelessWidget {
             value: value,
             onChanged: enabled ? onChanged : null,
             activeThumbColor: context.neatColors.colorPrimaryCyan,
+            // A locked "always on" toggle is disabled, and a disabled Switch is
+            // painted in the greyed-out palette — which read as OFF. Paint it as
+            // on (dimmed track); the lock icon next to the title says why it
+            // can't move.
+            thumbColor: locked && value
+                ? WidgetStatePropertyAll(context.neatColors.colorPrimaryCyan)
+                : null,
+            trackColor: locked && value
+                ? WidgetStatePropertyAll(
+                    context.neatColors.colorPrimaryCyan.withValues(alpha: 0.35),
+                  )
+                : null,
           ),
         ],
       ),

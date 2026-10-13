@@ -22,6 +22,7 @@ class EntityFieldsEditor extends StatefulWidget {
     required this.onNullable,
     required this.onRemove,
     required this.onChildrenChanged,
+    this.onEnumValues,
     this.json = '',
     this.warnings = const [],
     this.onInfer,
@@ -41,6 +42,12 @@ class EntityFieldsEditor extends StatefulWidget {
   final void Function(int index, bool nullable) onNullable;
   final void Function(int index) onRemove;
   final void Function(int index, List<FieldSpec> children) onChildrenChanged;
+
+  /// Reports the values of the `enum` field at that index. Set → the type
+  /// dropdown offers `enum` (see [FieldKind.enumeration]) and an enum field
+  /// shows its values line; null → no enum type (custom-endpoint bodies have no
+  /// domain entity to hold one).
+  final void Function(int index, List<String> values)? onEnumValues;
 
   /// False for a nested (recursive) instance — the "paste JSON to infer"
   /// workflow only makes sense once, at the top level; the top level's own
@@ -141,6 +148,9 @@ class _EntityFieldsEditorState extends State<EntityFieldsEditor> {
                 onNullable: (v) => widget.onNullable(i, v),
                 onRemove: field.isId ? null : () => widget.onRemove(i),
                 onChildrenChanged: (children) => widget.onChildrenChanged(i, children),
+                onEnumValues: widget.onEnumValues == null
+                    ? null
+                    : (values) => widget.onEnumValues!(i, values),
               ),
             ),
           Align(
@@ -183,6 +193,7 @@ class _FieldRow extends StatefulWidget {
     required this.onNullable,
     required this.onRemove,
     required this.onChildrenChanged,
+    this.onEnumValues,
     super.key,
   });
 
@@ -192,6 +203,7 @@ class _FieldRow extends StatefulWidget {
   final ValueChanged<bool> onNullable;
   final VoidCallback? onRemove;
   final ValueChanged<List<FieldSpec>> onChildrenChanged;
+  final ValueChanged<List<String>>? onEnumValues;
 
   @override
   State<_FieldRow> createState() => _FieldRowState();
@@ -199,6 +211,19 @@ class _FieldRow extends StatefulWidget {
 
 class _FieldRowState extends State<_FieldRow> {
   late final TextEditingController _name = TextEditingController(text: widget.field.dartName);
+  late final TextEditingController _enumValues = TextEditingController(
+    text: widget.field.enumValues.join(', '),
+  );
+
+  /// `a, b ,, a` → `[a, b]`: trimmed, no blanks, no duplicates (each is a
+  /// database text and a SQL CHECK entry, so order is kept, the first one is
+  /// the fallback).
+  static List<String> parseEnumValues(String text) => [
+    ...{
+      for (final v in text.split(','))
+        if (v.trim().isNotEmpty) v.trim(),
+    },
+  ];
 
   @override
   void didUpdateWidget(_FieldRow old) {
@@ -206,11 +231,17 @@ class _FieldRowState extends State<_FieldRow> {
     // Re-seed only on external changes (infer/reset/remove shift), never while
     // the user types (then the value already matches).
     if (widget.field.dartName != _name.text) _name.text = widget.field.dartName;
+    final shown = parseEnumValues(_enumValues.text);
+    final actual = widget.field.enumValues;
+    if (shown.length != actual.length || [for (final (i, v) in shown.indexed) v != actual[i]].contains(true)) {
+      _enumValues.text = actual.join(', ');
+    }
   }
 
   @override
   void dispose() {
     _name.dispose();
+    _enumValues.dispose();
     super.dispose();
   }
 
@@ -246,9 +277,9 @@ class _FieldRowState extends State<_FieldRow> {
         const SizedBox(width: 10),
         SizedBox(
           width: 110,
-          child: field.isScalar
+          child: field.isScalar || field.isEnum
               ? DropdownButton<String>(
-                  value: field.dartType,
+                  value: field.typeLabel,
                   isDense: true,
                   isExpanded: true,
                   underline: const SizedBox.shrink(),
@@ -257,7 +288,8 @@ class _FieldRowState extends State<_FieldRow> {
                   onChanged: locked ? null : (v) => v == null ? null : widget.onType(v),
                   items: [
                     for (final t in FieldSpec.supportedTypes)
-                      DropdownMenuItem(value: t, child: Text(t)),
+                      if (t != FieldSpec.enumTypeLabel || widget.onEnumValues != null || field.isEnum)
+                        DropdownMenuItem(value: t, child: Text(t)),
                   ],
                 )
               // Nested object/list fields aren't scalar-typed — their shape
@@ -320,7 +352,28 @@ class _FieldRowState extends State<_FieldRow> {
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: Colors.white10),
         ),
-        child: _titleRow(field, locked: locked),
+        child: field.isEnum && widget.onEnumValues != null
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _titleRow(field, locked: locked),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: _enumValues,
+                    onChanged: (v) => widget.onEnumValues!(parseEnumValues(v)),
+                    style: const TextStyle(color: Colors.white, fontSize: 12),
+                    decoration: InputDecoration(
+                      isDense: true,
+                      labelText: 'Values (database text, comma separated)',
+                      helperText:
+                          'The first value is the fallback for text this version does not know.',
+                      helperStyle: TextStyle(color: Colors.grey[600], fontSize: 10.5),
+                      labelStyle: TextStyle(color: Colors.grey[500], fontSize: 12),
+                    ),
+                  ),
+                ],
+              )
+            : _titleRow(field, locked: locked),
       );
     }
 
@@ -361,14 +414,19 @@ class _FieldRowState extends State<_FieldRow> {
                 showJsonSection: false,
                 onAddField: addNestedField,
                 onName: (ci, v) => updateNestedChildren(
-                  editField(nestedChildren, ci, (f) => f.copyWith(dartName: v)),
+                  editField(nestedChildren, ci, (f) => renameField(f, v)),
                 ),
                 onType: (ci, v) => updateNestedChildren(
-                  editField(nestedChildren, ci, (f) => f.copyWith(dartType: v)),
+                  editField(nestedChildren, ci, (f) => f.withType(v)),
                 ),
                 onNullable: (ci, v) => updateNestedChildren(
                   editField(nestedChildren, ci, (f) => f.copyWith(nullable: v)),
                 ),
+                onEnumValues: widget.onEnumValues == null
+                    ? null
+                    : (ci, values) => updateNestedChildren(
+                        editField(nestedChildren, ci, (f) => f.copyWith(enumValues: values)),
+                      ),
                 onRemove: (ci) => updateNestedChildren([...nestedChildren]..removeAt(ci)),
                 onChildrenChanged: (ci, grandChildren) => updateNestedChildren(
                   editField(

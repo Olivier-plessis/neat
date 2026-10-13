@@ -5,9 +5,12 @@ import 'package:neat/features/feature_gen/domain/models/feature_gen_options.dart
 import 'package:neat/features/feature_gen/domain/models/loaded_project.dart';
 import 'package:neat/features/generation/domain/models/field_spec.dart';
 import 'package:neat/features/generation/domain/services/feature_scaffolder.dart';
+import 'package:neat/features/generation/domain/services/i18n_importer.dart';
 import 'package:neat/features/generation/domain/services/templates/core_package_templates.dart';
 import 'package:neat/features/generation/domain/services/templates/core_templates.dart';
 import 'package:neat/features/generation/domain/services/templates/local_storage_templates.dart';
+import 'package:neat/features/generation/domain/usecases/writers/i18n_writer.dart';
+import 'package:neat/features/generation/domain/usecases/writers/pubspec_writer.dart';
 
 /// Adds a new feature to an existing NEAT project, deriving every choice from
 /// the project's Workspace Contract (`.neat.json`) so the new feature matches
@@ -166,6 +169,16 @@ class GenerateFeatureUsecase {
     // Drift-backed local source → the feature needs a typed table injected.
     final needsDriftTable = localStoragePackage != null && writeLocal;
 
+    // Offline-first + sync: the entity gets a `create` factory generating a
+    // client-side uuid v4 id (see DomainTemplates.featureEntity) — mirrors
+    // FeatureScaffolder's own `localFirst` gate exactly.
+    final needsClientIds =
+        hasSync &&
+        localStoragePackage != null &&
+        effHasHttp &&
+        options.includeLocalDataSource &&
+        !options.useCustomEndpoints;
+
     // A shell branch joins the app's StatefulShellRoute (bottom NavigationBar).
     final asShell = hasGoRouter && options.routing == FeatureRouting.shell;
 
@@ -200,12 +213,29 @@ class GenerateFeatureUsecase {
           httpClient: c.httpClient,
           hasGoRouterBuilder: hasGoRouterBuilder,
           localStoragePackage: localStoragePackage,
+          clientIds: needsClientIds,
+          sdkConstraint: PubspecWriter.projectSdkConstraint(project.path),
+          uiPackage: c.extractUiPackage && Directory('${project.path}/packages/${c.projectName}_ui').existsSync()
+              ? '${c.projectName}_ui'
+              : null,
         ),
       );
       await _addWorkspaceMember(project.path, featurePackageName);
       // routes.dart (or the shell scaffold) imports the new package directly.
       await _addPathDependency(project.path, featurePackageName);
     }
+
+    // slang i18n: the page reads `context.t.<feature>.*` instead of hardcoding
+    // its strings — only when the keys could be added to the project's sources
+    // (not for a CSV-imported project, whose keys NEAT doesn't know).
+    final hasI18nKeys =
+        c.generateI18n &&
+        !options.useCustomEndpoints &&
+        await I18nWriter.addFeatureKeys(
+          projectPath: project.path,
+          featureName: featureName,
+          corePackageName: corePackageName,
+        );
 
     onLog(
       '[▶] Generating feature "$featureName" (matching the project stack)...',
@@ -236,8 +266,14 @@ class GenerateFeatureUsecase {
       isShellBranch: asShell,
       fields: options.fields,
       apiPath: options.apiPath.isEmpty ? null : options.apiPath,
+      // Supabase / Firestore address a table / collection, not a REST path.
+      tableName: options.tableName.isEmpty ? null : options.tableName,
+      ownedByUser: options.ownedByUser,
+      hasAuth: c.generateAuth,
       packageSplit: packageSplit,
       corePackageName: corePackageName,
+      projectRoot: project.path,
+      i18n: hasI18nKeys,
       useCustomEndpoints: options.useCustomEndpoints,
       endpoints: options.endpoints,
       customizeEndpoints: options.customizeEndpoints,
@@ -252,6 +288,19 @@ class GenerateFeatureUsecase {
       mergeBase: mergeBase,
     );
     onLog('[✓] Feature files written.');
+
+    // The entity's `create` factory imports `uuid`: make sure the package that
+    // now holds the feature declares it (a split feature's own pubspec was
+    // written with it above; the others live in the app or a parent package).
+    if (needsClientIds && !(packageSplit && !mergeIntoParent)) {
+      await _ensureDependency(
+        packageSplit
+            ? '${project.path}/packages/${options.parentFeature}/pubspec.yaml'
+            : '${project.path}/pubspec.yaml',
+        'uuid',
+        CorePackageTemplates.uuidConstraint,
+      );
+    }
 
     // Wire the new feature's routes into the shared router (anchors).
     if (hasGoRouter) {
@@ -478,6 +527,16 @@ class GenerateFeatureUsecase {
       await _runBuildRunner(
         dart,
         '${project.path}/packages/$parentPackageName',
+        onLog,
+      );
+    }
+    // The new `context.t.<feature>` getters come from slang's generated file.
+    if (hasI18nKeys) {
+      onLog("[▶] Running 'dart run slang' (i18n codegen)...");
+      await const I18nImporter().runSlang(
+        Directory(
+          packageSplit ? '${project.path}/packages/$corePackageName' : project.path,
+        ),
         onLog,
       );
     }
@@ -1956,6 +2015,32 @@ class GenerateFeatureUsecase {
   /// Adds a sibling `path:` dependency on `packages/$dependencyName` to the
   /// root pubspec — needed because the app's own `routes.dart` (or shell
   /// scaffold) imports the new feature package directly. Idempotent.
+  /// Adds `<name>: <constraint>` under `dependencies:` of the pubspec at
+  /// [pubspecPath] unless it already lists [name]. No-op when the file or its
+  /// `dependencies:` block is missing.
+  @visibleForTesting
+  static Future<void> ensureDependency(
+    String pubspecPath,
+    String name,
+    String constraint,
+  ) async {
+    final file = File(pubspecPath);
+    if (!file.existsSync()) return;
+    final s = await file.readAsString();
+    if (RegExp('^  $name:', multiLine: true).hasMatch(s)) return;
+    final block = RegExp(r'^dependencies:[ \t]*\r?\n', multiLine: true).firstMatch(s);
+    if (block == null) return;
+    await file.writeAsString(
+      '${s.substring(0, block.end)}  $name: $constraint\n${s.substring(block.end)}',
+    );
+  }
+
+  Future<void> _ensureDependency(
+    String pubspecPath,
+    String name,
+    String constraint,
+  ) => ensureDependency(pubspecPath, name, constraint);
+
   Future<void> _addPathDependency(
     String projectPath,
     String dependencyName,

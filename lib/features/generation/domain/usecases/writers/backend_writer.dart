@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:neat/features/architecture/domain/models/architecture_state.dart';
 import 'package:neat/features/generation/domain/services/templates/core_templates.dart';
+import 'package:neat/features/generation/domain/services/templates/dart/_template_utils.dart';
+import 'package:neat/features/generation/domain/services/templates/dart/offline_test_templates.dart';
 import 'package:neat/features/generation/domain/usecases/writers/generation_io.dart';
 
 /// Writes backend + offline-first infrastructure: the Firebase client
@@ -127,6 +129,30 @@ abstract final class BackendWriter {
         CoreTemplates.syncService(
           packageName: packageName,
           localStoragePackage: localStoragePackage,
+        ),
+      );
+    }
+
+    // ── test/core/sync/sync_service_test.dart ────────────────────────────────
+    // The SyncService's contract as an executable test (in-memory Drift + a fake
+    // network). Lives in the app's own test/ whether or not core is split off,
+    // since that's the only suite the generated CI runs (`flutter test` at the
+    // root). Mirrors lib/core/sync/, so mirrorTestStructure doesn't move it.
+    if (localStoragePackage != null && hasSync) {
+      await writeFile(
+        '${projectDir.path}/test/core/sync/sync_service_test.dart',
+        OfflineTestTemplates.syncServiceTest(
+          corePackage: corePackageName ?? packageName,
+          localStoragePackage: localStoragePackage,
+          resource: architecture.generateFirstFeature
+              ? outboxResourceFor(
+                  httpClient: httpClient,
+                  featureName: featureName,
+                  apiPath: architecture.firstFeatureApiPath.isEmpty
+                      ? null
+                      : architecture.firstFeatureApiPath,
+                )
+              : 'items',
         ),
       );
     }

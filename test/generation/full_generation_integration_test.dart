@@ -172,7 +172,11 @@ void main() {
         '${projectDir.path}/lib/features/user_profile/presentation/providers/'
         'user_profile_provider.dart',
       ).readAsStringSync();
-      expect(provider, contains('Future<List<UserProfileEntity>> build()'));
+      // Offline-first + sync (this scenario): the list is a stream over the
+      // local Drift table that also starts the sync engine (ROADMAP §5w) — the
+      // plain `Future` list is for remote-only / offline-read projects.
+      expect(provider, contains('Stream<List<UserProfileEntity>> build()'));
+      expect(provider, contains('ref.watch(userProfileSyncProvider);'));
       expect(provider, contains('getUserProfileUsecaseProvider'));
       expect(
         File('${projectDir.path}/pubspec.yaml').readAsStringSync(),

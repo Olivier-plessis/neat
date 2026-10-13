@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:neat/features/generation/domain/services/templates/core_package_templates.dart';
 import 'package:neat/features/generation/domain/services/templates/dart/auth_templates.dart';
 import 'package:neat/features/generation/domain/usecases/writers/generation_io.dart';
+import 'package:neat/features/generation/domain/usecases/writers/pubspec_writer.dart';
 
 /// Writes the opt-in Auth feature (login/signup/forgot-password + the
 /// go_router guard) — split out of `LaunchGenerationUsecase` (see
@@ -26,6 +27,9 @@ abstract final class AuthWriter {
     String? authPackageName,
     bool hasOnboarding = false,
     bool hasFirstFeature = true,
+    // The project has a local Drift database: sign-out wipes it (see
+    // AuthTemplates.authRepositoryImpl's hasLocalData doc).
+    bool hasLocalData = false,
   }) async {
     final a = authPackageName != null
         ? '${projectDir.path}/packages/$authPackageName/lib'
@@ -39,6 +43,7 @@ abstract final class AuthWriter {
           httpClient: backend,
           hasGoRouterBuilder: true, // generateAuth already requires it
           isAuthPackage: true,
+          sdkConstraint: PubspecWriter.projectSdkConstraint(projectDir.path),
         ),
       );
     }
@@ -58,6 +63,7 @@ abstract final class AuthWriter {
         oauth: oauth,
         corePackageName: corePackageName,
         authPackageName: authPackageName,
+        hasLocalData: hasLocalData,
       ),
     );
     await writeFile(
@@ -75,6 +81,7 @@ abstract final class AuthWriter {
         backend: backend,
         corePackageName: corePackageName,
         authPackageName: authPackageName,
+        hasLocalData: hasLocalData,
       ),
     );
     await writeFile(

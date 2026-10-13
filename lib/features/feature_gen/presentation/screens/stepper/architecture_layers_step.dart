@@ -22,16 +22,26 @@ class ArchitectureLayersStep extends StatelessWidget {
     required this.opts,
     required this.onChanged,
     required this.apiPathCtrl,
+    required this.tableNameCtrl,
     required this.enabled,
     required this.projectHasHttp,
     required this.httpClient,
     required this.storageStrategy,
+    this.tableNameError,
+    this.hasAuth = false,
     super.key,
   });
 
   final FeatureGenOptions opts;
   final ValueChanged<FeatureGenOptions> onChanged;
   final TextEditingController apiPathCtrl;
+
+  /// Supabase / Firebase: the table / collection name field (replaces API Path).
+  final TextEditingController tableNameCtrl;
+  final String? tableNameError;
+
+  /// The project has sign-in — what "owned by the signed-in user" needs.
+  final bool hasAuth;
   final bool enabled;
   final bool projectHasHttp;
   final String httpClient;
@@ -45,6 +55,7 @@ class ArchitectureLayersStep extends StatelessWidget {
     // Path, these 5 fields show a plain, generic "type something" hint
     // instead of a guessed value, so nothing here is derived from the
     // feature name.
+    final isByName = httpClient == 'supabase' || httpClient == 'firebase';
     final hasApiPath = opts.apiPath.isNotEmpty;
     final pathHint = hasApiPath ? opts.apiPath : '/endpoint';
     final idPathHint = hasApiPath ? '${opts.apiPath}/{id}' : '/endpoint/{id}';
@@ -74,7 +85,41 @@ class ArchitectureLayersStep extends StatelessWidget {
           enabled: projectHasHttp && enabled,
           onChanged: (v) => onChanged(opts.copyWith(includeRemoteDataSource: v)),
         ),
-        if (projectHasHttp && opts.includeRemoteDataSource) ...[
+        // Supabase / Firestore address a table / collection, not a REST path:
+        // the API Path field below would be ignored there, so it's replaced.
+        if (projectHasHttp && opts.includeRemoteDataSource && isByName) ...[
+          10.gapH,
+          TextField(
+            controller: tableNameCtrl,
+            enabled: enabled,
+            style: const TextStyle(color: Colors.white),
+            decoration: fieldDecoration(
+              '${httpClient == 'supabase' ? 'Table' : 'Collection'} name (optional)',
+              tableNameError,
+              context,
+            ),
+          ),
+          4.gapH,
+          Text(
+            'Default: ${opts.name.isEmpty ? '...' : opts.name}s',
+            style: TextStyle(color: Colors.grey[600], fontSize: 11),
+          ),
+          if (httpClient == 'supabase') ...[
+            8.gapH,
+            LayerToggle(
+              title: 'Owned by the signed-in user',
+              subtitle: hasAuth
+                  ? 'owner_id + row level security: each user only sees their own rows. '
+                        'Off → a shared table any signed-in user can change.'
+                  : 'This project has no Auth — owner-scoped rows would be unreachable. '
+                        'Off → a shared table (open to every client).',
+              value: opts.ownedByUser,
+              enabled: enabled,
+              onChanged: (v) => onChanged(opts.copyWith(ownedByUser: v)),
+            ),
+          ],
+        ],
+        if (projectHasHttp && opts.includeRemoteDataSource && !isByName) ...[
           10.gapH,
           TextField(
             controller: apiPathCtrl,

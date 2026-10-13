@@ -21,6 +21,9 @@ class AgentsMdTemplate {
     final sync = c.storageStrategy == 'offlineFirstSync';
     final hasCodegen = useAnnotations || c.hasFreezed || c.hasJsonSerializable || builder || hasHttp;
     final pkg = '${c.projectName}_database';
+    // Where a `core/` file lives: the app's own lib, or the shared core package
+    // once the project is split into workspace packages.
+    String corePath(String rel) => c.packageSplit ? 'packages/core/lib/$rel' : 'lib/$rel';
     final fbase = featureFirst ? 'lib/features/<feature>' : 'lib/{data,domain,presentation}/<feature>';
 
     final b = StringBuffer();
@@ -102,7 +105,7 @@ class AgentsMdTemplate {
           'RepositoryImpl) — only the abstract-typed repository provider exposed from `data/`.');
       if (offline) {
         b.writeln('- **Shared singletons** `appDatabaseProvider` + `networkInfoProvider` live in '
-            '`lib/core/providers/infrastructure_providers.dart` — **reference them, never redeclare** '
+            '`${corePath('core/providers/infrastructure_providers.dart')}` — **reference them, never redeclare** '
             '(one Drift connection app-wide).');
       }
       b.writeln();
@@ -161,11 +164,24 @@ class AgentsMdTemplate {
         b.writeln('- Data access goes through `data/sources/<feature>_api_source.dart` (`.from(table)…`) → '
             'repository (throws on failure) → `UseCase.call` → `Result<T>`. **Never call the client from '
             'widgets or domain.**');
+        b.writeln('- **The database is described in `supabase/migrations/`**: NEAT writes '
+            '`<timestamp>_create_<table>.sql` for every feature (table, `updated_at` trigger, row level '
+            'security, grants). Apply it with `supabase db push` or the dashboard\'s SQL editor — the app '
+            'cannot read or write a table that does not exist yet. The table name is the Workshop\'s '
+            '"Table name" (default `<feature>s`)${sync ? ' and is also the Outbox `resource`' : ''}; change a '
+            'table with a **new** migration, never by editing one already applied.');
       }
       if (c.generateRealtime) {
         final how = isFirebase ? 'Firestore `.snapshots()`' : "`.stream(primaryKey: ['id'])`";
-        b.writeln('- **Realtime is on**: the first feature\'s list is a `StreamNotifier` over '
-            '$how. The repository exposes `watchAll()`; the screen updates live.');
+        if (sync) {
+          b.writeln('- **Realtime is on**, but this project is offline-first with sync: the first feature\'s '
+              'list reads the **local** table (`watchAll()`, see *Offline / local storage*), and the live '
+              'subscription over $how is written through into it by `<feature>SyncProvider`. '
+              'Never show the realtime stream directly — it would hide writes still in the Outbox.');
+        } else {
+          b.writeln('- **Realtime is on**: the first feature\'s list is a `StreamNotifier` over '
+              '$how. The repository exposes `watchAll()`; the screen updates live.');
+        }
       }
       if (c.generateStorage) {
         b.writeln('- **Storage is on**: use `StorageService` (`lib/core/storage/storage_service.dart`, '
@@ -208,10 +224,37 @@ class AgentsMdTemplate {
       b.writeln('- Each feature has a typed table `<Feature>Rows` (`src/table/<feature>_table.dart`) '
           '+ a DAO (`src/dao/<feature>_dao.dart`), wired at the `// neat:table-imports`, '
           '`// neat:table-names`, `// neat:dao-imports`, `// neat:daos` anchors.');
-      b.writeln('- Repositories are offline-first: read network when online, fall back to the Drift cache.');
       if (sync) {
+        b.writeln('- Repositories are offline-first with **Drift as the source of truth**: screens watch '
+            '`repository.watchAll()` (the local table, which also holds writes not synced yet). '
+            '`getAll()` pulls the remote rows into that table (falling back to it offline), so lists '
+            'update by themselves after a pull. **Never show a remote result directly** — it hides '
+            'writes still waiting in the Outbox.');
         b.writeln('- **Writes use the Outbox**: optimistic local write → queued in the Outbox table → '
-            'replayed by `SyncService` (`lib/core/sync/sync_service.dart`) when connectivity returns.');
+            'replayed by `SyncService` (`${corePath('core/sync/sync_service.dart')}`).');
+        b.writeln('  - The Outbox table is **shared by every feature**: each `SyncService` must be created '
+            'with its `resource` (the leading path of the entry\'s endpoint, e.g. `worksites` — the '
+            'Supabase table name) so it only replays its own entries.');
+        b.writeln('  - It flushes at start-up, on every queued write and when connectivity returns. A '
+            'feature\'s list provider starts it by watching `<feature>SyncProvider` — keep that line '
+            'when editing the provider.');
+        b.writeln('  - A failed replay is logged (`AppLogger.w`) and retried with backoff; after '
+            '`SyncService.maxRetries` it is parked until the next launch.');
+        if (isSupabase) {
+          b.writeln('  - Creates are replayed with `upsert`, so a replay after a crash is harmless.');
+        }
+        if (c.generateAuth) {
+          b.writeln('- **Signing out wipes the local database** (`clearLocalDataProvider` → '
+              '`AppDatabase.clearAll()`): it belongs to the device, not to an account, so the next account '
+              'must neither see nor replay the previous one\'s rows and pending writes. Writes that had '
+              'not reached the server yet are dropped with them.');
+        }
+      } else {
+        b.writeln('- Repositories are offline-first: read network when online, fall back to the Drift cache.');
+        if (c.generateAuth) {
+          b.writeln('- **Signing out wipes the local database** (`clearLocalDataProvider` → '
+              '`AppDatabase.clearAll()`): the cache belongs to the device, not to an account.');
+        }
       }
       b.writeln('- `build_runner` runs **per package** — regenerate inside `packages/$pkg` after table changes.\n');
     }
@@ -288,6 +331,23 @@ class AgentsMdTemplate {
     b.writeln('- Prefer `const`; avoid `dynamic` without justification; no empty `catch` blocks.');
     b.writeln('- No business logic in widget `build()`; no backend/DB calls from presentation widgets.');
     if (c.hasFreezed) b.writeln('- Entities & models are `freezed`; map DTO → Entity with the generated `toEntity()`.');
+    b.writeln('- **Fixed value sets (status, category…) are domain enums** carrying their database text '
+        '(`value`) and a `fromValue` whose fallback is the **first** value (so an unknown value from an '
+        'older or newer backend never breaks a list). The DTO${offline ? ' and the Drift row stay' : ' stays'} `String`; the mapper '
+        'converts both ways${isSupabase ? ', and the migration constrains the column with a `CHECK` over the same values' : ''}. '
+        'The Workshop\'s field editor has an `enum` type that generates all of this (it cannot be inferred '
+        'from a pasted JSON); the enum lives next to the entity as `<feature>_<field>.dart`.');
+    if (sync) {
+      b.writeln('- **New entities get a client-side id** from the entity\'s `create` factory (uuid v4): '
+          'offline creation cannot wait for a server-assigned id, and a plain constructor call would '
+          'send a placeholder one.');
+    }
+    if (isSupabase) {
+      b.writeln('- Database-only columns (`owner_id`, `created_at`, `updated_at`) stay **out** of the Dart '
+          'model, entity and Drift table: the app never sends them, the column defaults and the trigger '
+          'fill them. By default a table is owned by the signed-in user (`owner_id` + row level security); '
+          'the Workshop\'s "Owned by the signed-in user" turns that off for a shared table.');
+    }
     b.writeln('- Do not add a second routing / state-management / backend library.\n');
 
     // ── Safe / caution / do-not-touch ────────────────────────────────────────
@@ -295,6 +355,10 @@ class AgentsMdTemplate {
     b.writeln('| Path | Notes |');
     b.writeln('|------|-------|');
     b.writeln('| `$fbase/**` | Feature data/domain/presentation code |');
+    if (isSupabase) {
+      b.writeln('| `supabase/migrations/**` | SQL NEAT wrote per feature (table, RLS, grants) — add a new '
+          'migration to change a table; never edit one already applied |');
+    }
     b.writeln('| `lib/core/theme/**`${c.extractUiPackage ? ' + `packages/${c.projectName}_ui/**`' : ''} | Visual system |');
     b.writeln('| `test/**` | Unit & widget tests |\n');
     b.writeln('## Modify with caution\n');
