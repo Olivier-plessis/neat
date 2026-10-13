@@ -3668,8 +3668,13 @@ void main() {
     // Follows the project's constraint, not NEAT's current template default…
     expect(orderPubspec, contains('  json_serializable: ^6.13.0'));
     expect(orderPubspec, isNot(contains('json_serializable: ^6.14.1')));
-    // …but its own language version (environment sdk) is never "aligned".
-    expect(orderPubspec, contains('  sdk: ^3.7.0'));
+    // …and its language version is the project's SDK (§5z), no longer a
+    // hardcoded ^3.7.0.
+    final rootSdk = RegExp(
+      r'sdk: (\^[\d.]+)',
+    ).firstMatch(rootBefore)!.group(1)!;
+    expect(orderPubspec, contains('  sdk: $rootSdk'));
+    expect(orderPubspec, isNot(contains('^3.7.0')));
 
     // The usecase crosses into core, never the app — same discipline as the
     // wizard's own split first feature.
