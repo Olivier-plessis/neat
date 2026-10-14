@@ -1405,6 +1405,59 @@ Harness-proven: `pubspec_builder_test.dart` gained two cases (override present
   `person_local_source.dart` and `deleteByPersonId` in the note DAO — the
   generated workspace then analyzes (exit 0) and passes its own tests.
 
+### 5ad. Adding archy's bottom navigation bar — one fix, and what the shell cannot do yet
+
+> archy needed an "Historique" screen and a bottom bar (home / history /
+> profile). The history is a *view* of the worksites already stored, so it was
+> generated through the Workshop as a **Shell Branch** with Remote and Local
+> Data Source (and UseCase) switched off: a plain screen. Two things came out.
+- **Fixed — a plain screen got a Drift table anyway.** With both data sources
+  off the Workshop still injected `HistoryRows` + `HistoryDao` into the
+  database package and bumped the schema (`createTable` migration step), with
+  nothing referencing them. Cause: two copies of the same rule. `FeatureScaffolder`
+  had already been corrected ("Remote off + Local off no longer forces a local
+  source"), but `GenerateFeatureUsecase.writeLocal` still said "a feature with no
+  remote always keeps its local source". The rule is now one function,
+  `FeatureScaffolder.writesLocalSource`, which both call. A plain screen gets no
+  table, no DAO, no schema bump and no migration.
+  Tests: `feature_scaffolder_options_test.dart` (truth table of the rule: offline-first,
+  local-only, remote-only, plain screen, custom endpoints) and a scenario of
+  `offline_sync_integration_test.dart` that generates a plain screen and asserts
+  the Drift package and `supabase/migrations/` are untouched, then analyzes and tests the workspace.
+- **Gap — the typed shell cannot adopt existing features.** The first Shell
+  Branch *creates* the shell, so a project whose home screen already exists
+  ends up with a bar holding **one** tab (the new branch), and the home outside
+  it. Putting the existing feature in the bar is impossible with the typed shell:
+  `@TypedStatefulShellRoute` branches can only list `@TypedGoRoute`s declared in
+  the shell's own library, while a split project's routes live in their package
+  (and that package navigates with its own route classes). archy wrote the shell
+  by hand instead — `lib/core/router/app_shell.dart`, a `StatefulShellRoute`
+  whose branches take the `$…Route` getters go_router_builder generates for each
+  package's route, each tab's route in its own library so `$appRoutes` does not
+  also list it; nested routes that must cover the bar declare
+  `$parentNavigatorKey = rootNavigatorKey`. A candidate for the Workshop: an
+  "adopt this feature as a tab" action generating exactly that, plus the root
+  navigator key in core.
+- **Gap — two features that need each other, with no generated pattern.** The
+  history tab shows data the worksite feature owns; the profile tab signs out
+  through the auth feature. Features must not depend on each other (NEAT's
+  "app → feature, never feature → feature", the reference app's "abstract the interface
+  into core, keep the implementation in the feature"), and archy first broke
+  that by folding the tab into the package that owned the data. The pattern it
+  settled on: a **contract in `core`** (a provider that throws until
+  overridden, plus a small read model), **implemented by the owning feature**,
+  **wired once in the app** (`lib/core/di/contract_overrides.dart`, reused by the
+  app's own test so the connections are really checked). The Workshop could
+  generate the contract's `core` file and the app's override line when a new
+  feature is created "with data from `<feature>`".
+- **Gap — the new feature's i18n title is the English feature name in every
+  locale** (`"title": "History"` in `fr.i18n.json`; the translation is left to
+  the developer, as §5z intends, but it is not flagged).
+- **Gap — a plain screen still carries data scaffolding**: a `HistoryEntity(id,
+  name)` freezed entity, an `AsyncValue<void>` provider stub, and
+  `supabase_flutter` / the database package in its `pubspec.yaml`. A "screen
+  only" preset would drop all of it.
+
 ### 6. Multiple architectures — later, with caution
 
 - The harness makes **every** architecture a ~3× maintenance cost (each must be proven).

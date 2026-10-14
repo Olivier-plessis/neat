@@ -168,11 +168,14 @@ class GenerateFeatureUsecase {
     final httpClient = options.useCustomEndpoints
         ? 'chopper'
         : (effHasHttp ? c.httpClient : '');
-    // A local-only feature (no remote) always keeps its local source. Custom
-    // endpoints are remote-only by design — never a local source.
-    final writeLocal =
-        !options.useCustomEndpoints &&
-        (options.includeLocalDataSource || !effHasHttp);
+    // The same rule as FeatureScaffolder (see writesLocalSource): no remote and
+    // no local source is a plain screen, with no table either.
+    final writeLocal = FeatureScaffolder.writesLocalSource(
+      useCustomEndpoints: options.useCustomEndpoints,
+      hasHttpClient: effHasHttp,
+      includeLocalSource: options.includeLocalDataSource,
+      localIsDrift: localStoragePackage != null,
+    );
     // Drift-backed local source → the feature needs a typed table injected.
     final needsDriftTable = localStoragePackage != null && writeLocal;
 
