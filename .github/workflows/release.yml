@@ -7,6 +7,8 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  # Starts the CI workflow on the release branch (see "Run CI on the release branch").
+  actions: write
 
 jobs:
   release:
@@ -54,7 +56,15 @@ jobs:
               --title "ci: merge ${GITHUB_REF_NAME} into main" \
               --body "Automated release merge for ${GITHUB_REF_NAME}.")
           fi
-          gh pr merge "$pr_url" --auto --merge
+          if ! out=$(gh pr merge "$pr_url" --auto --merge 2>&1); then
+            echo "$out"
+            case "$out" in
+              # The base branch has no rule to wait for, so there is nothing to
+              # auto-merge on: merge right away. Any other failure stays a failure.
+              *"Protected branch rules not configured"*) gh pr merge "$pr_url" --merge ;;
+              *) exit 1 ;;
+            esac
+          fi
 
       - name: Open + auto-merge PR into develop
         env:
@@ -67,7 +77,29 @@ jobs:
               --title "ci: merge ${GITHUB_REF_NAME} into develop" \
               --body "Automated release merge for ${GITHUB_REF_NAME}.")
           fi
-          gh pr merge "$pr_url" --auto --merge
+          if ! out=$(gh pr merge "$pr_url" --auto --merge 2>&1); then
+            echo "$out"
+            case "$out" in
+              # The base branch has no rule to wait for, so there is nothing to
+              # auto-merge on: merge right away. Any other failure stays a failure.
+              *"Protected branch rules not configured"*) gh pr merge "$pr_url" --merge ;;
+              *) exit 1 ;;
+            esac
+          fi
+
+      # ── Run the required check on the release PR ──
+      # A pull request opened with the workflow's own token does not start the
+      # CI workflow (GitHub does not trigger workflows from events caused by
+      # GITHUB_TOKEN), so the `analyze-and-test` check that `main` requires
+      # would never arrive and the PR into main would stay blocked for ever.
+      # workflow_dispatch is the exception: start CI by hand on the release
+      # branch, so the check is reported on the PR's head commit. The heavy
+      # `generation` job is skipped (it already ran on develop).
+      - name: Run CI on the release branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_BRANCH: ${{ steps.release_branch.outputs.name }}
+        run: gh workflow run flutter.yml --ref "$HEAD_BRANCH" -f generation=false
 
       # ── Publish the GitHub Release ──
       - name: Create GitHub Release
