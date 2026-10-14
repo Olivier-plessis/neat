@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:neat_ui/neat_ui.dart';
 
 class EntryPoint extends StatelessWidget {
-  const EntryPoint({required this.onTapCustom, required this.onTapFlex, super.key});
+  const EntryPoint({
+    required this.onTapCustom,
+    required this.onTapFlex,
+    super.key,
+  });
 
   final VoidCallback onTapCustom;
   final VoidCallback onTapFlex;

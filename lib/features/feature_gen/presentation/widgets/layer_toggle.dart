@@ -31,15 +31,25 @@ class LayerToggle extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Text(title, style: const TextStyle(color: Colors.white, fontSize: 14)),
+                    Text(
+                      title,
+                      style: const TextStyle(color: Colors.white, fontSize: 14),
+                    ),
                     if (locked) ...[
                       6.gapW,
-                      const Icon(Icons.lock_outline, size: 12, color: Colors.white38),
+                      const Icon(
+                        Icons.lock_outline,
+                        size: 12,
+                        color: Colors.white38,
+                      ),
                     ],
                   ],
                 ),
                 2.gapH,
-                Text(subtitle, style: TextStyle(color: Colors.grey[500], fontSize: 12)),
+                Text(
+                  subtitle,
+                  style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                ),
               ],
             ),
           ),
@@ -47,6 +57,18 @@ class LayerToggle extends StatelessWidget {
             value: value,
             onChanged: enabled ? onChanged : null,
             activeThumbColor: context.neatColors.colorPrimaryCyan,
+            // A locked "always on" toggle is disabled, and a disabled Switch is
+            // painted in the greyed-out palette — which read as OFF. Paint it as
+            // on (dimmed track); the lock icon next to the title says why it
+            // can't move.
+            thumbColor: locked && value
+                ? WidgetStatePropertyAll(context.neatColors.colorPrimaryCyan)
+                : null,
+            trackColor: locked && value
+                ? WidgetStatePropertyAll(
+                    context.neatColors.colorPrimaryCyan.withValues(alpha: 0.35),
+                  )
+                : null,
           ),
         ],
       ),

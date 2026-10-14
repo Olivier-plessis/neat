@@ -41,10 +41,15 @@ class ParentRoutingSelector extends StatelessWidget {
           value: selected,
           isExpanded: true,
           dropdownColor: context.neatColors.colorSurfaceCard,
-          hint: Text('Select a feature', style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+          hint: Text(
+            'Select a feature',
+            style: TextStyle(color: Colors.grey[600], fontSize: 13),
+          ),
           style: const TextStyle(color: Colors.white, fontSize: 13),
           onChanged: enabled ? onSelect : null,
-          items: features.map((f) => DropdownMenuItem(value: f, child: Text(f))).toList(),
+          items: features
+              .map((f) => DropdownMenuItem(value: f, child: Text(f)))
+              .toList(),
         ),
       ),
     );

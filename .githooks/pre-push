@@ -1,0 +1,28 @@
+#!/bin/sh
+# Same check as CI (`dart format --output=none --set-exit-if-changed .`), run before a push.
+# Enable it once per clone:  git config core.hooksPath .githooks
+# Skip it for one push:      git push --no-verify
+#
+# A git GUI (Tower, an IDE) runs hooks with a reduced PATH that often lacks the
+# Flutter SDK, so `dart` is also looked up in the usual install locations.
+dart_bin=$(command -v dart)
+if [ -z "$dart_bin" ]; then
+  for dir in "$FLUTTER_ROOT/bin" "$HOME/develop/flutter/bin" "$HOME/development/flutter/bin" \
+    "$HOME/flutter/bin" "$HOME/fvm/default/bin" "$HOME/.puro/envs/stable/flutter/bin" \
+    /opt/homebrew/bin /usr/local/bin; do
+    if [ -x "$dir/dart" ]; then
+      dart_bin="$dir/dart"
+      break
+    fi
+  done
+fi
+if [ -z "$dart_bin" ]; then
+  echo "pre-push: 'dart' not found (PATH or the usual Flutter locations), so the format check cannot run." >&2
+  echo "Set FLUTTER_ROOT or add the Flutter SDK to your PATH, or push with --no-verify." >&2
+  exit 1
+fi
+if ! "$dart_bin" format --output=none --set-exit-if-changed .; then
+  echo >&2
+  echo "pre-push: the files above are not formatted. Run 'dart format .', commit, push again." >&2
+  exit 1
+fi

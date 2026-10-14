@@ -75,7 +75,10 @@ class NeatColors extends ThemeExtension<NeatColors> {
   }
 
   @override
-  ThemeExtension<NeatColors> lerp(covariant ThemeExtension<NeatColors>? other, double t) {
+  ThemeExtension<NeatColors> lerp(
+    covariant ThemeExtension<NeatColors>? other,
+    double t,
+  ) {
     if (other is! NeatColors) return this;
     return NeatColors(
       mainFont: Color.lerp(mainFont, other.mainFont, t)!,
@@ -85,10 +88,26 @@ class NeatColors extends ThemeExtension<NeatColors> {
       surface10: Color.lerp(surface10, other.surface10, t)!,
       surface24: Color.lerp(surface24, other.surface24, t)!,
       colorNeutralBg: Color.lerp(colorNeutralBg, other.colorNeutralBg, t)!,
-      colorSurfaceCard: Color.lerp(colorSurfaceCard, other.colorSurfaceCard, t)!,
-      colorPrimaryCyan: Color.lerp(colorPrimaryCyan, other.colorPrimaryCyan, t)!,
-      colorSecondaryBlue: Color.lerp(colorSecondaryBlue, other.colorSecondaryBlue, t)!,
-      colorTertiaryPurple: Color.lerp(colorTertiaryPurple, other.colorTertiaryPurple, t)!,
+      colorSurfaceCard: Color.lerp(
+        colorSurfaceCard,
+        other.colorSurfaceCard,
+        t,
+      )!,
+      colorPrimaryCyan: Color.lerp(
+        colorPrimaryCyan,
+        other.colorPrimaryCyan,
+        t,
+      )!,
+      colorSecondaryBlue: Color.lerp(
+        colorSecondaryBlue,
+        other.colorSecondaryBlue,
+        t,
+      )!,
+      colorTertiaryPurple: Color.lerp(
+        colorTertiaryPurple,
+        other.colorTertiaryPurple,
+        t,
+      )!,
       errorColor: Color.lerp(errorColor, other.errorColor, t)!,
       colorYellow: Color.lerp(colorYellow, other.colorYellow, t)!,
       colorGreen: Color.lerp(colorGreen, other.colorGreen, t)!,

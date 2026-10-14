@@ -22,16 +22,26 @@ class ArchitectureLayersStep extends StatelessWidget {
     required this.opts,
     required this.onChanged,
     required this.apiPathCtrl,
+    required this.tableNameCtrl,
     required this.enabled,
     required this.projectHasHttp,
     required this.httpClient,
     required this.storageStrategy,
+    this.tableNameError,
+    this.hasAuth = false,
     super.key,
   });
 
   final FeatureGenOptions opts;
   final ValueChanged<FeatureGenOptions> onChanged;
   final TextEditingController apiPathCtrl;
+
+  /// Supabase / Firebase: the table / collection name field (replaces API Path).
+  final TextEditingController tableNameCtrl;
+  final String? tableNameError;
+
+  /// The project has sign-in — what "owned by the signed-in user" needs.
+  final bool hasAuth;
   final bool enabled;
   final bool projectHasHttp;
   final String httpClient;
@@ -45,6 +55,7 @@ class ArchitectureLayersStep extends StatelessWidget {
     // Path, these 5 fields show a plain, generic "type something" hint
     // instead of a guessed value, so nothing here is derived from the
     // feature name.
+    final isByName = httpClient == 'supabase' || httpClient == 'firebase';
     final hasApiPath = opts.apiPath.isNotEmpty;
     final pathHint = hasApiPath ? opts.apiPath : '/endpoint';
     final idPathHint = hasApiPath ? '${opts.apiPath}/{id}' : '/endpoint/{id}';
@@ -72,9 +83,44 @@ class ArchitectureLayersStep extends StatelessWidget {
               : 'Project has no HTTP client — unavailable.',
           value: projectHasHttp && opts.includeRemoteDataSource,
           enabled: projectHasHttp && enabled,
-          onChanged: (v) => onChanged(opts.copyWith(includeRemoteDataSource: v)),
+          onChanged: (v) =>
+              onChanged(opts.copyWith(includeRemoteDataSource: v)),
         ),
-        if (projectHasHttp && opts.includeRemoteDataSource) ...[
+        // Supabase / Firestore address a table / collection, not a REST path:
+        // the API Path field below would be ignored there, so it's replaced.
+        if (projectHasHttp && opts.includeRemoteDataSource && isByName) ...[
+          10.gapH,
+          TextField(
+            controller: tableNameCtrl,
+            enabled: enabled,
+            style: const TextStyle(color: Colors.white),
+            decoration: fieldDecoration(
+              '${httpClient == 'supabase' ? 'Table' : 'Collection'} name (optional)',
+              tableNameError,
+              context,
+            ),
+          ),
+          4.gapH,
+          Text(
+            'Default: ${opts.name.isEmpty ? '...' : opts.name}s',
+            style: TextStyle(color: Colors.grey[600], fontSize: 11),
+          ),
+          if (httpClient == 'supabase') ...[
+            8.gapH,
+            LayerToggle(
+              title: 'Owned by the signed-in user',
+              subtitle: hasAuth
+                  ? 'owner_id + row level security: each user only sees their own rows. '
+                        'Off → a shared table any signed-in user can change.'
+                  : 'This project has no Auth — owner-scoped rows would be unreachable. '
+                        'Off → a shared table (open to every client).',
+              value: opts.ownedByUser,
+              enabled: enabled,
+              onChanged: (v) => onChanged(opts.copyWith(ownedByUser: v)),
+            ),
+          ],
+        ],
+        if (projectHasHttp && opts.includeRemoteDataSource && !isByName) ...[
           10.gapH,
           TextField(
             controller: apiPathCtrl,
@@ -99,7 +145,9 @@ class ArchitectureLayersStep extends StatelessWidget {
         // own method + path instead of all 5 sharing the API Path above — for
         // APIs like dummyjson's recipes, which create via POST /recipes/add
         // rather than POST /recipes.
-        if (projectHasHttp && httpClient == 'chopper' && opts.includeRemoteDataSource) ...[
+        if (projectHasHttp &&
+            httpClient == 'chopper' &&
+            opts.includeRemoteDataSource) ...[
           8.gapH,
           LayerToggle(
             title: 'Customize endpoints',
@@ -133,7 +181,10 @@ class ArchitectureLayersStep extends StatelessWidget {
                 border: .all(color: context.neatColors.surface10),
               ),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 4,
+                ),
                 child: Column(
                   children: [
                     CrudEndpointRow(
@@ -146,17 +197,23 @@ class ArchitectureLayersStep extends StatelessWidget {
                       enabled: enabled,
                       onName: (v) => onChanged(
                         opts.copyWith(
-                          endpointOverrides: opts.endpointOverrides.copyWith(getAllName: v),
+                          endpointOverrides: opts.endpointOverrides.copyWith(
+                            getAllName: v,
+                          ),
                         ),
                       ),
                       onMethod: (m) => onChanged(
                         opts.copyWith(
-                          endpointOverrides: opts.endpointOverrides.copyWith(getAllMethod: m),
+                          endpointOverrides: opts.endpointOverrides.copyWith(
+                            getAllMethod: m,
+                          ),
                         ),
                       ),
                       onPath: (v) => onChanged(
                         opts.copyWith(
-                          endpointOverrides: opts.endpointOverrides.copyWith(getAllPath: v),
+                          endpointOverrides: opts.endpointOverrides.copyWith(
+                            getAllPath: v,
+                          ),
                         ),
                       ),
                     ),
@@ -171,17 +228,23 @@ class ArchitectureLayersStep extends StatelessWidget {
                       enabled: enabled,
                       onName: (v) => onChanged(
                         opts.copyWith(
-                          endpointOverrides: opts.endpointOverrides.copyWith(getByIdName: v),
+                          endpointOverrides: opts.endpointOverrides.copyWith(
+                            getByIdName: v,
+                          ),
                         ),
                       ),
                       onMethod: (m) => onChanged(
                         opts.copyWith(
-                          endpointOverrides: opts.endpointOverrides.copyWith(getByIdMethod: m),
+                          endpointOverrides: opts.endpointOverrides.copyWith(
+                            getByIdMethod: m,
+                          ),
                         ),
                       ),
                       onPath: (v) => onChanged(
                         opts.copyWith(
-                          endpointOverrides: opts.endpointOverrides.copyWith(getByIdPath: v),
+                          endpointOverrides: opts.endpointOverrides.copyWith(
+                            getByIdPath: v,
+                          ),
                         ),
                       ),
                     ),
@@ -196,17 +259,23 @@ class ArchitectureLayersStep extends StatelessWidget {
                       enabled: enabled,
                       onName: (v) => onChanged(
                         opts.copyWith(
-                          endpointOverrides: opts.endpointOverrides.copyWith(createName: v),
+                          endpointOverrides: opts.endpointOverrides.copyWith(
+                            createName: v,
+                          ),
                         ),
                       ),
                       onMethod: (m) => onChanged(
                         opts.copyWith(
-                          endpointOverrides: opts.endpointOverrides.copyWith(createMethod: m),
+                          endpointOverrides: opts.endpointOverrides.copyWith(
+                            createMethod: m,
+                          ),
                         ),
                       ),
                       onPath: (v) => onChanged(
                         opts.copyWith(
-                          endpointOverrides: opts.endpointOverrides.copyWith(createPath: v),
+                          endpointOverrides: opts.endpointOverrides.copyWith(
+                            createPath: v,
+                          ),
                         ),
                       ),
                     ),
@@ -221,17 +290,23 @@ class ArchitectureLayersStep extends StatelessWidget {
                       enabled: enabled,
                       onName: (v) => onChanged(
                         opts.copyWith(
-                          endpointOverrides: opts.endpointOverrides.copyWith(updateName: v),
+                          endpointOverrides: opts.endpointOverrides.copyWith(
+                            updateName: v,
+                          ),
                         ),
                       ),
                       onMethod: (m) => onChanged(
                         opts.copyWith(
-                          endpointOverrides: opts.endpointOverrides.copyWith(updateMethod: m),
+                          endpointOverrides: opts.endpointOverrides.copyWith(
+                            updateMethod: m,
+                          ),
                         ),
                       ),
                       onPath: (v) => onChanged(
                         opts.copyWith(
-                          endpointOverrides: opts.endpointOverrides.copyWith(updatePath: v),
+                          endpointOverrides: opts.endpointOverrides.copyWith(
+                            updatePath: v,
+                          ),
                         ),
                       ),
                     ),
@@ -246,17 +321,23 @@ class ArchitectureLayersStep extends StatelessWidget {
                       enabled: enabled,
                       onName: (v) => onChanged(
                         opts.copyWith(
-                          endpointOverrides: opts.endpointOverrides.copyWith(deleteName: v),
+                          endpointOverrides: opts.endpointOverrides.copyWith(
+                            deleteName: v,
+                          ),
                         ),
                       ),
                       onMethod: (m) => onChanged(
                         opts.copyWith(
-                          endpointOverrides: opts.endpointOverrides.copyWith(deleteMethod: m),
+                          endpointOverrides: opts.endpointOverrides.copyWith(
+                            deleteMethod: m,
+                          ),
                         ),
                       ),
                       onPath: (v) => onChanged(
                         opts.copyWith(
-                          endpointOverrides: opts.endpointOverrides.copyWith(deletePath: v),
+                          endpointOverrides: opts.endpointOverrides.copyWith(
+                            deletePath: v,
+                          ),
                         ),
                       ),
                     ),
@@ -284,7 +365,8 @@ class ArchitectureLayersStep extends StatelessWidget {
         ),
         const LayerToggle(
           title: 'Data Mapper',
-          subtitle: 'DTO → Entity conversion (intrinsic to Clean Architecture).',
+          subtitle:
+              'DTO → Entity conversion (intrinsic to Clean Architecture).',
           value: true,
           enabled: false,
           locked: true,

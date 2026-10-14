@@ -319,12 +319,17 @@ abstract final class AppLogger {
     return '''$riverpodImport
 import 'package:${corePackageName ?? packageName}/core/utils/app_logger.dart';
 
-/// Logs the lifecycle of every provider (add / update / dispose / fail).
+/// Logs the lifecycle of every provider (add / update / dispose / fail) —
+/// **names only, never values**: a provider's state can hold a secret (a
+/// password form, a token, a session) and this prints in every debug build, so
+/// logging `previous -> new` leaked it into the console and anything that
+/// collects it. When you need to see a value, log that one provider's own
+/// non-sensitive fields from where it is defined.
 final class RiverpodObserver extends ProviderObserver {
   @override
   void didAddProvider(ProviderObserverContext context, Object? value) {
     AppLogger.d(
-      'add   \${context.provider.name ?? context.provider.runtimeType} = \$value',
+      'add     \${context.provider.name ?? context.provider.runtimeType}',
     );
   }
 
@@ -335,8 +340,7 @@ final class RiverpodObserver extends ProviderObserver {
     Object? newValue,
   ) {
     AppLogger.d(
-      'update \${context.provider.name ?? context.provider.runtimeType}: '
-      '\$previousValue → \$newValue',
+      'update  \${context.provider.name ?? context.provider.runtimeType}',
     );
   }
 
@@ -1065,7 +1069,8 @@ and review `firestore.rules` before shipping.
 
   /// A short guide on the generated Supabase auth wiring + the one manual
   /// Dashboard step NEAT can't automate.
-  static String supabaseDoc(String packageName) => '''# Supabase
+  static String supabaseDoc(String packageName) =>
+      '''# Supabase
 
 This project uses **Supabase** for authentication (login/signup/forgot-password).
 
@@ -1083,6 +1088,20 @@ This project uses **Supabase** for authentication (login/signup/forgot-password)
 - `lib/core/router/router_notifier.dart` already listens for the auth state
   change the deep link produces, so a confirmed/reset session logs the user in
   and redirects home automatically — nothing else to wire up.
+
+## Database — apply the migrations
+NEAT writes the SQL each feature needs to `supabase/migrations/`
+(`<timestamp>_create_<table>.sql`): the table, an `updated_at` trigger, row
+level security and explicit grants. The app cannot read or write a table that
+does not exist yet, so apply them — on the dev project first:
+
+```
+supabase db push
+```
+
+(or paste the file in the dashboard's **SQL Editor**). `owner_id`, `created_at`
+and `updated_at` are database-only columns: they are not in the Dart model.
+Change a table with a **new** migration; never edit one that was applied.
 
 ## Redirect URL — one manual step (Supabase Dashboard)
 Supabase rejects a redirect it doesn't recognise and falls back to opening the
@@ -1298,6 +1317,7 @@ class _AvatarUploadFieldState extends ConsumerState<AvatarUploadField> {
 
 import 'package:$localStoragePackage/$localStoragePackage.dart';
 import 'package:$packageName/core/network/network_info.dart';
+import 'package:$packageName/core/utils/app_logger.dart';
 
 /// Outcome of attempting to push one queued write to the backend.
 enum ReplaySyncResult {
@@ -1319,7 +1339,7 @@ enum ReplaySyncResult {
 ///
 /// Wire this to your HTTP client, e.g.:
 /// ```dart
-/// SyncService(db, network, (e) async {
+/// SyncService(db, network, resource: 'products', (e) async {
 ///   final res = await dio.request(e.endpoint,
 ///       data: e.payload, options: Options(method: 'POST'));
 ///   if (res.statusCode == 409) return ReplaySyncResult.conflict;
@@ -1328,26 +1348,99 @@ enum ReplaySyncResult {
 /// ```
 typedef OutboxReplay = Future<ReplaySyncResult> Function(OutboxEntry entry);
 
-/// Drains the Outbox queue when connectivity returns.
+/// Drains the Outbox queue: at start-up, whenever a write is queued, and when
+/// connectivity returns.
+///
+/// The Outbox table is shared by every feature, so each service only handles
+/// the entries of its own [resource] — the leading path of the entry's endpoint
+/// (`/products/42` → `products`) — and leaves the others alone.
+///
+/// A resource whose rows point at another's (a task's `worksite_id`) names it
+/// in [dependsOn]: its writes then wait until the older writes of that
+/// resource have been sent. Without that, both services flush at the same
+/// time when the network returns and a child can reach the server before its
+/// parent exists (foreign key violation).
 class SyncService {
-  SyncService(this._db, this._network, this._replay);
+  SyncService(
+    this._db,
+    this._network,
+    this._replay, {
+    required this.resource,
+    this.dependsOn = const {},
+  });
 
   final AppDatabase _db;
   final NetworkInfo _network;
   final OutboxReplay _replay;
 
+  /// The endpoint path this service owns, without slashes: a Supabase table
+  /// (`products`) or a REST resource (`products`, or `api/v1/products` behind
+  /// a prefix). An entry belongs to it when its path is, or sits under, it.
+  final String resource;
+
+  /// Resources whose older writes must go out before this one's, written like
+  /// [resource] — e.g. `{'worksites'}` for the tasks.
+  final Set<String> dependsOn;
+
   /// A write that keeps failing is parked after this many attempts (kept in the
   /// table for inspection, but no longer retried) so it can't loop forever.
   static const int maxRetries = 5;
 
-  StreamSubscription<bool>? _sub;
+  StreamSubscription<bool>? _connectivitySub;
+  StreamSubscription<List<OutboxEntry>>? _outboxSub;
   Timer? _retryTimer;
+  bool _flushing = false;
+  bool _flushAgain = false;
 
-  /// Start listening for connectivity; flush automatically when back online.
+  /// The entry's endpoint path only (an absolute URL's scheme/host don't
+  /// count), without empty segments.
+  static String _pathOf(OutboxEntry entry) =>
+      (Uri.tryParse(entry.endpoint)?.path ?? entry.endpoint)
+          .split('/')
+          .where((s) => s.isNotEmpty)
+          .join('/');
+
+  /// A path belongs to a resource when it is, or sits under, it.
+  static bool _isUnder(String path, String resource) =>
+      path == resource || path.startsWith('\$resource/');
+
+  bool _owns(OutboxEntry entry) => _isUnder(_pathOf(entry), resource);
+
+  /// Whether a write queued before [entry] is still waiting for a resource it
+  /// depends on. Entries are numbered in the order they were queued, across
+  /// every resource. A parked write (retries exhausted) still blocks: the
+  /// child could not be accepted without it either.
+  bool _waitsForParent(OutboxEntry entry, List<OutboxEntry> pending) =>
+      dependsOn.isNotEmpty &&
+      pending.any(
+        (other) =>
+            other.id < entry.id &&
+            dependsOn.any((parent) => _isUnder(_pathOf(other), parent)),
+      );
+
+  /// Flushes right away, then again whenever a write is queued or connectivity
+  /// comes back. The queue's first emission carries what is already pending, so
+  /// writes left over from a previous session go out at start-up.
+  ///
+  /// A write that exhausted its retries (see [maxRetries]) is tried again from
+  /// scratch here: whatever kept the server from accepting it — a missing
+  /// migration, a bug since fixed — may be gone by the next launch.
   void start() {
-    _sub = _network.onConnectivityChanged.listen((online) {
-      if (online) flush();
+    unawaited(_requeueExhausted());
+    _connectivitySub = _network.onConnectivityChanged.listen((online) {
+      if (online) unawaited(flush());
     });
+    _outboxSub = _db.outboxDao.watchPendingOutbox().listen((pending) {
+      if (pending.any(_owns)) unawaited(flush());
+    });
+  }
+
+  Future<void> _requeueExhausted() async {
+    for (final entry in (await _db.outboxDao.pendingOutbox()).where(_owns)) {
+      if (entry.retryCount >= maxRetries) {
+        await _db.outboxDao.resetRetries(entry.id);
+      }
+    }
   }
 
   /// Exponential backoff before a failed write is retried: 5s, 10s, 20s,
@@ -1361,7 +1454,26 @@ class SyncService {
   /// and schedule the next backoff; conflicts are parked separately. If
   /// anything is still owed a retry, a timer re-flushes once the earliest one
   /// is due, so recovery doesn't depend on another connectivity flap.
+  ///
+  /// Never runs twice at once (the queue's own changes re-trigger it): a call
+  /// made mid-flush makes the running one go round once more instead.
   Future<void> flush() async {
+    if (_flushing) {
+      _flushAgain = true;
+      return;
+    }
+    _flushing = true;
+    try {
+      do {
+        _flushAgain = false;
+        await _flushOnce();
+      } while (_flushAgain);
+    } finally {
+      _flushing = false;
+    }
+  }
+
+  Future<void> _flushOnce() async {
     if (!await _network.isConnected) return;
     _retryTimer?.cancel();
     final now = DateTime.now();
@@ -1371,8 +1483,12 @@ class SyncService {
       if (nextWait == null || wait < nextWait!) nextWait = wait;
     }
 
-    for (final entry in await _db.outboxDao.pendingOutbox()) {
+    final pending = await _db.outboxDao.pendingOutbox();
+    for (final entry in pending.where(_owns)) {
       if (entry.retryCount >= maxRetries) continue; // parked — give up
+      // Not a failure and not counted as an attempt: the parent's service
+      // emptying its part of the queue triggers another flush here.
+      if (_waitsForParent(entry, pending)) continue;
       final due = entry.nextRetryAt;
       if (due != null && due.isAfter(now)) {
         scheduleRetry(due.difference(now));
@@ -1389,7 +1505,15 @@ class SyncService {
           case ReplaySyncResult.conflict:
             await _db.outboxDao.markConflict(entry.id);
         }
-      } catch (_) {
+      } catch (error, stackTrace) {
+        final attempts = entry.retryCount + 1;
+        AppLogger.w(
+          'Outbox: \${entry.operation} \${entry.endpoint} failed '
+          '(attempt \$attempts of \$maxRetries'
+          '\${attempts >= maxRetries ? ', giving up until the next launch' : ''})',
+          error: error,
+          stackTrace: stackTrace,
+        );
         final backoff = _backoffFor(entry.retryCount + 1);
         await _db.outboxDao.incrementRetry(entry.id, nextRetryAt: now.add(backoff));
         scheduleRetry(backoff);
@@ -1400,17 +1524,21 @@ class SyncService {
   }
 
   /// Writes that exhausted their retries — surface these to the user / a report.
-  Future<List<OutboxEntry>> failedWrites() async =>
-      (await _db.outboxDao.pendingOutbox()).where((e) => e.retryCount >= maxRetries).toList();
+  Future<List<OutboxEntry>> failedWrites() async => (await _db.outboxDao.pendingOutbox())
+      .where(_owns)
+      .where((e) => e.retryCount >= maxRetries)
+      .toList();
 
   /// Writes flagged as conflicting — surface these for the app to resolve
   /// (see [OutboxDao.resolveConflict]); distinct from [failedWrites], which
   /// is exhausted retries rather than a detected conflict.
-  Future<List<OutboxEntry>> conflictedWrites() => _db.outboxDao.conflictedOutbox();
+  Future<List<OutboxEntry>> conflictedWrites() async =>
+      (await _db.outboxDao.conflictedOutbox()).where(_owns).toList();
 
   Future<void> dispose() async {
     _retryTimer?.cancel();
-    await _sub?.cancel();
+    await _connectivitySub?.cancel();
+    await _outboxSub?.cancel();
   }
 }
 ''';
@@ -1432,7 +1560,7 @@ class SyncService {
         .join(', ');
 
     final syncIntro = hasSync
-        ? 'reads are local-first with a cache fallback, and **writes work offline**: they are applied to the local DB immediately and queued in an Outbox that a `SyncService` replays when connectivity returns.'
+        ? 'the local Drift database is the **source of truth**: screens read it, **writes work offline** (applied to it immediately and queued in an Outbox that a `SyncService` replays), and remote rows are pulled into it.'
         : 'reads are local-first with a cache fallback. Writes require connectivity (they are not queued — pick the **Offline + Sync** strategy for offline writes).';
 
     final writeSection = hasSync
@@ -1453,19 +1581,40 @@ await create(${p}Entity($sampleArgs)); // usecase(params) — never .execute() d
 
 Every offline write becomes a row in the `OutboxEntries` table
 (`operation`, `endpoint`, `payload`, `retryCount`). The `${c}SyncProvider`
-starts a `SyncService` that listens to connectivity and, when back online,
-**replays each queued write through the API source**, deleting it on success.
+starts a `SyncService` that **replays each queued write through the API
+source**, deleting it on success. It flushes at start-up, on every queued
+write (it watches the queue) and when connectivity returns — never twice at
+once.
 
 ```dart
-// Activate the sync engine once, high in the widget tree:
+// Already done by the list notifier — keep this line when editing it:
 ref.watch(${c}SyncProvider);
 ```
 
+- The Outbox table is **shared by every feature**: each `SyncService` is
+  created with its `resource` (the leading path of the entry's endpoint — the
+  Supabase table name, or the REST resource) and only replays its own entries.
+- A feature whose rows reference another's (a `worksite_id` field) passes
+  `dependsOn: const {'worksites'}`: its writes then wait until the older writes
+  of that resource are sent, so a child never reaches the server before its
+  parent. The Workshop sets it when a `<feature>_id` field points at an
+  existing synced feature. Waiting is not an attempt and logs nothing.
+- Deleting a parent on the device also deletes its children's rows and their
+  still-queued writes (`OutboxDao.discardWrites`): Drift has no foreign key, and
+  once the parent is gone from the server those writes could only fail. The
+  parent's `deleteById` carries a `// neat:on-delete-children` anchor where the
+  Workshop inserts it when a child has a required `<parent>_id` field.
 - Successful replays are removed from the queue.
-- Failing ones back off exponentially (5s, 10s, 20s... capped at 5 minutes)
-  and bump `retryCount`; after `SyncService.maxRetries` attempts they are
-  **parked** (kept for inspection via `SyncService.failedWrites()`, never
-  retried in a loop).
+- A failed replay is logged (`AppLogger.w`: operation, endpoint, attempt,
+  error). Failing ones back off exponentially (5s, 10s, 20s... capped at 5
+  minutes) and bump `retryCount`; after `SyncService.maxRetries` attempts they
+  are **parked** (kept for inspection via `SyncService.failedWrites()`, never
+  retried in a loop) and given a fresh start at the next launch.
+- On Supabase, creates are replayed with `upsert`, so a replay after a crash
+  (the write reached the server but was never acknowledged) is harmless.
+- Signing out (when the project has auth) wipes the local database through
+  `clearLocalDataProvider` — the next account must neither see nor replay the
+  previous one's data. Writes that had not reached the server are dropped.
 - A replay that returns `ReplaySyncResult.conflict` (e.g. the backend answered
   409) is set aside from ordinary retries — inspect it via
   `SyncService.conflictedWrites()` and resolve it with
@@ -1503,9 +1652,11 @@ $packageName/
 read  → repository.getAll()
           online?  → API  → write-through cache (Drift)  → entities
           offline? → Drift cache                          → entities
-${hasSync ? '''write → repository.create/update/delete()
+${hasSync ? '''list  → repository.watchAll()   (the local Drift table: pulled rows
+                                         AND writes still in the Outbox)
+write → repository.create/update/delete()
           → upsert/delete local (optimistic)
-          → enqueue Outbox  → replayed by SyncService when online''' : 'write → requires connectivity (no queue in read-only mode)'}
+          → enqueue Outbox  → replayed by SyncService''' : 'write → requires connectivity (no queue in read-only mode)'}
 ```
 
 ## Wiring (already done)
@@ -1525,7 +1676,7 @@ AGENTS.md, for the full rule:
 | `${c}LocalSourceProvider` | Drift-backed local source |
 | `networkInfoProvider` | connectivity wrapper |
 | `${c}RepositoryProvider` | offline-first repository (abstract-typed) |
-${hasSync ? '| `${c}SyncProvider` | the Outbox sync engine (auto-starts) |' : ''}
+${hasSync ? '| `${c}SyncProvider` | the Outbox sync engine (started by the list notifier) |' : ''}
 
 `lib/features/$featureName/presentation/providers/${featureName}_usecase_providers.dart`
 (usecase-level DI, built from `${c}RepositoryProvider` above):
@@ -1540,7 +1691,12 @@ ${hasSync ? '| `${c}SyncProvider` | the Outbox sync engine (auto-starts) |' : ''
 final usecase = ref.watch(get${p}UsecaseProvider);
 final result = await usecase(); // local-first, refreshed from the API when online
 ```
-$writeSection
+${hasSync ? '''
+Screens don't call it for display: the list notifier is a stream over
+`repository.watchAll()` (the local table) and its `refresh()` — what
+pull-to-refresh calls — runs the usecase above to pull the remote rows into it.
+**Never show a remote result directly**: it hides writes still in the Outbox.
+''' : ''}$writeSection
 
 ## API base URL
 
@@ -2118,6 +2274,15 @@ AppDatabase appDatabase(Ref ref) => AppDatabase();
 /// SyncService so connectivity is observed once.
 @Riverpod(keepAlive: true)
 NetworkInfo networkInfo(Ref ref) => NetworkInfo(Connectivity());
+
+/// Wipes the on-device data (every table, the Outbox included). Sign-out calls
+/// it: the database belongs to the device, not to an account, so the next
+/// account must neither see the previous one's rows nor replay its pending
+/// writes. Exposed as a function so the auth feature needs no dependency on
+/// the database package.
+@Riverpod(keepAlive: true)
+Future<void> Function() clearLocalData(Ref ref) =>
+    ref.watch(appDatabaseProvider).clearAll;
 ''';
 
   // ── Branding: app icons + splash from a logo ──────────────────────────────

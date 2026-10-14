@@ -19,7 +19,9 @@ class TypographyTab extends ConsumerWidget {
 
     // Ordered list of active keys (preserve M3 order)
     final activeKeys = TextStyleKey.values.where(styles.containsKey).toList();
-    final inactiveKeys = TextStyleKey.values.where((k) => !styles.containsKey(k)).toList();
+    final inactiveKeys = TextStyleKey.values
+        .where((k) => !styles.containsKey(k))
+        .toList();
 
     return Column(
       children: [
@@ -35,10 +37,17 @@ class TypographyTab extends ConsumerWidget {
                 children: [
                   const Text(
                     'FONT FAMILY',
-                    style: TextStyle(color: Colors.white38, fontSize: 10, letterSpacing: 1.2),
+                    style: TextStyle(
+                      color: Colors.white38,
+                      fontSize: 10,
+                      letterSpacing: 1.2,
+                    ),
                   ),
                   const SizedBox(height: 8),
-                  FontSelector(value: state.fontFamily, onChanged: notifier.setFontFamily),
+                  FontSelector(
+                    value: state.fontFamily,
+                    onChanged: notifier.setFontFamily,
+                  ),
                 ],
               ),
             ),
@@ -50,10 +59,17 @@ class TypographyTab extends ConsumerWidget {
                 children: [
                   const Text(
                     'BASE SIZE',
-                    style: TextStyle(color: Colors.white38, fontSize: 10, letterSpacing: 1.2),
+                    style: TextStyle(
+                      color: Colors.white38,
+                      fontSize: 10,
+                      letterSpacing: 1.2,
+                    ),
                   ),
                   const SizedBox(height: 8),
-                  BaseSizeField(value: state.baseFontSize, onChanged: notifier.setBaseFontSize),
+                  BaseSizeField(
+                    value: state.baseFontSize,
+                    onChanged: notifier.setBaseFontSize,
+                  ),
                 ],
               ),
             ),
@@ -83,7 +99,10 @@ class TypographyTab extends ConsumerWidget {
               if (i == activeKeys.length) {
                 // "Add style" button
                 if (inactiveKeys.isEmpty) return const SizedBox.shrink();
-                return AddStyleButton(inactiveKeys: inactiveKeys, onAdd: notifier.addTextStyle);
+                return AddStyleButton(
+                  inactiveKeys: inactiveKeys,
+                  onAdd: notifier.addTextStyle,
+                );
               }
               final key = activeKeys[i];
               final config = styles[key]!;

@@ -27,6 +27,10 @@ abstract final class FeatureWriter {
     bool i18n = false,
     bool packageSplit = false,
     String? corePackageName,
+    String? projectRoot,
+    // Sign-in decides who a Supabase table belongs to (owner-scoped rows need
+    // an owner) — see SupabaseTemplates.migration.
+    bool hasAuth = false,
   }) async {
     await const FeatureScaffolder().writeFeature(
       lib: lib,
@@ -65,6 +69,9 @@ abstract final class FeatureWriter {
           'https://fakestoreapi.com/products',
       packageSplit: packageSplit,
       corePackageName: corePackageName,
+      projectRoot: projectRoot,
+      ownedByUser: hasAuth,
+      hasAuth: hasAuth,
       // The wizard's first feature only ever becomes a shell branch, never a
       // child of one (that combination only exists via the Workshop) — so
       // needsShellRegistration is exactly isShellBranch here.

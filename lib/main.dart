@@ -32,7 +32,9 @@ Future<void> bootstrap() async {
 
       final container = ProviderContainer(observers: [RiverpodObserver()]);
 
-      runApp(UncontrolledProviderScope(container: container, child: const NeatApp()));
+      runApp(
+        UncontrolledProviderScope(container: container, child: const NeatApp()),
+      );
     },
     (error, stackTrace) {
       AppLogger.f('Uncaught exception', error: error, stackTrace: stackTrace);

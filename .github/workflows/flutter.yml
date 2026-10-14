@@ -6,12 +6,20 @@ on:
   pull_request:
     branches: ["main", "develop"]
 
+# A newer push to the same branch (or pull request) cancels the run it makes
+# obsolete: the `generation` job is heavy (about 1h25), so there is no point
+# waiting on a commit that has already been superseded. `main` is never
+# cancelled: every commit that lands there keeps its own result.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
   # Fast lane: analyze + unit/contract tests. Runs on every push & PR.
   analyze-and-test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: subosito/flutter-action@v2
         with:
@@ -24,9 +32,8 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      # Enable once you've run `dart format .` across the project.
-      # - name: Verify formatting
-      #   run: dart format --output=none --set-exit-if-changed .
+      - name: Verify formatting
+        run: dart format --output=none --set-exit-if-changed .
 
       - name: Analyze project source
         run: flutter analyze
@@ -40,7 +47,7 @@ jobs:
   generation:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: subosito/flutter-action@v2
         with:
@@ -53,7 +60,7 @@ jobs:
       # Best-effort key (the generated deps aren't in this repo's lockfile), so
       # restore-keys let us reuse the latest cache regardless of the hash.
       - name: Cache pub dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.pub-cache
           key: pub-cache-${{ runner.os }}-${{ hashFiles('.github/workflows/flutter.yml', 'test/generation/full_generation_integration_test.dart') }}

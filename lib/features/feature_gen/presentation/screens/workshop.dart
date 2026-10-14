@@ -10,6 +10,7 @@ import 'package:neat/features/feature_gen/presentation/screens/stepper/architect
 import 'package:neat/features/feature_gen/presentation/screens/stepper/endpoints_step.dart';
 import 'package:neat/features/feature_gen/presentation/screens/stepper/entity_fields_step.dart';
 import 'package:neat/features/feature_gen/presentation/screens/stepper/identity_routing_step.dart';
+import 'package:neat/features/generation/domain/services/templates/supabase_templates.dart';
 import 'package:neat_ui/neat_ui.dart';
 
 class Workshop extends ConsumerStatefulWidget {
@@ -35,13 +36,16 @@ class _WorkshopState extends ConsumerState<Workshop> {
   late final TextEditingController _nameCtrl;
   late final TextEditingController _labelCtrl;
   late final TextEditingController _apiPathCtrl;
+  late final TextEditingController _tableNameCtrl;
   late final ScrollController _logsScrollController;
 
   @override
   void initState() {
     super.initState();
     _contract = widget.state.project!.contract;
-    final notifier = ref.read(featureFormControllerProvider(_contract).notifier);
+    final notifier = ref.read(
+      featureFormControllerProvider(_contract).notifier,
+    );
     final initialOpts = ref.read(featureFormControllerProvider(_contract)).opts;
     // Own controllers (this State's, not the provider's) so typing doesn't
     // jump the cursor on every rebuild — each just forwards its raw text to
@@ -53,6 +57,8 @@ class _WorkshopState extends ConsumerState<Workshop> {
       ..addListener(() => notifier.setShellLabel(_labelCtrl.text.trim()));
     _apiPathCtrl = TextEditingController(text: initialOpts.apiPath)
       ..addListener(() => notifier.setApiPath(_apiPathCtrl.text.trim()));
+    _tableNameCtrl = TextEditingController(text: initialOpts.tableName)
+      ..addListener(() => notifier.setTableName(_tableNameCtrl.text.trim()));
     _logsScrollController = ScrollController();
   }
 
@@ -61,6 +67,7 @@ class _WorkshopState extends ConsumerState<Workshop> {
     _nameCtrl.dispose();
     _labelCtrl.dispose();
     _apiPathCtrl.dispose();
+    _tableNameCtrl.dispose();
     _logsScrollController.dispose();
     super.dispose();
   }
@@ -93,7 +100,8 @@ class _WorkshopState extends ConsumerState<Workshop> {
     final projectHasHttp = c.httpClient != 'none';
     final hasNav = c.navigation != 'none';
     // Child nesting + shell branches work for both go_router and go_router_builder.
-    final routingEnabled = c.navigation == 'go_router' || c.navigation == 'go_router_builder';
+    final routingEnabled =
+        c.navigation == 'go_router' || c.navigation == 'go_router_builder';
     final needsParent = opts.routing == FeatureRouting.child;
     final parentMissing = needsParent && opts.parentFeature.isEmpty;
 
@@ -105,7 +113,8 @@ class _WorkshopState extends ConsumerState<Workshop> {
     final endpointsValid =
         opts.endpoints.isNotEmpty &&
         opts.endpoints.every((e) => e.name.isNotEmpty && e.path.isNotEmpty) &&
-        opts.endpoints.map((e) => e.name).toSet().length == opts.endpoints.length;
+        opts.endpoints.map((e) => e.name).toSet().length ==
+            opts.endpoints.length;
 
     final nameError = opts.name.isEmpty
         ? null
@@ -113,9 +122,18 @@ class _WorkshopState extends ConsumerState<Workshop> {
               (project.features.contains(opts.name)
                   ? 'feature "${opts.name}" already exists'
                   : null));
+    // Supabase / Firebase address a table / collection by name (see
+    // ArchitectureLayersStep): a name the SQL and the Dart side can both use
+    // as-is, or empty for the `<name>s` default.
+    final addressesByName =
+        c.httpClient == 'supabase' || c.httpClient == 'firebase';
+    final tableNameError = addressesByName
+        ? SupabaseTemplates.validateTableName(opts.tableName)
+        : null;
     final canGenerate =
         opts.name.isNotEmpty &&
         nameError == null &&
+        tableNameError == null &&
         !parentMissing &&
         (!opts.useCustomEndpoints || endpointsValid) &&
         !widget.state.isGenerating;
@@ -128,7 +146,8 @@ class _WorkshopState extends ConsumerState<Workshop> {
         ? const ['Identity & Routing', 'Endpoints']
         : const ['Identity & Routing', 'Architecture Layers', 'Entity Fields'];
     final totalSteps = stepLabels.length;
-    final step1Valid = opts.name.isNotEmpty && nameError == null && !parentMissing;
+    final step1Valid =
+        opts.name.isNotEmpty && nameError == null && !parentMissing;
 
     final stepContent = <Widget>[
       IdentityRoutingStep(
@@ -155,12 +174,16 @@ class _WorkshopState extends ConsumerState<Workshop> {
               opts: opts,
               onChanged: formNotifier.update,
               apiPathCtrl: _apiPathCtrl,
+              tableNameCtrl: _tableNameCtrl,
+              tableNameError: tableNameError,
+              hasAuth: c.generateAuth,
               enabled: !widget.state.isGenerating,
               projectHasHttp: projectHasHttp,
               httpClient: c.httpClient,
               storageStrategy: c.storageStrategy,
             ),
-      if (!opts.useCustomEndpoints) EntityFieldsStep(opts: opts, onChanged: formNotifier.update),
+      if (!opts.useCustomEndpoints)
+        EntityFieldsStep(opts: opts, onChanged: formNotifier.update),
     ];
 
     return Column(
@@ -202,11 +225,18 @@ class _WorkshopState extends ConsumerState<Workshop> {
                           allowedExtensions: const ['csv'],
                         );
                         final path = result?.files.single.path;
-                        if (path != null) await widget.onImportTranslations(path);
+                        if (path != null) {
+                          await widget.onImportTranslations(path);
+                        }
                       },
                 icon: const Icon(Icons.translate, size: 14),
-                label: const Text('Import i18n', style: TextStyle(fontSize: 12)),
-                style: TextButton.styleFrom(foregroundColor: context.neatColors.colorPrimaryCyan),
+                label: const Text(
+                  'Import i18n',
+                  style: TextStyle(fontSize: 12),
+                ),
+                style: TextButton.styleFrom(
+                  foregroundColor: context.neatColors.colorPrimaryCyan,
+                ),
               ),
             ],
             12.gapW,
@@ -219,7 +249,11 @@ class _WorkshopState extends ConsumerState<Workshop> {
           ],
         ),
         10.gapH,
-        Wrap(spacing: 8, runSpacing: 8, children: _stackBadges(c).map((b) => _Badge(b)).toList()),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: _stackBadges(c).map((b) => _Badge(b)).toList(),
+        ),
         20.gapH,
         Expanded(
           child: Row(
@@ -234,13 +268,19 @@ class _WorkshopState extends ConsumerState<Workshop> {
                     _StepIndicator(
                       current: formState.step,
                       labels: stepLabels,
-                      onSelect: widget.state.isGenerating ? null : formNotifier.setStep,
+                      onSelect: widget.state.isGenerating
+                          ? null
+                          : formNotifier.setStep,
                     ),
                     16.gapH,
                     Expanded(
                       child: ScrollConfiguration(
-                        behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
-                        child: SingleChildScrollView(child: stepContent[formState.step]),
+                        behavior: ScrollConfiguration.of(
+                          context,
+                        ).copyWith(scrollbars: false),
+                        child: SingleChildScrollView(
+                          child: stepContent[formState.step],
+                        ),
                       ),
                     ),
                     16.gapH,
@@ -251,23 +291,29 @@ class _WorkshopState extends ConsumerState<Workshop> {
                           OutlinedButton.icon(
                             onPressed: widget.state.isGenerating
                                 ? null
-                                : () => formNotifier.setStep(formState.step - 1),
+                                : () =>
+                                      formNotifier.setStep(formState.step - 1),
                             icon: const Icon(Icons.arrow_back, size: 16),
                             label: const Text('Back'),
-                            style: TextButton.styleFrom(foregroundColor: Colors.white54),
+                            style: TextButton.styleFrom(
+                              foregroundColor: Colors.white54,
+                            ),
                           )
                         else
                           const SizedBox.shrink(),
                         if (formState.step < totalSteps - 1)
                           OutlinedButton.icon(
                             onPressed:
-                                (formState.step == 0 && !step1Valid) || widget.state.isGenerating
+                                (formState.step == 0 && !step1Valid) ||
+                                    widget.state.isGenerating
                                 ? null
-                                : () => formNotifier.setStep(formState.step + 1),
+                                : () =>
+                                      formNotifier.setStep(formState.step + 1),
                             icon: const Icon(Icons.arrow_forward, size: 16),
                             label: const Text('Next'),
                             style: FilledButton.styleFrom(
-                              backgroundColor: context.neatColors.colorPrimaryCyan,
+                              backgroundColor:
+                                  context.neatColors.colorPrimaryCyan,
                               foregroundColor: const Color(0xFF0E0E0E),
                             ),
                           ),
@@ -285,17 +331,24 @@ class _WorkshopState extends ConsumerState<Workshop> {
               Expanded(
                 flex: 6,
                 child: ScrollConfiguration(
-                  behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+                  behavior: ScrollConfiguration.of(
+                    context,
+                  ).copyWith(scrollbars: false),
                   child: SingleChildScrollView(
                     child: Column(
                       crossAxisAlignment: .start,
                       children: [
-                        _BlueprintTree(options: opts, contract: c, hasHttp: projectHasHttp),
+                        _BlueprintTree(
+                          options: opts,
+                          contract: c,
+                          hasHttp: projectHasHttp,
+                        ),
                         16.gapH,
                         SizedBox(
                           width: .infinity,
                           child: OutlinedButton.icon(
-                            onPressed: canGenerate && formState.step == totalSteps - 1
+                            onPressed:
+                                canGenerate && formState.step == totalSteps - 1
                                 ? () => widget.onGenerate(opts)
                                 : null,
                             icon: widget.state.isGenerating
@@ -309,11 +362,15 @@ class _WorkshopState extends ConsumerState<Workshop> {
                                   )
                                 : const Icon(Icons.auto_awesome, size: 18),
                             label: Text(
-                              widget.state.isGenerating ? 'Generating…' : 'Generate Feature',
+                              widget.state.isGenerating
+                                  ? 'Generating…'
+                                  : 'Generate Feature',
                             ),
                             style: FilledButton.styleFrom(
-                              backgroundColor: context.neatColors.colorPrimaryCyan,
-                              foregroundColor: context.neatColors.colorSurfaceCard,
+                              backgroundColor:
+                                  context.neatColors.colorPrimaryCyan,
+                              foregroundColor:
+                                  context.neatColors.colorSurfaceCard,
                               padding: const .symmetric(vertical: 18),
                               textStyle: const TextStyle(
                                 fontSize: 15,
@@ -326,7 +383,10 @@ class _WorkshopState extends ConsumerState<Workshop> {
                           12.gapH,
                           Text(
                             widget.state.error!,
-                            style: TextStyle(color: Colors.redAccent[100], fontSize: 12),
+                            style: TextStyle(
+                              color: Colors.redAccent[100],
+                              fontSize: 12,
+                            ),
                           ),
                         ],
                         if (widget.state.logs.isNotEmpty) ...[
@@ -367,7 +427,11 @@ class _WorkshopState extends ConsumerState<Workshop> {
 /// "Next" button's validation does; the Generate button on the right is the
 /// single gate that actually matters).
 class _StepIndicator extends StatelessWidget {
-  const _StepIndicator({required this.current, required this.labels, required this.onSelect});
+  const _StepIndicator({
+    required this.current,
+    required this.labels,
+    required this.onSelect,
+  });
 
   final int current;
   final List<String> labels;
@@ -402,7 +466,9 @@ class _StepIndicator extends StatelessWidget {
                       color: i == current
                           ? context.neatColors.colorPrimaryCyan
                           : i < current
-                          ? context.neatColors.colorPrimaryCyan.withValues(alpha: 0.25)
+                          ? context.neatColors.colorPrimaryCyan.withValues(
+                              alpha: 0.25,
+                            )
                           : Colors.white10,
                     ),
                     alignment: Alignment.center,
@@ -425,7 +491,9 @@ class _StepIndicator extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 12.5,
                       color: i == current ? Colors.white : Colors.grey[500],
-                      fontWeight: i == current ? FontWeight.w600 : FontWeight.normal,
+                      fontWeight: i == current
+                          ? FontWeight.w600
+                          : FontWeight.normal,
                     ),
                   ),
                 ],
@@ -441,7 +509,11 @@ class _StepIndicator extends StatelessWidget {
 // ── Blueprint Overview (live feature tree) ─────────────────────────────────────
 
 class _BlueprintTree extends StatelessWidget {
-  const _BlueprintTree({required this.options, required this.contract, required this.hasHttp});
+  const _BlueprintTree({
+    required this.options,
+    required this.contract,
+    required this.hasHttp,
+  });
 
   final FeatureGenOptions options;
   final NeatContract contract;
@@ -463,9 +535,14 @@ class _BlueprintTree extends StatelessWidget {
                 child: Text(
                   l,
                   style: TextStyle(
-                    color: l.startsWith('lib/')
+                    color:
+                        l.startsWith('lib/') ||
+                            l.startsWith('packages/') ||
+                            l.startsWith('supabase/')
                         ? Colors.white
-                        : context.neatColors.colorLightGreen.withValues(alpha: 0.85),
+                        : context.neatColors.colorLightGreen.withValues(
+                            alpha: 0.85,
+                          ),
                     fontSize: 11.5,
                     height: 1.2,
                   ),
@@ -492,7 +569,9 @@ class _Badge extends StatelessWidget {
       decoration: BoxDecoration(
         color: context.neatColors.colorPrimaryCyan.withValues(alpha: 0.1),
         borderRadius: .circular(6),
-        border: .all(color: context.neatColors.colorPrimaryCyan.withValues(alpha: 0.3)),
+        border: .all(
+          color: context.neatColors.colorPrimaryCyan.withValues(alpha: 0.3),
+        ),
       ),
       child: Text(
         label,

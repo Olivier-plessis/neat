@@ -7,8 +7,11 @@ import 'package:neat/features/generation/domain/services/templates/core_template
 import 'package:neat/features/generation/domain/services/templates/dart/data_templates.dart';
 import 'package:neat/features/generation/domain/services/templates/dart/domain_templates.dart';
 import 'package:neat/features/generation/domain/services/templates/dart/endpoint_templates.dart';
+import 'package:neat/features/generation/domain/services/templates/dart/field_codegen.dart';
+import 'package:neat/features/generation/domain/services/templates/dart/offline_test_templates.dart';
 import 'package:neat/features/generation/domain/services/templates/dart/presentation_templates.dart';
 import 'package:neat/features/generation/domain/services/templates/dart/state_templates.dart';
+import 'package:neat/features/generation/domain/services/templates/supabase_templates.dart';
 
 /// Writes a single feature's Clean Architecture files (domain / data /
 /// presentation, + DI graph & routes). Shared by the new-project generator and
@@ -66,6 +69,30 @@ class FeatureScaffolder {
     // general Workshop/wizard toggle yet; only NEAT's own FakeStore example
     // feature turns it on.
     bool includeCrudUi = false,
+    // Supabase table / Firestore collection the feature reads and writes
+    // (default `<featureName>s`). Replaces [apiPath] for those backends, which
+    // address a table, not a REST path; the Outbox `resource` follows it.
+    String? tableName,
+    // Supabase only: every row belongs to the signed-in user (`owner_id`,
+    // owner-scoped RLS policies — see SupabaseTemplates.migration). False → a
+    // shared table. [hasAuth]: the project has sign-in at all (decides who a
+    // shared table is open to). Both only shape the generated migration.
+    bool ownedByUser = true,
+    bool hasAuth = true,
+    // The migration's timestamp (default: now, UTC). Injectable for tests.
+    DateTime? migrationTime,
+    // Outbox resources of the already-synced features this one's rows point at
+    // (see SyncParents): its SyncService waits for their older writes.
+    List<String> syncDependsOn = const [],
+    // Fields (by JSON key) that point at another feature's Supabase table (see
+    // ParentTables): the migration makes them `uuid` foreign keys.
+    Map<String, ForeignKey> foreignKeys = const {},
+    // The generated project's root. When set, an offline-first + sync feature
+    // also gets its repository test in the root `test/` (the only suite the
+    // generated CI runs): flat as `test/<feature>/<feature>_offline_first_test
+    // .dart`, or mirroring the repository's path when [mirrorTestStructure] is
+    // on. Null (unit tests of this class) writes none.
+    String? projectRoot,
     // Opt-in: the feature lives at the root of its own workspace package
     // (`packages/<packageName>_<featureName>/lib/...`) instead of a folder
     // under the app (see ROADMAP.md §6a). [corePackageName] is required in
@@ -116,6 +143,9 @@ class FeatureScaffolder {
     // packageSplit/isFeatureFirst, which otherwise decide this.
     String? mergeBase,
   }) async {
+    // Enum fields get their class name now (`<Feature><Field>`) — resolved
+    // here, once, so every template below sees the same names.
+    final resolved = resolveEnumNames(featureName, fields);
     // The project ships a Drift package → any local source is Drift-backed.
     final localIsDrift = localStoragePackage != null;
     // The offline 3-source repository requires BOTH a remote and a local source.
@@ -133,7 +163,8 @@ class FeatureScaffolder {
     // stray includeLocalSource/localStoragePackage can't sneak in a local
     // source with nothing behind it.
     final writeLocal =
-        !useCustomEndpoints && (offlineFirst || (!hasHttpClient && includeLocalSource));
+        !useCustomEndpoints &&
+        (offlineFirst || (!hasHttpClient && includeLocalSource));
     // No data source at all (both toggles off) → this is a pure
     // entity+presentation feature: skip domain/repositories, domain/usecases,
     // and the whole data/ layer entirely, since there'd be nothing behind
@@ -144,9 +175,21 @@ class FeatureScaffolder {
     // Custom-endpoints features never have this graph (no entity, no
     // repository — see the useCustomEndpoints branch below), regardless of
     // what the caller passes for useAnnotations/includeUseCases.
-    final dataList = !useCustomEndpoints && useAnnotations && hasHttpClient && includeUseCases;
+    final dataList =
+        !useCustomEndpoints &&
+        useAnnotations &&
+        hasHttpClient &&
+        includeUseCases;
     // Realtime needs the full DI graph (repository provider + list notifier).
     final liveList = realtime && dataList;
+    // Offline-first + sync: Drift is the source of truth the UI watches — the
+    // repository's `watchAll()` reads the local table, so it also shows writes
+    // still waiting in the Outbox (the remote result would hide them). This
+    // wins over realtime's remote `watchAll()` (one method name, one meaning):
+    // the realtime stream is then written through into Drift by the sync
+    // provider instead of being shown directly. See ROADMAP.md §5w.
+    final localFirst = offlineFirst && hasSync;
+    final remoteLive = liveList && !localFirst;
 
     final String domainBase;
     final String dataBase;
@@ -183,9 +226,14 @@ class FeatureScaffolder {
     // adds one more directory level and moves the sibling layer's own
     // `$featureName/` folder into the path — see DataTemplates.featureModel's
     // domainCross doc.
-    final crossLayerNested = mergeBase != null || (!packageSplit && !isFeatureFirst);
-    final domainCross = crossLayerNested ? '../../../domain/$featureName' : '../../domain';
-    final dataCross = crossLayerNested ? '../../../data/$featureName' : '../../data';
+    final crossLayerNested =
+        mergeBase != null || (!packageSplit && !isFeatureFirst);
+    final domainCross = crossLayerNested
+        ? '../../../domain/$featureName'
+        : '../../domain';
+    final dataCross = crossLayerNested
+        ? '../../../data/$featureName'
+        : '../../data';
 
     if (useCustomEndpoints) {
       // domain/usecases — one per endpoint, calling the ApiSource directly
@@ -231,8 +279,50 @@ class FeatureScaffolder {
       // domain/entities
       await _write(
         '$domainBase/entities/${featureName}_entity.dart',
-        DomainTemplates.featureEntity(featureName: featureName, hasFreezed: hasFreezed, fields: fields),
+        DomainTemplates.featureEntity(
+          featureName: featureName,
+          hasFreezed: hasFreezed,
+          fields: resolved,
+          // Offline creation can't wait for a server-assigned id.
+          clientId: localFirst,
+        ),
       );
+
+      // domain/entities — one Dart enum per enum field. Each carries its
+      // database text; the DTO and the Drift row stay plain `String`.
+      final table = tableName ?? '${featureName}s';
+      for (final e in collectEnumSpecs(resolved)) {
+        await _write(
+          '$domainBase/entities/${e.enumFileName}.dart',
+          DomainTemplates.featureEnum(
+            field: e,
+            featureName: featureName,
+            checkedBy: httpClient == 'supabase' && hasHttpClient ? table : null,
+          ),
+        );
+      }
+
+      // supabase/migrations/<timestamp>_create_<table>.sql — the table, RLS and
+      // grants the Supabase API source above talks to. Without it the feature
+      // targets a table that doesn't exist.
+      if (httpClient == 'supabase' && hasHttpClient && projectRoot != null) {
+        final dir = '$projectRoot/supabase/migrations';
+        final name = SupabaseTemplates.migrationFileName(
+          _freeMigrationTime(dir, migrationTime ?? DateTime.now()),
+          table,
+        );
+        await _write(
+          '$dir/$name',
+          SupabaseTemplates.migration(
+            featureName: featureName,
+            fields: resolved,
+            tableName: table,
+            ownedByUser: ownedByUser,
+            hasAuth: hasAuth,
+            references: foreignKeys,
+          ),
+        );
+      }
 
       // domain/repositories — skipped entirely with no data source: an
       // interface with no implementation behind it would be dead code.
@@ -244,7 +334,8 @@ class FeatureScaffolder {
             packageName: packageName,
             hasHttpClient: hasHttpClient,
             offlineFirst: offlineFirst,
-            realtime: liveList,
+            realtime: remoteLive,
+            localWatch: localFirst,
             corePackageName: corePackageName,
           ),
         );
@@ -282,7 +373,7 @@ class FeatureScaffolder {
             featureName: featureName,
             hasFreezed: hasFreezed,
             hasJsonSerializable: hasJsonSerializable,
-            fields: fields,
+            fields: resolved,
             domainCross: domainCross,
             listEnvelopeKey: listEnvelopeKey,
             envelopeFields: envelopeFields,
@@ -299,9 +390,11 @@ class FeatureScaffolder {
             httpClient: httpClient,
             offlineFirst: offlineFirst,
             hasSync: hasSync,
-            realtime: liveList,
-            fields: fields,
+            realtime: remoteLive,
+            localWatch: localFirst,
+            fields: resolved,
             apiPath: apiPath,
+            tableName: tableName,
             corePackageName: corePackageName,
             domainCross: domainCross,
             customizeEndpoints: customizeEndpoints,
@@ -327,6 +420,10 @@ class FeatureScaffolder {
             corePackageName: corePackageName,
             domainCross: domainCross,
             listEnvelopeKey: listEnvelopeKey,
+            apiPath: apiPath,
+            tableName: tableName,
+            realtime: liveList && localFirst,
+            dependsOn: syncDependsOn,
           ),
         );
       }
@@ -340,6 +437,7 @@ class FeatureScaffolder {
             httpClient: httpClient,
             realtime: liveList,
             apiPath: apiPath,
+            tableName: tableName,
             customizeEndpoints: customizeEndpoints,
             endpointOverrides: endpointOverrides,
             listEnvelopeKey: listEnvelopeKey,
@@ -354,7 +452,7 @@ class FeatureScaffolder {
             offlineFirst: localIsDrift,
             hasSync: hasSync,
             localStoragePackage: localStoragePackage,
-            fields: fields,
+            fields: resolved,
           ),
         );
       }
@@ -372,10 +470,11 @@ class FeatureScaffolder {
         useCubit: useCubit,
         dataList: dataList,
         i18n: i18n,
-        fields: fields,
+        fields: resolved,
         includeCrudUi: includeCrudUi,
         corePackageName: corePackageName,
         domainCross: domainCross,
+        localFirst: localFirst && dataList,
       ),
     );
 
@@ -387,11 +486,12 @@ class FeatureScaffolder {
           featureName: featureName,
           useAnnotations: useAnnotations,
           dataList: dataList,
-          realtime: liveList,
+          realtime: remoteLive,
           includeCrudUi: includeCrudUi,
-          fields: fields,
+          fields: resolved,
           domainCross: domainCross,
           dataCross: dataCross,
+          localFirst: localFirst,
         ),
       );
       // Usecase-level DI wires the usecases to the repository → only emit it
@@ -399,7 +499,10 @@ class FeatureScaffolder {
       // (ApiSource/LocalSource/Repository/Sync) live in data/, written above.
       // Custom-endpoints features have no repository (and their own usecases
       // call the ApiSource directly, wired by the caller) — never this file.
-      if (!useCustomEndpoints && useAnnotations && hasHttpClient && includeUseCases) {
+      if (!useCustomEndpoints &&
+          useAnnotations &&
+          hasHttpClient &&
+          includeUseCases) {
         await _write(
           '$presentationBase/providers/${featureName}_usecase_providers.dart',
           PresentationTemplates.featureUsecaseProviders(
@@ -474,10 +577,92 @@ class FeatureScaffolder {
 
     // Mirror test structure
     if (mirrorTestStructure) {
-      await _write('${domainBase.replaceFirst('/lib/', '/test/')}/.gitkeep', '');
+      await _write(
+        '${domainBase.replaceFirst('/lib/', '/test/')}/.gitkeep',
+        '',
+      );
       await _write('${dataBase.replaceFirst('/lib/', '/test/')}/.gitkeep', '');
-      await _write('${presentationBase.replaceFirst('/lib/', '/test/')}/.gitkeep', '');
+      await _write(
+        '${presentationBase.replaceFirst('/lib/', '/test/')}/.gitkeep',
+        '',
+      );
     }
+
+    // The offline-first repository's contract as an executable test (Drift
+    // in memory + a fake remote). Only dio / supabase / firebase API sources
+    // are concrete classes a test can fake — a chopper one extends
+    // `ChopperService`, so it isn't shipped there.
+    if (projectRoot != null &&
+        localFirst &&
+        !useCustomEndpoints &&
+        httpClient != 'chopper' &&
+        domainBase.startsWith('$projectRoot/') &&
+        dataBase.startsWith('$projectRoot/')) {
+      final dataUri = _packageUri(projectRoot, dataBase, packageName);
+      final testDir = '$projectRoot/test';
+      await _write(
+        mirrorTestStructure
+            ? '$testDir/${_testMirrorPath(projectRoot, dataBase)}'
+                  '/repositories/${featureName}_repository_impl_test.dart'
+            : '$testDir/$featureName/${featureName}_offline_first_test.dart',
+        OfflineTestTemplates.offlineFirstRepositoryTest(
+          featureName: featureName,
+          corePackage: corePackageName ?? packageName,
+          localStoragePackage: localStoragePackage,
+          dataImport: dataUri,
+          domainImport: _packageUri(projectRoot, domainBase, packageName),
+          httpClient: httpClient,
+          fields: resolved,
+          apiPath: apiPath,
+          tableName: tableName,
+          realtime: liveList,
+        ),
+      );
+    }
+  }
+
+  /// The first second at or after [wanted] with no migration file already
+  /// carrying that timestamp: the Supabase CLI keys migrations by it, so two
+  /// files sharing one would fail `supabase db push`.
+  static DateTime _freeMigrationTime(String dir, DateTime wanted) {
+    final folder = Directory(dir);
+    final taken = folder.existsSync()
+        ? folder.listSync().map((e) => e.uri.pathSegments.last).toList()
+        : const <String>[];
+    var t = wanted.toUtc();
+    bool used(DateTime d) {
+      final stamp = SupabaseTemplates.migrationFileName(d, '').split('_').first;
+      return taken.any((f) => f.startsWith('${stamp}_'));
+    }
+
+    while (used(t)) {
+      t = t.add(const Duration(seconds: 1));
+    }
+    return t;
+  }
+
+  /// `package:` URI of a directory under the project root: a path inside
+  /// `packages/<pkg>/lib/` becomes `package:<pkg>/…`, one inside `lib/`
+  /// becomes `package:<app>/…`.
+  static String _packageUri(
+    String projectRoot,
+    String absDir,
+    String appPackage,
+  ) {
+    final parts = absDir.substring(projectRoot.length + 1).split('/');
+    return parts.first == 'packages'
+        ? 'package:${parts[1]}/${parts.skip(3).join('/')}'
+        : 'package:$appPackage/${parts.skip(1).join('/')}';
+  }
+
+  /// Where a root `test/` file mirrors [absDir]'s `lib/` path: a split
+  /// feature's tests sit under its package name (`test/home/data/…`), an app
+  /// feature's under `lib/`'s own layout (`test/features/home/data/…`).
+  static String _testMirrorPath(String projectRoot, String absDir) {
+    final parts = absDir.substring(projectRoot.length + 1).split('/');
+    return parts.first == 'packages'
+        ? '${parts[1]}/${parts.skip(3).join('/')}'
+        : parts.skip(1).join('/');
   }
 
   Future<void> _write(String path, String content) async {

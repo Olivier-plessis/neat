@@ -23,7 +23,8 @@ class I18nTemplates {
   /// {name}` added later would otherwise render literally instead of
   /// substituting the variable (see [I18nImporter.slangCsvConfig], same fix
   /// for the CSV-upload path).
-  static String slangConfig({String baseLocale = 'en'}) => '''base_locale: $baseLocale
+  static String slangConfig({String baseLocale = 'en'}) =>
+      '''base_locale: $baseLocale
 fallback_strategy: base_locale
 input_directory: lib/i18n
 input_file_pattern: .i18n.json
@@ -42,7 +43,8 @@ string_interpolation: braces
   "language": "Language",
   "$key": {
     "title": "$p",
-    "greeting": "Welcome to your app"
+    "greeting": "Welcome to your app",
+    "empty": "No items yet."
   }
 }
 ''';
@@ -57,7 +59,8 @@ string_interpolation: braces
   "language": "Langue",
   "$key": {
     "title": "Accueil",
-    "greeting": "Bienvenue dans votre application"
+    "greeting": "Bienvenue dans votre application",
+    "empty": "Rien à afficher pour le moment."
   }
 }
 ''';
@@ -72,7 +75,8 @@ string_interpolation: braces
   "language": "Sprache",
   "$key": {
     "title": "Startseite",
-    "greeting": "Willkommen in Ihrer App"
+    "greeting": "Willkommen in Ihrer App",
+    "empty": "Noch keine Einträge."
   }
 }
 ''';
@@ -87,7 +91,8 @@ string_interpolation: braces
   "language": "Lingua",
   "$key": {
     "title": "Home",
-    "greeting": "Benvenuto nella tua app"
+    "greeting": "Benvenuto nella tua app",
+    "empty": "Nessun elemento al momento."
   }
 }
 ''';
@@ -102,10 +107,30 @@ string_interpolation: braces
   "language": "Idioma",
   "$key": {
     "title": "Inicio",
-    "greeting": "Bienvenido a tu aplicación"
+    "greeting": "Bienvenido a tu aplicación",
+    "empty": "Todavía no hay elementos."
   }
 }
 ''';
+  }
+
+  // ── a feature added later (Workshop) ──────────────────────────────────────
+  /// The `title` / `empty` entries the Workshop adds under the feature's key to
+  /// every existing `<locale>.i18n.json`. The title is the feature's own name
+  /// (we can't translate it for the user — it is theirs to edit); the empty
+  /// state is translated for the locales NEAT ships and falls back to English.
+  static Map<String, String> featureEntries(String featureName, String locale) {
+    const empty = {
+      'en': 'No items yet.',
+      'fr': 'Rien à afficher pour le moment.',
+      'de': 'Noch keine Einträge.',
+      'it': 'Nessun elemento al momento.',
+      'es': 'Todavía no hay elementos.',
+    };
+    return {
+      'title': pascal(featureName),
+      'empty': empty[locale] ?? empty['en']!,
+    };
   }
 
   // ── core/i18n/locale_store.dart (persistence) ─────────────────────────────

@@ -35,7 +35,9 @@ class RoutingRow extends StatelessWidget {
             subtitle: 'Sub-route of another feature',
             isSelected: selected == FeatureRouting.child,
             comingSoon: !routingEnabled,
-            onTap: enabled && routingEnabled ? () => onSelect(FeatureRouting.child) : null,
+            onTap: enabled && routingEnabled
+                ? () => onSelect(FeatureRouting.child)
+                : null,
           ),
         ),
         Expanded(
@@ -44,7 +46,9 @@ class RoutingRow extends StatelessWidget {
             subtitle: 'Bottom-nav branch',
             isSelected: selected == FeatureRouting.shell,
             comingSoon: !routingEnabled,
-            onTap: enabled && routingEnabled ? () => onSelect(FeatureRouting.shell) : null,
+            onTap: enabled && routingEnabled
+                ? () => onSelect(FeatureRouting.shell)
+                : null,
           ),
         ),
       ],

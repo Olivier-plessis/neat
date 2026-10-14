@@ -15,7 +15,6 @@ abstract class FeatureGenOptions with _$FeatureGenOptions {
     @Default('') String name,
     @Default(FeatureRouting.root) FeatureRouting routing,
     @Default('') String parentFeature, // only when routing == child
-
     /// Opt-in, only when routing == child: instead of a separate
     /// feature/package, the new feature's files nest inside the parent's own
     /// package/folder (`data`/`domain`/`presentation`, each gaining a
@@ -25,7 +24,6 @@ abstract class FeatureGenOptions with _$FeatureGenOptions {
     @Default(false) bool mergeIntoParent,
     @Default('home') String shellIcon, // Material icon name, only when shell
     @Default('') String shellLabel, // NavigationBar label, only when shell
-
     /// Opt-in, only meaningful when this is the project's first real feature
     /// (Workshop only shows it then): replaces the launch-time "welcome"
     /// placeholder as the app's home route instead of leaving it in place
@@ -67,6 +65,15 @@ abstract class FeatureGenOptions with _$FeatureGenOptions {
     /// REST clients only (dio/chopper).
     @Default('') String apiPath,
 
+    /// Supabase table / Firestore collection (default `<name>s` when empty).
+    /// Replaces [apiPath] for those backends, which address a table, not a
+    /// REST path; the Outbox `resource` follows it.
+    @Default('') String tableName,
+
+    /// Supabase only: every row belongs to the signed-in user (`owner_id`,
+    /// owner-scoped RLS in the generated migration). False → a shared table.
+    @Default(true) bool ownedByUser,
+
     /// "Custom Endpoints" mode (see ROADMAP.md §7 Phase 2): the feature is N
     /// arbitrary REST calls instead of one entity + fixed CRUD. Mutually
     /// exclusive with [fields]/[json]/[apiPath]/the data-source toggles above
@@ -106,5 +113,6 @@ abstract class FeatureGenOptions with _$FeatureGenOptions {
     return null;
   }
 
-  bool get hasAnyDataSource => includeRemoteDataSource || includeLocalDataSource;
+  bool get hasAnyDataSource =>
+      includeRemoteDataSource || includeLocalDataSource;
 }

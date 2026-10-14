@@ -21,8 +21,16 @@ const _sharedCore = <PubPackage>[
     version: '3.1.0',
     description: 'Annotations for freezed immutable classes.',
   ),
-  PubPackage(name: 'go_router', version: '17.5.0', description: 'Declarative routing for Flutter.'),
-  PubPackage(name: 'envied', version: '1.3.5', description: 'Declarative env for Flutter.'),
+  PubPackage(
+    name: 'go_router',
+    version: '17.5.0',
+    description: 'Declarative routing for Flutter.',
+  ),
+  PubPackage(
+    name: 'envied',
+    version: '1.3.5',
+    description: 'Declarative env for Flutter.',
+  ),
   PubPackage(
     name: 'envied_generator',
     version: '1.3.10',
@@ -103,7 +111,11 @@ const goRouterBuilderPackage = PubPackage(
 /// Backward-compat composition (shared + Riverpod + typed routing) — seeds
 /// [restPreset] et al. so a fresh project defaults to Riverpod + typed
 /// go_router_builder routes.
-const _corePackages = <PubPackage>[..._sharedCore, ..._riverpodPreset, goRouterBuilderPackage];
+const _corePackages = <PubPackage>[
+  ..._sharedCore,
+  ..._riverpodPreset,
+  goRouterBuilderPackage,
+];
 
 /// REST: core + a Chopper HTTP client.
 const restPreset = <PubPackage>[
@@ -134,14 +146,26 @@ const supabasePreset = <PubPackage>[
 /// Firebase: core + Firebase Core & Firestore (auth/storage are opt-in toggles).
 const firebasePreset = <PubPackage>[
   ..._corePackages,
-  PubPackage(name: 'firebase_core', version: '3.8.1', description: 'Firebase core initialization.'),
-  PubPackage(name: 'cloud_firestore', version: '5.6.0', description: 'Cloud Firestore database.'),
+  PubPackage(
+    name: 'firebase_core',
+    version: '3.8.1',
+    description: 'Firebase core initialization.',
+  ),
+  PubPackage(
+    name: 'cloud_firestore',
+    version: '5.6.0',
+    description: 'Cloud Firestore database.',
+  ),
 ];
 
 /// Dio: core + the Dio HTTP client, no code-generated client wrapper.
 const dioPreset = <PubPackage>[
   ..._corePackages,
-  PubPackage(name: 'dio', version: '5.9.2', description: 'Powerful HTTP client for Dart.'),
+  PubPackage(
+    name: 'dio',
+    version: '5.9.2',
+    description: 'Powerful HTTP client for Dart.',
+  ),
 ];
 
 /// Backend-specific package names — stripped before applying a new preset so
@@ -199,7 +223,9 @@ enum RoutingStyle { manual, typed }
 
 /// Infers the active routing style from the manifest.
 RoutingStyle routingStyleOf(List<PubPackage> packages) =>
-    packages.any((p) => p.name == 'go_router_builder') ? RoutingStyle.typed : RoutingStyle.manual;
+    packages.any((p) => p.name == 'go_router_builder')
+    ? RoutingStyle.typed
+    : RoutingStyle.manual;
 
 /// State management — independent of [BackendKind]/[HttpClientKind]: picking
 /// one swaps just this slice of the manifest (see
@@ -207,10 +233,11 @@ RoutingStyle routingStyleOf(List<PubPackage> packages) =>
 /// client choice untouched, the same way [RoutingStyle] is independent too.
 enum StateManagementKind { riverpod, bloc }
 
-List<PubPackage> presetForStateManagement(StateManagementKind kind) => switch (kind) {
-  StateManagementKind.riverpod => _riverpodPreset,
-  StateManagementKind.bloc => _blocPreset,
-};
+List<PubPackage> presetForStateManagement(StateManagementKind kind) =>
+    switch (kind) {
+      StateManagementKind.riverpod => _riverpodPreset,
+      StateManagementKind.bloc => _blocPreset,
+    };
 
 /// State-management package names — stripped before applying a new state
 /// management preset (mirrors [backendMarkerPackages]), and consulted by

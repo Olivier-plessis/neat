@@ -58,7 +58,8 @@ class LaunchScreen extends HookConsumerWidget {
       theme: theme,
     );
 
-    final canGenerate = identity.name.isNotEmpty && identity.projectPath.isNotEmpty;
+    final canGenerate =
+        identity.name.isNotEmpty && identity.projectPath.isNotEmpty;
 
     // After a successful generation: load the just-created project into the
     // Workshop (no app restart) so the user can add a feature straight away.
@@ -70,7 +71,8 @@ class LaunchScreen extends HookConsumerWidget {
       }
     }
 
-    void backToHome() => ref.read(currentStepProvider.notifier).setStep(NeatStep.hub);
+    void backToHome() =>
+        ref.read(currentStepProvider.notifier).setStep(NeatStep.hub);
 
     return Column(
       crossAxisAlignment: .start,
@@ -133,7 +135,10 @@ class LaunchScreen extends HookConsumerWidget {
 
   List<String> _initialLogs(IdentityState identity) => [
     'neat@shell:~\$ system status',
-    if (identity.name.isNotEmpty) '[OK] Identity verified.' else '[WARN] Project name not set.',
+    if (identity.name.isNotEmpty)
+      '[OK] Identity verified.'
+    else
+      '[WARN] Project name not set.',
     '[OK] Dependency graph loaded.',
     '[OK] Architecture pattern defined.',
     '',
@@ -175,11 +180,19 @@ class _ConfigPanel extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Icon(Icons.tune, color: Palette.colorPrimaryCyan, size: 16),
+                const Icon(
+                  Icons.tune,
+                  color: Palette.colorPrimaryCyan,
+                  size: 16,
+                ),
                 8.gapW,
                 const Text(
                   'System Configuration',
-                  style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ],
             ),
@@ -188,7 +201,9 @@ class _ConfigPanel extends StatelessWidget {
             // Identity
             _ConfigSection(
               label: 'PROJECT IDENTITY',
-              children: [_IdentityRow(name: identity.name, org: identity.organization)],
+              children: [
+                _IdentityRow(name: identity.name, org: identity.organization),
+              ],
             ),
             20.gapH,
 
@@ -200,7 +215,10 @@ class _ConfigPanel extends StatelessWidget {
                   spacing: 8,
                   runSpacing: 6,
                   children: identity.targetPlatforms
-                      .map((p) => _Chip(label: p[0].toUpperCase() + p.substring(1)))
+                      .map(
+                        (p) =>
+                            _Chip(label: p[0].toUpperCase() + p.substring(1)),
+                      )
                       .toList(),
                 ),
               ],
@@ -216,11 +234,19 @@ class _ConfigPanel extends StatelessWidget {
                     spacing: 8,
                     runSpacing: 6,
                     children: [
-                      ...deps.take(6).map((p) => _Chip(label: '${p.name}: ^${p.version}')),
-                      if (deps.length > 6) _Chip(label: '+${deps.length - 6} more', muted: true),
+                      ...deps
+                          .take(6)
+                          .map((p) => _Chip(label: '${p.name}: ^${p.version}')),
+                      if (deps.length > 6)
+                        _Chip(label: '+${deps.length - 6} more', muted: true),
                       ...devDeps
                           .take(3)
-                          .map((p) => _Chip(label: '${p.name}: ^${p.version}', dev: true)),
+                          .map(
+                            (p) => _Chip(
+                              label: '${p.name}: ^${p.version}',
+                              dev: true,
+                            ),
+                          ),
                       if (devDeps.length > 3)
                         _Chip(label: '+${devDeps.length - 3} dev', muted: true),
                     ],
@@ -250,7 +276,7 @@ class _ConfigPanel extends StatelessWidget {
                           cicdTools,
                           style: const TextStyle(
                             color: Colors.white70,
-                            
+
                             fontSize: 13,
                           ),
                         ),
@@ -272,14 +298,21 @@ class _ConfigPanel extends StatelessWidget {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.warning_amber_outlined, color: Colors.orange, size: 16),
+                    const Icon(
+                      Icons.warning_amber_outlined,
+                      color: Colors.orange,
+                      size: 16,
+                    ),
                     8.gapW,
                     Expanded(
                       child: Text(
                         identity.name.isEmpty
                             ? 'Project name is required (step Identity).'
                             : 'Destination path is required (step Identity).',
-                        style: const TextStyle(color: Colors.orange, fontSize: 12),
+                        style: const TextStyle(
+                          color: Colors.orange,
+                          fontSize: 12,
+                        ),
                       ),
                     ),
                   ],
@@ -315,7 +348,11 @@ class _ConfigSection extends StatelessWidget {
       children: [
         Text(
           label,
-          style: const TextStyle(color: Colors.white38, fontSize: 10, letterSpacing: 1.2),
+          style: const TextStyle(
+            color: Colors.white38,
+            fontSize: 10,
+            letterSpacing: 1.2,
+          ),
         ),
         10.gapH,
         ...children,
@@ -338,7 +375,11 @@ class _IdentityRow extends StatelessWidget {
       children: [
         Text(
           name.isEmpty ? '—' : name,
-          style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         Text(org, style: TextStyle(color: Colors.grey[600], fontSize: 13)),
       ],
@@ -413,9 +454,9 @@ class _ActionPanel extends StatelessWidget {
   Future<void> _open(BuildContext context, IdeTarget ide) async {
     final ok = await openInIde(ide, projectPath);
     if (!ok && context.mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('${ide.label} not found — is it installed?')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${ide.label} not found — is it installed?')),
+      );
     }
   }
 
@@ -432,11 +473,19 @@ class _ActionPanel extends StatelessWidget {
         mainAxisAlignment: .center,
         children: [
           if (hasFinished) ...[
-            const Icon(Icons.check_circle_outline, color: Color(0xFF4CAF50), size: 52),
+            const Icon(
+              Icons.check_circle_outline,
+              color: Color(0xFF4CAF50),
+              size: 52,
+            ),
             16.gapH,
             const Text(
               'Project Generated!',
-              style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             8.gapW,
             Text(
@@ -476,15 +525,23 @@ class _ActionPanel extends StatelessWidget {
             20.gapH,
             Row(
               children: [
-                Expanded(child: Divider(color: Colors.white.withValues(alpha: 0.08))),
+                Expanded(
+                  child: Divider(color: Colors.white.withValues(alpha: 0.08)),
+                ),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 10),
                   child: Text(
                     'OPEN IN',
-                    style: TextStyle(color: Colors.grey[600], fontSize: 9, letterSpacing: 1.2),
+                    style: TextStyle(
+                      color: Colors.grey[600],
+                      fontSize: 9,
+                      letterSpacing: 1.2,
+                    ),
                   ),
                 ),
-                Expanded(child: Divider(color: Colors.white.withValues(alpha: 0.08))),
+                Expanded(
+                  child: Divider(color: Colors.white.withValues(alpha: 0.08)),
+                ),
               ],
             ),
             12.gapH,
@@ -515,7 +572,11 @@ class _ActionPanel extends StatelessWidget {
             16.gapH,
             const Text(
               'Generation failed',
-              style: TextStyle(color: Colors.redAccent, fontSize: 16, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                color: Colors.redAccent,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             8.gapH,
             Text(
@@ -532,7 +593,11 @@ class _ActionPanel extends StatelessWidget {
           ] else ...[
             const Text(
               'Initialize Matrix',
-              style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: .bold),
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: .bold,
+              ),
             ),
             8.gapH,
             Text(
@@ -555,7 +620,11 @@ class _ActionPanel extends StatelessWidget {
 }
 
 class _IdeButton extends StatelessWidget {
-  const _IdeButton({required this.icon, required this.label, required this.onTap});
+  const _IdeButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
 
   final IconData icon;
   final String label;
@@ -609,7 +678,10 @@ class _GenerateButton extends StatelessWidget {
             ? const SizedBox(
                 width: 18,
                 height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2, color: Palette.colorPrimaryCyan),
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Palette.colorPrimaryCyan,
+                ),
               )
             : Row(
                 mainAxisAlignment: .center,
@@ -618,7 +690,10 @@ class _GenerateButton extends StatelessWidget {
                   10.gapW,
                   Text(
                     retry ? 'RETRY' : 'GENERATE PROJECT',
-                    style: const TextStyle(fontWeight: .bold, letterSpacing: 1.2),
+                    style: const TextStyle(
+                      fontWeight: .bold,
+                      letterSpacing: 1.2,
+                    ),
                   ),
                 ],
               ),

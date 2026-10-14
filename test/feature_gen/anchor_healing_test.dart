@@ -121,24 +121,30 @@ final List<RouteBase> appRoutes = [
       expect(GenerateFeatureUsecase.currentSchemaVersion(legacy), 1);
     });
 
-    test('ensureMigrationStrategy adds the getter + anchor after schemaVersion', () {
-      final healed = GenerateFeatureUsecase.ensureMigrationStrategy(legacy);
-      expect(healed, contains('MigrationStrategy get migration'));
-      expect(healed, contains('// neat:migrations'));
-      expect(healed, contains('onCreate: (m) => m.createAll(),'));
-      final schemaIdx = healed.indexOf('int get schemaVersion => 1;');
-      final migrationIdx = healed.indexOf('MigrationStrategy get migration');
-      final daoIdx = healed.indexOf('getAllHomes');
-      expect(schemaIdx, lessThan(migrationIdx));
-      expect(migrationIdx, lessThan(daoIdx));
-    });
+    test(
+      'ensureMigrationStrategy adds the getter + anchor after schemaVersion',
+      () {
+        final healed = GenerateFeatureUsecase.ensureMigrationStrategy(legacy);
+        expect(healed, contains('MigrationStrategy get migration'));
+        expect(healed, contains('// neat:migrations'));
+        expect(healed, contains('onCreate: (m) => m.createAll(),'));
+        final schemaIdx = healed.indexOf('int get schemaVersion => 1;');
+        final migrationIdx = healed.indexOf('MigrationStrategy get migration');
+        final daoIdx = healed.indexOf('getAllHomes');
+        expect(schemaIdx, lessThan(migrationIdx));
+        expect(migrationIdx, lessThan(daoIdx));
+      },
+    );
 
-    test('ensureMigrationStrategy is idempotent (already-anchored stays unchanged)', () {
-      final once = GenerateFeatureUsecase.ensureMigrationStrategy(legacy);
-      final twice = GenerateFeatureUsecase.ensureMigrationStrategy(once);
-      expect(twice, once);
-      expect('MigrationStrategy get migration'.allMatches(twice).length, 1);
-    });
+    test(
+      'ensureMigrationStrategy is idempotent (already-anchored stays unchanged)',
+      () {
+        final once = GenerateFeatureUsecase.ensureMigrationStrategy(legacy);
+        final twice = GenerateFeatureUsecase.ensureMigrationStrategy(once);
+        expect(twice, once);
+        expect('MigrationStrategy get migration'.allMatches(twice).length, 1);
+      },
+    );
   });
 
   group('bootstrap.dart chopper-register anchors', () {
@@ -177,14 +183,18 @@ Future<void> bootstrap() async {
 
     test('adds both anchors, imports anchor after the last import, calls '
         'anchor right before registerErrorHandler()', () {
-      final healed = GenerateFeatureUsecase.healBootstrapChopperAnchors(noAnchors);
+      final healed = GenerateFeatureUsecase.healBootstrapChopperAnchors(
+        noAnchors,
+      );
       expect(healed, contains('// neat:chopper-register-imports'));
       expect(healed, contains('// neat:chopper-register-calls'));
 
       final lastImportIdx = healed.lastIndexOf(
         "import 'package:arth/core/observers/provider_observer.dart';",
       );
-      final importAnchorIdx = healed.indexOf('// neat:chopper-register-imports');
+      final importAnchorIdx = healed.indexOf(
+        '// neat:chopper-register-imports',
+      );
       expect(lastImportIdx, lessThan(importAnchorIdx));
 
       final callsAnchorIdx = healed.indexOf('// neat:chopper-register-calls');
@@ -193,7 +203,9 @@ Future<void> bootstrap() async {
     });
 
     test('is idempotent (already-anchored stays unchanged)', () {
-      final once = GenerateFeatureUsecase.healBootstrapChopperAnchors(noAnchors);
+      final once = GenerateFeatureUsecase.healBootstrapChopperAnchors(
+        noAnchors,
+      );
       final twice = GenerateFeatureUsecase.healBootstrapChopperAnchors(once);
       expect(twice, once);
       expect('// neat:chopper-register-imports'.allMatches(twice).length, 1);

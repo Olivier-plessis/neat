@@ -68,7 +68,12 @@ extension PaddingExt on Widget {
     return Padding(padding: .all(value), child: this);
   }
 
-  Widget paddedLRTB({double left = 0, double right = 0, double top = 0, double bottom = 0}) {
+  Widget paddedLRTB({
+    double left = 0,
+    double right = 0,
+    double top = 0,
+    double bottom = 0,
+  }) {
     return Padding(
       padding: .only(left: left, right: right, top: top, bottom: bottom),
       child: this,

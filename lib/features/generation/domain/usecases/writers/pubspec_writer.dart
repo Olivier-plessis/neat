@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:neat/features/dependencies/domain/models/pub_package.dart';
+import 'package:neat/features/generation/domain/services/templates/core_package_templates.dart';
 
 /// Writes the root `pubspec.yaml`: merges every selected + auto-injected
 /// dependency into the `flutter create` scaffold, plus the workspace
@@ -26,6 +27,8 @@ abstract final class PubspecWriter {
     bool addSlang = false,
     bool addOnboarding = false,
     bool addSentry = false,
+    bool addDriftForTests = false,
+    bool addUuid = false,
   }) async {
     final pubspecFile = File('${projectDir.path}/pubspec.yaml');
     if (!pubspecFile.existsSync()) return;
@@ -48,9 +51,36 @@ abstract final class PubspecWriter {
       addSlang: addSlang,
       addOnboarding: addOnboarding,
       addSentry: addSentry,
+      addDriftForTests: addDriftForTests,
+      addUuid: addUuid,
     );
 
     await pubspecFile.writeAsString(content);
+  }
+
+  /// The `environment: sdk:` constraint of a pubspec's text (`^3.13.2`), or
+  /// [CorePackageTemplates.defaultSdkConstraint] when there isn't a readable one.
+  /// The workspace packages NEAT writes follow the project's constraint.
+  static String readSdkConstraint(String pubspecContent) {
+    final env = RegExp(
+      r'^environment:[ \t]*\r?\n((?:[ \t]+.*\r?\n?)*)',
+      multiLine: true,
+    ).firstMatch(pubspecContent);
+    final sdk = env == null
+        ? null
+        : RegExp(
+            r'^[ \t]+sdk:[ \t]*([^\s#]+)',
+            multiLine: true,
+          ).firstMatch(env.group(1)!);
+    return sdk?.group(1) ?? CorePackageTemplates.defaultSdkConstraint;
+  }
+
+  /// [readSdkConstraint] for the project at [projectPath].
+  static String projectSdkConstraint(String projectPath) {
+    final file = File('$projectPath/pubspec.yaml');
+    return file.existsSync()
+        ? readSdkConstraint(file.readAsStringSync())
+        : CorePackageTemplates.defaultSdkConstraint;
   }
 
   /// Pure pubspec assembly: takes the `flutter create` pubspec [original] and
@@ -76,6 +106,8 @@ abstract final class PubspecWriter {
     bool addSlang = false,
     bool addOnboarding = false,
     bool addSentry = false,
+    bool addDriftForTests = false,
+    bool addUuid = false,
   }) {
     final deps = StringBuffer();
     final devDeps = StringBuffer();
@@ -85,8 +117,12 @@ abstract final class PubspecWriter {
     final seen = <String>{};
     final uniquePackages = packages.where((p) => seen.add(p.name)).toList();
 
-    final hasGoRouterBuilder = uniquePackages.any((p) => p.name == 'go_router_builder');
-    final hasGoRouterExplicit = uniquePackages.any((p) => p.name == 'go_router');
+    final hasGoRouterBuilder = uniquePackages.any(
+      (p) => p.name == 'go_router_builder',
+    );
+    final hasGoRouterExplicit = uniquePackages.any(
+      (p) => p.name == 'go_router',
+    );
 
     for (final pkg in uniquePackages) {
       final line = '  ${pkg.name}: ^${pkg.version}\n';
@@ -108,7 +144,9 @@ abstract final class PubspecWriter {
     // itself (e.g. the plain, Flutter-less `bloc` package from a pub.dev
     // search) so the project still compiles.
     final hasBlocFamily = uniquePackages.any((p) => p.name.contains('bloc'));
-    final hasFlutterBlocExplicit = uniquePackages.any((p) => p.name == 'flutter_bloc');
+    final hasFlutterBlocExplicit = uniquePackages.any(
+      (p) => p.name == 'flutter_bloc',
+    );
     if (hasBlocFamily && !hasFlutterBlocExplicit) {
       deps.write('  flutter_bloc: ^9.1.1\n');
     }
@@ -125,7 +163,8 @@ abstract final class PubspecWriter {
     }
 
     // Responsive sizing — added by default, skipped for web-only projects.
-    if (addScreenUtil && !uniquePackages.any((p) => p.name == 'flutter_screenutil')) {
+    if (addScreenUtil &&
+        !uniquePackages.any((p) => p.name == 'flutter_screenutil')) {
       deps.write('  flutter_screenutil: ^5.9.3\n');
     }
 
@@ -145,26 +184,32 @@ abstract final class PubspecWriter {
     }
 
     // connectivity_plus for the offline NetworkInfo brick.
-    if (addConnectivity && !uniquePackages.any((p) => p.name == 'connectivity_plus')) {
+    if (addConnectivity &&
+        !uniquePackages.any((p) => p.name == 'connectivity_plus')) {
       deps.write('  connectivity_plus: ^7.1.1\n');
     }
     // skeletonizer for the generated list screen's loading placeholders.
-    if (addSkeletonizer && !uniquePackages.any((p) => p.name == 'skeletonizer')) {
+    if (addSkeletonizer &&
+        !uniquePackages.any((p) => p.name == 'skeletonizer')) {
       deps.write('  skeletonizer: ^2.1.3\n');
     }
     // image_picker for the Storage sample avatar upload widget.
-    if (addImagePicker && !uniquePackages.any((p) => p.name == 'image_picker')) {
+    if (addImagePicker &&
+        !uniquePackages.any((p) => p.name == 'image_picker')) {
       deps.write('  image_picker: ^1.1.2\n');
     }
     // Firebase: cloud_firestore is the user-selected marker; firebase_core is
     // required by it, and auth/storage are pulled in with their opt-ins.
-    if (addFirebaseCore && !uniquePackages.any((p) => p.name == 'firebase_core')) {
+    if (addFirebaseCore &&
+        !uniquePackages.any((p) => p.name == 'firebase_core')) {
       deps.write('  firebase_core: ^3.8.1\n');
     }
-    if (addFirebaseAuth && !uniquePackages.any((p) => p.name == 'firebase_auth')) {
+    if (addFirebaseAuth &&
+        !uniquePackages.any((p) => p.name == 'firebase_auth')) {
       deps.write('  firebase_auth: ^5.3.4\n');
     }
-    if (addFirebaseStorage && !uniquePackages.any((p) => p.name == 'firebase_storage')) {
+    if (addFirebaseStorage &&
+        !uniquePackages.any((p) => p.name == 'firebase_storage')) {
       deps.write('  firebase_storage: ^12.4.0\n');
     }
     // slang i18n: runtime (slang + slang_flutter + flutter_localizations) +
@@ -188,13 +233,27 @@ abstract final class PubspecWriter {
     // Onboarding: shared_preferences for the "seen it" flag — same package
     // LocaleStore uses for locale persistence, so guard against addSlang
     // already having added it (avoid a duplicate line).
-    if (addOnboarding && !addSlang && !uniquePackages.any((p) => p.name == 'shared_preferences')) {
+    if (addOnboarding &&
+        !addSlang &&
+        !uniquePackages.any((p) => p.name == 'shared_preferences')) {
       deps.write('  shared_preferences: ^2.3.3\n');
     }
     // Sentry (CI/CD screen, opt-in): crash/error reporting, wrapped around
     // runApp in bootstrap() — see AppTemplates.bootstrap's hasSentry doc.
     if (addSentry && !uniquePackages.any((p) => p.name == 'sentry_flutter')) {
       deps.write('  sentry_flutter: ^9.5.0\n');
+    }
+    // Client-side ids: the entity's `create` factory generates a uuid v4 (an
+    // offline-created row can't wait for a server-assigned id).
+    if (addUuid && !uniquePackages.any((p) => p.name == 'uuid')) {
+      deps.write('  uuid: ${CorePackageTemplates.uuidConstraint}\n');
+    }
+    // The shipped offline-sync tests (SyncService, offline-first repository) run
+    // against an in-memory Drift database — `package:drift/native.dart` is a
+    // direct import of the app's `test/`, so the app declares drift itself (the
+    // database package re-exports drift's API but not its `native.dart`).
+    if (addDriftForTests && !uniquePackages.any((p) => p.name == 'drift')) {
+      devDeps.write('  drift: ^2.35.2\n');
     }
     // Branding tooling: app icons + splash from the uploaded logo.
     if (addBranding) {
@@ -227,7 +286,10 @@ abstract final class PubspecWriter {
 
     // Declare the Dart workspace at the root (app = workspace root). Members
     // live under packages/ (or widgetbook/) and each carries `resolution: workspace`.
-    final members = [...pathPackages.map((p) => 'packages/$p'), ...extraWorkspaceMembers];
+    final members = [
+      ...pathPackages.map((p) => 'packages/$p'),
+      ...extraWorkspaceMembers,
+    ];
     if (members.isNotEmpty) {
       final block = members.map((m) => '  - $m').join('\n');
       content = '${content.trimRight()}\n\nworkspace:\n$block\n';

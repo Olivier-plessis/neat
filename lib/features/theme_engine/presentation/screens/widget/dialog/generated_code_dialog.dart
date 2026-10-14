@@ -29,14 +29,23 @@ class GeneratedCodeDialog extends StatelessWidget {
               child: Row(
                 spacing: 8,
                 children: [
-                  const Icon(Icons.code, size: 16, color: Palette.colorPrimaryCyan),
+                  const Icon(
+                    Icons.code,
+                    size: 16,
+                    color: Palette.colorPrimaryCyan,
+                  ),
                   Text(
                     'app_theme.dart',
-                    style: context.textTheme.bodyMedium!.copyWith(color: Colors.white),
+                    style: context.textTheme.bodyMedium!.copyWith(
+                      color: Colors.white,
+                    ),
                   ),
                   Text(
                     '· preview of generated code',
-                    style: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 11),
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.3),
+                      fontSize: 11,
+                    ),
                   ),
                   const Spacer(),
                   Clickable(
@@ -49,7 +58,9 @@ class GeneratedCodeDialog extends StatelessWidget {
                       decoration: BoxDecoration(
                         borderRadius: .circular(6),
                         border: .all(
-                          color: context.neatColors.colorPrimaryCyan.withValues(alpha: 0.4),
+                          color: context.neatColors.colorPrimaryCyan.withValues(
+                            alpha: 0.4,
+                          ),
                         ),
                       ),
                       child: Row(
@@ -75,7 +86,11 @@ class GeneratedCodeDialog extends StatelessWidget {
                   ),
                   Clickable(
                     onTap: () => Navigator.of(context).pop(),
-                    child: const Icon(Icons.close, size: 18, color: Colors.white38),
+                    child: const Icon(
+                      Icons.close,
+                      size: 18,
+                      color: Colors.white38,
+                    ),
                   ),
                 ],
               ),

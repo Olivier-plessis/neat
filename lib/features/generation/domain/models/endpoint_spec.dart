@@ -96,16 +96,16 @@ class EndpointSpec {
 
   @override
   int get hashCode => Object.hash(
-        name,
-        method,
-        path,
-        Object.hashAll(requestFields),
-        requestJson,
-        Object.hashAll(responseFields),
-        responseJson,
-        Object.hashAll(requestWarnings),
-        Object.hashAll(responseWarnings),
-      );
+    name,
+    method,
+    path,
+    Object.hashAll(requestFields),
+    requestJson,
+    Object.hashAll(responseFields),
+    responseJson,
+    Object.hashAll(requestWarnings),
+    Object.hashAll(responseWarnings),
+  );
 
   static bool _listEq(List<FieldSpec> a, List<FieldSpec> b) {
     if (a.length != b.length) return false;

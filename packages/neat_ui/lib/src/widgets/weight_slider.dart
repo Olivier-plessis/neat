@@ -19,7 +19,11 @@ class WeightSlider extends StatelessWidget {
           children: [
             const Text(
               'FONT WEIGHT',
-              style: TextStyle(color: Colors.white38, fontSize: 10, letterSpacing: 1.0),
+              style: TextStyle(
+                color: Colors.white38,
+                fontSize: 10,
+                letterSpacing: 1.0,
+              ),
             ),
             Text(
               'w$value',

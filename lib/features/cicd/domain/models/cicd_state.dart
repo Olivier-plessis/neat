@@ -29,7 +29,10 @@ abstract class CicdState with _$CicdState {
   bool isSelected(CiTool tool) => selectedTools.contains(tool);
 
   bool get hasCiRunner => selectedTools.any(
-    (t) => t == CiTool.githubActions || t == CiTool.gitlabCi || t == CiTool.codemagic,
+    (t) =>
+        t == CiTool.githubActions ||
+        t == CiTool.gitlabCi ||
+        t == CiTool.codemagic,
   );
 
   bool get hasSentryDelivery => selectedTools.any((t) => t == CiTool.sentry);

@@ -69,8 +69,11 @@ class EndpointsEditor extends StatelessWidget {
             },
             onRequestReset: () => _update(
               i,
-              (e) =>
-                  e.copyWith(requestJson: '', requestFields: const [], requestWarnings: const []),
+              (e) => e.copyWith(
+                requestJson: '',
+                requestFields: const [],
+                requestWarnings: const [],
+              ),
             ),
             onRequestAddField: () => _update(i, (e) {
               final used = e.requestFields.map((f) => f.dartName).toSet();
@@ -98,17 +101,28 @@ class EndpointsEditor extends StatelessWidget {
             onRequestType: (fi, v) => _update(
               i,
               (e) => e.copyWith(
-                requestFields: editField(e.requestFields, fi, (f) => f.copyWith(dartType: v)),
+                requestFields: editField(
+                  e.requestFields,
+                  fi,
+                  (f) => f.copyWith(dartType: v),
+                ),
               ),
             ),
             onRequestNullable: (fi, v) => _update(
               i,
               (e) => e.copyWith(
-                requestFields: editField(e.requestFields, fi, (f) => f.copyWith(nullable: v)),
+                requestFields: editField(
+                  e.requestFields,
+                  fi,
+                  (f) => f.copyWith(nullable: v),
+                ),
               ),
             ),
-            onRequestRemove: (fi) =>
-                _update(i, (e) => e.copyWith(requestFields: [...e.requestFields]..removeAt(fi))),
+            onRequestRemove: (fi) => _update(
+              i,
+              (e) =>
+                  e.copyWith(requestFields: [...e.requestFields]..removeAt(fi)),
+            ),
             onRequestChildrenChanged: (fi, children) => _update(
               i,
               (e) => e.copyWith(
@@ -116,7 +130,9 @@ class EndpointsEditor extends StatelessWidget {
                   e.requestFields,
                   fi,
                   (f) => f.kind == FieldKind.list
-                      ? f.copyWith(element: f.element!.copyWith(children: children))
+                      ? f.copyWith(
+                          element: f.element!.copyWith(children: children),
+                        )
                       : f.copyWith(children: children),
                 ),
               ),
@@ -177,17 +193,29 @@ class EndpointsEditor extends StatelessWidget {
             onResponseType: (fi, v) => _update(
               i,
               (e) => e.copyWith(
-                responseFields: editField(e.responseFields, fi, (f) => f.copyWith(dartType: v)),
+                responseFields: editField(
+                  e.responseFields,
+                  fi,
+                  (f) => f.copyWith(dartType: v),
+                ),
               ),
             ),
             onResponseNullable: (fi, v) => _update(
               i,
               (e) => e.copyWith(
-                responseFields: editField(e.responseFields, fi, (f) => f.copyWith(nullable: v)),
+                responseFields: editField(
+                  e.responseFields,
+                  fi,
+                  (f) => f.copyWith(nullable: v),
+                ),
               ),
             ),
-            onResponseRemove: (fi) =>
-                _update(i, (e) => e.copyWith(responseFields: [...e.responseFields]..removeAt(fi))),
+            onResponseRemove: (fi) => _update(
+              i,
+              (e) => e.copyWith(
+                responseFields: [...e.responseFields]..removeAt(fi),
+              ),
+            ),
             onResponseChildrenChanged: (fi, children) => _update(
               i,
               (e) => e.copyWith(
@@ -195,7 +223,9 @@ class EndpointsEditor extends StatelessWidget {
                   e.responseFields,
                   fi,
                   (f) => f.kind == FieldKind.list
-                      ? f.copyWith(element: f.element!.copyWith(children: children))
+                      ? f.copyWith(
+                          element: f.element!.copyWith(children: children),
+                        )
                       : f.copyWith(children: children),
                 ),
               ),
@@ -301,7 +331,8 @@ class _EndpointRow extends HookWidget {
         child: Theme(
           data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
           child: ExpansionTile(
-            initiallyExpanded: endpoint.name.startsWith('endpoint') && endpoint.path.isEmpty,
+            initiallyExpanded:
+                endpoint.name.startsWith('endpoint') && endpoint.path.isEmpty,
             title: Row(
               children: [
                 Expanded(
@@ -322,11 +353,19 @@ class _EndpointRow extends HookWidget {
                       value: endpoint.method,
                       isDense: true,
                       dropdownColor: context.neatColors.colorSurfaceCard,
-                      style: TextStyle(color: context.neatColors.colorPrimaryCyan, fontSize: 12),
-                      onChanged: enabled ? (m) => onMethod(m ?? HttpMethod.get) : null,
+                      style: TextStyle(
+                        color: context.neatColors.colorPrimaryCyan,
+                        fontSize: 12,
+                      ),
+                      onChanged: enabled
+                          ? (m) => onMethod(m ?? HttpMethod.get)
+                          : null,
                       items: HttpMethod.values
                           .map(
-                            (m) => DropdownMenuItem(value: m, child: Text(m.name.toUpperCase())),
+                            (m) => DropdownMenuItem(
+                              value: m,
+                              child: Text(m.name.toUpperCase()),
+                            ),
                           )
                           .toList(),
                     ),
@@ -345,7 +384,11 @@ class _EndpointRow extends HookWidget {
                 ),
                 IconButton(
                   onPressed: enabled ? onRemove : null,
-                  icon: const Icon(Icons.delete_outline, size: 18, color: Colors.white54),
+                  icon: const Icon(
+                    Icons.delete_outline,
+                    size: 18,
+                    color: Colors.white54,
+                  ),
                   tooltip: 'Remove endpoint',
                 ),
               ],

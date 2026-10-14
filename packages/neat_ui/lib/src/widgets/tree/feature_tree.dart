@@ -74,7 +74,9 @@ class FeatureTree extends StatelessWidget {
                     color: _lineColor(line),
                     fontSize: 12,
                     height: 1.6,
-                    fontWeight: line.startsWith('[✓✓]') ? FontWeight.bold : FontWeight.normal,
+                    fontWeight: line.startsWith('[✓✓]')
+                        ? FontWeight.bold
+                        : FontWeight.normal,
                   ),
                 );
               },
@@ -90,10 +92,16 @@ class FeatureTree extends StatelessWidget {
   // recoverable warning, [!]/[✗] failure — plus launch_screen's own synthetic
   // pre-generation lines ([OK]/[WARN]/neat@...).
   Color _lineColor(String line) {
-    if (line.startsWith('[✗') || line.startsWith('[!]')) return Colors.redAccent;
-    if (line.startsWith('[⚠') || line.startsWith('[WARN]')) return Colors.orangeAccent;
+    if (line.startsWith('[✗') || line.startsWith('[!]')) {
+      return Colors.redAccent;
+    }
+    if (line.startsWith('[⚠') || line.startsWith('[WARN]')) {
+      return Colors.orangeAccent;
+    }
     if (line.startsWith('[ℹ')) return Colors.lightBlueAccent[100]!;
-    if (line.startsWith('[✓') || line.startsWith('[OK]')) return const Color(0xFF4CAF50);
+    if (line.startsWith('[✓') || line.startsWith('[OK]')) {
+      return const Color(0xFF4CAF50);
+    }
     if (line.startsWith('[▶')) return Palette.colorPrimaryCyan;
     if (line.startsWith('neat@')) return Colors.grey;
     return const Color(0xFF9ECE6A);

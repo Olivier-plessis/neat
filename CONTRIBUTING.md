@@ -35,6 +35,22 @@ State models live in `domain/models` (freezed). Domain code never imports presen
 - Non-destructive edits to generated files use **anchors** (`// neat:route-entries`, etc.).
 - Keep new capabilities **gated** (visible but disabled) until the harness proves them.
 
+## Formatting
+
+The whole tree is `dart format`-clean (width 80, pinned in `analysis_options.yaml`) and the CI
+checks it (`dart format --output=none --set-exit-if-changed .`), like the CI of the projects NEAT
+generates. `.githooks/pre-push` runs the same check before a push:
+
+```bash
+git config core.hooksPath .githooks                       # once per clone
+git config blame.ignoreRevsFile .git-blame-ignore-revs    # optional: blame skips the format commit
+git push --no-verify                                      # skip the hook for one push
+```
+
+Format from the terminal (`dart format .`) or set your IDE's Dart line length to 80. In Android Studio
+that is Settings → Editor → Code Style → Dart (or the general hard wrap) — its own Reformat Code can
+otherwise produce a different layout than `dart format` and fail the CI.
+
 ## Scope
 
 See [ROADMAP.md](ROADMAP.md). We keep the stack opinionated (Riverpod + Bloc/Cubit only)

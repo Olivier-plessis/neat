@@ -1,7 +1,9 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:neat/features/architecture/domain/models/architecture_state.dart';
 import 'package:neat/features/generation/domain/services/i18n_importer.dart';
+import 'package:neat/features/generation/domain/services/templates/dart/_template_utils.dart';
 import 'package:neat/features/generation/domain/services/templates/dart/i18n_templates.dart';
 import 'package:neat/features/generation/domain/usecases/writers/generation_io.dart';
 
@@ -75,5 +77,67 @@ abstract final class I18nWriter {
       '$i18nLib/core/i18n/language_switcher.dart',
       I18nTemplates.languageSwitcher(packageName: i18nPackageName),
     );
+  }
+
+  /// Adds a feature's `title` / `empty` entries to an **existing** project's
+  /// slang sources (the Workshop), so the generated page can read
+  /// `context.t.<feature>.title` instead of hardcoding its strings. Returns
+  /// whether the keys are in place — false when there is nothing to add them to
+  /// (no `*.i18n.json`; or the project imported a compact CSV, whose keys NEAT
+  /// doesn't know, same as the launch-time sample page is skipped for a CSV).
+  ///
+  /// packageSplit: the sources live in the core package. An existing key is
+  /// left alone (the user may have translated it). Writes pretty-printed JSON
+  /// (2 spaces), the shape NEAT generates in the first place.
+  static Future<bool> addFeatureKeys({
+    required String projectPath,
+    required String featureName,
+    String? corePackageName,
+  }) async {
+    final dir = Directory(
+      corePackageName != null
+          ? '$projectPath/packages/$corePackageName/lib/i18n'
+          : '$projectPath/lib/i18n',
+    );
+    if (!dir.existsSync()) return false;
+    if (File('${dir.path}/strings.i18n.csv').existsSync()) return false;
+    final files = dir
+        .listSync()
+        .whereType<File>()
+        .where((f) => f.path.endsWith('.i18n.json'))
+        .toList();
+    if (files.isEmpty) return false;
+    final key = camel(featureName);
+    for (final file in files) {
+      final locale = file.uri.pathSegments.last.split('.').first;
+      final Object? decoded;
+      try {
+        decoded = jsonDecode(await file.readAsString());
+      } on FormatException {
+        return false; // hand-edited into something we can't safely rewrite
+      }
+      if (decoded is! Map<String, dynamic>) return false;
+      final entries = I18nTemplates.featureEntries(featureName, locale);
+      final existing = decoded[key];
+      if (existing == null) {
+        decoded[key] = entries;
+      } else if (existing is Map<String, dynamic>) {
+        // The key is already a group (hand-written, or a feature of that name):
+        // only fill in what the page reads, never overwrite a translation.
+        final missing = entries.keys
+            .where((k) => !existing.containsKey(k))
+            .toList();
+        if (missing.isEmpty) continue;
+        for (final k in missing) {
+          existing[k] = entries[k];
+        }
+      } else {
+        return false; // the key is a plain string — `context.t.$key.title` can't exist
+      }
+      await file.writeAsString(
+        '${const JsonEncoder.withIndent('  ').convert(decoded)}\n',
+      );
+    }
+    return true;
   }
 }

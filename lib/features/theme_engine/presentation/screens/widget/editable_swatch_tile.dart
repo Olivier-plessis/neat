@@ -21,7 +21,8 @@ class EditableSwatchTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isOverridden = currentOverride != null;
-    final onColor = ThemeData.estimateBrightnessForColor(color) == Brightness.dark
+    final onColor =
+        ThemeData.estimateBrightnessForColor(color) == Brightness.dark
         ? Colors.white
         : Colors.black;
 
@@ -63,7 +64,11 @@ class EditableSwatchTile extends StatelessWidget {
             Positioned(
               top: 6,
               right: 6,
-              child: Icon(Icons.edit, size: 10, color: onColor.withValues(alpha: 0.5)),
+              child: Icon(
+                Icons.edit,
+                size: 10,
+                color: onColor.withValues(alpha: 0.5),
+              ),
             ),
           ],
         ),

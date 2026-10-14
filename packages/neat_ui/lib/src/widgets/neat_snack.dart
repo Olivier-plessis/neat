@@ -7,7 +7,9 @@ void neatSnack(BuildContext context, String message, {bool success = true}) {
     ..showSnackBar(
       SnackBar(
         behavior: SnackBarBehavior.floating,
-        backgroundColor: success ? const Color(0xFF0E1A1A) : const Color(0xFF2A1A1A),
+        backgroundColor: success
+            ? const Color(0xFF0E1A1A)
+            : const Color(0xFF2A1A1A),
         duration: const Duration(seconds: 2),
         content: Row(
           mainAxisSize: .min,

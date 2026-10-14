@@ -28,18 +28,32 @@ class EndpointTemplates {
     // Collected together (not per-field-list) so a nested object name shared
     // between the request and response bodies (e.g. both carry a "Rating")
     // still dedupes into a single generated sub-class, not two.
-    final objects = collectObjectSpecs([...endpoint.requestFields, ...endpoint.responseFields]);
+    final objects = collectObjectSpecs([
+      ...endpoint.requestFields,
+      ...endpoint.responseFields,
+    ]);
 
     if (hasFreezed) {
       final blocks = <String>[
         if (endpoint.hasRequestBody)
-          _freezedModel('${p}Request', endpoint.requestFields, hasJsonSerializable),
+          _freezedModel(
+            '${p}Request',
+            endpoint.requestFields,
+            hasJsonSerializable,
+          ),
         if (endpoint.hasResponseBody)
-          _freezedModel('${p}Response', endpoint.responseFields, hasJsonSerializable),
-        for (final o in objects) _freezedModel(o.objectName, o.children, hasJsonSerializable),
+          _freezedModel(
+            '${p}Response',
+            endpoint.responseFields,
+            hasJsonSerializable,
+          ),
+        for (final o in objects)
+          _freezedModel(o.objectName, o.children, hasJsonSerializable),
       ];
       if (blocks.isEmpty) return '';
-      final partJson = hasJsonSerializable ? "\npart '${endpoint.name}_model.g.dart';" : '';
+      final partJson = hasJsonSerializable
+          ? "\npart '${endpoint.name}_model.g.dart';"
+          : '';
       return '''import 'package:freezed_annotation/freezed_annotation.dart';
 
 part '${endpoint.name}_model.freezed.dart';$partJson
@@ -49,8 +63,10 @@ ${blocks.join('\n\n')}
     }
 
     final blocks = <String>[
-      if (endpoint.hasRequestBody) _plainModel('${p}Request', endpoint.requestFields),
-      if (endpoint.hasResponseBody) _plainModel('${p}Response', endpoint.responseFields),
+      if (endpoint.hasRequestBody)
+        _plainModel('${p}Request', endpoint.requestFields),
+      if (endpoint.hasResponseBody)
+        _plainModel('${p}Response', endpoint.responseFields),
       for (final o in objects) _plainModel(o.objectName, o.children),
     ];
     if (blocks.isEmpty) return '';
@@ -60,11 +76,19 @@ ${blocks.join('\n\n')}
   /// One freezed model class with fromJson (when [hasJson]) — no
   /// fromEntity/toEntity mappers, unlike `DataTemplates._modelFreezed`: a
   /// request/response DTO has no domain Entity counterpart to map to/from.
-  static String _freezedModel(String base, List<FieldSpec> fields, bool hasJson) {
-    final params = fields.map((f) {
-      final ann = hasJson && f.needsJsonKey ? '    ${f.jsonKeyAnnotation}\n' : '';
-      return '$ann    ${f.nullable ? '' : 'required '}${f.modelType} ${f.dartName},';
-    }).join('\n');
+  static String _freezedModel(
+    String base,
+    List<FieldSpec> fields,
+    bool hasJson,
+  ) {
+    final params = fields
+        .map((f) {
+          final ann = hasJson && f.needsJsonKey
+              ? '    ${f.jsonKeyAnnotation}\n'
+              : '';
+          return '$ann    ${f.nullable ? '' : 'required '}${f.modelType} ${f.dartName},';
+        })
+        .join('\n');
     final fromJson = hasJson
         ? '\n  factory ${base}Model.fromJson(Map<String, dynamic> json) =>\n      _\$${base}ModelFromJson(json);\n'
         : '';
@@ -80,11 +104,21 @@ $fromJson}''';
   /// fromEntity/toEntity mappers (see [_freezedModel]'s doc for why).
   static String _plainModel(String base, List<FieldSpec> fields) {
     final ctorParams = fields
-        .map((f) => f.nullable ? '    this.${f.dartName},' : '    required this.${f.dartName},')
+        .map(
+          (f) => f.nullable
+              ? '    this.${f.dartName},'
+              : '    required this.${f.dartName},',
+        )
         .join('\n');
-    final decls = fields.map((f) => '  final ${f.modelType} ${f.dartName};').join('\n');
-    final fromJsonArgs = fields.map((f) => '    ${f.dartName}: ${f.fromJsonExpr()},').join('\n');
-    final toJsonEntries = fields.map((f) => "    '${f.jsonKey}': ${f.toJsonValue()},").join('\n');
+    final decls = fields
+        .map((f) => '  final ${f.modelType} ${f.dartName};')
+        .join('\n');
+    final fromJsonArgs = fields
+        .map((f) => '    ${f.dartName}: ${f.fromJsonExpr()},')
+        .join('\n');
+    final toJsonEntries = fields
+        .map((f) => "    '${f.jsonKey}': ${f.toJsonValue()},")
+        .join('\n');
     return '''class ${base}Model {
   const ${base}Model({
 $ctorParams
@@ -112,8 +146,12 @@ $toJsonEntries
   static String apiSourceMethod(EndpointSpec endpoint) {
     final verb = endpoint.method.name.toUpperCase();
     final p = pascal(endpoint.name);
-    final responseType = endpoint.hasResponseBody ? '${p}ResponseModel' : 'dynamic';
-    final params = endpoint.hasRequestBody ? '@Body() ${p}RequestModel body' : '';
+    final responseType = endpoint.hasResponseBody
+        ? '${p}ResponseModel'
+        : 'dynamic';
+    final params = endpoint.hasRequestBody
+        ? '@Body() ${p}RequestModel body'
+        : '';
     return '''  @$verb(path: '${endpoint.path}')
   Future<Response<$responseType>> ${endpoint.name}($params);''';
   }
@@ -137,23 +175,27 @@ $toJsonEntries
 
     final paramsType = hasReq ? '${p}RequestModel' : 'Unit';
     final resultType = hasRes ? '${p}ResponseModel' : 'Unit';
-    final baseClass = hasReq ? 'UseCase<$paramsType, $resultType>' : 'NoParamsUseCase<$resultType>';
+    final baseClass = hasReq
+        ? 'UseCase<$paramsType, $resultType>'
+        : 'NoParamsUseCase<$resultType>';
     final executeSig = hasReq
         ? 'Future<$resultType> execute($paramsType params) async'
         : 'Future<$resultType> execute(Unit _) async';
     final callArg = hasReq ? 'params' : '';
     final body = hasRes
         ? '    final response = await _api.${endpoint.name}($callArg);\n'
-            '    return unwrapChopperResponse(response);'
+              '    return unwrapChopperResponse(response);'
         : '    await _api.${endpoint.name}($callArg);\n'
-            '    return Unit.instance;';
+              '    return Unit.instance;';
 
     final imports = [
       // Only needed to unwrap a response — a bodyless call (no request, no
       // response) never calls unwrapChopperResponse.
-      if (hasRes) "import 'package:$corePkg/core/network/chopper_model_converter.dart';",
+      if (hasRes)
+        "import 'package:$corePkg/core/network/chopper_model_converter.dart';",
       "import 'package:$corePkg/core/usecases/use_case.dart';",
-      if (hasReq || hasRes) "import '../../data/models/${endpoint.name}_model.dart';",
+      if (hasReq || hasRes)
+        "import '../../data/models/${endpoint.name}_model.dart';",
       "import '../../data/sources/${featureName}_api_source.dart';",
     ].join('\n');
 

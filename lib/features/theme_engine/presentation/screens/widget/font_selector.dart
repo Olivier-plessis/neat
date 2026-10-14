@@ -43,7 +43,11 @@ class FontSelector extends StatelessWidget {
   final String value;
   final ValueChanged<String> onChanged;
 
-  void _apply(BuildContext context, String font, {TextEditingController? controller}) {
+  void _apply(
+    BuildContext context,
+    String font, {
+    TextEditingController? controller,
+  }) {
     final name = font.trim();
     if (name.isEmpty) return;
     try {
@@ -93,7 +97,8 @@ class FontSelector extends StatelessWidget {
                     hintText: 'Search a Google Font…',
                     hintStyle: TextStyle(color: Colors.white24, fontSize: 13),
                   ),
-                  onSubmitted: (v) => _apply(context, v, controller: controller),
+                  onSubmitted: (v) =>
+                      _apply(context, v, controller: controller),
                 ),
               ),
             ],
@@ -118,13 +123,20 @@ class FontSelector extends StatelessWidget {
                   return InkWell(
                     onTap: () => onSelected(f),
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 9,
+                      ),
                       child: Text(
                         f,
                         style: TextStyle(
-                          color: f == value ? Palette.colorPrimaryCyan : Colors.white70,
+                          color: f == value
+                              ? Palette.colorPrimaryCyan
+                              : Colors.white70,
                           fontSize: 13,
-                          fontWeight: f == value ? FontWeight.w600 : FontWeight.normal,
+                          fontWeight: f == value
+                              ? FontWeight.w600
+                              : FontWeight.normal,
                         ),
                       ),
                     ),

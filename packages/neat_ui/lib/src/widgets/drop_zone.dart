@@ -42,7 +42,9 @@ class _DropZoneState extends State<DropZone> {
         setState(() => _hovering = false);
         if (details.files.isEmpty) return;
         final path = details.files.first.path;
-        final ext = path.contains('.') ? path.split('.').last.toLowerCase() : '';
+        final ext = path.contains('.')
+            ? path.split('.').last.toLowerCase()
+            : '';
         if (!widget.allowedExtensions.contains(ext)) {
           widget.onRejected?.call();
           return;
@@ -53,7 +55,10 @@ class _DropZoneState extends State<DropZone> {
         duration: const Duration(milliseconds: 150),
         decoration: BoxDecoration(
           borderRadius: .circular(12),
-          border: .all(color: _hovering ? Palette.colorPrimaryCyan : Colors.transparent, width: 2),
+          border: .all(
+            color: _hovering ? Palette.colorPrimaryCyan : Colors.transparent,
+            width: 2,
+          ),
         ),
         child: widget.child,
       ),

@@ -19,13 +19,17 @@ class HubScreen extends ConsumerWidget {
     if (state.project != null) {
       ref.read(currentStepProvider.notifier).setStep(NeatStep.featureGen);
     } else if (state.error != null && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(state.error!)));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(state.error!)));
     }
   }
 
   Future<void> _browse(BuildContext context, WidgetRef ref) async {
     await FilePicker.skipEntitlementsChecks();
-    final path = await FilePicker.getDirectoryPath(dialogTitle: 'Open a NEAT project');
+    final path = await FilePicker.getDirectoryPath(
+      dialogTitle: 'Open a NEAT project',
+    );
     if (path != null && context.mounted) await _open(context, ref, path);
   }
 
@@ -65,8 +69,9 @@ class HubScreen extends ConsumerWidget {
                                   subtitle:
                                       'Generate a production-ready Flutter architecture from scratch.',
                                   button: 'Start Journey',
-                                  onTap: () =>
-                                      ref.read(currentStepProvider.notifier).startNewProject(),
+                                  onTap: () => ref
+                                      .read(currentStepProvider.notifier)
+                                      .startNewProject(),
                                 ),
                               ),
 
@@ -75,7 +80,8 @@ class HubScreen extends ConsumerWidget {
                                   icon: Icons.folder_open_outlined,
                                   accent: false,
                                   title: 'Open Existing Project',
-                                  subtitle: 'Browse and load a NEAT project into the Workshop.',
+                                  subtitle:
+                                      'Browse and load a NEAT project into the Workshop.',
                                   button: 'Browse Files',
                                   onTap: () => _browse(context, ref),
                                 ),
@@ -87,7 +93,11 @@ class HubScreen extends ConsumerWidget {
                         Row(
                           spacing: 8,
                           children: [
-                            const Icon(Icons.history, size: 18, color: Palette.colorPrimaryCyan),
+                            const Icon(
+                              Icons.history,
+                              size: 18,
+                              color: Palette.colorPrimaryCyan,
+                            ),
                             const Text(
                               'Recent Projects',
                               style: TextStyle(
@@ -100,7 +110,8 @@ class HubScreen extends ConsumerWidget {
                         ),
                         16.gapH,
                         switch (recents) {
-                          AsyncData(:final value) when value.isEmpty => const _EmptyRecents(),
+                          AsyncData(:final value) when value.isEmpty =>
+                            const _EmptyRecents(),
                           AsyncData(:final value) => Column(
                             children: [
                               for (final p in value)
@@ -109,14 +120,17 @@ class HubScreen extends ConsumerWidget {
                                   child: _RecentTile(
                                     project: p,
                                     onTap: () => _open(context, ref, p.path),
-                                    onRemove: () =>
-                                        ref.read(recentProjectsProvider.notifier).remove(p.path),
+                                    onRemove: () => ref
+                                        .read(recentProjectsProvider.notifier)
+                                        .remove(p.path),
                                   ),
                                 ),
                             ],
                           ),
                           AsyncError() => const _EmptyRecents(),
-                          _ => Center(child: CircularProgressIndicator()).paddedAll(24),
+                          _ => Center(
+                            child: CircularProgressIndicator(),
+                          ).paddedAll(24),
                         },
                         24.gapH,
                       ],
@@ -142,7 +156,9 @@ class _Header extends StatelessWidget {
       children: [
         RichText(
           text: TextSpan(
-            style: context.textTheme.displayMedium!.copyWith(color: context.neatColors.surface),
+            style: context.textTheme.displayMedium!.copyWith(
+              color: context.neatColors.surface,
+            ),
             children: [
               TextSpan(text: 'Welcome to '),
               TextSpan(
@@ -163,7 +179,11 @@ class _Header extends StatelessWidget {
 }
 
 class _RecentTile extends StatelessWidget {
-  const _RecentTile({required this.project, required this.onTap, required this.onRemove});
+  const _RecentTile({
+    required this.project,
+    required this.onTap,
+    required this.onRemove,
+  });
 
   final RecentProject project;
   final VoidCallback onTap;
@@ -191,7 +211,11 @@ class _RecentTile extends StatelessWidget {
                 color: context.neatColors.surface.withValues(alpha: 0.04),
                 borderRadius: .circular(8),
               ),
-              child: const Icon(Icons.terminal, size: 18, color: Colors.white60),
+              child: const Icon(
+                Icons.terminal,
+                size: 18,
+                color: Colors.white60,
+              ),
             ),
 
             Expanded(

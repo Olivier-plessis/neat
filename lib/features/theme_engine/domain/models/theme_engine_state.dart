@@ -15,8 +15,12 @@ final _flexSchemeNameRegex = RegExp(r'scheme:\s*FlexScheme\.(\w+)');
 /// Matches `FlexSubThemesData` radius fields — see
 /// [ThemeEngineState.filledButtonRadius]/[ThemeEngineState.outlinedButtonRadius].
 final _flexDefaultRadiusRegex = RegExp(r'defaultRadius:\s*(-?\d+(?:\.\d+)?)');
-final _flexFilledButtonRadiusRegex = RegExp(r'filledButtonRadius:\s*(-?\d+(?:\.\d+)?)');
-final _flexOutlinedButtonRadiusRegex = RegExp(r'outlinedButtonRadius:\s*(-?\d+(?:\.\d+)?)');
+final _flexFilledButtonRadiusRegex = RegExp(
+  r'filledButtonRadius:\s*(-?\d+(?:\.\d+)?)',
+);
+final _flexOutlinedButtonRadiusRegex = RegExp(
+  r'outlinedButtonRadius:\s*(-?\d+(?:\.\d+)?)',
+);
 
 // ── Design-system components (opt-in, generated into lib/components/) ─────────
 
@@ -98,7 +102,9 @@ enum TextStyleKey {
 
   String get previewText => switch (this) {
     displayLarge || displayMedium || displaySmall => 'The quick brown fox',
-    headlineLarge || headlineMedium || headlineSmall => 'The quick brown fox jumps',
+    headlineLarge ||
+    headlineMedium ||
+    headlineSmall => 'The quick brown fox jumps',
     titleLarge || titleMedium || titleSmall => 'Section Title',
     bodyLarge || bodyMedium =>
       'The quick brown fox jumps over the lazy dog. '
@@ -164,14 +170,22 @@ const Map<TextStyleKey, TextStyleConfig> kM3Defaults = {
     letterSpacing: 0,
     height: 1.27,
   ),
-  TextStyleKey.titleMedium: TextStyleConfig(fontSize: 16, fontWeight: 500, letterSpacing: 0.15),
+  TextStyleKey.titleMedium: TextStyleConfig(
+    fontSize: 16,
+    fontWeight: 500,
+    letterSpacing: 0.15,
+  ),
   TextStyleKey.titleSmall: TextStyleConfig(
     fontSize: 14,
     fontWeight: 500,
     letterSpacing: 0.1,
     height: 1.43,
   ),
-  TextStyleKey.bodyLarge: TextStyleConfig(fontSize: 16, fontWeight: 400, letterSpacing: 0.5),
+  TextStyleKey.bodyLarge: TextStyleConfig(
+    fontSize: 16,
+    fontWeight: 400,
+    letterSpacing: 0.5,
+  ),
   TextStyleKey.bodyMedium: TextStyleConfig(
     fontSize: 14,
     fontWeight: 400,
@@ -221,7 +235,11 @@ abstract class ButtonConfig with _$ButtonConfig {
 
 const kDefaultElevated = ButtonConfig(hPadding: 24, vPadding: 12, elevation: 4);
 const kDefaultFilled = ButtonConfig(hPadding: 24, vPadding: 12, elevation: 0);
-const kDefaultOutlined = ButtonConfig(hPadding: 24, vPadding: 12, strokeWidth: 1.5);
+const kDefaultOutlined = ButtonConfig(
+  hPadding: 24,
+  vPadding: 12,
+  strokeWidth: 1.5,
+);
 const kDefaultText = ButtonConfig(hPadding: 16, vPadding: 8);
 
 // ── Main state ────────────────────────────────────────────────────────────────
@@ -295,7 +313,8 @@ abstract class ThemeEngineState with _$ThemeEngineState {
   // ── Helpers ───────────────────────────────────────────────────────────────
 
   /// Effective border radius for a button: override if set, else global.
-  double effectiveRadius(ButtonConfig btn) => btn.radiusOverride ?? containerRadius;
+  double effectiveRadius(ButtonConfig btn) =>
+      btn.radiusOverride ?? containerRadius;
 
   /// Filled/outlined button radius shown in the Live Preview. Custom M3 uses
   /// [effectiveRadius] as usual; FlexColorScheme instead best-effort-parses
@@ -329,9 +348,15 @@ abstract class ThemeEngineState with _$ThemeEngineState {
 
   ColorScheme get darkScheme => approach == ThemeApproach.flexColorScheme
       ? _flexScheme(Brightness.dark)
-      : _applyOverrides(ColorScheme.fromSeed(seedColor: seedColor, brightness: Brightness.dark));
+      : _applyOverrides(
+          ColorScheme.fromSeed(
+            seedColor: seedColor,
+            brightness: Brightness.dark,
+          ),
+        );
 
-  ColorScheme get activeScheme => defaultBrightness == Brightness.dark ? darkScheme : lightScheme;
+  ColorScheme get activeScheme =>
+      defaultBrightness == Brightness.dark ? darkScheme : lightScheme;
 
   /// Best-effort Live Preview for a pasted FlexColorScheme export: only
   /// recognizes the named-scheme form (`scheme: FlexScheme.xxx`, what the
@@ -392,7 +417,8 @@ abstract class ThemeEngineState with _$ThemeEngineState {
 
   String? get primaryContainerOverrideHex => _hex(primaryContainerOverride);
 
-  String? get surfaceContainerHighestOverrideHex => _hex(surfaceContainerHighestOverride);
+  String? get surfaceContainerHighestOverrideHex =>
+      _hex(surfaceContainerHighestOverride);
 
   String? get onPrimaryOverrideHex => _hex(onPrimaryOverride);
 

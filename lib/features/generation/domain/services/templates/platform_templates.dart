@@ -40,15 +40,20 @@ class PlatformTemplates {
 </manifest>
 ''';
 
-  static String androidMainActivity({required String org, required String name}) =>
-      '''package $org.$name
+  static String androidMainActivity({
+    required String org,
+    required String name,
+  }) => '''package $org.$name
 
 import io.flutter.embedding.android.FlutterActivity
 
 class MainActivity: FlutterActivity()
 ''';
 
-  static String androidBuildGradle({required String org, required String name}) =>
+  static String androidBuildGradle({
+    required String org,
+    required String name,
+  }) =>
       '''plugins {
     id "com.android.application"
     id "kotlin-android"
@@ -128,7 +133,8 @@ include ":app"
 android.useAndroidX=true
 ''';
 
-  static String androidLocalProperties() => '''flutter.sdk=/usr/local/bin/flutter
+  static String androidLocalProperties() =>
+      '''flutter.sdk=/usr/local/bin/flutter
 flutter.buildMode=debug
 flutter.versionName=1.0.0
 flutter.versionCode=1
@@ -203,7 +209,8 @@ import UIKit
 </plist>
 ''';
 
-  static String iosPodfile({required String org, required String name}) => '''platform :ios, '12.0'
+  static String iosPodfile({required String org, required String name}) =>
+      '''platform :ios, '12.0'
 
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
 
@@ -376,7 +383,8 @@ class MainFlutterWindow: NSWindow {
 </plist>
 ''';
 
-  static String macosDebugEntitlements() => '''<?xml version="1.0" encoding="UTF-8"?>
+  static String macosDebugEntitlements() =>
+      '''<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
@@ -392,7 +400,8 @@ class MainFlutterWindow: NSWindow {
 </plist>
 ''';
 
-  static String macosReleaseEntitlements() => '''<?xml version="1.0" encoding="UTF-8"?>
+  static String macosReleaseEntitlements() =>
+      '''<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>

@@ -40,7 +40,9 @@ class LaunchController extends _$LaunchController {
   }) async {
     // Shared with main_layout, which locks the Back button while this is true.
     ref.read(isGeneratingProvider.notifier).set(true);
-    state = LaunchState(logs: ['neat@shell:~\$ generate --project ${identity.name}', '']);
+    state = LaunchState(
+      logs: ['neat@shell:~\$ generate --project ${identity.name}', ''],
+    );
     final collected = List<String>.from(state.logs);
 
     try {
@@ -59,10 +61,16 @@ class LaunchController extends _$LaunchController {
       // Surface the freshly generated project in the Hub's recent list.
       await ref
           .read(recentProjectsProvider.notifier)
-          .register(path: '${identity.projectPath}/${identity.name}', name: identity.name);
+          .register(
+            path: '${identity.projectPath}/${identity.name}',
+            name: identity.name,
+          );
     } catch (e) {
       collected.add('[✗] Generation failed: $e');
-      state = state.copyWith(error: e.toString(), logs: List.unmodifiable(collected));
+      state = state.copyWith(
+        error: e.toString(),
+        logs: List.unmodifiable(collected),
+      );
     } finally {
       ref.read(isGeneratingProvider.notifier).set(false);
     }

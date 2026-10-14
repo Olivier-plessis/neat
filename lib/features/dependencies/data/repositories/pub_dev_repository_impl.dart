@@ -21,7 +21,9 @@ class PubDevRepositoryImpl implements PubDevRepository {
 
     try {
       final searchResponse = await _datasource.searchPackages(query);
-      if (!searchResponse.isSuccessful || searchResponse.body == null) return [];
+      if (!searchResponse.isSuccessful || searchResponse.body == null) {
+        return [];
+      }
 
       final searchEntity = PubSearchResponseEntity.fromJson(
         searchResponse.body as Map<String, dynamic>,
@@ -34,7 +36,11 @@ class PubDevRepositoryImpl implements PubDevRepository {
 
       return packages.whereType<PubPackage>().toList();
     } catch (e, s) {
-      AppLogger.w('PubDevRepository.searchPackages failed', error: e, stackTrace: s);
+      AppLogger.w(
+        'PubDevRepository.searchPackages failed',
+        error: e,
+        stackTrace: s,
+      );
       return [];
     }
   }
@@ -49,7 +55,9 @@ class PubDevRepositoryImpl implements PubDevRepository {
       final detailResponse = results[0];
       final scoreResponse = results[1];
 
-      if (!detailResponse.isSuccessful || detailResponse.body == null) return null;
+      if (!detailResponse.isSuccessful || detailResponse.body == null) {
+        return null;
+      }
 
       final detail = PubPackageDetailEntity.fromJson(
         detailResponse.body as Map<String, dynamic>,

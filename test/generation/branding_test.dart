@@ -31,16 +31,24 @@ void main() {
       );
       expect(yaml, contains('flutter_launcher_icons:'));
       expect(yaml, contains('image_path: "assets/branding/logo.png"'));
-      expect(yaml, contains('adaptive_icon_foreground: "assets/branding/logo.png"'));
+      expect(
+        yaml,
+        contains('adaptive_icon_foreground: "assets/branding/logo.png"'),
+      );
       expect(yaml, contains('macos:'));
       expect(yaml, contains('web:'));
     });
 
     test('launcher icons config only generates for the selected platforms', () {
-      final yaml = CoreTemplates.launcherIconsConfig(platforms: const ['android', 'ios']);
+      final yaml = CoreTemplates.launcherIconsConfig(
+        platforms: const ['android', 'ios'],
+      );
       expect(yaml, contains('android: true'));
       expect(yaml, contains('ios: true'));
-      expect(yaml, contains('generate: false')); // web/macos/windows/linux all off
+      expect(
+        yaml,
+        contains('generate: false'),
+      ); // web/macos/windows/linux all off
     });
 
     test('native splash config has light + dark + android_12', () {

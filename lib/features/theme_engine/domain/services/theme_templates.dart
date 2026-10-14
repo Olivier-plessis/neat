@@ -89,9 +89,13 @@ class Palette {
       sb.writeln();
       sb.writeln('EdgeInsets get pAll => EdgeInsets.all(toDouble().sp);');
       sb.writeln();
-      sb.writeln('EdgeInsets get pH => EdgeInsets.symmetric(horizontal: toDouble().w);');
+      sb.writeln(
+        'EdgeInsets get pH => EdgeInsets.symmetric(horizontal: toDouble().w);',
+      );
       sb.writeln();
-      sb.writeln('EdgeInsets get pV => EdgeInsets.symmetric(vertical: toDouble().h);');
+      sb.writeln(
+        'EdgeInsets get pV => EdgeInsets.symmetric(vertical: toDouble().h);',
+      );
       sb.writeln();
       sb.writeln('double get p => toDouble().sp;');
     } else {
@@ -101,9 +105,13 @@ class Palette {
       sb.writeln();
       sb.writeln('EdgeInsets get pAll => EdgeInsets.all(toDouble());');
       sb.writeln();
-      sb.writeln('EdgeInsets get pH => EdgeInsets.symmetric(horizontal: toDouble());');
+      sb.writeln(
+        'EdgeInsets get pH => EdgeInsets.symmetric(horizontal: toDouble());',
+      );
       sb.writeln();
-      sb.writeln('EdgeInsets get pV => EdgeInsets.symmetric(vertical: toDouble());');
+      sb.writeln(
+        'EdgeInsets get pV => EdgeInsets.symmetric(vertical: toDouble());',
+      );
       sb.writeln();
       sb.writeln('double get p => toDouble();');
     }
@@ -114,7 +122,10 @@ class Palette {
 
   // ── typography/typography.dart ────────────────────────────────────────────
 
-  static String typographyBarrel({required String packageName, bool useScreenUtil = false}) {
+  static String typographyBarrel({
+    required String packageName,
+    bool useScreenUtil = false,
+  }) {
     final su = useScreenUtil
         ? "import 'package:flutter_screenutil/flutter_screenutil.dart';\n"
         : '';
@@ -774,15 +785,18 @@ class _AppTextFieldState extends State<AppTextField> {
   }) {
     final imports = <String>[
       "import 'package:flutter/material.dart';",
-      if (useScreenUtil) "import 'package:flutter_screenutil/flutter_screenutil.dart';",
+      if (useScreenUtil)
+        "import 'package:flutter_screenutil/flutter_screenutil.dart';",
       "import 'package:widgetbook/widgetbook.dart';",
       "import 'package:$packageName/core/theme/app_theme.dart';",
-      for (final c in components) "import 'package:$packageName/components/${c.fileName}';",
+      for (final c in components)
+        "import 'package:$packageName/components/${c.fileName}';",
     ].join('\n');
 
     final entries = components.map(_widgetbookEntry).join('\n');
 
-    final catalog = '''Widgetbook.material(
+    final catalog =
+        '''Widgetbook.material(
       addons: [
         ThemeAddon<ThemeData>(
           themes: [
@@ -1012,7 +1026,8 @@ $logo}
     bool forceFlex = false,
     bool useScreenUtil = false,
   }) {
-    final useFlex = forceFlex || theme.approach == ThemeApproach.flexColorScheme;
+    final useFlex =
+        forceFlex || theme.approach == ThemeApproach.flexColorScheme;
     if (useFlex) {
       return appThemeFlexColorScheme(
         packageName: packageName,
@@ -1043,7 +1058,8 @@ $logo}
       secondaryOverrideHex: theme.secondaryOverrideHex,
       tertiaryOverrideHex: theme.tertiaryOverrideHex,
       primaryContainerOverrideHex: theme.primaryContainerOverrideHex,
-      surfaceContainerHighestOverrideHex: theme.surfaceContainerHighestOverrideHex,
+      surfaceContainerHighestOverrideHex:
+          theme.surfaceContainerHighestOverrideHex,
       onPrimaryOverrideHex: theme.onPrimaryOverrideHex,
       onPrimaryContainerOverrideHex: theme.onPrimaryContainerOverrideHex,
       onSecondaryOverrideHex: theme.onSecondaryOverrideHex,
@@ -1134,20 +1150,28 @@ $logo}
     // overrode primary/secondary/tertiary in the Colors tab. Applied to both
     // brightnesses so the generated theme matches the live preview.
     final overrideEntries = [
-      if (primaryOverrideHex != null) '      primary: Color($primaryOverrideHex),',
-      if (secondaryOverrideHex != null) '      secondary: Color($secondaryOverrideHex),',
-      if (tertiaryOverrideHex != null) '      tertiary: Color($tertiaryOverrideHex),',
+      if (primaryOverrideHex != null)
+        '      primary: Color($primaryOverrideHex),',
+      if (secondaryOverrideHex != null)
+        '      secondary: Color($secondaryOverrideHex),',
+      if (tertiaryOverrideHex != null)
+        '      tertiary: Color($tertiaryOverrideHex),',
       if (primaryContainerOverrideHex != null)
         '      primaryContainer: Color($primaryContainerOverrideHex),',
       if (surfaceContainerHighestOverrideHex != null)
         '      surfaceContainerHighest: Color($surfaceContainerHighestOverrideHex),',
-      if (onPrimaryOverrideHex != null) '      onPrimary: Color($onPrimaryOverrideHex),',
+      if (onPrimaryOverrideHex != null)
+        '      onPrimary: Color($onPrimaryOverrideHex),',
       if (onPrimaryContainerOverrideHex != null)
         '      onPrimaryContainer: Color($onPrimaryContainerOverrideHex),',
-      if (onSecondaryOverrideHex != null) '      onSecondary: Color($onSecondaryOverrideHex),',
-      if (outlineOverrideHex != null) '      outline: Color($outlineOverrideHex),',
+      if (onSecondaryOverrideHex != null)
+        '      onSecondary: Color($onSecondaryOverrideHex),',
+      if (outlineOverrideHex != null)
+        '      outline: Color($outlineOverrideHex),',
     ].join('\n');
-    final schemeOverride = overrideEntries.isEmpty ? '' : '.copyWith(\n$overrideEntries\n    )';
+    final schemeOverride = overrideEntries.isEmpty
+        ? ''
+        : '.copyWith(\n$overrideEntries\n    )';
 
     return '''import 'package:flutter/material.dart';
 ${suImport}import 'package:$packageName/core/theme/constant/constant.dart';
@@ -1330,12 +1354,12 @@ $textThemeEntries
               '    scaffoldBackgroundColor: Palette.background,\n'
               '  );\n\n'
               '${dark != null ? '  static ThemeData get dark => ${_themeExpr(dark)}.copyWith(\n'
-                  '    textTheme: _textTheme,\n'
-                  '    extensions: const [AppColors.light],\n'
-                  '  );' : '  // Only a light config was pasted — dark is derived from it.\n'
-                  '  static ThemeData get dark => light.copyWith(\n'
-                  '    extensions: const [AppColors.light],\n'
-                  '  );'}'
+                        '    textTheme: _textTheme,\n'
+                        '    extensions: const [AppColors.light],\n'
+                        '  );' : '  // Only a light config was pasted — dark is derived from it.\n'
+                        '  static ThemeData get dark => light.copyWith(\n'
+                        '    extensions: const [AppColors.light],\n'
+                        '  );'}'
         : '  static ThemeData get light => FlexThemeData.light(\n'
               '    scheme: FlexScheme.materialBaseline,\n'
               '    subThemesData: const FlexSubThemesData(\n'
@@ -1550,8 +1574,14 @@ final class BrightnessDark extends BrightnessState {
   /// a pasted blob, plus whether it needs `.toTheme` appended (the older
   /// `FlexColorScheme.light(...)` API returns a config object, not a
   /// [ThemeData], unlike `FlexThemeData.light(...)`).
-  static ({String expr, bool needsToTheme})? _extractFlexCall(String code, String variant) {
-    for (final prefix in ['FlexThemeData.$variant(', 'FlexColorScheme.$variant(']) {
+  static ({String expr, bool needsToTheme})? _extractFlexCall(
+    String code,
+    String variant,
+  ) {
+    for (final prefix in [
+      'FlexThemeData.$variant(',
+      'FlexColorScheme.$variant(',
+    ]) {
       final callIdx = code.indexOf(prefix);
       if (callIdx == -1) continue;
       final openParen = callIdx + prefix.length - 1;

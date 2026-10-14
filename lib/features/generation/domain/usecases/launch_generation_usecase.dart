@@ -57,7 +57,8 @@ class LaunchGenerationUsecase {
     // since ThemeWriter writes it into its own directory instead. A locally
     // -scoped addition, not a mutation of identity.targetPlatforms itself:
     // isWeb (just below) must still reflect the user's own choice, not this.
-    final needsWidgetbookWeb = theme.generateWidgetbook && !theme.extractUiPackage;
+    final needsWidgetbookWeb =
+        theme.generateWidgetbook && !theme.extractUiPackage;
     final requestedPlatforms = {
       ...identity.targetPlatforms,
       if (needsWidgetbookWeb) 'web',
@@ -94,6 +95,17 @@ class LaunchGenerationUsecase {
       ConfigTemplates.fvmrc(flutterVersion: identity.flutterVersion),
     );
     onLog('[✓] .fvmrc written (Flutter ${identity.flutterVersion}).');
+
+    // 1c. analysis_options.yaml — `flutter create` wrote it; pin the formatter
+    // width so `dart format`, the generated CI and every IDE agree on it.
+    final analysisOptions = File('${projectDir.path}/analysis_options.yaml');
+    if (analysisOptions.existsSync()) {
+      await analysisOptions.writeAsString(
+        ConfigTemplates.withFormatterWidth(
+          await analysisOptions.readAsString(),
+        ),
+      );
+    }
 
     // Resolve feature flags from selected packages
     final hasRiverpod = packages.any((p) => p.name.contains('riverpod'));
@@ -379,7 +391,9 @@ class LaunchGenerationUsecase {
         // not generatable template text — see CoreTemplates.driftWebSetupDoc.
         await _write(
           '${projectDir.path}/docs/DRIFT_WEB_SETUP.md',
-          CoreTemplates.driftWebSetupDoc(localStoragePackage: localStoragePackage),
+          CoreTemplates.driftWebSetupDoc(
+            localStoragePackage: localStoragePackage,
+          ),
         );
       }
     }
@@ -436,6 +450,11 @@ class LaunchGenerationUsecase {
       addSlang: hasI18n,
       addOnboarding: hasOnboarding,
       addSentry: hasSentry,
+      addDriftForTests: hasSync,
+      // The first feature's entity gets a client-id `create` factory when sync
+      // is on; with core split off, that feature lives in its own package
+      // (which declares uuid itself) and the app doesn't import it.
+      addUuid: hasSync && corePackageName == null,
     );
     onLog('[✓] Dependencies added to pubspec.yaml.');
 
@@ -878,6 +897,7 @@ class LaunchGenerationUsecase {
         authPackageName: authPackageName,
         hasOnboarding: autoWireOnboarding,
         hasFirstFeature: architecture.generateFirstFeature,
+        hasLocalData: localStoragePackage != null,
       );
     }
 
@@ -927,6 +947,9 @@ class LaunchGenerationUsecase {
             httpClient: httpClient,
             hasGoRouterBuilder: hasGoRouterBuilder,
             localStoragePackage: localStoragePackage,
+            clientIds: hasSync && hasHttpClient,
+            sdkConstraint: PubspecWriter.projectSdkConstraint(projectDir.path),
+            uiPackage: uiPackage,
           ),
         );
       }
@@ -954,6 +977,8 @@ class LaunchGenerationUsecase {
         packageSplit: featurePackageName != null,
         corePackageName: corePackageName,
         i18n: hasI18nSample,
+        projectRoot: projectDir.path,
+        hasAuth: hasAuth,
       );
 
       // A feature isn't self-contained in its own folder — see

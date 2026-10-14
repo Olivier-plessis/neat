@@ -17,35 +17,81 @@ class GenerateYamlUsecase {
 
     if (state.isSelected(CiTool.githubActions)) {
       files.add(
-        GeneratedFile(filename: '.github/workflows/flutter.yml', content: _githubActions(state)),
+        GeneratedFile(
+          filename: '.github/workflows/flutter.yml',
+          content: _githubActions(state),
+        ),
       );
     }
     if (state.isSelected(CiTool.gitlabCi)) {
-      files.add(GeneratedFile(filename: '.gitlab-ci.yml', content: _gitlabCi(state)));
+      files.add(
+        GeneratedFile(filename: '.gitlab-ci.yml', content: _gitlabCi(state)),
+      );
     }
     if (state.isSelected(CiTool.codemagic)) {
-      files.add(GeneratedFile(filename: 'codemagic.yaml', content: _codemagic(state)));
+      files.add(
+        GeneratedFile(filename: 'codemagic.yaml', content: _codemagic(state)),
+      );
     }
     if (state.isSelected(CiTool.fastlane)) {
       // fastlane lives under android/ and ios/ — NOT the project root — and reads
       // every account-specific value from the environment (no secrets committed).
       files
-        ..add(GeneratedFile(
-            filename: 'android/fastlane/Fastfile', content: _androidFastfile(hasFlavors)))
-        ..add(GeneratedFile(filename: 'android/fastlane/Appfile', content: _androidAppfile()))
-        ..add(GeneratedFile(
-            filename: 'android/fastlane/.env.example', content: _androidFastlaneEnv()))
+        ..add(
+          GeneratedFile(
+            filename: 'android/fastlane/Fastfile',
+            content: _androidFastfile(hasFlavors),
+          ),
+        )
+        ..add(
+          GeneratedFile(
+            filename: 'android/fastlane/Appfile',
+            content: _androidAppfile(),
+          ),
+        )
+        ..add(
+          GeneratedFile(
+            filename: 'android/fastlane/.env.example',
+            content: _androidFastlaneEnv(),
+          ),
+        )
         ..add(GeneratedFile(filename: 'android/Gemfile', content: _gemfile()))
-        ..add(GeneratedFile(
-            filename: 'android/key.properties.example', content: _keyProperties()))
-        ..add(GeneratedFile(filename: 'ios/fastlane/Fastfile', content: _iosFastfile(hasFlavors)))
-        ..add(GeneratedFile(filename: 'ios/fastlane/Appfile', content: _iosAppfile()))
-        ..add(GeneratedFile(filename: 'ios/fastlane/Matchfile', content: _matchfile()))
-        ..add(GeneratedFile(filename: 'ios/fastlane/.env.example', content: _iosFastlaneEnv()))
+        ..add(
+          GeneratedFile(
+            filename: 'android/key.properties.example',
+            content: _keyProperties(),
+          ),
+        )
+        ..add(
+          GeneratedFile(
+            filename: 'ios/fastlane/Fastfile',
+            content: _iosFastfile(hasFlavors),
+          ),
+        )
+        ..add(
+          GeneratedFile(
+            filename: 'ios/fastlane/Appfile',
+            content: _iosAppfile(),
+          ),
+        )
+        ..add(
+          GeneratedFile(
+            filename: 'ios/fastlane/Matchfile',
+            content: _matchfile(),
+          ),
+        )
+        ..add(
+          GeneratedFile(
+            filename: 'ios/fastlane/.env.example',
+            content: _iosFastlaneEnv(),
+          ),
+        )
         ..add(GeneratedFile(filename: 'ios/Gemfile', content: _gemfile()));
     }
     if (state.isSelected(CiTool.shorebird)) {
-      files.add(GeneratedFile(filename: 'shorebird.yaml', content: _shorebird(state)));
+      files.add(
+        GeneratedFile(filename: 'shorebird.yaml', content: _shorebird(state)),
+      );
     }
 
     return files;
@@ -70,7 +116,7 @@ class GenerateYamlUsecase {
       buf.writeln('  quality:');
       buf.writeln('    runs-on: ubuntu-latest');
       buf.writeln('    steps:');
-      buf.writeln('      - uses: actions/checkout@v4');
+      buf.writeln('      - uses: actions/checkout@v5');
       buf.writeln('      - uses: subosito/flutter-action@v2');
       buf.writeln('        with:');
       buf.writeln("          channel: 'stable'");
@@ -86,21 +132,27 @@ class GenerateYamlUsecase {
     }
 
     if (state.autoDeploy) {
-      final needsClause = (state.runAnalyze || state.runTests) ? '\n    needs: quality' : '';
+      final needsClause = (state.runAnalyze || state.runTests)
+          ? '\n    needs: quality'
+          : '';
       buf.writeln();
       buf.writeln('  deploy:');
       buf.writeln('    runs-on: macos-latest$needsClause');
       buf.writeln("    if: startsWith(github.ref, 'refs/tags/v')");
       buf.writeln('    steps:');
-      buf.writeln('      - uses: actions/checkout@v4');
+      buf.writeln('      - uses: actions/checkout@v5');
       buf.writeln('      - uses: subosito/flutter-action@v2');
       if (state.isSelected(CiTool.shorebird)) {
         buf.writeln('      - uses: shorebirdtech/setup-shorebird@v1');
         buf.writeln('      - run: shorebird release android');
         buf.writeln('      - run: shorebird release ios');
       } else if (state.isSelected(CiTool.fastlane)) {
-        buf.writeln('      - run: cd ios && bundle install && bundle exec fastlane release');
-        buf.writeln('      - run: cd android && bundle install && bundle exec fastlane release');
+        buf.writeln(
+          '      - run: cd ios && bundle install && bundle exec fastlane release',
+        );
+        buf.writeln(
+          '      - run: cd android && bundle install && bundle exec fastlane release',
+        );
       }
     }
 
@@ -146,8 +198,12 @@ class GenerateYamlUsecase {
         buf.writeln('    - shorebird release android');
         buf.writeln('    - shorebird release ios');
       } else if (state.isSelected(CiTool.fastlane)) {
-        buf.writeln('    - cd ios && bundle install && bundle exec fastlane release');
-        buf.writeln('    - cd android && bundle install && bundle exec fastlane release');
+        buf.writeln(
+          '    - cd ios && bundle install && bundle exec fastlane release',
+        );
+        buf.writeln(
+          '    - cd android && bundle install && bundle exec fastlane release',
+        );
       }
     }
 
@@ -270,18 +326,21 @@ end
 ''';
   }
 
-  String _androidAppfile() => '''# Read from the environment — nothing project-specific is committed.
+  String _androidAppfile() =>
+      '''# Read from the environment — nothing project-specific is committed.
 json_key_file(ENV["PLAY_STORE_JSON_KEY_PATH"])
 package_name(ENV["ANDROID_PACKAGE_NAME_BASE"])
 ''';
 
-  String _iosAppfile() => '''# Read from the environment — nothing project-specific is committed.
+  String _iosAppfile() =>
+      '''# Read from the environment — nothing project-specific is committed.
 app_identifier(ENV["IOS_BUNDLE_ID"])
 apple_id(ENV["APPLE_ID"])
 team_id(ENV["APPLE_TEAM_ID"])
 ''';
 
-  String _matchfile() => '''# fastlane match — shared signing certificates/profiles in a private git repo.
+  String _matchfile() =>
+      '''# fastlane match — shared signing certificates/profiles in a private git repo.
 # See https://docs.fastlane.tools/actions/match/
 git_url(ENV["MATCH_GIT_URL"])
 storage_mode("git")
@@ -289,7 +348,8 @@ type("appstore")
 app_identifier(ENV["IOS_BUNDLE_ID"])
 ''';
 
-  String _androidFastlaneEnv() => '''# Copy to android/fastlane/.env and fill in (this file is git-ignored).
+  String _androidFastlaneEnv() =>
+      '''# Copy to android/fastlane/.env and fill in (this file is git-ignored).
 # Google Play service-account JSON key (absolute path).
 PLAY_STORE_JSON_KEY_PATH=
 # Base applicationId (prod). Flavors append .dev / .staging.
@@ -298,7 +358,8 @@ ANDROID_PACKAGE_NAME_BASE=com.example.app
 FLUTTER_CMD=flutter
 ''';
 
-  String _iosFastlaneEnv() => '''# Copy to ios/fastlane/.env and fill in (this file is git-ignored).
+  String _iosFastlaneEnv() =>
+      '''# Copy to ios/fastlane/.env and fill in (this file is git-ignored).
 IOS_BUNDLE_ID=com.example.app
 APPLE_ID=
 APPLE_TEAM_ID=
@@ -314,7 +375,8 @@ FLUTTER_CMD=flutter
 gem "fastlane", "~> 2.226"
 ''';
 
-  String _keyProperties() => '''# Copy to android/key.properties and fill in to enable release signing.
+  String _keyProperties() =>
+      '''# Copy to android/key.properties and fill in to enable release signing.
 # key.properties + keystores (*.jks/*.keystore) are git-ignored — never commit them.
 # https://flutter.dev/to/reference-keystore
 storePassword=

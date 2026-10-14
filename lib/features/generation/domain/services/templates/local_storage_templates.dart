@@ -105,9 +105,28 @@ ${featureTable(featureName, fields: fields)}
   /// class, rather than every feature's CRUD methods piling onto `AppDatabase`
   /// itself. `AppDatabase` registers it via `daos: [...]` and exposes it as
   /// `db.${camel(featureName)}Dao` (Drift's standard per-DAO accessor).
-  static String featureDaoFile(String featureName) {
+  ///
+  /// [cascadeFields]: the entity's required references to a parent feature
+  /// (`worksite_id`). The table has no foreign key, so deleting the parent
+  /// locally must delete these rows by hand: one `deleteBy<Field>` per field,
+  /// which the parent's local source calls (see ParentCleanup).
+  static String featureDaoFile(
+    String featureName, {
+    List<FieldSpec> cascadeFields = const [],
+  }) {
     final p = pascal(featureName);
     final acc = '${camel(featureName)}Rows';
+    final cascade = cascadeFields
+        .map(
+          (f) =>
+              '''
+
+  /// Removes the rows whose `${f.dartName}` is [value]: what deleting their
+  /// parent must do here, as this table has no foreign key.
+  Future<void> ${daoDeleteByReference(f)}(String value) =>
+      (delete($acc)..where((t) => t.${f.dartName}.equals(value))).go();''',
+        )
+        .join();
     return '''import 'package:drift/drift.dart';
 
 import '../database.dart';
@@ -134,10 +153,15 @@ class ${p}Dao extends DatabaseAccessor<AppDatabase> with _\$${p}DaoMixin {
       batch((b) => b.insertAllOnConflictUpdate($acc, rows));
 
   Future<void> delete$p(String id) =>
-      (delete($acc)..where((t) => t.id.equals(id))).go();
+      (delete($acc)..where((t) => t.id.equals(id))).go();$cascade
 }
 ''';
   }
+
+  /// The DAO method that deletes a child's rows by one of its parent
+  /// references (`worksiteId` → `deleteByWorksiteId`).
+  static String daoDeleteByReference(FieldSpec field) =>
+      'deleteBy${pascal(field.dartName)}';
 
   /// The Outbox queue's table definition as its own file
   /// (`lib/src/table/outbox_table.dart`) — same convention as
@@ -166,7 +190,9 @@ class OutboxEntries extends Table {
   /// The Outbox queue's dedicated DAO (`lib/src/dao/outbox_dao.dart`) — same
   /// one-table-one-file convention as [featureDaoFile]. `SyncService` and
   /// every offline-first local source reach it via `db.outboxDao`.
-  static String outboxDaoFile() => '''import 'package:drift/drift.dart';
+  static String outboxDaoFile() => '''import 'dart:convert';
+
+import 'package:drift/drift.dart';
 
 import '../database.dart';
 import '../table/outbox_table.dart';
@@ -203,6 +229,35 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _\$OutboxDaoMixin {
   Future<void> deleteOutbox(int id) =>
       (delete(outboxEntries)..where((t) => t.id.equals(id))).go();
 
+  /// Drops the queued writes of [resource] (the leading path of their endpoint,
+  /// like `SyncService`'s) whose JSON payload has [field] equal to [value] —
+  /// conflicting ones included. What deleting a parent must do for its
+  /// children: once the parent is gone from the server, their writes could
+  /// only fail on the foreign key, for ever.
+  Future<void> discardWrites({
+    required String resource,
+    required String field,
+    required String value,
+  }) async {
+    for (final entry in await select(outboxEntries).get()) {
+      final path = (Uri.tryParse(entry.endpoint)?.path ?? entry.endpoint)
+          .split('/')
+          .where((s) => s.isNotEmpty)
+          .join('/');
+      final payload = entry.payload;
+      if (payload == null ||
+          (path != resource && !path.startsWith('\$resource/'))) {
+        continue;
+      }
+      try {
+        final data = jsonDecode(payload);
+        if (data is Map && data[field] == value) await deleteOutbox(entry.id);
+      } on FormatException {
+        continue; // not ours to judge: leave it queued
+      }
+    }
+  }
+
   /// Bumps the retry counter and persists the next-attempt time (the backoff
   /// delay itself is computed by SyncService, not here).
   Future<void> incrementRetry(int id, {DateTime? nextRetryAt}) async {
@@ -216,6 +271,15 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _\$OutboxDaoMixin {
       ),
     );
   }
+
+  /// Gives a write that exhausted its retries a fresh start.
+  Future<void> resetRetries(int id) =>
+      (update(outboxEntries)..where((t) => t.id.equals(id))).write(
+        const OutboxEntriesCompanion(
+          retryCount: Value(0),
+          nextRetryAt: Value(null),
+        ),
+      );
 
   /// Flags an entry as conflicting — excluded from [pendingOutbox] until
   /// resolved.
@@ -320,6 +384,15 @@ class AppDatabase extends _\$AppDatabase {
 
   @override
   int get schemaVersion => 1;
+
+  /// Wipes every table (the Outbox included). Called on sign-out: this
+  /// database is shared by whoever uses the device, so the next account must
+  /// neither see the previous one's rows nor replay its pending writes.
+  Future<void> clearAll() => transaction(() async {
+        for (final table in allTables) {
+          await delete(table).go();
+        }
+      });
 
   // A table added later (Workshop feature-gen) bumps schemaVersion and
   // inserts its own `if (from < N) await m.createTable(...)` step here —

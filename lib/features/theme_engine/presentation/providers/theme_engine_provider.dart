@@ -31,12 +31,16 @@ class ThemeEngine extends _$ThemeEngine {
   // customM3-only) can't leak into an approach that doesn't have it.
   void setApproach(ThemeApproach approach) {
     state = state.copyWith(approach: approach);
-    ref.read(currentThemeEngineTabProvider.notifier).setTab(ThemeEngineTab.colors);
+    ref
+        .read(currentThemeEngineTabProvider.notifier)
+        .setTab(ThemeEngineTab.colors);
   }
 
   void resetApproach() {
     state = state.copyWith(approach: ThemeApproach.none);
-    ref.read(currentThemeEngineTabProvider.notifier).setTab(ThemeEngineTab.colors);
+    ref
+        .read(currentThemeEngineTabProvider.notifier)
+        .setTab(ThemeEngineTab.colors);
   }
 
   // Branding (logo → app icons + splash)
@@ -47,11 +51,14 @@ class ThemeEngine extends _$ThemeEngine {
 
   void setImagePath(String path) => state = state.copyWith(imagePath: path);
 
-  void setPrimaryOverride(Color? c) => state = state.copyWith(primaryOverride: c);
+  void setPrimaryOverride(Color? c) =>
+      state = state.copyWith(primaryOverride: c);
 
-  void setSecondaryOverride(Color? c) => state = state.copyWith(secondaryOverride: c);
+  void setSecondaryOverride(Color? c) =>
+      state = state.copyWith(secondaryOverride: c);
 
-  void setTertiaryOverride(Color? c) => state = state.copyWith(tertiaryOverride: c);
+  void setTertiaryOverride(Color? c) =>
+      state = state.copyWith(tertiaryOverride: c);
 
   void setPrimaryContainerOverride(Color? c) =>
       state = state.copyWith(primaryContainerOverride: c);
@@ -59,14 +66,17 @@ class ThemeEngine extends _$ThemeEngine {
   void setSurfaceContainerHighestOverride(Color? c) =>
       state = state.copyWith(surfaceContainerHighestOverride: c);
 
-  void setOnPrimaryOverride(Color? c) => state = state.copyWith(onPrimaryOverride: c);
+  void setOnPrimaryOverride(Color? c) =>
+      state = state.copyWith(onPrimaryOverride: c);
 
   void setOnPrimaryContainerOverride(Color? c) =>
       state = state.copyWith(onPrimaryContainerOverride: c);
 
-  void setOnSecondaryOverride(Color? c) => state = state.copyWith(onSecondaryOverride: c);
+  void setOnSecondaryOverride(Color? c) =>
+      state = state.copyWith(onSecondaryOverride: c);
 
-  void setOutlineOverride(Color? c) => state = state.copyWith(outlineOverride: c);
+  void setOutlineOverride(Color? c) =>
+      state = state.copyWith(outlineOverride: c);
 
   void clearColorOverrides() => state = state.copyWith(
     primaryOverride: null,
@@ -81,7 +91,8 @@ class ThemeEngine extends _$ThemeEngine {
   );
 
   // Global shape
-  void setContainerRadius(double v) => state = state.copyWith(containerRadius: v);
+  void setContainerRadius(double v) =>
+      state = state.copyWith(containerRadius: v);
 
   void setCardElevation(double v) => state = state.copyWith(cardElevation: v);
 
@@ -101,7 +112,9 @@ class ThemeEngine extends _$ThemeEngine {
 
   void addTextStyle(TextStyleKey key) {
     if (state.textStyles.containsKey(key)) return;
-    state = state.copyWith(textStyles: {...state.textStyles, key: kM3Defaults[key]!});
+    state = state.copyWith(
+      textStyles: {...state.textStyles, key: kM3Defaults[key]!},
+    );
   }
 
   /// Resets the whole typography section — the per-style map AND the font
@@ -114,29 +127,39 @@ class ThemeEngine extends _$ThemeEngine {
   );
 
   // Buttons
-  void setElevatedButton(ButtonConfig c) => state = state.copyWith(elevatedButton: c);
+  void setElevatedButton(ButtonConfig c) =>
+      state = state.copyWith(elevatedButton: c);
 
-  void setFilledButton(ButtonConfig c) => state = state.copyWith(filledButton: c);
+  void setFilledButton(ButtonConfig c) =>
+      state = state.copyWith(filledButton: c);
 
-  void setOutlinedButton(ButtonConfig c) => state = state.copyWith(outlinedButton: c);
+  void setOutlinedButton(ButtonConfig c) =>
+      state = state.copyWith(outlinedButton: c);
 
   void setTextButton(ButtonConfig c) => state = state.copyWith(textButton: c);
 
   void toggleComponent(AppComponent c, bool on) => state = state.copyWith(
-    components: on ? {...state.components, c} : state.components.where((x) => x != c).toSet(),
+    components: on
+        ? {...state.components, c}
+        : state.components.where((x) => x != c).toSet(),
   );
 
-  void setGenerateWidgetbook(bool v) => state = state.copyWith(generateWidgetbook: v);
+  void setGenerateWidgetbook(bool v) =>
+      state = state.copyWith(generateWidgetbook: v);
 
-  void setExtractUiPackage(bool v) => state = state.copyWith(extractUiPackage: v);
+  void setExtractUiPackage(bool v) =>
+      state = state.copyWith(extractUiPackage: v);
 
   void setAccentColor(Color c) => state = state.copyWith(accentColor: c);
 
-  void setDestructiveColor(Color c) => state = state.copyWith(destructiveColor: c);
+  void setDestructiveColor(Color c) =>
+      state = state.copyWith(destructiveColor: c);
 
   // FlexColorScheme
-  void setFlexColorSchemeCode(String? code) => state = state.copyWith(flexColorSchemeCode: code);
+  void setFlexColorSchemeCode(String? code) =>
+      state = state.copyWith(flexColorSchemeCode: code);
 
   // Preview
-  void setDefaultBrightness(Brightness b) => state = state.copyWith(defaultBrightness: b);
+  void setDefaultBrightness(Brightness b) =>
+      state = state.copyWith(defaultBrightness: b);
 }

@@ -19,7 +19,8 @@ class RecentProjectsStore {
   }
 
   /// Whether [path] still looks like a NEAT project (has a `.neat.json`).
-  static bool _stillExists(RecentProject p) => File('${p.path}/.neat.json').existsSync();
+  static bool _stillExists(RecentProject p) =>
+      File('${p.path}/.neat.json').existsSync();
 
   Future<List<RecentProject>> load() async {
     try {
@@ -57,7 +58,9 @@ class RecentProjectsStore {
       final file = await _file();
       await file.create(recursive: true);
       await file.writeAsString(
-        const JsonEncoder.withIndent('  ').convert(list.map((p) => p.toJson()).toList()),
+        const JsonEncoder.withIndent(
+          '  ',
+        ).convert(list.map((p) => p.toJson()).toList()),
       );
     } catch (_) {
       // ignore — the in-memory list still updates for the session.

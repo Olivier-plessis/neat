@@ -22,6 +22,7 @@ class EntityFieldsEditor extends StatefulWidget {
     required this.onNullable,
     required this.onRemove,
     required this.onChildrenChanged,
+    this.onEnumValues,
     this.json = '',
     this.warnings = const [],
     this.onInfer,
@@ -42,6 +43,12 @@ class EntityFieldsEditor extends StatefulWidget {
   final void Function(int index) onRemove;
   final void Function(int index, List<FieldSpec> children) onChildrenChanged;
 
+  /// Reports the values of the `enum` field at that index. Set → the type
+  /// dropdown offers `enum` (see [FieldKind.enumeration]) and an enum field
+  /// shows its values line; null → no enum type (custom-endpoint bodies have no
+  /// domain entity to hold one).
+  final void Function(int index, List<String> values)? onEnumValues;
+
   /// False for a nested (recursive) instance — the "paste JSON to infer"
   /// workflow only makes sense once, at the top level; the top level's own
   /// inference already produced these nested children.
@@ -52,7 +59,9 @@ class EntityFieldsEditor extends StatefulWidget {
 }
 
 class _EntityFieldsEditorState extends State<EntityFieldsEditor> {
-  late final TextEditingController _json = TextEditingController(text: widget.json);
+  late final TextEditingController _json = TextEditingController(
+    text: widget.json,
+  );
 
   @override
   void dispose() {
@@ -85,7 +94,8 @@ class _EntityFieldsEditorState extends State<EntityFieldsEditor> {
               minLines: 3,
               style: const TextStyle(color: Colors.white, fontSize: 12),
               decoration: InputDecoration(
-                hintText: '{ "id": 1, "title": "Tee", "price": 9.99, "created_at": "2024-01-31" }',
+                hintText:
+                    '{ "id": 1, "title": "Tee", "price": 9.99, "created_at": "2024-01-31" }',
                 hintStyle: TextStyle(color: Colors.grey[700], fontSize: 12),
                 isDense: true,
                 contentPadding: const EdgeInsets.all(12),
@@ -95,7 +105,9 @@ class _EntityFieldsEditorState extends State<EntityFieldsEditor> {
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: Palette.colorPrimaryCyan.withValues(alpha: 0.5)),
+                  borderSide: BorderSide(
+                    color: Palette.colorPrimaryCyan.withValues(alpha: 0.5),
+                  ),
                 ),
               ),
             ),
@@ -140,7 +152,11 @@ class _EntityFieldsEditorState extends State<EntityFieldsEditor> {
                 onType: (v) => widget.onType(i, v),
                 onNullable: (v) => widget.onNullable(i, v),
                 onRemove: field.isId ? null : () => widget.onRemove(i),
-                onChildrenChanged: (children) => widget.onChildrenChanged(i, children),
+                onChildrenChanged: (children) =>
+                    widget.onChildrenChanged(i, children),
+                onEnumValues: widget.onEnumValues == null
+                    ? null
+                    : (values) => widget.onEnumValues!(i, values),
               ),
             ),
           Align(
@@ -149,7 +165,9 @@ class _EntityFieldsEditorState extends State<EntityFieldsEditor> {
               onPressed: widget.onAddField,
               icon: const Icon(Icons.add, size: 16),
               label: const Text('Add field'),
-              style: TextButton.styleFrom(foregroundColor: Palette.colorPrimaryCyan),
+              style: TextButton.styleFrom(
+                foregroundColor: Palette.colorPrimaryCyan,
+              ),
             ),
           ),
           if (widget.showJsonSection && widget.warnings.isNotEmpty) ...[
@@ -160,10 +178,20 @@ class _EntityFieldsEditorState extends State<EntityFieldsEditor> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.info_outline, size: 13, color: Colors.amber[700]),
+                    Icon(
+                      Icons.info_outline,
+                      size: 13,
+                      color: Colors.amber[700],
+                    ),
                     const SizedBox(width: 6),
                     Expanded(
-                      child: Text(w, style: TextStyle(color: Colors.amber[200], fontSize: 11)),
+                      child: Text(
+                        w,
+                        style: TextStyle(
+                          color: Colors.amber[200],
+                          fontSize: 11,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -183,6 +211,7 @@ class _FieldRow extends StatefulWidget {
     required this.onNullable,
     required this.onRemove,
     required this.onChildrenChanged,
+    this.onEnumValues,
     super.key,
   });
 
@@ -192,13 +221,29 @@ class _FieldRow extends StatefulWidget {
   final ValueChanged<bool> onNullable;
   final VoidCallback? onRemove;
   final ValueChanged<List<FieldSpec>> onChildrenChanged;
+  final ValueChanged<List<String>>? onEnumValues;
 
   @override
   State<_FieldRow> createState() => _FieldRowState();
 }
 
 class _FieldRowState extends State<_FieldRow> {
-  late final TextEditingController _name = TextEditingController(text: widget.field.dartName);
+  late final TextEditingController _name = TextEditingController(
+    text: widget.field.dartName,
+  );
+  late final TextEditingController _enumValues = TextEditingController(
+    text: widget.field.enumValues.join(', '),
+  );
+
+  /// `a, b ,, a` → `[a, b]`: trimmed, no blanks, no duplicates (each is a
+  /// database text and a SQL CHECK entry, so order is kept, the first one is
+  /// the fallback).
+  static List<String> parseEnumValues(String text) => [
+    ...{
+      for (final v in text.split(','))
+        if (v.trim().isNotEmpty) v.trim(),
+    },
+  ];
 
   @override
   void didUpdateWidget(_FieldRow old) {
@@ -206,11 +251,18 @@ class _FieldRowState extends State<_FieldRow> {
     // Re-seed only on external changes (infer/reset/remove shift), never while
     // the user types (then the value already matches).
     if (widget.field.dartName != _name.text) _name.text = widget.field.dartName;
+    final shown = parseEnumValues(_enumValues.text);
+    final actual = widget.field.enumValues;
+    if (shown.length != actual.length ||
+        [for (final (i, v) in shown.indexed) v != actual[i]].contains(true)) {
+      _enumValues.text = actual.join(', ');
+    }
   }
 
   @override
   void dispose() {
     _name.dispose();
+    _enumValues.dispose();
     super.dispose();
   }
 
@@ -224,14 +276,19 @@ class _FieldRowState extends State<_FieldRow> {
             enabled: !locked,
             onChanged: widget.onName,
             style: const TextStyle(color: Colors.white, fontSize: 14),
-            decoration: const InputDecoration(isDense: true, border: InputBorder.none),
+            decoration: const InputDecoration(
+              isDense: true,
+              border: InputBorder.none,
+            ),
           ),
         ),
         if (locked)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
             decoration: BoxDecoration(
-              border: Border.all(color: Palette.colorPrimaryCyan.withValues(alpha: 0.5)),
+              border: Border.all(
+                color: Palette.colorPrimaryCyan.withValues(alpha: 0.5),
+              ),
               borderRadius: BorderRadius.circular(4),
             ),
             child: const Text(
@@ -246,25 +303,32 @@ class _FieldRowState extends State<_FieldRow> {
         const SizedBox(width: 10),
         SizedBox(
           width: 110,
-          child: field.isScalar
+          child: field.isScalar || field.isEnum
               ? DropdownButton<String>(
-                  value: field.dartType,
+                  value: field.typeLabel,
                   isDense: true,
                   isExpanded: true,
                   underline: const SizedBox.shrink(),
                   dropdownColor: const Color(0xFF1A1A1E),
                   style: const TextStyle(color: Colors.white, fontSize: 12),
-                  onChanged: locked ? null : (v) => v == null ? null : widget.onType(v),
+                  onChanged: locked
+                      ? null
+                      : (v) => v == null ? null : widget.onType(v),
                   items: [
                     for (final t in FieldSpec.supportedTypes)
-                      DropdownMenuItem(value: t, child: Text(t)),
+                      if (t != FieldSpec.enumTypeLabel ||
+                          widget.onEnumValues != null ||
+                          field.isEnum)
+                        DropdownMenuItem(value: t, child: Text(t)),
                   ],
                 )
               // Nested object/list fields aren't scalar-typed — their shape
               // comes from `children`/`element`, editable by expanding the
               // row (see build()) instead of a misleading dropdown here.
               : Text(
-                  field.kind == FieldKind.list ? 'List<${field.objectName}>' : field.objectName,
+                  field.kind == FieldKind.list
+                      ? 'List<${field.objectName}>'
+                      : field.objectName,
                   style: TextStyle(color: Colors.grey[500], fontSize: 11),
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -279,7 +343,10 @@ class _FieldRowState extends State<_FieldRow> {
               materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
               activeColor: Palette.colorPrimaryCyan,
             ),
-            Text('null?', style: TextStyle(color: Colors.grey[500], fontSize: 11)),
+            Text(
+              'null?',
+              style: TextStyle(color: Colors.grey[500], fontSize: 11),
+            ),
           ],
         ),
         SizedBox(
@@ -287,7 +354,11 @@ class _FieldRowState extends State<_FieldRow> {
           child: widget.onRemove == null
               ? null
               : IconButton(
-                  icon: const Icon(Icons.close, size: 15, color: Colors.white38),
+                  icon: const Icon(
+                    Icons.close,
+                    size: 15,
+                    color: Colors.white38,
+                  ),
                   onPressed: widget.onRemove,
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
@@ -308,7 +379,8 @@ class _FieldRowState extends State<_FieldRow> {
     // is on its element spec (`field.element!.children`).
     final nestedChildren = field.kind == FieldKind.object
         ? field.children
-        : (field.kind == FieldKind.list && field.element?.kind == FieldKind.object)
+        : (field.kind == FieldKind.list &&
+              field.element?.kind == FieldKind.object)
         ? field.element!.children
         : null;
 
@@ -320,7 +392,34 @@ class _FieldRowState extends State<_FieldRow> {
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: Colors.white10),
         ),
-        child: _titleRow(field, locked: locked),
+        child: field.isEnum && widget.onEnumValues != null
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _titleRow(field, locked: locked),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: _enumValues,
+                    onChanged: (v) => widget.onEnumValues!(parseEnumValues(v)),
+                    style: const TextStyle(color: Colors.white, fontSize: 12),
+                    decoration: InputDecoration(
+                      isDense: true,
+                      labelText: 'Values (database text, comma separated)',
+                      helperText:
+                          'The first value is the fallback for text this version does not know.',
+                      helperStyle: TextStyle(
+                        color: Colors.grey[600],
+                        fontSize: 10.5,
+                      ),
+                      labelStyle: TextStyle(
+                        color: Colors.grey[500],
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
+              )
+            : _titleRow(field, locked: locked),
       );
     }
 
@@ -334,7 +433,10 @@ class _FieldRowState extends State<_FieldRow> {
       for (var k = 1; used.contains(n); k++) {
         n = 'field$k';
       }
-      updateNestedChildren([...nestedChildren, FieldSpec(jsonKey: n, dartName: n)]);
+      updateNestedChildren([
+        ...nestedChildren,
+        FieldSpec(jsonKey: n, dartName: n),
+      ]);
     }
 
     return DecoratedBox(
@@ -361,21 +463,35 @@ class _FieldRowState extends State<_FieldRow> {
                 showJsonSection: false,
                 onAddField: addNestedField,
                 onName: (ci, v) => updateNestedChildren(
-                  editField(nestedChildren, ci, (f) => f.copyWith(dartName: v)),
+                  editField(nestedChildren, ci, (f) => renameField(f, v)),
                 ),
                 onType: (ci, v) => updateNestedChildren(
-                  editField(nestedChildren, ci, (f) => f.copyWith(dartType: v)),
+                  editField(nestedChildren, ci, (f) => f.withType(v)),
                 ),
                 onNullable: (ci, v) => updateNestedChildren(
                   editField(nestedChildren, ci, (f) => f.copyWith(nullable: v)),
                 ),
-                onRemove: (ci) => updateNestedChildren([...nestedChildren]..removeAt(ci)),
+                onEnumValues: widget.onEnumValues == null
+                    ? null
+                    : (ci, values) => updateNestedChildren(
+                        editField(
+                          nestedChildren,
+                          ci,
+                          (f) => f.copyWith(enumValues: values),
+                        ),
+                      ),
+                onRemove: (ci) =>
+                    updateNestedChildren([...nestedChildren]..removeAt(ci)),
                 onChildrenChanged: (ci, grandChildren) => updateNestedChildren(
                   editField(
                     nestedChildren,
                     ci,
                     (f) => f.kind == FieldKind.list
-                        ? f.copyWith(element: f.element!.copyWith(children: grandChildren))
+                        ? f.copyWith(
+                            element: f.element!.copyWith(
+                              children: grandChildren,
+                            ),
+                          )
                         : f.copyWith(children: grandChildren),
                   ),
                 ),
