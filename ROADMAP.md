@@ -1458,6 +1458,61 @@ Harness-proven: `pubspec_builder_test.dart` gained two cases (override present
   `supabase_flutter` / the database package in its `pubspec.yaml`. A "screen
   only" preset would drop all of it.
 
+### 5ae. A moved file no longer jams the Workshop's `build_runner` — found building archy
+
+> Generating archy's `expense` feature, the Workshop's log showed
+> `build_runner failed: InvalidOutputException: worksite|lib/domain/entities/worksite_category.dart —
+> Tried to delete from package not in the build. Packages in the build are: archy`.
+- **Cause.** `build_runner` keeps a graph of every file it has seen
+  (`.dart_tool/build/asset_graph.json`). archy had moved `WorksiteCategory` from the
+  `worksite` package to `core` by hand; the root's graph still listed the old
+  path, and the next run tried to delete that file's outputs in a package that is
+  not part of the root build. It fails on *every* run until the graph goes. The
+  Workshop only logs a failed pass and carries on, so the packages' own passes
+  (where the generated code lives) had run and nothing was lost — but the root
+  pass, which covers the app's own annotated files, stays broken.
+- **Fixed in archy** by deleting that one cache file and rebuilding (the graph is
+  only a cache).
+- **Fixed here.** `StaleBuildGraph` (`isCausedBy(stderr)`, `drop(dir)`): when a
+  `build_runner build` fails with exactly that signature, `GenerateFeatureUsecase`
+  deletes the directory's graph and runs the build once more, saying so in the
+  log. Any other failure is reported as before, with no retry.
+  Tests: `stale_build_graph_test.dart` (the real stderr, two unrelated failures
+  that must not match, the graph deleted and nothing else, no graph → no retry).
+- **Not covered.** The retry is in the Workshop (`GenerateFeatureUsecase`) only;
+  the first generation of a project has no graph to be stale.
+
+### 5af. Generating archy's `expense` — what held, what is still hand work
+
+> archy's `expense` (child of `worksite`, Supabase + Drift offline-first,
+> fields: `worksite_id`, `amount_cents`, `spent_on`, `merchant?`, `note?`) was
+> the first feature generated after §5aa–§5ac.
+- **Held, with no hand fix.** The sync order (`dependsOn: {'worksites'}`);
+  `worksite_id` as `uuid not null references public.worksites (id) on delete
+  cascade` plus its index in the migration; deleting a worksite on the device
+  removes its expenses (`deleteByWorksiteId`) and discards their queued writes
+  (`discardWrites`); the Drift schema bumped to v4 with its `createTable` step.
+- **Gap — a date-only field has no `date` column.** Every `DateTime` field
+  becomes `timestamptz` in the migration (`supabase_templates.dart`). `spent_on`
+  is a day, not a moment, so it was changed to `date` by hand, as the worksites'
+  dates were. A "date only" option on a `DateTime` field in the field editor
+  would write the `date` column; the Dart side can stay a `DateTime`.
+- **Gap — the child route sits beside the parent's detail route, so it is
+  unreachable.** The Workshop wrote `TypedGoRoute<ExpenseRoute>(path: 'expense')`
+  under the parent's list route, after `:id`: `/worksite/expense` is read as the
+  worksite whose id is "expense". The generated page also lists every expense,
+  not the worksite's. Same as archy's `task`, where the route and page were
+  removed by hand and replaced by `/worksite/:id/tasks/new` and
+  `…/:taskId/edit`. When the parent has a detail route with an id parameter, a
+  child should nest under it (`/worksite/:id/expense`) and the page take that id.
+- **Also by hand, not a gap to close.** `check (amount_cents > 0)`: the
+  generator only writes `CHECK`s for enum fields, and a per-field constraint
+  would be a larger feature than one line of SQL.
+- **Not a gap (corrected).** The table came out `expense`, not `expenses`. The
+  generator's default is `<name>s` and the Workshop's "Table name" field says
+  so ("Default: expenses"); the run used `expense`, so the field held that
+  value. Renamed by hand to match `worksites` / `tasks`.
+
 ### 6. Multiple architectures — later, with caution
 
 - The harness makes **every** architecture a ~3× maintenance cost (each must be proven).
