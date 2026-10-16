@@ -51,6 +51,26 @@ Format from the terminal (`dart format .`) or set your IDE's Dart line length to
 that is Settings → Editor → Code Style → Dart (or the general hard wrap) — its own Reformat Code can
 otherwise produce a different layout than `dart format` and fail the CI.
 
+## Releasing
+
+1. `develop` is pushed, its CI is green, and `CHANGELOG.md` has an entry for the new version.
+2. From a clean tree: `./bump_version.sh -v minor` (or `patch` / `major`). It bumps `pubspec.yaml`,
+   creates `releases/vX.Y.Z` and the tag `vX.Y.Z+<date>`, and pushes both.
+3. The tag starts `.github/workflows/release.yml`, which then:
+   - runs `flutter analyze`;
+   - opens a pull request from the release branch into `main` and into `develop` and merges each
+     one automatically (`develop` has no branch rule to wait for, so it is merged straight away);
+   - starts the CI on the release branch: a pull request opened by a workflow does not start it, and
+     `main` requires the `analyze-and-test` check (the heavy `generation` job is skipped, it already
+     ran on `develop`);
+   - publishes the GitHub Release.
+4. Back on your machine: `git checkout develop && git pull`.
+
+Two repository settings are required, once: **Settings → Actions → General → "Allow GitHub Actions to
+create and approve pull requests"**, and **Settings → General → Pull Requests → "Allow auto-merge"**.
+If the workflow fails after the tag was pushed, do not run the script again: fix the cause and re-run
+the failed job (or finish by hand: merge the two PRs, then `gh release create <tag> --generate-notes`).
+
 ## Scope
 
 See [ROADMAP.md](ROADMAP.md). We keep the stack opinionated (Riverpod + Bloc/Cubit only)

@@ -23,6 +23,28 @@ import 'package:neat/features/generation/domain/services/templates/supabase_temp
 class FeatureScaffolder {
   const FeatureScaffolder();
 
+  /// Whether a feature gets a local source — and so, with a Drift package, its
+  /// table and DAO. The one rule both this scaffolder and the Workshop's Drift
+  /// injection follow, so they cannot disagree again.
+  ///
+  /// A local source is written for the offline-first 3-source repository (a
+  /// remote, a local source, and a Drift package), or for a genuinely local-only
+  /// feature (no remote, Local Data Source explicitly on). **Remote off and
+  /// Local off is a feature with no data at all** — a plain screen — and gets
+  /// none: the Workshop used to keep its own older copy of this rule that forced
+  /// a Drift table, DAO and schema bump into existence for it, with nothing
+  /// referencing them (found adding archy's "history" tab). Custom-endpoints
+  /// features are remote-only by design and never get one.
+  static bool writesLocalSource({
+    required bool useCustomEndpoints,
+    required bool hasHttpClient,
+    required bool includeLocalSource,
+    required bool localIsDrift,
+  }) =>
+      !useCustomEndpoints &&
+      ((localIsDrift && hasHttpClient && includeLocalSource) ||
+          (!hasHttpClient && includeLocalSource));
+
   Future<void> writeFeature({
     required String lib,
     required String featureName,
@@ -162,9 +184,12 @@ class FeatureScaffolder {
     // Phase 2 scope) — force off regardless of what the caller passes, so a
     // stray includeLocalSource/localStoragePackage can't sneak in a local
     // source with nothing behind it.
-    final writeLocal =
-        !useCustomEndpoints &&
-        (offlineFirst || (!hasHttpClient && includeLocalSource));
+    final writeLocal = writesLocalSource(
+      useCustomEndpoints: useCustomEndpoints,
+      hasHttpClient: hasHttpClient,
+      includeLocalSource: includeLocalSource,
+      localIsDrift: localIsDrift,
+    );
     // No data source at all (both toggles off) → this is a pure
     // entity+presentation feature: skip domain/repositories, domain/usecases,
     // and the whole data/ layer entirely, since there'd be nothing behind

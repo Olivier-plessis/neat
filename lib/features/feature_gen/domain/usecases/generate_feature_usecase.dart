@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:neat/features/feature_gen/domain/models/feature_gen_options.dart';
 import 'package:neat/features/feature_gen/domain/models/loaded_project.dart';
 import 'package:neat/features/feature_gen/domain/services/project_constraints.dart';
+import 'package:neat/features/feature_gen/domain/services/stale_build_graph.dart';
 import 'package:neat/features/generation/domain/models/field_spec.dart';
 import 'package:neat/features/generation/domain/services/feature_scaffolder.dart';
 import 'package:neat/features/generation/domain/services/i18n_importer.dart';
@@ -168,11 +169,14 @@ class GenerateFeatureUsecase {
     final httpClient = options.useCustomEndpoints
         ? 'chopper'
         : (effHasHttp ? c.httpClient : '');
-    // A local-only feature (no remote) always keeps its local source. Custom
-    // endpoints are remote-only by design — never a local source.
-    final writeLocal =
-        !options.useCustomEndpoints &&
-        (options.includeLocalDataSource || !effHasHttp);
+    // The same rule as FeatureScaffolder (see writesLocalSource): no remote and
+    // no local source is a plain screen, with no table either.
+    final writeLocal = FeatureScaffolder.writesLocalSource(
+      useCustomEndpoints: options.useCustomEndpoints,
+      hasHttpClient: effHasHttp,
+      includeLocalSource: options.includeLocalDataSource,
+      localIsDrift: localStoragePackage != null,
+    );
     // Drift-backed local source → the feature needs a typed table injected.
     final needsDriftTable = localStoragePackage != null && writeLocal;
 
@@ -2292,17 +2296,30 @@ class GenerateFeatureUsecase {
     String dir,
     void Function(String) onLog,
   ) async {
+    Future<ProcessResult> build() => Process.run(
+      dart,
+      ['run', 'build_runner', 'build', '--delete-conflicting-outputs'],
+      workingDirectory: dir,
+      environment: {
+        ...Platform.environment,
+        'PATH':
+            '${Platform.environment['PATH']}:/usr/local/bin:/opt/homebrew/bin',
+      },
+    );
+
     try {
-      final result = await Process.run(
-        dart,
-        ['run', 'build_runner', 'build', '--delete-conflicting-outputs'],
-        workingDirectory: dir,
-        environment: {
-          ...Platform.environment,
-          'PATH':
-              '${Platform.environment['PATH']}:/usr/local/bin:/opt/homebrew/bin',
-        },
-      );
+      var result = await build();
+      // A file moved between packages leaves a stale entry in build_runner's
+      // cache that fails every run; drop the cache and try once more.
+      if (result.exitCode != 0 &&
+          StaleBuildGraph.isCausedBy(result.stderr.toString()) &&
+          StaleBuildGraph.drop(dir)) {
+        onLog(
+          "[▶] build_runner's cache remembers a file that has moved: "
+          'rebuilding it...',
+        );
+        result = await build();
+      }
       onLog(
         result.exitCode == 0
             ? '[✓] Code generated.'

@@ -246,4 +246,53 @@ void main() {
       expect(exists('domain/orders/entities/orders_entity.dart'), isFalse);
     },
   );
+
+  group('writesLocalSource — the one rule the scaffolder and the Workshop share', () {
+    bool rule({
+      bool custom = false,
+      bool remote = true,
+      bool local = true,
+      bool drift = true,
+    }) => FeatureScaffolder.writesLocalSource(
+      useCustomEndpoints: custom,
+      hasHttpClient: remote,
+      includeLocalSource: local,
+      localIsDrift: drift,
+    );
+
+    test(
+      'remote + local + Drift: the offline-first feature keeps its local source',
+      () {
+        expect(rule(), isTrue);
+      },
+    );
+
+    test('local only (no remote): a genuinely local feature keeps it', () {
+      expect(rule(remote: false), isTrue);
+      expect(rule(remote: false, drift: false), isTrue);
+    });
+
+    test('remote only: no local source, whatever the project stores', () {
+      expect(rule(local: false), isFalse);
+      expect(
+        rule(drift: false),
+        isFalse,
+        reason: 'remote-only storage has no Drift package',
+      );
+    });
+
+    test(
+      'remote off AND local off is a plain screen: no local source, so no table',
+      () {
+        // The Workshop used to force a Drift table, DAO and schema bump for it.
+        expect(rule(remote: false, local: false), isFalse);
+        expect(rule(remote: false, local: false, drift: false), isFalse);
+      },
+    );
+
+    test('custom endpoints never get one', () {
+      expect(rule(custom: true), isFalse);
+      expect(rule(custom: true, remote: false), isFalse);
+    });
+  });
 }
