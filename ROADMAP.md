@@ -1479,6 +1479,15 @@ Harness-proven: `pubspec_builder_test.dart` gained two cases (override present
   log. Any other failure is reported as before, with no retry.
   Tests: `stale_build_graph_test.dart` (the real stderr, two unrelated failures
   that must not match, the graph deleted and nothing else, no graph → no retry).
+- **Same failure, one package down (archy, 16 Oct.).** Replacing `Expense` by
+  `Purchase` deleted `expense_dao.dart` from the `archy_database` package; the
+  next build of `packages/worksite` then failed with the same signature
+  (`archy_database|lib/src/dao/expense_dao.g.dart … Packages in the build are:
+  worksite`), because *its* graph still listed the file. So a file removed from a
+  dependency package stales the graph of every package that depends on it, the
+  root's included. Not a new gap: `_runBuildRunner` is called per directory (the
+  root, then each package), so the retry above already drops and rebuilds each
+  graph separately. Done by hand in archy before that fix reached the running app.
 - **Not covered.** The retry is in the Workshop (`GenerateFeatureUsecase`) only;
   the first generation of a project has no graph to be stale.
 
