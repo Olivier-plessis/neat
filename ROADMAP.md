@@ -1522,6 +1522,64 @@ Harness-proven: `pubspec_builder_test.dart` gained two cases (override present
   so ("Default: expenses"); the run used `expense`, so the field held that
   value. Renamed by hand to match `worksites` / `tasks`.
 
+### 5ag. `UseCase.call` swallowed the cause of every error — found building archy
+
+> Saving a purchase failed in archy with a generic "could not save" and nothing
+> in the device log. The real error was a Drift `no such column: payment_method`
+> (a column just added to a table), and it was written nowhere.
+- **Cause.** `UseCase.call` is the only place that catches, by design:
+  `catch (e) { return Result.failure(NetworkErrorHandler.handle(e)); }`. `handle`
+  maps *any* exception to a `Failure` with a generic message; the technical cause
+  survives only in `Failure.originalError`, which nothing logs. A screen shows its
+  own wording for the `Failure`, so the cause reached neither the screen nor the log.
+- **Fixed in archy** (`packages/core/lib/core/usecases/use_case.dart`): `catch (e,
+  stackTrace)`, and `if (e is! Failure) AppLogger.e('$runtimeType failed',
+  error: e, stackTrace: stackTrace)` before the mapping. A `Failure` thrown on
+  purpose (a refused action, or `Result.getOrThrow()` on an offline-first read) is
+  a decision, not an accident: it is handed back as is and not logged. Test:
+  `test/core/usecases/use_case_test.dart`.
+- **Fixed here.**
+  - The generated project's `UseCase` (`CoreDartTemplates.coreUsecaseDart`): the
+    same catch, plus the `core/error/failure.dart` and `core/utils/app_logger.dart`
+    imports (sorted). Nothing else was needed: both files are written alongside
+    `use_case.dart` in every layout (the app's `lib/core/` when flat, the core
+    package's when `packageSplit`), and `packageName` is already the core
+    package's in the second case, so the one parameter covers both. The template
+    escapes `\$runtimeType` so it reaches the generated file as written.
+  - NEAT's own `lib/core/usecase/use_case.dart`: same change.
+- **Tests.**
+  - `error_handling_test.dart`: the generated text has the stack-trace catch, the
+    `AppLogger.e('$runtimeType failed', …)` call with `$runtimeType` unexpanded,
+    the `is! Failure` guard, the order guard → log → mapping with the log written
+    once, and sorted imports; the `packageSplit` variant (`demo_core`) points all
+    four imports at the core package and none at the app's name.
+  - `full_generation_integration_test.dart`: the flat project and the
+    `packageSplit` project each read their generated `use_case.dart` for the
+    guard, the log call and the `app_logger.dart` import (the second also checks
+    `app_logger.dart` exists in the core package). Both then go through that
+    test's own `flutter analyze`, which is what proves the imports resolve.
+  - `test/core/usecase/use_case_test.dart` (NEAT's own, same shape as archy's,
+    capturing what the logger prints with `ZoneSpecification(print:)`): success
+    logs nothing; a thrown exception gives a `Failure` that keeps `originalError`
+    and logs the use case's name and the message; a thrown `Failure` logs no
+    `<UseCase> failed` entry.
+- **Differs from archy, left as it is.** NEAT's own `NetworkErrorHandler.handle`
+  does not pass a `Failure` through, unlike the generated one (`if (error is
+  Failure) return error;`, for every HTTP client): it wraps anything in a generic
+  `Failure`, with the thrown one as `originalError`. So here a refusal is not
+  logged but is not handed back as is either, and the test checks `originalError`
+  where archy's checks `same`. It has no effect today (NEAT's two use cases only
+  fetch, nothing throws a `Failure` on purpose); passing it through in `handle`
+  is the one-line follow-up if one ever does. That handler already printed
+  `⛔ NetworkErrorHandler — …` with `debugPrint` in debug builds, so NEAT's own
+  gain is the stack trace and the release builds, not a log that did not exist.
+- **Not covered.**
+  - A project generated before this keeps the old `UseCase` (written once, not
+    healed): copy the catch from a freshly generated project, or from archy.
+  - `AppLogger.e` has a `TODO` for crash reporting in NEAT's own logger (the
+    generated one has none): where a project wires Sentry or Crashlytics there,
+    this catch is the one place that feeds it every unexpected use case error.
+
 ### 6. Multiple architectures — later, with caution
 
 - The harness makes **every** architecture a ~3× maintenance cost (each must be proven).

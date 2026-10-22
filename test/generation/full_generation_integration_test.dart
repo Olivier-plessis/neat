@@ -229,6 +229,17 @@ void main() {
         reason: 'expected observability file missing: $relPath',
       );
     }
+    // UseCase.call logs the cause of an unexpected error (flat layout: Failure
+    // and AppLogger are the app's own — `flutter analyze` proves the imports).
+    final useCase = File(
+      '${projectDir.path}/lib/core/usecases/use_case.dart',
+    ).readAsStringSync();
+    expect(useCase, contains('if (e is! Failure) {'));
+    expect(useCase, contains('AppLogger.e('));
+    expect(
+      useCase,
+      contains("import 'package:$projectName/core/utils/app_logger.dart';"),
+    );
     // main delegates to bootstrap; bootstrap guards the zone + wires the observer.
     // ArchitectureState() defaults to a single `prod` env → collapses to the
     // unprefixed Env() (see the mono-env-by-default design).
@@ -1745,6 +1756,19 @@ void main() {
         contains(
           "import 'package:core/core/network/network_error_handler.dart';",
         ),
+      );
+      // The cause of an unexpected error is logged (a screen only shows a
+      // generic message); Failure and AppLogger live in this same core package,
+      // so `flutter analyze` below proves both imports resolve.
+      expect(useCase, contains('if (e is! Failure) {'));
+      expect(useCase, contains('AppLogger.e('));
+      expect(
+        useCase,
+        contains("import 'package:core/core/utils/app_logger.dart';"),
+      );
+      expect(
+        File('$coreRoot/lib/core/utils/app_logger.dart').existsSync(),
+        isTrue,
       );
 
       final errorHandler = read(

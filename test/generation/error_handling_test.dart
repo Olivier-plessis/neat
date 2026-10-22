@@ -49,6 +49,75 @@ void main() {
       },
     );
 
+    test('call() logs what it caught, with the stack trace — the screen only '
+        'gets a generic Failure, so the cause would be written nowhere', () {
+      expect(out, contains('} catch (e, stackTrace) {'));
+      expect(
+        out,
+        contains(
+          r"AppLogger.e('$runtimeType failed', error: e, stackTrace: stackTrace);",
+        ),
+        reason:
+            r'$runtimeType must reach the generated file as-is (the template '
+            'escapes it), not be interpolated by the generator',
+      );
+      expect(
+        out,
+        contains("import 'package:demo/core/utils/app_logger.dart';"),
+      );
+    });
+
+    test('a Failure thrown on purpose is not logged — only the unexpected, '
+        'and the log comes before the mapping', () {
+      expect(out, contains('if (e is! Failure) {'));
+      expect(out, contains("import 'package:demo/core/error/failure.dart';"));
+      final guard = out.indexOf('if (e is! Failure) {');
+      final log = out.indexOf('AppLogger.e(');
+      final mapping = out.indexOf('NetworkErrorHandler.handle(e)');
+      expect(guard, lessThan(log));
+      expect(log, lessThan(mapping));
+      expect(
+        'AppLogger.e('.allMatches(out).length,
+        1,
+        reason: 'the log is written once, not duplicated',
+      );
+    });
+
+    test('packageSplit: UseCase sits in the core package, which also holds '
+        'Failure and AppLogger — every import points there', () {
+      final split = CoreDartTemplates.coreUsecaseDart(packageName: 'demo_core');
+      expect(
+        split,
+        contains("import 'package:demo_core/core/error/failure.dart';"),
+      );
+      expect(
+        split,
+        contains("import 'package:demo_core/core/utils/app_logger.dart';"),
+      );
+      expect(
+        split,
+        contains(
+          "import 'package:demo_core/core/network/network_error_handler.dart';",
+        ),
+      );
+      expect(
+        split,
+        contains("import 'package:demo_core/core/result/result.dart';"),
+      );
+      expect(split, isNot(contains('package:demo/')));
+      expect(split, contains('if (e is! Failure) {'));
+      expect(split, contains('AppLogger.e('));
+    });
+
+    test('imports are sorted, as the generated project\'s lints expect', () {
+      final imports = RegExp(
+        "^import '(.+)';",
+        multiLine: true,
+      ).allMatches(out).map((m) => m.group(1)!).toList();
+      expect(imports, [...imports]..sort());
+      expect(imports, hasLength(4));
+    });
+
     test(
       'NoParamsUseCase is UseCase<Unit, T> — execute takes a Unit param',
       () {

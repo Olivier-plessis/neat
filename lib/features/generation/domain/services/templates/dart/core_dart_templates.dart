@@ -82,9 +82,19 @@ void main() {
   /// [NetworkErrorHandler] and returns a [Result]. Always invoke usecases via
   /// the callable shorthand (`usecase(params)`, i.e. `call`) — never
   /// `execute()` directly, which has no error handling of its own.
+  ///
+  /// `call` also **logs** what it caught (`AppLogger.e`, with the stack trace),
+  /// except a [Failure] thrown on purpose. A screen reduces the [Failure] to a
+  /// generic "could not save", and the real cause (a Drift "no such column", a
+  /// bad cast…) lives only in `Failure.originalError`, which nothing logs — so
+  /// without this it is written nowhere and cannot be read off the device log.
+  /// [packageName]: the app's own name, or the core package's when split
+  /// (Failure and AppLogger live next to UseCase either way).
   static String coreUsecaseDart({required String packageName}) =>
-      '''import 'package:$packageName/core/network/network_error_handler.dart';
+      '''import 'package:$packageName/core/error/failure.dart';
+import 'package:$packageName/core/network/network_error_handler.dart';
 import 'package:$packageName/core/result/result.dart';
+import 'package:$packageName/core/utils/app_logger.dart';
 
 abstract class UseCase<Params, T> {
   const UseCase();
@@ -94,7 +104,13 @@ abstract class UseCase<Params, T> {
   Future<Result<T>> call(Params params) async {
     try {
       return Result.success(await execute(params));
-    } catch (e) {
+    } catch (e, stackTrace) {
+      // Whatever goes wrong comes back as a Failure, which a screen reduces to
+      // "could not save": without this the cause would be written nowhere. A
+      // Failure thrown on purpose (a refused action) needs no stack trace.
+      if (e is! Failure) {
+        AppLogger.e('\$runtimeType failed', error: e, stackTrace: stackTrace);
+      }
       return Result.failure(NetworkErrorHandler.handle(e));
     }
   }
