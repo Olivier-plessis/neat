@@ -487,8 +487,47 @@ void main() {
       contains('Future<void> deleteByPersonId(String value) =>'),
     );
 
+    // §5ad: a plain screen (Remote and Local data sources both off) gets no
+    // Drift table, DAO, schema bump or migration — it used to get all four.
+    final dbSrc =
+        '${projectDir.path}/packages/neat_workshop_sync_test_database/lib/src';
+    String? schemaVersion() => RegExp(
+      r'schemaVersion => (\d+)',
+    ).firstMatch(File('$dbSrc/database.dart').readAsStringSync())?.group(1);
+    final schemaBefore = schemaVersion();
+    final migrationsBefore = Directory(
+      '${projectDir.path}/supabase/migrations',
+    ).listSync().length;
+    await const GenerateFeatureUsecase().execute(
+      project: (await const ProjectLoader().load(projectDir.path))!,
+      options: const FeatureGenOptions(
+        name: 'about',
+        includeRemoteDataSource: false,
+        includeLocalDataSource: false,
+        includeUseCase: false,
+      ),
+      onLog: logs.add,
+    );
+    expect(File('$dbSrc/table/about_table.dart').existsSync(), isFalse);
+    expect(File('$dbSrc/dao/about_dao.dart').existsSync(), isFalse);
+    expect(
+      schemaVersion(),
+      schemaBefore,
+      reason: 'no new table, so no schema bump',
+    );
+    expect(
+      Directory('${projectDir.path}/supabase/migrations').listSync().length,
+      migrationsBefore,
+    );
+    expect(
+      File(
+        '${projectDir.path}/packages/about/lib/presentation/pages/about_page.dart',
+      ).existsSync(),
+      isTrue,
+    );
+
     await expectCiGreen(projectDir);
-  }, timeout: const Timeout(Duration(minutes: 20)));
+  }, timeout: const Timeout(Duration(minutes: 22)));
 }
 
 PubPackage _dep(String name, String version) =>

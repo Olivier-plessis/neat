@@ -1405,6 +1405,114 @@ Harness-proven: `pubspec_builder_test.dart` gained two cases (override present
   `person_local_source.dart` and `deleteByPersonId` in the note DAO — the
   generated workspace then analyzes (exit 0) and passes its own tests.
 
+### 5ad. Adding archy's bottom navigation bar — one fix, and what the shell cannot do yet
+
+> archy needed an "Historique" screen and a bottom bar (home / history /
+> profile). The history is a *view* of the worksites already stored, so it was
+> generated through the Workshop as a **Shell Branch** with Remote and Local
+> Data Source (and UseCase) switched off: a plain screen. Two things came out.
+- **Fixed — a plain screen got a Drift table anyway.** With both data sources
+  off the Workshop still injected `HistoryRows` + `HistoryDao` into the
+  database package and bumped the schema (`createTable` migration step), with
+  nothing referencing them. Cause: two copies of the same rule. `FeatureScaffolder`
+  had already been corrected ("Remote off + Local off no longer forces a local
+  source"), but `GenerateFeatureUsecase.writeLocal` still said "a feature with no
+  remote always keeps its local source". The rule is now one function,
+  `FeatureScaffolder.writesLocalSource`, which both call. A plain screen gets no
+  table, no DAO, no schema bump and no migration.
+  Tests: `feature_scaffolder_options_test.dart` (truth table of the rule: offline-first,
+  local-only, remote-only, plain screen, custom endpoints) and a scenario of
+  `offline_sync_integration_test.dart` that generates a plain screen and asserts
+  the Drift package and `supabase/migrations/` are untouched, then analyzes and tests the workspace.
+- **Gap — the typed shell cannot adopt existing features.** The first Shell
+  Branch *creates* the shell, so a project whose home screen already exists
+  ends up with a bar holding **one** tab (the new branch), and the home outside
+  it. Putting the existing feature in the bar is impossible with the typed shell:
+  `@TypedStatefulShellRoute` branches can only list `@TypedGoRoute`s declared in
+  the shell's own library, while a split project's routes live in their package
+  (and that package navigates with its own route classes). archy wrote the shell
+  by hand instead — `lib/core/router/app_shell.dart`, a `StatefulShellRoute`
+  whose branches take the `$…Route` getters go_router_builder generates for each
+  package's route, each tab's route in its own library so `$appRoutes` does not
+  also list it; nested routes that must cover the bar declare
+  `$parentNavigatorKey = rootNavigatorKey`. A candidate for the Workshop: an
+  "adopt this feature as a tab" action generating exactly that, plus the root
+  navigator key in core.
+- **Gap — two features that need each other, with no generated pattern.** The
+  history tab shows data the worksite feature owns; the profile tab signs out
+  through the auth feature. Features must not depend on each other (NEAT's
+  "app → feature, never feature → feature", the reference app's "abstract the interface
+  into core, keep the implementation in the feature"), and archy first broke
+  that by folding the tab into the package that owned the data. The pattern it
+  settled on: a **contract in `core`** (a provider that throws until
+  overridden, plus a small read model), **implemented by the owning feature**,
+  **wired once in the app** (`lib/core/di/contract_overrides.dart`, reused by the
+  app's own test so the connections are really checked). The Workshop could
+  generate the contract's `core` file and the app's override line when a new
+  feature is created "with data from `<feature>`".
+- **Gap — the new feature's i18n title is the English feature name in every
+  locale** (`"title": "History"` in `fr.i18n.json`; the translation is left to
+  the developer, as §5z intends, but it is not flagged).
+- **Gap — a plain screen still carries data scaffolding**: a `HistoryEntity(id,
+  name)` freezed entity, an `AsyncValue<void>` provider stub, and
+  `supabase_flutter` / the database package in its `pubspec.yaml`. A "screen
+  only" preset would drop all of it.
+
+### 5ae. A moved file no longer jams the Workshop's `build_runner` — found building archy
+
+> Generating archy's `expense` feature, the Workshop's log showed
+> `build_runner failed: InvalidOutputException: worksite|lib/domain/entities/worksite_category.dart —
+> Tried to delete from package not in the build. Packages in the build are: archy`.
+- **Cause.** `build_runner` keeps a graph of every file it has seen
+  (`.dart_tool/build/asset_graph.json`). archy had moved `WorksiteCategory` from the
+  `worksite` package to `core` by hand; the root's graph still listed the old
+  path, and the next run tried to delete that file's outputs in a package that is
+  not part of the root build. It fails on *every* run until the graph goes. The
+  Workshop only logs a failed pass and carries on, so the packages' own passes
+  (where the generated code lives) had run and nothing was lost — but the root
+  pass, which covers the app's own annotated files, stays broken.
+- **Fixed in archy** by deleting that one cache file and rebuilding (the graph is
+  only a cache).
+- **Fixed here.** `StaleBuildGraph` (`isCausedBy(stderr)`, `drop(dir)`): when a
+  `build_runner build` fails with exactly that signature, `GenerateFeatureUsecase`
+  deletes the directory's graph and runs the build once more, saying so in the
+  log. Any other failure is reported as before, with no retry.
+  Tests: `stale_build_graph_test.dart` (the real stderr, two unrelated failures
+  that must not match, the graph deleted and nothing else, no graph → no retry).
+- **Not covered.** The retry is in the Workshop (`GenerateFeatureUsecase`) only;
+  the first generation of a project has no graph to be stale.
+
+### 5af. Generating archy's `expense` — what held, what is still hand work
+
+> archy's `expense` (child of `worksite`, Supabase + Drift offline-first,
+> fields: `worksite_id`, `amount_cents`, `spent_on`, `merchant?`, `note?`) was
+> the first feature generated after §5aa–§5ac.
+- **Held, with no hand fix.** The sync order (`dependsOn: {'worksites'}`);
+  `worksite_id` as `uuid not null references public.worksites (id) on delete
+  cascade` plus its index in the migration; deleting a worksite on the device
+  removes its expenses (`deleteByWorksiteId`) and discards their queued writes
+  (`discardWrites`); the Drift schema bumped to v4 with its `createTable` step.
+- **Gap — a date-only field has no `date` column.** Every `DateTime` field
+  becomes `timestamptz` in the migration (`supabase_templates.dart`). `spent_on`
+  is a day, not a moment, so it was changed to `date` by hand, as the worksites'
+  dates were. A "date only" option on a `DateTime` field in the field editor
+  would write the `date` column; the Dart side can stay a `DateTime`.
+- **Gap — the child route sits beside the parent's detail route, so it is
+  unreachable.** The Workshop wrote `TypedGoRoute<ExpenseRoute>(path: 'expense')`
+  under the parent's list route, after `:id`: `/worksite/expense` is read as the
+  worksite whose id is "expense". The generated page also lists every expense,
+  not the worksite's. Same as archy's `task`, where the route and page were
+  removed by hand and replaced by `/worksite/:id/tasks/new` and
+  `…/:taskId/edit`. When the parent has a detail route with an id parameter, a
+  child should nest under it (`/worksite/:id/expense`) and the page take that id.
+- **Also by hand, not a gap to close.** `check (amount_cents > 0)`: the
+  generator only writes `CHECK`s for enum fields, and a per-field constraint
+  would be a larger feature than one line of SQL.
+- **Not a gap (corrected).** The table came out `expense`, not `expenses`. The
+  generator's default is `<name>s` and the Workshop's "Table name" field says
+  so ("Default: expenses"); the run used `expense`, so the field held that
+  value. Renamed by hand to match `worksites` / `tasks`.
+
 ### 6. Multiple architectures — later, with caution
 
 - The harness makes **every** architecture a ~3× maintenance cost (each must be proven).

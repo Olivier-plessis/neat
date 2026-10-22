@@ -5,6 +5,14 @@ on:
     branches: ["main", "develop"]
   pull_request:
     branches: ["main", "develop"]
+  # Started by release.yml on the release branch (and by hand): a pull request
+  # opened by a workflow does not trigger the checks above.
+  workflow_dispatch:
+    inputs:
+      generation:
+        description: "Also run the heavy end-to-end generation job (about 1h25)"
+        type: boolean
+        default: true
 
 # A newer push to the same branch (or pull request) cancels the run it makes
 # obsolete: the `generation` job is heavy (about 1h25), so there is no point
@@ -45,6 +53,7 @@ jobs:
   # `flutter analyze` on the output (the generation regression guard).
   # Slower + network-heavy, so it's a separate job.
   generation:
+    if: github.event_name != 'workflow_dispatch' || inputs.generation
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
