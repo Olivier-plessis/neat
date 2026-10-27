@@ -26,6 +26,7 @@ abstract final class PubspecWriter {
     bool addFirebaseStorage = false,
     bool addSlang = false,
     bool addOnboarding = false,
+    bool addThemePersistence = false,
     bool addSentry = false,
     bool addDriftForTests = false,
     bool addUuid = false,
@@ -50,6 +51,7 @@ abstract final class PubspecWriter {
       addFirebaseStorage: addFirebaseStorage,
       addSlang: addSlang,
       addOnboarding: addOnboarding,
+      addThemePersistence: addThemePersistence,
       addSentry: addSentry,
       addDriftForTests: addDriftForTests,
       addUuid: addUuid,
@@ -105,6 +107,7 @@ abstract final class PubspecWriter {
     bool addFirebaseStorage = false,
     bool addSlang = false,
     bool addOnboarding = false,
+    bool addThemePersistence = false,
     bool addSentry = false,
     bool addDriftForTests = false,
     bool addUuid = false,
@@ -235,6 +238,16 @@ abstract final class PubspecWriter {
     // already having added it (avoid a duplicate line).
     if (addOnboarding &&
         !addSlang &&
+        !uniquePackages.any((p) => p.name == 'shared_preferences')) {
+      deps.write('  shared_preferences: ^2.3.3\n');
+    }
+    // The theme mode the person chose (ThemeModeController) is kept in
+    // shared_preferences too — same guard as onboarding's, for the app that does
+    // not already have it from slang or onboarding. (A packageSplit project keeps
+    // the controller, and so the dependency, in its core package.)
+    if (addThemePersistence &&
+        !addSlang &&
+        !addOnboarding &&
         !uniquePackages.any((p) => p.name == 'shared_preferences')) {
       deps.write('  shared_preferences: ^2.3.3\n');
     }

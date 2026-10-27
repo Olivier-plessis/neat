@@ -369,6 +369,12 @@ class LaunchGenerationUsecase {
         featurePackageName: featurePackageName,
         hasOnboarding: autoWireOnboarding,
         hasFirstFeature: architecture.generateFirstFeature,
+        // A CSV-imported i18n has keys NEAT does not know (see _buildScaffold's
+        // i18nFromCsv): the theme switcher then names the modes in English.
+        hasI18nKeys:
+            hasI18n &&
+            !(architecture.i18nCsvPath.isNotEmpty &&
+                File(architecture.i18nCsvPath).existsSync()),
       );
       onLog('[✓] packages/$corePackageName created.');
     }
@@ -449,6 +455,9 @@ class LaunchGenerationUsecase {
       addFirebaseStorage: hasStorage && httpClient == 'firebase',
       addSlang: hasI18n,
       addOnboarding: hasOnboarding,
+      // ThemeModeController keeps the chosen theme mode in shared_preferences;
+      // a split project's lives in the core package, which declares it itself.
+      addThemePersistence: hasRiverpod && corePackageName == null,
       addSentry: hasSentry,
       addDriftForTests: hasSync,
       // The first feature's entity gets a client-id `create` factory when sync
@@ -863,6 +872,7 @@ class LaunchGenerationUsecase {
       uiPackage: uiPackage,
       flexVersion: flexMatches.isEmpty ? null : flexMatches.first.version,
       corePackageName: corePackageName,
+      i18nStringsPackage: hasI18nSample ? packageName : null,
     );
 
     // ── core/router ───────────────────────────────────────────────────────
@@ -977,6 +987,9 @@ class LaunchGenerationUsecase {
         packageSplit: featurePackageName != null,
         corePackageName: corePackageName,
         i18n: hasI18nSample,
+        // Written next to the theme mode controller (see ThemeWriter and
+        // CorePackageWriter), which a Riverpod project always has.
+        themeSwitcher: hasRiverpod,
         projectRoot: projectDir.path,
         hasAuth: hasAuth,
       );

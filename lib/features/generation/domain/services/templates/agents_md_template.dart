@@ -162,7 +162,9 @@ class AgentsMdTemplate {
         '- `ref.watch` inside `build()`; `ref.read` only in callbacks — never `ref.read` in `build()`.',
       );
       b.writeln(
-        '- One `ProviderScope` at the app root already exists — do not nest another.',
+        '- One provider scope at the app root already exists (an `UncontrolledProviderScope` over the '
+        '`ProviderContainer` that `bootstrap()` builds, so what is kept on the device is loaded before '
+        'the first frame) — do not nest another.',
       );
       b.writeln(
         '- The dependency graph is wired in **two** files, split by layer:\n'
@@ -202,6 +204,48 @@ class AgentsMdTemplate {
       );
       b.writeln();
     }
+
+    // ── Theme (light / dark) ────────────────────────────────────────────────
+    b.writeln('## Theme (light / dark)\n');
+    b.writeln(
+      '- The colours that depend on the mode — page, cards, text, dividers — come from the '
+      '`AppColors` theme extension: read them with **`context.colors.surface`**, `.background`, '
+      '`.textPrimary`, `.textSecondary`, `.divider`… A `Palette.<neutral>` is a constant: a screen '
+      'that names one **stays light in dark mode**. `Palette` is for the brand and the semantic '
+      'colours (`primary`, `success`, `warning`, `error`), which are the same in both modes.',
+    );
+    b.writeln(
+      '- `AppTheme.light` and `AppTheme.dark` are built from `AppColors.light` / `AppColors.dark` '
+      '(`${c.extractUiPackage ? 'packages/${c.projectName}_ui/lib/core/theme/' : 'lib/core/theme/'}`): '
+      'change a neutral there, once, not in a screen.',
+    );
+    if (c.themeApproach == 'flexColorScheme') {
+      b.writeln(
+        '- FlexColorScheme project: the Material widgets follow your Flex schemes; `AppColors` still '
+        'colours the generated components (`AppCard`, `AppButton`, `AppTextField`) and anything you '
+        'read with `context.colors`.',
+      );
+    }
+    if (hasRiverpod) {
+      b.writeln(
+        '- The theme mode (light / dark / system) is `themeModeControllerProvider` '
+        '(`${corePath('core/theme/theme_mode_controller.dart')}`): `set(ThemeMode.dark)`, `toggle()`. '
+        'The choice is **kept** in shared_preferences and `load()` restores it in `bootstrap()`, '
+        'before the first frame.',
+      );
+      b.writeln(
+        '- `ThemeModeSwitcher` (`${corePath('core/theme/theme_mode_switcher.dart')}`) is the picker '
+        '(light / dark / system), next to `LanguageSwitcher`; it holds no state: '
+        '`ThemeModeSwitcher(mode: ref.watch(themeModeControllerProvider), '
+        'onChanged: ref.read(themeModeControllerProvider.notifier).set)`. The generated pages\' app bar has it.',
+      );
+    } else if (hasBloc) {
+      b.writeln(
+        '- The theme mode is the `BrightnessCubit`/`BrightnessBloc` — light or dark only, **not** '
+        'kept across restarts.',
+      );
+    }
+    b.writeln();
 
     // ── Navigation + anchors ────────────────────────────────────────────────
     if (hasGoRouter) {

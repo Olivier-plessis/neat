@@ -144,9 +144,13 @@ void main() => $call;
     );
 
     if (hasRiverpod) {
-      imports.writeln(
-        "import 'package:$packageName/core/observers/provider_observer.dart';",
-      );
+      imports
+        ..writeln(
+          "import 'package:${corePackageName ?? packageName}/core/theme/theme_mode_controller.dart';",
+        )
+        ..writeln(
+          "import 'package:$packageName/core/observers/provider_observer.dart';",
+        );
     }
     if (registersChopper) {
       imports
@@ -203,28 +207,31 @@ void main() => $call;
         : '';
     // Apply the persisted locale (falls back to the device locale) before runApp.
     final i18nInit = hasI18n ? '\n      await LocaleStore.init();' : '';
-    // Onboarding's redirect (auto-wired — see AuthTemplates.routerNotifier /
-    // CoreTemplates.appRouterBuilder) needs the persisted "seen it" flag
-    // loaded *before* the router's first redirect decision — that needs a
-    // `ref`, which doesn't exist before runApp. Pre-warm a ProviderContainer
-    // (the exact move this class's own docComment below already hints at)
-    // and hand it to UncontrolledProviderScope instead of building a fresh
-    // ProviderScope, so the loaded state carries into the running app.
-    final onboardingInit = hasOnboarding
+    // Start-up state read from shared_preferences has to be loaded *before* the
+    // first frame, and that needs a `ref`, which doesn't exist before runApp:
+    // pre-warm a ProviderContainer (the move this class's own docComment below
+    // hints at) and hand it to UncontrolledProviderScope instead of building a
+    // fresh ProviderScope, so the loaded state carries into the running app.
+    //  - the theme mode: so the first frame already wears the person's choice
+    //    (otherwise the app opens light and flips to dark);
+    //  - onboarding's "seen it" flag (auto-wired — see AuthTemplates.routerNotifier
+    //    / CoreTemplates.appRouterBuilder): the router's first redirect decision
+    //    needs it.
+    final containerInit = hasRiverpod
         ? '\n      final container = ProviderContainer(observers: [RiverpodObserver()]);'
-              '\n      await container.read(onboardingSeenProvider.notifier).load();'
+              '${hasOnboarding ? '\n      await container.read(onboardingSeenProvider.notifier).load();' : ''}'
+              '\n      await container.read(themeModeControllerProvider.notifier).load();'
         : '';
-    final baseRoot = hasOnboarding
+    final baseRoot = hasRiverpod
         ? 'UncontrolledProviderScope(container: container, child: const App())'
-        : hasRiverpod
-        ? 'ProviderScope(observers: [RiverpodObserver()], child: const App())'
         : 'const App()';
     // slang's TranslationProvider must sit above MaterialApp so context.t works.
     final root = hasI18n ? 'TranslationProvider(child: $baseRoot)' : baseRoot;
 
     final docComment = hasRiverpod
-        ? '''/// Swap [ProviderScope] for an UncontrolledProviderScope if you need
-/// bootstrap-time overrides (e.g. injecting config computed here).
+        ? '''/// The ProviderContainer is built here, before runApp, so what is kept on the
+/// device (the theme mode, the onboarding flag) is loaded before the first
+/// frame. Pass bootstrap-time overrides to it (e.g. config computed here).
 '''
         : '';
 
@@ -267,7 +274,7 @@ $docComment$sig {
 $setEnv  await runZonedGuarded(
     () async {
       WidgetsFlutterBinding.ensureInitialized();$chopperRegisterCalls$shellRegisterCalls
-      registerErrorHandler();$pathUrl$i18nInit$firebaseInit$supaInit$onboardingInit
+      registerErrorHandler();$pathUrl$i18nInit$firebaseInit$supaInit$containerInit
       $runAppCall
     },
     (error, stack) => AppLogger.f('Uncaught exception', error: error, stackTrace: stack),

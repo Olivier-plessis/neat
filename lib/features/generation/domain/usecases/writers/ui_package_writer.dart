@@ -74,6 +74,9 @@ flutter:
     // Public barrel.
     final exports = StringBuffer()
       ..writeln("export 'core/theme/app_theme.dart';")
+      // `context.colors` (the mode-aware neutrals) is part of the public API: a
+      // feature package reads its colours through it.
+      ..writeln("export 'core/theme/app_theme_extensions.dart';")
       ..writeln("export 'core/theme/constant/constant.dart';")
       ..writeln("export 'core/theme/typography/typography.dart';")
       ..writeln("export 'widgets/asset_images.dart';")

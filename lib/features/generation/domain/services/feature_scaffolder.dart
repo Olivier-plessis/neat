@@ -77,6 +77,10 @@ class FeatureScaffolder {
     // slang i18n: the riverpod page consumes `context.t.<feature>.title` and
     // shows a LanguageSwitcher in the AppBar.
     bool i18n = false,
+    // The riverpod page's app bar has the generated ThemeModeSwitcher (light /
+    // dark / system) in place of the one-tap toggle. Only where the project has
+    // it: one generated before the switcher does not (see GenerateFeatureUsecase).
+    bool themeSwitcher = false,
     // The entity's fields (inferred from a pasted JSON, or the default id/name).
     List<FieldSpec> fields = FieldSpec.idName,
     // Overrides the REST resource path (default: `/<featureName>s`). Either a
@@ -495,6 +499,7 @@ class FeatureScaffolder {
         useCubit: useCubit,
         dataList: dataList,
         i18n: i18n,
+        themeSwitcher: themeSwitcher,
         fields: resolved,
         includeCrudUi: includeCrudUi,
         corePackageName: corePackageName,

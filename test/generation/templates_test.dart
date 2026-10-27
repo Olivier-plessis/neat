@@ -433,12 +433,40 @@ void main() {
       expect(out, contains('runZonedGuarded'));
       expect(out, contains('registerErrorHandler();'));
       expect(out, contains('WidgetsFlutterBinding.ensureInitialized();'));
+      // The container is built before runApp, so the theme mode kept on the
+      // device is loaded before the first frame.
       expect(
         out,
         contains(
-          'ProviderScope(observers: [RiverpodObserver()], child: const App())',
+          'final container = ProviderContainer(observers: [RiverpodObserver()]);',
         ),
       );
+      expect(
+        out,
+        contains(
+          'await container.read(themeModeControllerProvider.notifier).load();',
+        ),
+      );
+      expect(
+        out,
+        contains(
+          'UncontrolledProviderScope(container: container, child: const App())',
+        ),
+      );
+      expect(
+        out.indexOf(
+          'container.read(themeModeControllerProvider.notifier).load()',
+        ),
+        lessThan(out.indexOf('runApp(')),
+      );
+      expect(
+        out,
+        contains(
+          "import 'package:$pkgName/core/theme/theme_mode_controller.dart';",
+        ),
+      );
+      expect(out, isNot(contains('onboardingSeenProvider')));
+      expect(out, isNot(contains('ProviderScope(observers:')));
       expect(out, contains("AppLogger.f('Uncaught exception'"));
       expect(out, isNot(contains('usePathUrlStrategy')));
     });
@@ -544,7 +572,7 @@ void main() {
         expect(
           out,
           contains(
-            'appRunner: () => runApp(ProviderScope(observers: [RiverpodObserver()], child: const App())',
+            'appRunner: () => runApp(UncontrolledProviderScope(container: container, child: const App())',
           ),
         );
         // registerErrorHandler still runs (chained onto by Sentry's own

@@ -25,6 +25,7 @@ abstract final class FeatureWriter {
     bool isShellBranch = false,
     bool realtime = false,
     bool i18n = false,
+    bool themeSwitcher = false,
     bool packageSplit = false,
     String? corePackageName,
     String? projectRoot,
@@ -53,6 +54,7 @@ abstract final class FeatureWriter {
       isShellBranch: isShellBranch,
       realtime: realtime,
       i18n: i18n,
+      themeSwitcher: themeSwitcher,
       fields: architecture.firstFeatureFields,
       apiPath: architecture.firstFeatureApiPath.isEmpty
           ? null

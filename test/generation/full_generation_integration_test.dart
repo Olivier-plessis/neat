@@ -5375,38 +5375,36 @@ void main() {
     );
   }, timeout: const Timeout(Duration(minutes: 12)));
 
-  test(
-    'FlexColorScheme playground paste: a full file with an unrelated wrapper '
-    'class/field shape still extracts AppTheme.light/.dark correctly',
-    () async {
-      const projectName = 'neat_flex_paste_test';
-      final logs = <String>[];
+  test('FlexColorScheme playground paste: a full file with an unrelated wrapper '
+      'class/field shape still extracts AppTheme.light/.dark correctly', () async {
+    const projectName = 'neat_flex_paste_test';
+    final logs = <String>[];
 
-      final flexPackages = <PubPackage>[
-        _dep('hooks_riverpod', '3.4.3'),
-        _dep('flutter_hooks', '0.21.3+1'),
-        _dep('riverpod_annotation', '4.0.7'),
-        _dep('flex_color_scheme', '8.4.0'),
-        _dev('riverpod_generator', '4.0.9'),
-        _dev('build_runner', '2.16.2'),
-      ];
+    final flexPackages = <PubPackage>[
+      _dep('hooks_riverpod', '3.4.3'),
+      _dep('flutter_hooks', '0.21.3+1'),
+      _dep('riverpod_annotation', '4.0.7'),
+      _dep('flex_color_scheme', '8.4.0'),
+      _dev('riverpod_generator', '4.0.9'),
+      _dev('build_runner', '2.16.2'),
+    ];
 
-      final identity = IdentityState(
-        name: projectName,
-        organization: 'com.neat.test',
-        projectPath: tempRoot.path,
-        description: 'NEAT FlexColorScheme playground-paste integration test',
-        targetPlatforms: const ['macos'],
-      );
+    final identity = IdentityState(
+      name: projectName,
+      organization: 'com.neat.test',
+      projectPath: tempRoot.path,
+      description: 'NEAT FlexColorScheme playground-paste integration test',
+      targetPlatforms: const ['macos'],
+    );
 
-      const architecture = ArchitectureState(firstFeatureName: 'user_profile');
+    const architecture = ArchitectureState(firstFeatureName: 'user_profile');
 
-      // A realistic playground paste: a full file, its own (irrelevant) import
-      // list, and a wrapper class/field naming that has nothing to do with
-      // NEAT's own `AppTheme.light`/`.dark` contract — proving extraction is
-      // shape-agnostic (only the FlexThemeData.light(...)/.dark(...) call
-      // expressions themselves are pulled out; everything else is ignored).
-      const pastedCode = '''
+    // A realistic playground paste: a full file, its own (irrelevant) import
+    // list, and a wrapper class/field naming that has nothing to do with
+    // NEAT's own `AppTheme.light`/`.dark` contract — proving extraction is
+    // shape-agnostic (only the FlexThemeData.light(...)/.dark(...) call
+    // expressions themselves are pulled out; everything else is ignored).
+    const pastedCode = '''
 import 'package:flex_color_scheme/flex_color_scheme.dart';
 import 'package:flutter/material.dart';
 
@@ -5433,79 +5431,75 @@ abstract final class Palette {
 }
 ''';
 
-      const theme = ThemeEngineState(
-        approach: ThemeApproach.flexColorScheme,
-        flexColorSchemeCode: pastedCode,
-        extractUiPackage: false,
+    const theme = ThemeEngineState(
+      approach: ThemeApproach.flexColorScheme,
+      flexColorSchemeCode: pastedCode,
+      extractUiPackage: false,
+    );
+
+    try {
+      await const LaunchGenerationUsecase().execute(
+        identity: identity,
+        packages: flexPackages,
+        architecture: architecture,
+        cicd: const CicdState(),
+        theme: theme,
+        onLog: logs.add,
       );
-
-      try {
-        await const LaunchGenerationUsecase().execute(
-          identity: identity,
-          packages: flexPackages,
-          architecture: architecture,
-          cicd: const CicdState(),
-          theme: theme,
-          onLog: logs.add,
-        );
-      } catch (e) {
-        fail(
-          'Flex playground-paste generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}',
-        );
-      }
-
-      final projectDir = Directory('${tempRoot.path}/$projectName');
-      final themeSrc = File(
-        '${projectDir.path}/lib/core/theme/app_theme.dart',
-      ).readAsStringSync();
-
-      // NEAT's own AppTheme class shape, not the pasted wrapper's — this is
-      // what app.dart actually references (AppTheme.light / AppTheme.dark).
-      expect(themeSrc, contains('class AppTheme {'));
-      expect(themeSrc, isNot(contains('class Palette')));
-      expect(themeSrc, contains('static ThemeData get light =>'));
-      expect(themeSrc, contains('static ThemeData get dark =>'));
-
-      // Both extracted calls carry NEAT's own extension + text theme wiring.
-      expect(themeSrc, contains('FlexThemeData.light('));
-      expect(themeSrc, contains('FlexThemeData.dark('));
-      expect(themeSrc, contains('scheme: FlexScheme.mandyRed'));
-      expect(
-        'AppColors.light'.allMatches(themeSrc).length,
-        greaterThanOrEqualTo(2),
-        reason:
-            'both light and dark configs should carry the AppColors extension',
+    } catch (e) {
+      fail(
+        'Flex playground-paste generation threw:\n$e\n\n--- logs ---\n${logs.join('\n')}',
       );
+    }
 
-      // The whole workspace analyzes without errors or warnings.
-      final analyze = await Process.run('flutter', [
-        'analyze',
-        '--no-pub',
-      ], workingDirectory: projectDir.path);
-      final out = '${analyze.stdout}\n${analyze.stderr}';
-      expect(
-        RegExp(r'(\d+ issues? found|No issues found)').hasMatch(out),
-        isTrue,
-        reason: 'flutter analyze did not run as expected:\n$out',
-      );
-      final errorLines = const LineSplitter()
-          .convert(out)
-          .where(
-            (l) =>
-                (l.contains(' error •') || l.contains(' warning •')) &&
-                !l.contains('• build/'),
-          )
-          .toList();
-      expect(
-        errorLines,
-        isEmpty,
-        reason:
-            'flex playground-paste workspace analyze reported issues:\n'
-            '${errorLines.join('\n')}\n\n$out',
-      );
-    },
-    timeout: const Timeout(Duration(minutes: 12)),
-  );
+    final projectDir = Directory('${tempRoot.path}/$projectName');
+    final themeSrc = File(
+      '${projectDir.path}/lib/core/theme/app_theme.dart',
+    ).readAsStringSync();
+
+    // NEAT's own AppTheme class shape, not the pasted wrapper's — this is
+    // what app.dart actually references (AppTheme.light / AppTheme.dark).
+    expect(themeSrc, contains('class AppTheme {'));
+    expect(themeSrc, isNot(contains('class Palette')));
+    expect(themeSrc, contains('static ThemeData get light =>'));
+    expect(themeSrc, contains('static ThemeData get dark =>'));
+
+    // Both extracted calls carry NEAT's own extension + text theme wiring.
+    expect(themeSrc, contains('FlexThemeData.light('));
+    expect(themeSrc, contains('FlexThemeData.dark('));
+    expect(themeSrc, contains('scheme: FlexScheme.mandyRed'));
+    // Both configs carry the AppColors extension: the light one wears the light
+    // neutrals, the dark one the dark neutrals.
+    expect(themeSrc, contains('extensions: const [AppColors.light]'));
+    expect(themeSrc, contains('extensions: const [AppColors.dark]'));
+
+    // The whole workspace analyzes without errors or warnings.
+    final analyze = await Process.run('flutter', [
+      'analyze',
+      '--no-pub',
+    ], workingDirectory: projectDir.path);
+    final out = '${analyze.stdout}\n${analyze.stderr}';
+    expect(
+      RegExp(r'(\d+ issues? found|No issues found)').hasMatch(out),
+      isTrue,
+      reason: 'flutter analyze did not run as expected:\n$out',
+    );
+    final errorLines = const LineSplitter()
+        .convert(out)
+        .where(
+          (l) =>
+              (l.contains(' error •') || l.contains(' warning •')) &&
+              !l.contains('• build/'),
+        )
+        .toList();
+    expect(
+      errorLines,
+      isEmpty,
+      reason:
+          'flex playground-paste workspace analyze reported issues:\n'
+          '${errorLines.join('\n')}\n\n$out',
+    );
+  }, timeout: const Timeout(Duration(minutes: 12)));
 
   test(
     'feature generation adds a 2nd feature to an existing project, cleanly',

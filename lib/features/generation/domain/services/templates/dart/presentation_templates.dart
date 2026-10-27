@@ -266,6 +266,10 @@ class ${p}Notifier extends Notifier<AsyncValue<void>> {
     // the provider, and the create/delete sheets skip the optimistic list
     // mutators (the stream already carries the write).
     bool localFirst = false,
+    // The app bar's theme control is the generated ThemeModeSwitcher (light /
+    // dark / system) instead of the old one-tap toggle. Off for a project whose
+    // core predates the switcher (see GenerateFeatureUsecase).
+    bool themeSwitcher = false,
   ]) {
     final p = pascal(featureName);
     final c = camel(featureName);
@@ -349,12 +353,29 @@ class ${p}Notifier extends Notifier<AsyncValue<void>> {
         : '';
 
     final corePkg = corePackageName ?? packageName;
+
+    // The theme control of the app bar, and what it needs.
+    final themeImport = themeSwitcher
+        ? "import 'package:$corePkg/core/theme/theme_mode_switcher.dart';\n"
+        : '';
+    final themeAction = themeSwitcher
+        ? '''ThemeModeSwitcher(
+            mode: ref.watch(themeModeControllerProvider),
+            onChanged: ref.read(themeModeControllerProvider.notifier).set,
+          ),'''
+        : '''IconButton(
+            icon: Icon(isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined),
+            onPressed: () => ref.read(themeModeControllerProvider.notifier).toggle(),
+          ),''';
+    final isDarkLine = themeSwitcher
+        ? ''
+        : '    final isDark = Theme.of(context).brightness == Brightness.dark;\n';
     return '''import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:skeletonizer/skeletonizer.dart';
 import 'package:$corePkg/core/error/failure.dart';
 import 'package:$corePkg/core/theme/theme_mode_controller.dart';
-${i18nImports}import '$domainCross/entities/${featureName}_entity.dart';
+$themeImport${i18nImports}import '$domainCross/entities/${featureName}_entity.dart';
 import '../providers/${featureName}_provider.dart';
 $crudImport
 // Skeleton placeholder (Skeletonizer): computed once, not on every rebuild.
@@ -366,15 +387,11 @@ class ${p}Page extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(${c}Provider);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Scaffold(
+$isDarkLine    return Scaffold(
       appBar: AppBar(
         title: $titleWidget,
         actions: [
-          $addAction${switcherAction}IconButton(
-            icon: Icon(isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined),
-            onPressed: () => ref.read(themeModeControllerProvider.notifier).toggle(),
-          ),
+          $addAction$switcherAction$themeAction
         ],
       ),
       body: RefreshIndicator(
@@ -644,6 +661,8 @@ $disposeLines
     String domainCross = '../../domain',
     // See featureProvider's localFirst doc.
     bool localFirst = false,
+    // See _riverpodListPage's themeSwitcher doc.
+    bool themeSwitcher = false,
   }) {
     final p = pascal(featureName);
 
@@ -657,6 +676,7 @@ $disposeLines
         corePackageName,
         domainCross,
         localFirst,
+        themeSwitcher,
       );
     }
 
@@ -687,10 +707,27 @@ $disposeLines
       )''';
 
       final corePkg = corePackageName ?? packageName;
+
+      // The theme control of the app bar, and what it needs.
+      final themeImport = themeSwitcher
+          ? "import 'package:$corePkg/core/theme/theme_mode_switcher.dart';\n"
+          : '';
+      final themeAction = themeSwitcher
+          ? '''ThemeModeSwitcher(
+              mode: ref.watch(themeModeControllerProvider),
+              onChanged: ref.read(themeModeControllerProvider.notifier).set,
+            ),'''
+          : '''IconButton(
+              icon: Icon(isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined),
+              onPressed: () => ref.read(themeModeControllerProvider.notifier).toggle(),
+            ),''';
+      final isDarkLine = themeSwitcher
+          ? ''
+          : '    final isDark = Theme.of(context).brightness == Brightness.dark;\n';
       return '''import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:$corePkg/core/theme/theme_mode_controller.dart';
-${i18nImports}import '../providers/${featureName}_provider.dart';
+$themeImport${i18nImports}import '../providers/${featureName}_provider.dart';
 
 class ${p}Page extends ConsumerWidget {
   const ${p}Page({super.key});
@@ -698,15 +735,11 @@ class ${p}Page extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(${c}Provider);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Scaffold(
+$isDarkLine    return Scaffold(
       appBar: AppBar(
         title: $titleWidget,
         actions: [
-          ${switcherAction}IconButton(
-            icon: Icon(isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined),
-            onPressed: () => ref.read(themeModeControllerProvider.notifier).toggle(),
-          ),
+          $switcherAction$themeAction
         ],
       ),
       body: $body,

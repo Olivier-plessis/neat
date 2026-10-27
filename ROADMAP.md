@@ -1580,6 +1580,197 @@ Harness-proven: `pubspec_builder_test.dart` gained two cases (override present
     generated one has none): where a project wires Sentry or Crashlytics there,
     this catch is the one place that feeds it every unexpected use case error.
 
+### 5ah. A dark mode that works, and a theme mode that is kept — found building archy
+
+> archy's profile got a **Light / Dark / System** selector (and a language one).
+> Putting it in showed that the dark mode NEAT generates was a skeleton: switching
+> to it left most of the app light, and the choice was forgotten at the next start.
+- **Cause.** Two things.
+  - The neutral colours — page, cards, text, dividers — are `Palette` **constants**,
+    read directly (`Palette.surface`, `Palette.textPrimary`…) by the generated
+    components and by the theme. A constant cannot follow a mode: a widget that
+    names one stays light when the app goes dark. The generated `dark` theme was
+    `light.copyWith(…)` re-colouring only the Material parts (the scheme's
+    surfaces) and still carried `extensions: const [AppColors.light]`. In archy,
+    about 220 reads of a neutral `Palette` colour, in 48 files, had to move.
+  - `ThemeModeController` kept the mode in memory: every start was light.
+- **Fixed in archy** (committed there, 1085 tests, 37 deliberate breakages all
+  caught). The neutrals live in the `AppColors` theme extension and are read with
+  `context.colors.surface` (a `light` and a `dark` variant); `AppTheme` is one
+  builder for both modes; `ThemeModeController` keeps the choice in
+  `shared_preferences` (`load()` awaited in `bootstrap`, `set()` writes); the
+  profile has a card with both selectors. A guard test fails when a screen names a
+  neutral `Palette` colour again. The main screens (home, worksite, lot,
+  purchase, task, profile) were rendered in dark and looked at.
+- **Fixed here.**
+  - `AppColors` (`ThemeTemplates.appThemeExtensions`): the eight neutrals
+    (`background`, `surface`, `textPrimary`, `textSecondary`, `textTertiary`,
+    `divider`, `accent`, `onAccent`) next to the brand and semantic colours, a
+    `light` made of the `Palette` values (so the generated light theme does not
+    change) and a `dark` — a near-black page, cards a step lighter, near-white
+    text, a pale accent — with `copyWith` and `lerp`. `context.colors` replaces the
+    unused `context.appColors` and falls back to the light colours when a tree has
+    no `AppColors` (a bare `MaterialApp`, a small test).
+  - `appThemeBasic`: `light` and `dark` are one `_build(brightness, c)`. Every
+    neutral is `c.…`; the brand and the error stay `Palette`. The dark scheme takes
+    the neutrals (`surface`, `onSurface`, `onSurfaceVariant`, `outlineVariant`,
+    the container surfaces) *before* the Colors tab's overrides, which are applied
+    last and to both modes, as they were. The text styles go through
+    `.apply(bodyColor: c.textPrimary, …)`, since they bake the light colour in.
+  - FlexColorScheme: the dark theme wears `AppColors.dark` (the light one keeps
+    `AppColors.light`); when only a light config was pasted, the derived `dark`
+    is that light theme and keeps the light neutrals, which is consistent with it.
+  - Components (`AppButton`, `AppCard`, `AppTextField`): their neutrals come from
+    `context.colors`. The text of a destructive button is `Palette.onPrimary`
+    (white on red), it was the surface colour. `AppCard` names no `Palette` colour
+    any more and drops its `constant.dart` import (an unused-import warning).
+  - `ThemeModeController` (annotated and manual Riverpod): `load()`, `set(mode)`
+    (worn at once, kept in `shared_preferences` under `theme_mode`, a failed write
+    logged and not thrown), `toggle()` and the three setters now return futures.
+    Light until the person chooses; a kept value that is not a mode is light.
+  - `bootstrap()`: with Riverpod, builds the `ProviderContainer` itself and awaits
+    `themeModeControllerProvider.notifier.load()` before `runApp` — it did that
+    only with onboarding. The root is now always an `UncontrolledProviderScope`;
+    with onboarding both flags load into the same container. The controller is
+    imported from the app, or from `core` under `packageSplit`.
+  - `shared_preferences` is declared where the controller is: the app's pubspec
+    (`addThemePersistence`, once, even with slang or onboarding), and the core
+    package's, now always (it was only with i18n).
+  - The `<app>_ui` barrel exports `app_theme_extensions.dart`, so a feature
+    package can read `context.colors`.
+  - The generated `AGENTS.md` has a "Theme (light / dark)" section: read the
+    neutrals from `context.colors`, never from `Palette` (and why); the theme mode
+    provider and that it is kept; the Bloc/Cubit caveat; the Flex note. Its
+    "one `ProviderScope`" sentence now says `UncontrolledProviderScope`.
+- **Tests.**
+  - `dark_mode_templates_test.dart` (55): the `AppColors` template (every neutral
+    in the fields, `copyWith` and `lerp`; the light colours are the palette's; the
+    dark ones are dark; **contrast** of text on page and on cards, in both modes,
+    computed from the generated hex values; the accent and what is on it); the
+    components name no neutral `Palette` colour and import the extension; the
+    basic theme (one builder, no neutral `Palette`, the scheme order with
+    overrides applied last and outside the dark branch, no scheme assigned to
+    itself, ScreenUtil); the Flex variants; both controllers (persistence, the
+    fallback, a choice worn before it is saved, the setters); the bootstrap (load
+    before `runApp`, onboarding then theme in one container, the import from app or
+    core, no container without Riverpod); `shared_preferences` in the app and in
+    core; the UI barrel; `AGENTS.md`. Two assertions in `templates_test.dart`
+    moved with the bootstrap.
+  - `dark_mode_integration_test.dart` (integration tag): generates a real project
+    with the UI package extracted and **runs a probe test in it** — the real
+    controller (kept, restored by a new container, a bad value falls back) and
+    the real theme and `AppCard` pumped in light and in dark, ScreenUtil set up as
+    the app does — then `flutter analyze` with no error and no warning; and a
+    `packageSplit` project, checked for the controller in `core`, its dependency
+    and the bootstrap import, then analyzed.
+  - Run for this change: the fast suite (477 → 532 tests, all passing), the two
+    new integration tests, and the two existing integration tests the change
+    touches by name — the FlexColorScheme playground paste (its assertion moved:
+    the light theme carries `AppColors.light`, the dark one `AppColors.dark`, it
+    counted two `AppColors.light`) and the manual-Riverpod project (the manual
+    controller and `bootstrap` compile and analyze). **Not re-run**: the other
+    integration tests of `full_generation_integration_test.dart`, which share the
+    same templates and would only differ by what these already generate.
+  - Checked by breaking 40 pieces of the templates on purpose (the dark values,
+    the fallback of `context.colors`, `copyWith` and `lerp`, the theme builder and
+    its scheme order, the Flex variants, the controllers, the bootstrap, the
+    dependency rules, the UI barrel, `AGENTS.md`): 37 caught at first, the other 3
+    (`copyWith` copying the page, the mode worn *before* it is saved, a failed write
+    that must not throw) got their assertions and are caught. `launch_generation_usecase`'s
+    `addThemePersistence` wiring is covered by the integration test only.
+- **Differs from archy, left as it is.**
+  - archy's dark palette is warm (it follows its terracotta brand); the generated
+    one is neutral grey-blue, like the generated light neutrals. A project edits
+    `AppColors.dark` in one place.
+  - archy's palette has a `backgroundAppBar`, a segmented-button theme, status and
+    category tints that follow the mode: project-specific, not generated.
+  - archy's text fields fill with the page colour; the generated ones fill with
+    the surface colour (as the generated light theme always did).
+- **Not covered.**
+  - **Cubit and Bloc** projects keep `BrightnessCubit` / `BrightnessBloc`: light or
+    dark only, not kept across restarts. Their theme does get the real dark mode
+    (it is in the theme, not in the state manager); the persistence would be the
+    same few lines on a different base class.
+  - **A selector in a profile or settings page.** NEAT generates no such page; archy's
+    card (a `SegmentedButton` for the mode and one for the language) stays hand-written.
+    What NEAT now generates is the picker for an app bar, `ThemeModeSwitcher` (below).
+  - **FlexColorScheme** projects: the Material widgets follow the Flex scheme, the
+    generated components follow `AppColors.dark`; the two greys can differ a little.
+  - **NEAT's own app** names `Palette` neutrals in its screens the same way; it is
+    not generated code and is untouched here.
+  - A project generated before this keeps its theme (written once, not healed):
+    port `app_theme_extensions.dart`, `app_theme.dart`, the three components, the
+    controller and the `bootstrap` load from a freshly generated project, or from
+    archy; then replace the neutral `Palette.…` reads with `context.colors.…`
+    (the compiler lists the `const` ones to unwrap).
+
+#### 5ah-bis. `ThemeModeSwitcher` — the picker that goes with the persisted mode
+
+> The §5ah controller keeps light / dark / system, but the generated pages could
+> only flip light ↔ dark with a one-tap icon: nothing offered "system", and
+> nothing used `set()`. archy needed a three-way control; the generated one is the
+> app-bar twin of `LanguageSwitcher`.
+- **What it is** (`ThemeTemplates.themeModeSwitcher`). A `PopupMenuButton<ThemeMode>`:
+  the button shows the icon of the mode being worn (sun, moon, "auto"), the menu
+  lists **light, dark, system** with an icon each, the current one marked. It holds
+  **no state**: `ThemeModeSwitcher(mode:, onChanged:)`, so a `core` package that
+  does not depend on Riverpod can hold it (a `ConsumerWidget` there would have
+  meant a `flutter_riverpod` dependency just for it), and a project could feed it
+  from any state manager. The page wires it:
+  `mode: ref.watch(themeModeControllerProvider)`,
+  `onChanged: ref.read(themeModeControllerProvider.notifier).set`.
+- **Names.** With i18n, from generated keys: a `themeMode` group (`light`, `dark`,
+  `system`) in each of the five locales NEAT ships (en, fr, de, it, es), read as
+  `context.t.themeMode.light`. Without i18n, or with a CSV-imported one — whose
+  keys NEAT does not know, the same rule as the sample page (`i18nFromCsv`) — in
+  English, like the rest of an untranslated page.
+- **Where it goes.** Next to the controller: the app's `lib/core/theme/` for a flat
+  project, the `core` package under `packageSplit` (the keys then in `core` too).
+  Only Riverpod projects (annotated or manual) have it: Cubit and Bloc have no
+  controller to hand it a mode, and keep their brightness toggle.
+- **The generated pages** (the Riverpod list page and plain page) put it in the app
+  bar after the add button and `LanguageSwitcher`, **in place of** the one-tap
+  toggle (and the `isDark` it read).
+- **The Workshop.** A feature added later gets the switcher only if the project
+  has the file (`GenerateFeatureUsecase.hasThemeSwitcher`: core's copy under
+  `packageSplit`, the app's otherwise). A project generated before keeps the old
+  toggle — its pages would not compile otherwise: neither the switcher nor the
+  controller's `set()` exists there. archy is in that case until it is ported.
+- **Tests.**
+  - `theme_mode_switcher_test.dart` (38): the widget (stateless, no state manager
+    imported, the three modes in order, the icons, the English and the translated
+    variant, the `core` import); the translations (the three keys in each locale,
+    their values, a group of their own); where it is written (app or `core`,
+    translated or English, none for Bloc/Cubit) through `ThemeWriter` and
+    `CorePackageWriter` on a temp directory; the pages (the switcher and its
+    imports, no toggle and no `isDark`, the legacy variant, core under
+    `packageSplit`, the order add button → language → theme, manual Riverpod, Bloc
+    and Cubit unchanged); a feature written to disk by `FeatureScaffolder` and
+    `FeatureWriter`; the Workshop's detection.
+  - `dark_mode_integration_test.dart`, extended: the flat project now has i18n and
+    its **probe test pumps the generated switcher** — the button shows the mode,
+    the menu names the three modes in the app's own strings, a tap reports the
+    choice — and its first page is checked for `ThemeModeSwitcher` and no toggle;
+    the `packageSplit` project is checked for the English switcher in `core`, none
+    in the app, and its feature page importing it from `core`. Both are analyzed.
+- **Checked** by breaking 27 pieces on purpose (the menu order, the marked mode, the
+  reported choice, the icons, the names in English and in each language, the
+  translated import, the page wiring and its imports, the app/core paths, the flag
+  through the scaffolder and the writer, the Workshop's lookup): all 27 caught.
+  Beyond the new integration tests, the five existing i18n integration tests were
+  re-run (single-sourced in core, sample page and switcher, French-only, five
+  locales, CSV upload — the last being the English-names case) and all pass.
+- **Not covered.**
+  - `GenerateFeatureUsecase.execute` calling `hasThemeSwitcher` (the helper itself
+    is tested; the call is one line, read by hand), and the launch usecase passing
+    `themeSwitcher: hasRiverpod` and `hasI18nKeys` (the integration tests see them).
+  - A locale other than the five NEAT ships has no `themeMode` keys: slang falls
+    back to the base locale, which is what it does for any missing key.
+  - A Workshop project with i18n but generated before this has the keys missing
+    and no switcher file, so it keeps the toggle (above); the Workshop does not add
+    the keys the way it adds a feature's.
+  - Hand-edited pages of an existing project keep whatever they had.
+
 ### 6. Multiple architectures — later, with caution
 
 - The harness makes **every** architecture a ~3× maintenance cost (each must be proven).

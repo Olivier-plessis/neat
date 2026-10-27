@@ -28,6 +28,10 @@ abstract final class ThemeWriter {
     // not keep its own separate copy, or the app shell and a split feature
     // page's toggle would watch two different provider instances.
     String? corePackageName,
+    // The package whose `i18n/strings.g.dart` has the generated `themeMode`
+    // keys — null when there is no i18n, or a CSV-imported one whose keys NEAT
+    // does not know (the switcher then names the modes in English).
+    String? i18nStringsPackage,
   }) async {
     // When extracted, theme + tokens + components live in packages/<ui>/lib;
     // their imports target <ui> instead of the app. State (theme mode / bloc)
@@ -167,6 +171,11 @@ abstract final class ThemeWriter {
                 packageName: packageName,
               )
             : ThemeTemplates.themeModeControllerRiverpodManual(),
+      );
+      // The picker next to it (a split project's lives in the core package).
+      await writeFile(
+        '$appT/theme_mode_switcher.dart',
+        ThemeTemplates.themeModeSwitcher(i18nPackage: i18nStringsPackage),
       );
     }
 

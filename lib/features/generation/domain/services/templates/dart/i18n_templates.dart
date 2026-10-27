@@ -41,6 +41,11 @@ string_interpolation: braces
   "appName": "My App",
   "hello": "Hello",
   "language": "Language",
+  "themeMode": {
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System"
+  },
   "$key": {
     "title": "$p",
     "greeting": "Welcome to your app",
@@ -57,6 +62,11 @@ string_interpolation: braces
   "appName": "Mon application",
   "hello": "Bonjour",
   "language": "Langue",
+  "themeMode": {
+    "light": "Clair",
+    "dark": "Sombre",
+    "system": "Système"
+  },
   "$key": {
     "title": "Accueil",
     "greeting": "Bienvenue dans votre application",
@@ -73,6 +83,11 @@ string_interpolation: braces
   "appName": "Meine App",
   "hello": "Hallo",
   "language": "Sprache",
+  "themeMode": {
+    "light": "Hell",
+    "dark": "Dunkel",
+    "system": "System"
+  },
   "$key": {
     "title": "Startseite",
     "greeting": "Willkommen in Ihrer App",
@@ -89,6 +104,11 @@ string_interpolation: braces
   "appName": "La mia app",
   "hello": "Buongiorno",
   "language": "Lingua",
+  "themeMode": {
+    "light": "Chiaro",
+    "dark": "Scuro",
+    "system": "Sistema"
+  },
   "$key": {
     "title": "Home",
     "greeting": "Benvenuto nella tua app",
@@ -105,6 +125,11 @@ string_interpolation: braces
   "appName": "Mi aplicación",
   "hello": "Buenos días",
   "language": "Idioma",
+  "themeMode": {
+    "light": "Claro",
+    "dark": "Oscuro",
+    "system": "Sistema"
+  },
   "$key": {
     "title": "Inicio",
     "greeting": "Bienvenido a tu aplicación",

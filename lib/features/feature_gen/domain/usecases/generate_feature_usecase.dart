@@ -319,6 +319,12 @@ class GenerateFeatureUsecase {
       corePackageName: corePackageName,
       projectRoot: project.path,
       i18n: hasI18nKeys,
+      // A project generated before the switcher has no such file (nor a
+      // controller with `set`): its pages keep the one-tap toggle.
+      themeSwitcher: hasThemeSwitcher(
+        projectPath: project.path,
+        corePackageName: corePackageName,
+      ),
       useCustomEndpoints: options.useCustomEndpoints,
       endpoints: options.endpoints,
       customizeEndpoints: options.customizeEndpoints,
@@ -2241,6 +2247,20 @@ class GenerateFeatureUsecase {
   /// Adds the `// neat:routes` anchor inside `AppRoutePath` (before the closing
   /// brace) when missing. Idempotent.
   @visibleForTesting
+  /// Whether the project has the generated `ThemeModeSwitcher` — in its `core`
+  /// package when split, else in the app. A project generated before it does
+  /// not, and its pages keep the one-tap toggle (their controller has no `set`
+  /// either, which the switcher's page wiring needs).
+  @visibleForTesting
+  static bool hasThemeSwitcher({
+    required String projectPath,
+    String? corePackageName,
+  }) => File(
+    corePackageName != null
+        ? '$projectPath/packages/$corePackageName/lib/core/theme/theme_mode_switcher.dart'
+        : '$projectPath/lib/core/theme/theme_mode_switcher.dart',
+  ).existsSync();
+
   static String healRoutePathAnchor(String content) {
     if (content.contains('// neat:routes')) return content;
     final lastBrace = content.lastIndexOf('}');

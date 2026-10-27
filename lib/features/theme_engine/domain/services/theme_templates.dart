@@ -42,7 +42,9 @@ class Palette {
   static const Color accent = Color($accentHex);
   static const Color onAccent = Color(0xFFFFFFFF);
 
-  // ── Text / Neutral ───────────────────────────────────────────────────────
+  // ── Text / Neutral — the LIGHT values ──────────────────────────────────────
+  // A widget reads them with `context.colors` (see AppColors), which follows the
+  // light or dark mode; a constant read from here stays light in dark.
   static const Color textPrimary = Color(0xFF121827);
   static const Color textSecondary = Color(0xFF6B7280);
   static const Color textTertiary = Color(0xFFD1D5DB);
@@ -233,6 +235,12 @@ $getters
       '''import 'package:flutter/material.dart';
 import 'package:$packageName/core/theme/constant/constant.dart';
 
+/// The colours of the app that depend on the theme: the neutrals (backgrounds,
+/// text, dividers) change with the light or dark mode, the brand and the
+/// semantic ones (primary, success, warning, error) are the same in both.
+///
+/// Read them with `context.colors`, never from [Palette] directly: a [Palette]
+/// colour is a constant, so it does not follow the mode the person chose.
 class AppColors extends ThemeExtension<AppColors> {
   const AppColors({
     required this.primary,
@@ -244,6 +252,14 @@ class AppColors extends ThemeExtension<AppColors> {
     required this.warningContainer,
     required this.error,
     required this.errorContainer,
+    required this.background,
+    required this.surface,
+    required this.textPrimary,
+    required this.textSecondary,
+    required this.textTertiary,
+    required this.divider,
+    required this.accent,
+    required this.onAccent,
   });
 
   final Color primary;
@@ -256,6 +272,22 @@ class AppColors extends ThemeExtension<AppColors> {
   final Color error;
   final Color errorContainer;
 
+  /// The page behind the cards, and the fill of an empty state.
+  final Color background;
+
+  /// Cards, sheets and dialogs: one step above the page.
+  final Color surface;
+  final Color textPrimary;
+  final Color textSecondary;
+
+  /// Disabled and placeholder text.
+  final Color textTertiary;
+  final Color divider;
+
+  /// The strong neutral fill (the "accent" button) and what is written on it.
+  final Color accent;
+  final Color onAccent;
+
   static const AppColors light = AppColors(
     primary: Palette.primary,
     primaryDim: Palette.primaryDim,
@@ -266,6 +298,36 @@ class AppColors extends ThemeExtension<AppColors> {
     warningContainer: Palette.warningContainer,
     error: Palette.error,
     errorContainer: Palette.errorContainer,
+    background: Palette.background,
+    surface: Palette.surface,
+    textPrimary: Palette.textPrimary,
+    textSecondary: Palette.textSecondary,
+    textTertiary: Palette.textTertiary,
+    divider: Palette.divider,
+    accent: Palette.accent,
+    onAccent: Palette.onAccent,
+  );
+
+  /// The light neutrals turned down: a near-black page, cards a step lighter,
+  /// near-white text. The brand and the semantic colours are kept.
+  static const AppColors dark = AppColors(
+    primary: Palette.primary,
+    primaryDim: Palette.primaryDim,
+    primaryLight: Palette.primaryLight,
+    success: Palette.success,
+    successContainer: Palette.successContainer,
+    warning: Palette.warning,
+    warningContainer: Palette.warningContainer,
+    error: Palette.error,
+    errorContainer: Palette.errorContainer,
+    background: Color(0xFF0F1218),
+    surface: Color(0xFF181C24),
+    textPrimary: Color(0xFFF3F4F6),
+    textSecondary: Color(0xFF9CA3AF),
+    textTertiary: Color(0xFF4B5563),
+    divider: Color(0xFF2A303B),
+    accent: Color(0xFFE5E7EB),
+    onAccent: Color(0xFF0F1218),
   );
 
   @override
@@ -279,6 +341,14 @@ class AppColors extends ThemeExtension<AppColors> {
     Color? warningContainer,
     Color? error,
     Color? errorContainer,
+    Color? background,
+    Color? surface,
+    Color? textPrimary,
+    Color? textSecondary,
+    Color? textTertiary,
+    Color? divider,
+    Color? accent,
+    Color? onAccent,
   }) => AppColors(
     primary: primary ?? this.primary,
     primaryDim: primaryDim ?? this.primaryDim,
@@ -289,27 +359,47 @@ class AppColors extends ThemeExtension<AppColors> {
     warningContainer: warningContainer ?? this.warningContainer,
     error: error ?? this.error,
     errorContainer: errorContainer ?? this.errorContainer,
+    background: background ?? this.background,
+    surface: surface ?? this.surface,
+    textPrimary: textPrimary ?? this.textPrimary,
+    textSecondary: textSecondary ?? this.textSecondary,
+    textTertiary: textTertiary ?? this.textTertiary,
+    divider: divider ?? this.divider,
+    accent: accent ?? this.accent,
+    onAccent: onAccent ?? this.onAccent,
   );
 
   @override
   AppColors lerp(covariant AppColors? other, double t) {
     if (other == null) return this;
+    Color mix(Color a, Color b) => Color.lerp(a, b, t)!;
     return AppColors(
-      primary: Color.lerp(primary, other.primary, t)!,
-      primaryDim: Color.lerp(primaryDim, other.primaryDim, t)!,
-      primaryLight: Color.lerp(primaryLight, other.primaryLight, t)!,
-      success: Color.lerp(success, other.success, t)!,
-      successContainer: Color.lerp(successContainer, other.successContainer, t)!,
-      warning: Color.lerp(warning, other.warning, t)!,
-      warningContainer: Color.lerp(warningContainer, other.warningContainer, t)!,
-      error: Color.lerp(error, other.error, t)!,
-      errorContainer: Color.lerp(errorContainer, other.errorContainer, t)!,
+      primary: mix(primary, other.primary),
+      primaryDim: mix(primaryDim, other.primaryDim),
+      primaryLight: mix(primaryLight, other.primaryLight),
+      success: mix(success, other.success),
+      successContainer: mix(successContainer, other.successContainer),
+      warning: mix(warning, other.warning),
+      warningContainer: mix(warningContainer, other.warningContainer),
+      error: mix(error, other.error),
+      errorContainer: mix(errorContainer, other.errorContainer),
+      background: mix(background, other.background),
+      surface: mix(surface, other.surface),
+      textPrimary: mix(textPrimary, other.textPrimary),
+      textSecondary: mix(textSecondary, other.textSecondary),
+      textTertiary: mix(textTertiary, other.textTertiary),
+      divider: mix(divider, other.divider),
+      accent: mix(accent, other.accent),
+      onAccent: mix(onAccent, other.onAccent),
     );
   }
 }
 
 extension AppThemeContext on BuildContext {
-  AppColors get appColors => Theme.of(this).extension<AppColors>()!;
+  /// The colours of the mode in use. A tree with no [AppColors] (a bare
+  /// `MaterialApp`, as in a small test) reads the light ones.
+  AppColors get colors =>
+      Theme.of(this).extension<AppColors>() ?? AppColors.light;
   TextTheme get textTheme => Theme.of(this).textTheme;
   ColorScheme get colorScheme => Theme.of(this).colorScheme;
 }
@@ -321,6 +411,7 @@ extension AppThemeContext on BuildContext {
   /// and theme. Variants, sizes, icon, loading, expand and a dashed border.
   static String appButtonComponent({required String packageName}) =>
       '''import 'package:flutter/material.dart';
+import 'package:$packageName/core/theme/app_theme_extensions.dart';
 import 'package:$packageName/core/theme/constant/constant.dart';
 
 enum AppButtonVariant {
@@ -426,14 +517,14 @@ class AppButton extends StatelessWidget {
           padding: EdgeInsets.zero,
           minimumSize: Size.zero,
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          foregroundColor: Palette.textPrimary,
+          foregroundColor: context.colors.textPrimary,
           textStyle: textStyle?.copyWith(
             decoration: TextDecoration.underline,
-            decorationColor: Palette.textPrimary,
+            decorationColor: context.colors.textPrimary,
             decorationThickness: 1.5,
           ),
         ),
-        child: _buildChild(Palette.textPrimary, null),
+        child: _buildChild(context.colors.textPrimary, null),
       );
     }
 
@@ -449,16 +540,16 @@ class AppButton extends StatelessWidget {
         shape: WidgetStateProperty.all(shape),
         textStyle: WidgetStateProperty.all(textStyle),
         backgroundColor: WidgetStateProperty.resolveWith(
-          (s) => s.contains(WidgetState.disabled) ? Palette.divider : bg,
+          (s) => s.contains(WidgetState.disabled) ? context.colors.divider : bg,
         ),
         foregroundColor: WidgetStateProperty.resolveWith(
-          (s) => s.contains(WidgetState.disabled) ? Palette.textSecondary : fg,
+          (s) => s.contains(WidgetState.disabled) ? context.colors.textSecondary : fg,
         ),
         side: border == null
             ? null
             : WidgetStateProperty.resolveWith(
                 (s) => BorderSide(
-                  color: s.contains(WidgetState.disabled) ? Palette.divider : border,
+                  color: s.contains(WidgetState.disabled) ? context.colors.divider : border,
                   width: 1.5,
                 ),
               ),
@@ -474,10 +565,10 @@ class AppButton extends StatelessWidget {
 
     final button = switch (variant) {
       AppButtonVariant.primary => styled(bg: Palette.primary, fg: Palette.onPrimary),
-      AppButtonVariant.destructive => styled(bg: Palette.error, fg: Palette.surface),
+      AppButtonVariant.destructive => styled(bg: Palette.error, fg: Palette.onPrimary),
       AppButtonVariant.secondary =>
-        styled(bg: Palette.surface, fg: Palette.textPrimary, border: Palette.divider),
-      AppButtonVariant.accent => styled(bg: Palette.accent, fg: Palette.onAccent),
+        styled(bg: context.colors.surface, fg: context.colors.textPrimary, border: context.colors.divider),
+      AppButtonVariant.accent => styled(bg: context.colors.accent, fg: context.colors.onAccent),
       AppButtonVariant.outlined =>
         styled(bg: Colors.transparent, fg: Palette.primary, border: Palette.primary),
       AppButtonVariant.outlinedDestructive =>
@@ -502,9 +593,9 @@ class _DashedButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final disabled = button._isDisabled;
-    final textColor = disabled ? Palette.textSecondary : Palette.textPrimary;
+    final textColor = disabled ? context.colors.textSecondary : context.colors.textPrimary;
     final borderColor = disabled
-        ? Palette.divider
+        ? context.colors.divider
         : button.hasError
             ? Palette.error
             : Palette.primary;
@@ -575,7 +666,7 @@ class _DashedBorderPainter extends CustomPainter {
 
   static String appCardComponent({required String packageName}) =>
       '''import 'package:flutter/material.dart';
-import 'package:$packageName/core/theme/constant/constant.dart';
+import 'package:$packageName/core/theme/app_theme_extensions.dart';
 
 /// A standardized surface card: padding, rounded corners, optional tap & shadow.
 class AppCard extends StatelessWidget {
@@ -612,9 +703,9 @@ class AppCard extends StatelessWidget {
     return Container(
       margin: margin,
       decoration: BoxDecoration(
-        color: color ?? Palette.surface,
+        color: color ?? context.colors.surface,
         borderRadius: radius,
-        border: hasBorder ? Border.all(color: Palette.divider) : null,
+        border: hasBorder ? Border.all(color: context.colors.divider) : null,
         boxShadow: hasShadow
             ? [
                 BoxShadow(
@@ -637,6 +728,7 @@ class AppCard extends StatelessWidget {
   static String appTextFieldComponent({required String packageName}) =>
       '''import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:$packageName/core/theme/app_theme_extensions.dart';
 import 'package:$packageName/core/theme/constant/constant.dart';
 
 /// Generic text field: optional label above, error message below, and an
@@ -706,7 +798,7 @@ class _AppTextFieldState extends State<AppTextField> {
       suffix = IconButton(
         icon: Icon(
           _obscured ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-          color: Palette.textSecondary,
+          color: context.colors.textSecondary,
           size: 20,
         ),
         onPressed: () => setState(() => _obscured = !_obscured),
@@ -722,7 +814,7 @@ class _AppTextFieldState extends State<AppTextField> {
             widget.label!,
             style: theme.textTheme.titleSmall?.copyWith(
               fontWeight: FontWeight.w600,
-              color: Palette.textPrimary,
+              color: context.colors.textPrimary,
             ),
           ),
           const SizedBox(height: 6),
@@ -1173,6 +1265,12 @@ $logo}
         ? ''
         : '.copyWith(\n$overrideEntries\n    )';
 
+    // The dark scheme takes the neutrals of [AppColors.dark] first, so what the
+    // person overrode in the Colors tab (applied last, to both modes) wins.
+    final overrideLine = overrideEntries.isEmpty
+        ? ''
+        : '    scheme = scheme$schemeOverride;\n';
+
     return '''import 'package:flutter/material.dart';
 ${suImport}import 'package:$packageName/core/theme/constant/constant.dart';
 import 'package:$packageName/core/theme/typography/typography.dart';
@@ -1181,137 +1279,134 @@ import 'app_theme_extensions.dart';
 class AppTheme {
   AppTheme._();
 
-  static ThemeData get light => ThemeData(
-    useMaterial3: true,
-    colorScheme: ColorScheme.fromSeed(
-      seedColor: Palette.primary,
-      brightness: Brightness.light,
-    )$schemeOverride,
-    extensions: const [AppColors.light],
-    textTheme: TextTheme(
-$textThemeEntries
-    ),
-    scaffoldBackgroundColor: Palette.background,
-    appBarTheme: AppBarTheme(
-      backgroundColor: Palette.surface,
-      foregroundColor: Palette.textPrimary,
-      elevation: 0,
-      shadowColor: Colors.transparent,
-      surfaceTintColor: Colors.transparent,
-      ${hasTitle ? 'titleTextStyle: StyleTheme.titleLarge.copyWith(color: Palette.textPrimary),' : ''}
-    ),
-    cardTheme: CardThemeData(
-      color: Palette.surface,
-      elevation: $el,
-      shadowColor: Colors.black,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular($cr),
-        side: BorderSide(color: $el > 0 ? Colors.transparent : Palette.divider),
-      ),
-      margin: EdgeInsets.zero,
-    ),
-    elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(
-        elevation: $eEl,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular($erStr)),
-        textStyle: ${tsConst}TextStyle(fontWeight: FontWeight.w600, fontSize: 14$fs),
-        padding: ${tsConst}EdgeInsets.symmetric(horizontal: $eHP$pw, vertical: $eVP$ph),
-      ),
-    ),
-    filledButtonTheme: FilledButtonThemeData(
-      style: FilledButton.styleFrom(
-        backgroundColor: Palette.primary,
-        foregroundColor: Palette.onPrimary,
-        elevation: 0,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular($frStr)),
-        textStyle: ${tsConst}TextStyle(fontWeight: FontWeight.w600, fontSize: 14$fs),
-        padding: ${tsConst}EdgeInsets.symmetric(horizontal: $fHP$pw, vertical: $fVP$ph),
-      ),
-    ),
-    outlinedButtonTheme: OutlinedButtonThemeData(
-      style: OutlinedButton.styleFrom(
-        foregroundColor: Palette.primary,
-        side: const BorderSide(color: Palette.primary, width: $oSt),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular($orStr)),
-        textStyle: ${tsConst}TextStyle(fontWeight: FontWeight.w600, fontSize: 14$fs),
-        padding: ${tsConst}EdgeInsets.symmetric(horizontal: $oHP$pw, vertical: $oVP$ph),
-      ),
-    ),
-    textButtonTheme: TextButtonThemeData(
-      style: TextButton.styleFrom(
-        foregroundColor: Palette.primary,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular($trStr)),
-        textStyle: ${tsConst}TextStyle(fontWeight: FontWeight.w600, fontSize: 14$fs),
-        padding: ${tsConst}EdgeInsets.symmetric(horizontal: $tHP$pw, vertical: $tVP$ph),
-      ),
-    ),
-    inputDecorationTheme: InputDecorationTheme(
-      filled: true,
-      fillColor: Palette.surface,
-      contentPadding: ${tsConst}EdgeInsets.symmetric(horizontal: 16$pw, vertical: 14$ph),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular($orStr),
-        borderSide: const BorderSide(color: Palette.divider),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular($orStr),
-        borderSide: const BorderSide(color: Palette.divider),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular($orStr),
-        borderSide: const BorderSide(color: Palette.primary, width: 1.5),
-      ),
-      errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular($orStr),
-        borderSide: const BorderSide(color: Palette.error),
-      ),
-      focusedErrorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular($orStr),
-        borderSide: const BorderSide(color: Palette.error, width: 1.5),
-      ),
-      hintStyle: ${tsConst}TextStyle(color: Palette.textSecondary, fontSize: 14$fs),
-      errorStyle: ${tsConst}TextStyle(color: Palette.error, fontSize: 12$fs),
-    ),
-    dividerTheme: const DividerThemeData(color: Palette.divider, thickness: 1, space: 1),
-    dialogTheme: DialogThemeData(
-      backgroundColor: Palette.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular($cr)),
-    ),
-    snackBarTheme: SnackBarThemeData(
-      backgroundColor: Palette.textPrimary,
-      contentTextStyle: ${tsConst}TextStyle(color: Palette.surface, fontSize: 14$fs),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular($orStr)),
-      behavior: SnackBarBehavior.floating,
-    ),
-  );
+  static ThemeData get light => _build(Brightness.light, AppColors.light);
 
-  static ThemeData get dark {
-    final scheme = ColorScheme.fromSeed(
+  static ThemeData get dark => _build(Brightness.dark, AppColors.dark);
+
+  /// One theme for both modes: every neutral colour comes from [c] (read in
+  /// widgets with `context.colors`), so a screen is the same in light and in
+  /// dark but for its colours. [Palette] keeps the brand and the semantic ones.
+  static ThemeData _build(Brightness brightness, AppColors c) {
+    var scheme = ColorScheme.fromSeed(
       seedColor: Palette.primary,
-      brightness: Brightness.dark,
-    )$schemeOverride;
-    return light.copyWith(
+      brightness: brightness,
+    );
+    // The seed's own scheme is kept in light. The dark one takes the neutrals,
+    // so the Material parts (menus, sheets, switches) sit with the rest.
+    if (brightness == Brightness.dark) {
+      scheme = scheme.copyWith(
+        surface: c.surface,
+        onSurface: c.textPrimary,
+        onSurfaceVariant: c.textSecondary,
+        outlineVariant: c.divider,
+        surfaceContainerLowest: c.background,
+        surfaceContainerLow: c.surface,
+        surfaceContainer: c.surface,
+      );
+    }
+$overrideLine
+    // The text styles bake the light text colour in.
+    final textTheme = TextTheme(
+$textThemeEntries
+    ).apply(bodyColor: c.textPrimary, displayColor: c.textPrimary);
+
+    return ThemeData(
+      useMaterial3: true,
+      brightness: brightness,
       colorScheme: scheme,
-      extensions: const [AppColors.light],
-      scaffoldBackgroundColor: scheme.surface,
-      // Re-color the text for dark surfaces (the light textTheme bakes in dark colors).
-      textTheme: light.textTheme.apply(
-        bodyColor: scheme.onSurface,
-        displayColor: scheme.onSurface,
+      extensions: [c],
+      textTheme: textTheme,
+      scaffoldBackgroundColor: c.background,
+      appBarTheme: AppBarTheme(
+        backgroundColor: c.surface,
+        foregroundColor: c.textPrimary,
+        elevation: 0,
+        shadowColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        ${hasTitle ? 'titleTextStyle: StyleTheme.titleLarge.copyWith(color: c.textPrimary),' : ''}
       ),
-      appBarTheme: light.appBarTheme.copyWith(
-        backgroundColor: scheme.surface,
-        foregroundColor: scheme.onSurface,
-        titleTextStyle: StyleTheme.titleLarge.copyWith(color: scheme.onSurface),
+      cardTheme: CardThemeData(
+        color: c.surface,
+        elevation: $el,
+        shadowColor: Colors.black,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular($cr),
+          side: BorderSide(color: $el > 0 ? Colors.transparent : c.divider),
+        ),
+        margin: EdgeInsets.zero,
       ),
-      cardTheme: light.cardTheme.copyWith(color: scheme.surfaceContainerHighest),
-      inputDecorationTheme: light.inputDecorationTheme.copyWith(
-        fillColor: scheme.surfaceContainerHighest,
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          elevation: $eEl,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular($erStr)),
+          textStyle: ${tsConst}TextStyle(fontWeight: FontWeight.w600, fontSize: 14$fs),
+          padding: ${tsConst}EdgeInsets.symmetric(horizontal: $eHP$pw, vertical: $eVP$ph),
+        ),
       ),
-      dialogTheme: light.dialogTheme.copyWith(backgroundColor: scheme.surface),
-      snackBarTheme: light.snackBarTheme.copyWith(
-        backgroundColor: scheme.onSurface,
-        contentTextStyle: StyleTheme.bodyMedium.copyWith(color: scheme.surface),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: Palette.primary,
+          foregroundColor: Palette.onPrimary,
+          elevation: 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular($frStr)),
+          textStyle: ${tsConst}TextStyle(fontWeight: FontWeight.w600, fontSize: 14$fs),
+          padding: ${tsConst}EdgeInsets.symmetric(horizontal: $fHP$pw, vertical: $fVP$ph),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: Palette.primary,
+          side: const BorderSide(color: Palette.primary, width: $oSt),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular($orStr)),
+          textStyle: ${tsConst}TextStyle(fontWeight: FontWeight.w600, fontSize: 14$fs),
+          padding: ${tsConst}EdgeInsets.symmetric(horizontal: $oHP$pw, vertical: $oVP$ph),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: Palette.primary,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular($trStr)),
+          textStyle: ${tsConst}TextStyle(fontWeight: FontWeight.w600, fontSize: 14$fs),
+          padding: ${tsConst}EdgeInsets.symmetric(horizontal: $tHP$pw, vertical: $tVP$ph),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: c.surface,
+        contentPadding: ${tsConst}EdgeInsets.symmetric(horizontal: 16$pw, vertical: 14$ph),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular($orStr),
+          borderSide: BorderSide(color: c.divider),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular($orStr),
+          borderSide: BorderSide(color: c.divider),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular($orStr),
+          borderSide: const BorderSide(color: Palette.primary, width: 1.5),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular($orStr),
+          borderSide: const BorderSide(color: Palette.error),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular($orStr),
+          borderSide: const BorderSide(color: Palette.error, width: 1.5),
+        ),
+        hintStyle: TextStyle(color: c.textSecondary, fontSize: 14$fs),
+        errorStyle: ${tsConst}TextStyle(color: Palette.error, fontSize: 12$fs),
+      ),
+      dividerTheme: DividerThemeData(color: c.divider, thickness: 1, space: 1),
+      dialogTheme: DialogThemeData(
+        backgroundColor: c.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular($cr)),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: c.textPrimary,
+        contentTextStyle: TextStyle(color: c.surface, fontSize: 14$fs),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular($orStr)),
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }
@@ -1355,7 +1450,7 @@ $textThemeEntries
               '  );\n\n'
               '${dark != null ? '  static ThemeData get dark => ${_themeExpr(dark)}.copyWith(\n'
                         '    textTheme: _textTheme,\n'
-                        '    extensions: const [AppColors.light],\n'
+                        '    extensions: const [AppColors.dark],\n'
                         '  );' : '  // Only a light config was pasted — dark is derived from it.\n'
                         '  static ThemeData get dark => light.copyWith(\n'
                         '    extensions: const [AppColors.light],\n'
@@ -1390,7 +1485,7 @@ $textThemeEntries
               '    ),\n'
               '    visualDensity: FlexColorScheme.comfortablePlatformDensity,\n'
               '    useMaterial3: true,\n'
-              '    extensions: const [AppColors.light],\n'
+              '    extensions: const [AppColors.dark],\n'
               '  ).copyWith(\n'
               '    textTheme: _textTheme,\n'
               '  );';
@@ -1415,44 +1510,201 @@ $textThemeEntries
 
   // ── theme_mode_controller.dart (riverpod with annotations) ───────────────
 
+  /// The theme mode of the app (light, dark or the device's), kept across
+  /// restarts in `shared_preferences`. `load()` is awaited in `bootstrap()`
+  /// before `runApp`, like `LocaleStore.init()`.
   static String themeModeControllerRiverpod({required String packageName}) =>
-      '''import 'package:riverpod_annotation/riverpod_annotation.dart';
-import 'package:flutter/material.dart';
+      '''import 'package:flutter/material.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../utils/app_logger.dart';
 
 part 'theme_mode_controller.g.dart';
 
+/// Which theme the app wears: light, dark, or the one of the device. Light until
+/// the person chooses; the choice is kept across restarts.
 @Riverpod(keepAlive: true)
 class ThemeModeController extends _\$ThemeModeController {
+  static const _prefsKey = 'theme_mode';
+
   @override
   ThemeMode build() => ThemeMode.light;
 
-  void toggle() => state = state == ThemeMode.light ? ThemeMode.dark : ThemeMode.light;
+  /// Call once at start-up (before `runApp`), like `LocaleStore.init()`: loads
+  /// the saved choice, so the first frame already wears it.
+  Future<void> load() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString(_prefsKey);
+    state = ThemeMode.values.firstWhere(
+      (mode) => mode.name == saved,
+      orElse: () => ThemeMode.light,
+    );
+  }
 
-  void setLight() => state = ThemeMode.light;
-  void setDark() => state = ThemeMode.dark;
-  void setSystem() => state = ThemeMode.system;
+  /// Wears [mode] now and keeps it for the next start. A choice that cannot be
+  /// saved is still worn until the app closes.
+  Future<void> set(ThemeMode mode) async {
+    state = mode;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_prefsKey, mode.name);
+    } catch (error, stackTrace) {
+      AppLogger.w(
+        'the theme choice could not be saved',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
+  }
+
+  Future<void> toggle() =>
+      set(state == ThemeMode.light ? ThemeMode.dark : ThemeMode.light);
+
+  Future<void> setLight() => set(ThemeMode.light);
+  Future<void> setDark() => set(ThemeMode.dark);
+  Future<void> setSystem() => set(ThemeMode.system);
 }
 ''';
 
   // ── theme_mode_controller.dart (riverpod manual) ──────────────────────────
 
   static String themeModeControllerRiverpodManual() =>
-      r'''import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter/material.dart';
+      r'''import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../utils/app_logger.dart';
 
 final themeModeControllerProvider =
     NotifierProvider<ThemeModeController, ThemeMode>(ThemeModeController.new);
 
+/// Which theme the app wears: light, dark, or the one of the device. Light until
+/// the person chooses; the choice is kept across restarts.
 class ThemeModeController extends Notifier<ThemeMode> {
+  static const _prefsKey = 'theme_mode';
+
   @override
   ThemeMode build() => ThemeMode.light;
 
-  void toggle() => state = state == ThemeMode.light ? ThemeMode.dark : ThemeMode.light;
-  void setLight() => state = ThemeMode.light;
-  void setDark() => state = ThemeMode.dark;
-  void setSystem() => state = ThemeMode.system;
+  /// Call once at start-up (before `runApp`), like `LocaleStore.init()`: loads
+  /// the saved choice, so the first frame already wears it.
+  Future<void> load() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString(_prefsKey);
+    state = ThemeMode.values.firstWhere(
+      (mode) => mode.name == saved,
+      orElse: () => ThemeMode.light,
+    );
+  }
+
+  /// Wears [mode] now and keeps it for the next start. A choice that cannot be
+  /// saved is still worn until the app closes.
+  Future<void> set(ThemeMode mode) async {
+    state = mode;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_prefsKey, mode.name);
+    } catch (error, stackTrace) {
+      AppLogger.w(
+        'the theme choice could not be saved',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
+  }
+
+  Future<void> toggle() =>
+      set(state == ThemeMode.light ? ThemeMode.dark : ThemeMode.light);
+
+  Future<void> setLight() => set(ThemeMode.light);
+  Future<void> setDark() => set(ThemeMode.dark);
+  Future<void> setSystem() => set(ThemeMode.system);
 }
 ''';
+
+  // ── theme_mode_switcher.dart ──────────────────────────────────────────────
+
+  /// A compact picker for the theme mode (light, dark, the device's), next to
+  /// `LanguageSwitcher`. It holds no state: it is given the mode being worn and
+  /// what to do when another is chosen, so it needs no state manager of its own
+  /// (and a `core` package that does not depend on Riverpod can hold it).
+  ///
+  /// [i18nPackage] is the package whose `i18n/strings.g.dart` has the generated
+  /// `themeMode` keys (the app, or `core` under packageSplit). Null — no i18n,
+  /// or a CSV-imported one whose keys NEAT does not know — gives the names in
+  /// English, like the rest of a page that is not translated.
+  static String themeModeSwitcher({String? i18nPackage}) {
+    final translated = i18nPackage != null;
+    final stringsImport = translated
+        ? "import 'package:$i18nPackage/i18n/strings.g.dart';\n"
+        : '';
+    final label = translated
+        ? '''ThemeMode.light => context.t.themeMode.light,
+    ThemeMode.dark => context.t.themeMode.dark,
+    ThemeMode.system => context.t.themeMode.system,'''
+        : '''ThemeMode.light => 'Light',
+    ThemeMode.dark => 'Dark',
+    ThemeMode.system => 'System',''';
+    return '''import 'package:flutter/material.dart';
+$stringsImport
+/// A compact picker for the theme mode: light, dark, or the device's. It holds
+/// no state: give it the mode being worn and what to do when another is chosen.
+/// With the generated `ThemeModeController`:
+///
+///     ThemeModeSwitcher(
+///       mode: ref.watch(themeModeControllerProvider),
+///       onChanged: ref.read(themeModeControllerProvider.notifier).set,
+///     )
+class ThemeModeSwitcher extends StatelessWidget {
+  const ThemeModeSwitcher({
+    super.key,
+    required this.mode,
+    required this.onChanged,
+  });
+
+  /// The mode being worn.
+  final ThemeMode mode;
+
+  /// Called with the mode the person picked.
+  final ValueChanged<ThemeMode> onChanged;
+
+  static const _order = [ThemeMode.light, ThemeMode.dark, ThemeMode.system];
+
+  static IconData _icon(ThemeMode mode) => switch (mode) {
+    ThemeMode.light => Icons.light_mode_outlined,
+    ThemeMode.dark => Icons.dark_mode_outlined,
+    ThemeMode.system => Icons.brightness_auto_outlined,
+  };
+
+  static String _label(BuildContext context, ThemeMode mode) => switch (mode) {
+    $label
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<ThemeMode>(
+      icon: Icon(_icon(mode)),
+      initialValue: mode,
+      onSelected: onChanged,
+      itemBuilder: (context) => [
+        for (final each in _order)
+          PopupMenuItem<ThemeMode>(
+            value: each,
+            child: Row(
+              children: [
+                Icon(_icon(each), size: 20),
+                const SizedBox(width: 12),
+                Text(_label(context, each)),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+''';
+  }
 
   // ── brightness_theme/brightness_cubit.dart ────────────────────────────────
 

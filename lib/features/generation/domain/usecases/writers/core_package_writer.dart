@@ -56,6 +56,8 @@ abstract final class CorePackageWriter {
     // package reads AppRoutePath from here too, so it must mirror whichever
     // entry (first-feature vs welcome placeholder) the app itself resolved to.
     bool hasFirstFeature = true,
+    // See ThemeWriter's i18nStringsPackage: here the keys are in this package.
+    bool hasI18nKeys = false,
   }) async {
     final root = '${projectDir.path}/packages/$corePackageName';
     await writeFile(
@@ -211,6 +213,14 @@ abstract final class CorePackageWriter {
     await writeFile(
       '$root/lib/core/theme/theme_mode_controller.dart',
       ThemeTemplates.themeModeControllerRiverpod(packageName: corePackageName),
+    );
+    // The picker for it, single-sourced here for the same reason: a split
+    // feature's page reads it from core, never from the app.
+    await writeFile(
+      '$root/lib/core/theme/theme_mode_switcher.dart',
+      ThemeTemplates.themeModeSwitcher(
+        i18nPackage: hasI18nKeys ? corePackageName : null,
+      ),
     );
     if (localStoragePackage != null) {
       await writeFile(
