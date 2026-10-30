@@ -30,6 +30,9 @@ class AgentsMdTemplate {
     // once the project is split into workspace packages.
     String corePath(String rel) =>
         c.packageSplit ? 'packages/core/lib/$rel' : 'lib/$rel';
+    // Split: every feature is its own workspace package (`packages/<feature>`,
+    // the package root is the feature) and `fbase` is not used.
+    final split = c.packageSplit;
     final fbase = featureFirst
         ? 'lib/features/<feature>'
         : 'lib/{data,domain,presentation}/<feature>';
@@ -96,11 +99,11 @@ class AgentsMdTemplate {
 
     // ── Architecture ────────────────────────────────────────────────────────
     b.writeln(
-      '## Architecture (${featureFirst ? 'feature-first' : 'layer-first'})\n',
+      '## Architecture (${featureFirst ? 'feature-first' : 'layer-first'}${split ? ', one package per feature' : ''})\n',
     );
     b.writeln('```text');
     if (featureFirst) {
-      b.writeln('lib/features/<feature>/');
+      b.writeln(split ? 'packages/<feature>/lib/' : 'lib/features/<feature>/');
       b.writeln(
         '├── data/          # models (DTOs), sources (api/local), repositories (impl)',
       );
@@ -115,13 +118,45 @@ class AgentsMdTemplate {
         'lib/data/<feature>/ · lib/domain/<feature>/ · lib/presentation/<feature>/',
       );
     }
-    b.writeln(
-      'lib/core/            # result, usecases, theme, router, network, env, observers',
-    );
+    if (split) {
+      // What the core package and the app each hold, as the generator writes
+      // them (CorePackageWriter / I18nWriter / ThemeWriter vs the app's lib).
+      final inCore = [
+        'result',
+        'usecases',
+        if (hasHttp) 'network',
+        if (sync) 'sync',
+        if (offline) 'providers',
+        if (c.generateI18n) 'i18n',
+        if (hasRiverpod) 'theme mode',
+      ].join(', ');
+      final inApp = [
+        'bootstrap',
+        if (hasGoRouter) 'router',
+        if (c.hasEnvied) 'env',
+        if (c.generateOnboarding) 'onboarding',
+        if (c.generateStorage) 'storage',
+      ].join(', ');
+      b.writeln('packages/core/lib/core/  # $inCore');
+      b.writeln('lib/core/                # the app: $inApp');
+    } else {
+      b.writeln(
+        'lib/core/            # result, usecases, theme, router, network, env, observers',
+      );
+    }
     b.writeln('```\n');
+    if (split) {
+      b.writeln(
+        'A feature never lives under `lib/features/`: the package root **is** the feature. '
+        'The shared base (`Result`, `UseCase`, `AppRoutePath`, the network client'
+        '${sync ? ', the sync engine' : ''}${c.generateI18n ? ', the translations' : ''}) is in the `core` '
+        'package because a feature package cannot import the app; the app composes the packages.\n',
+      );
+    }
     b.writeln('**Rules**\n');
     b.writeln(
-      '- Each feature is self-contained — never import another feature\'s internals.',
+      '- Each feature is self-contained — never import another feature\'s internals.'
+      '${split ? ' **A feature package depends on `core` (and the shared packages it needs), never on another feature or on the app**; the app composes them.' : ''}',
     );
     b.writeln(
       '- **`domain/` never imports `data/` or `presentation/`** (dependency rule).',
@@ -129,10 +164,10 @@ class AgentsMdTemplate {
     b.writeln(
       '- Repositories **throw** on failure (no try/catch there — no fallback strategy to justify one). '
       '`UseCase.call` is the *only* place that catches: it converts the exception to a `Failure` via '
-      '`NetworkErrorHandler` and returns a `Result<T>` (`lib/core/result/result.dart`).',
+      '`NetworkErrorHandler` and returns a `Result<T>` (`${corePath('core/result/result.dart')}`).',
     );
     b.writeln(
-      '- Usecases extend `UseCase<Params, T>` / `NoParamsUseCase<T>` (`lib/core/usecases/use_case.dart`). '
+      '- Usecases extend `UseCase<Params, T>` / `NoParamsUseCase<T>` (`${corePath('core/usecases/use_case.dart')}`). '
       '**Always invoke via the callable shorthand — `usecase(params)` — never `usecase.execute(params)` '
       'directly**, which has no error handling of its own.',
     );
@@ -254,7 +289,7 @@ class AgentsMdTemplate {
       );
       b.writeln(
         '- Router: `lib/core/router/app_router.dart`. Route table: `lib/core/router/routes.dart`. '
-        'Path constants: `lib/core/constants/app_route_path.dart`.',
+        'Path constants: `${corePath('core/constants/app_route_path.dart')}`.',
       );
       if (builder) {
         b.writeln(
@@ -285,7 +320,7 @@ class AgentsMdTemplate {
       if (isFirebase) {
         b.writeln(
           '- Backend is **Firebase** (Firestore). The provider is `firestoreProvider` '
-          '(`lib/core/network/firebase_provider.dart`); Firebase is initialized in '
+          '(`${corePath('core/network/firebase_provider.dart')}`); Firebase is initialized in '
           '`lib/core/bootstrap.dart` from `lib/firebase_options.dart` (regenerate with '
           '`flutterfire configure` for production — see `docs/FIREBASE.md`).',
         );
@@ -297,7 +332,7 @@ class AgentsMdTemplate {
       } else {
         b.writeln(
           '- Backend is **Supabase** (`supabase_flutter` SDK). The client provider is '
-          '`supabaseClientProvider` (`lib/core/network/supabase_provider.dart`); the SDK is '
+          '`supabaseClientProvider` (`${corePath('core/network/supabase_provider.dart')}`); the SDK is '
           'initialized in `lib/core/bootstrap.dart` from the typed env.',
         );
         b.writeln(
@@ -340,7 +375,7 @@ class AgentsMdTemplate {
       }
       if (c.generateAuth) {
         b.writeln(
-          '- **Auth is on**: `features/auth` (login/signup/forgot) + `AuthController`; a '
+          '- **Auth is on**: `${split ? 'packages/auth' : 'features/auth'}` (login/signup/forgot) + `AuthController`; a '
           '`RouterNotifier` guards routes (`lib/core/router/router_notifier.dart`).',
         );
         if (c.generateOAuth) {
@@ -365,7 +400,7 @@ class AgentsMdTemplate {
           : 'dioProvider';
       b.writeln(
         '- HTTP via **${c.httpClient}**. The client provider is `$provider` '
-        '(`lib/core/network/`).',
+        '(`${corePath('core/network/')}`).',
       );
       b.writeln(
         '- Network access goes through `data/sources/<feature>_api_source.dart` → repository. '
@@ -470,10 +505,10 @@ class AgentsMdTemplate {
     if (c.generateI18n) {
       b.writeln('## Internationalisation (slang)\n');
       b.writeln(
-        '- Type-safe translations: edit the source files in `lib/i18n/` '
+        '- Type-safe translations: edit the source files in `${corePath('i18n/')}` '
         '(`en.i18n.json`/`fr.i18n.json`, or `strings.i18n.csv` if imported), then run '
-        '`dart run slang` to regenerate `lib/i18n/strings.g.dart` (slang uses its CLI here, '
-        'not build_runner).',
+        '`dart run slang`${split ? ' **inside `packages/core`**' : ''} to regenerate `${corePath('i18n/strings.g.dart')}` '
+        '(slang uses its CLI here, not build_runner).',
       );
       b.writeln(
         '- Read strings via `context.t.<key>` in widgets (rebuilds on locale change). '
@@ -481,7 +516,7 @@ class AgentsMdTemplate {
       );
       b.writeln(
         '- Switch locale via `LocaleStore.setLocale(AppLocale.fr)` '
-        '(`lib/core/i18n/locale_store.dart`) — it **persists** the choice in '
+        '(`${corePath('core/i18n/locale_store.dart')}`) — it **persists** the choice in '
         'shared_preferences. Do not call `LocaleSettings.setLocale` directly or the '
         'choice won\'t be saved. `LocaleStore.init()` (in bootstrap) restores it on start-up.\n',
       );
@@ -540,9 +575,18 @@ class AgentsMdTemplate {
     b.writeln(
       '**If editing by hand, reuse the exact same anchors NEAT uses:**\n',
     );
-    b.writeln(
-      '1. Mirror an existing feature under `$fbase/{data,domain,presentation}`.',
-    );
+    if (split) {
+      b.writeln(
+        '1. Mirror an existing feature package: `packages/<feature>/` with its own `pubspec.yaml` '
+        '(`resolution: workspace`; it depends on `core` and the shared packages, never on another '
+        'feature) and `lib/{data,domain,presentation}`. List it under `workspace:` and '
+        '`dependencies:` in the root `pubspec.yaml`.',
+      );
+    } else {
+      b.writeln(
+        '1. Mirror an existing feature under `$fbase/{data,domain,presentation}`.',
+      );
+    }
     if (hasGoRouter) {
       b.writeln(
         '2. Add the path constant in `app_route_path.dart` above `// neat:routes`.',
@@ -615,7 +659,9 @@ class AgentsMdTemplate {
     b.writeln('## Safe to modify\n');
     b.writeln('| Path | Notes |');
     b.writeln('|------|-------|');
-    b.writeln('| `$fbase/**` | Feature data/domain/presentation code |');
+    b.writeln(
+      '| `${split ? 'packages/<feature>' : fbase}/**` | Feature data/domain/presentation code |',
+    );
     if (isSupabase) {
       b.writeln(
         '| `supabase/migrations/**` | SQL NEAT wrote per feature (table, RLS, grants) — add a new '
@@ -623,7 +669,7 @@ class AgentsMdTemplate {
       );
     }
     b.writeln(
-      '| `lib/core/theme/**`${c.extractUiPackage ? ' + `packages/${c.projectName}_ui/**`' : ''} | Visual system |',
+      '| ${c.extractUiPackage ? '`packages/${c.projectName}_ui/**`' : '`lib/core/theme/**`'} | Visual system |',
     );
     b.writeln('| `test/**` | Unit & widget tests |\n');
     b.writeln('## Modify with caution\n');
@@ -662,6 +708,14 @@ class AgentsMdTemplate {
     b.writeln('flutter pub get');
     if (hasCodegen) {
       b.writeln('dart run build_runner build --delete-conflicting-outputs');
+    }
+    if (split && hasCodegen) {
+      b.writeln(
+        '# build_runner runs per package: repeat it in each package whose sources changed',
+      );
+      b.writeln(
+        '# (packages/<feature>, packages/core${offline ? ', packages/$pkg' : ''})',
+      );
     }
     if (offline) {
       b.writeln(

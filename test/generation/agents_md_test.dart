@@ -95,4 +95,208 @@ void main() {
     expect(md, contains('packages/notes_database'));
     expect(md, isNot(contains('Outbox')));
   });
+
+  group('packageSplit: the paths are the ones the generator writes', () {
+    const split = NeatContract(
+      projectName: 'shop',
+      architecture: 'feature_first',
+      stateManagement: 'riverpod',
+      navigation: 'go_router_builder',
+      httpClient: 'supabase',
+      themeApproach: 'customM3',
+      storageStrategy: 'offlineFirstSync',
+      extractUiPackage: true,
+      hasEnvied: true,
+      generateAuth: true,
+      generateI18n: true,
+      generateOnboarding: true,
+      generateStorage: true,
+      packageSplit: true,
+    );
+    final md = AgentsMdTemplate.generate(split);
+
+    test('a feature is a package, not a folder under lib/features', () {
+      expect(
+        md,
+        contains('## Architecture (feature-first, one package per feature)'),
+      );
+      expect(md, contains('packages/<feature>/lib/\n'));
+      expect(md, isNot(contains('lib/features/<feature>')));
+      expect(md, contains('A feature never lives under `lib/features/`'));
+      expect(md, contains('**A feature package depends on `core`'));
+      expect(md, contains('| `packages/<feature>/**` |'));
+      expect(md, contains('`packages/auth`'));
+      expect(md, isNot(contains('features/auth')));
+    });
+
+    test('the shared base is read from the core package', () {
+      for (final path in [
+        'core/result/result.dart',
+        'core/usecases/use_case.dart',
+        'core/constants/app_route_path.dart',
+        'core/network/supabase_provider.dart',
+        'core/providers/infrastructure_providers.dart',
+        'core/sync/sync_service.dart',
+        'core/i18n/locale_store.dart',
+        'i18n/strings.g.dart',
+      ]) {
+        expect(md, contains('`packages/core/lib/$path`'), reason: path);
+      }
+      // No mention of those folders as if they were in the app's own lib/.
+      final misplaced = RegExp(
+        r'(?<!packages/core/)lib/(core/(result|usecases|network|constants|providers|sync|i18n)|i18n)/',
+      );
+      expect(misplaced.allMatches(md).map((m) => m.group(0)), isEmpty);
+    });
+
+    test('the paragraph names only the pieces the project has', () {
+      expect(
+        md,
+        contains(
+          '(`Result`, `UseCase`, `AppRoutePath`, the network client, the '
+          'sync engine, the translations)',
+        ),
+      );
+    });
+
+    test('what stays in the app is still named as the app\'s', () {
+      expect(md, contains('`lib/core/router/routes.dart`'));
+      expect(md, contains('`lib/core/bootstrap.dart`'));
+      expect(md, contains('`lib/core/storage/storage_service.dart`'));
+      expect(md, contains('`lib/core/onboarding/onboarding_page.dart`'));
+      expect(md, contains('→ `lib/core/env/`'));
+    });
+
+    test('the tree says what the core package and the app each hold', () {
+      expect(
+        md,
+        contains(
+          'packages/core/lib/core/  # result, usecases, network, sync, '
+          'providers, i18n, theme mode',
+        ),
+      );
+      expect(
+        md,
+        contains(
+          'lib/core/                # the app: bootstrap, router, env, '
+          'onboarding, storage',
+        ),
+      );
+    });
+
+    test('translations are regenerated inside the core package', () {
+      expect(md, contains('`dart run slang` **inside `packages/core`**'));
+      expect(md, contains('`packages/core/lib/i18n/`'));
+    });
+
+    test('adding a feature by hand means a package in the workspace', () {
+      expect(md, contains('Mirror an existing feature package'));
+      expect(md, contains('`resolution: workspace`'));
+      expect(md, contains('under `workspace:` and `dependencies:`'));
+    });
+
+    test('the visual system is the UI package, codegen is per package', () {
+      expect(md, contains('| `packages/shop_ui/**` | Visual system |'));
+      expect(md, isNot(contains('`lib/core/theme/**`')));
+      expect(md, contains('# build_runner runs per package'));
+      expect(
+        md,
+        contains(
+          '# (packages/<feature>, packages/core, packages/shop_database)',
+        ),
+      );
+    });
+
+    test('a Firebase project finds its provider in the core package', () {
+      final firebase = AgentsMdTemplate.generate(
+        split.copyWith(httpClient: 'firebase'),
+      );
+      expect(
+        firebase,
+        contains('`packages/core/lib/core/network/firebase_provider.dart`'),
+      );
+      expect(firebase, isNot(contains('`lib/core/network/firebase_provider')));
+    });
+
+    test('a leaner split project only lists what it has', () {
+      final lean = AgentsMdTemplate.generate(
+        const NeatContract(
+          projectName: 'blog',
+          architecture: 'feature_first',
+          stateManagement: 'riverpod',
+          navigation: 'go_router',
+          httpClient: 'dio',
+          themeApproach: 'customM3',
+          storageStrategy: 'remoteOnly',
+          packageSplit: true,
+        ),
+      );
+      expect(
+        lean,
+        contains(
+          'packages/core/lib/core/  # result, usecases, network, theme mode',
+        ),
+      );
+      expect(
+        lean,
+        contains('lib/core/                # the app: bootstrap, router'),
+      );
+      expect(
+        lean,
+        contains('(`Result`, `UseCase`, `AppRoutePath`, the network client)'),
+      );
+      expect(lean, contains('`packages/core/lib/core/network/`'));
+      expect(lean, isNot(contains('SyncService')));
+      expect(lean, isNot(contains('strings.g.dart')));
+      expect(lean, isNot(contains('lib/core/onboarding')));
+      expect(lean, isNot(contains('packages/blog_database')));
+    });
+  });
+
+  group('a flat project keeps its lib/ paths', () {
+    const flat = NeatContract(
+      projectName: 'shop',
+      architecture: 'feature_first',
+      stateManagement: 'riverpod',
+      navigation: 'go_router_builder',
+      httpClient: 'supabase',
+      themeApproach: 'customM3',
+      storageStrategy: 'offlineFirstSync',
+      generateAuth: true,
+      generateI18n: true,
+    );
+    final md = AgentsMdTemplate.generate(flat);
+
+    test('features, core and translations live under lib/', () {
+      expect(md, contains('## Architecture (feature-first)\n'));
+      expect(md, contains('lib/features/<feature>/\n'));
+      expect(md, contains('`lib/core/result/result.dart`'));
+      expect(md, contains('`lib/core/usecases/use_case.dart`'));
+      expect(md, contains('`lib/core/constants/app_route_path.dart`'));
+      expect(md, contains('`lib/core/network/supabase_provider.dart`'));
+      expect(md, contains('`lib/i18n/strings.g.dart`'));
+      expect(md, contains('`features/auth`'));
+      expect(md, contains('Mirror an existing feature under'));
+      expect(md, contains('| `lib/features/<feature>/**` |'));
+      expect(md, isNot(contains('packages/core')));
+      expect(md, isNot(contains('one package per feature')));
+      expect(md, isNot(contains('inside `packages/core`')));
+      expect(md, isNot(contains('# build_runner runs per package')));
+    });
+
+    test(
+      'the visual system is lib/core/theme, or the UI package once extracted',
+      () {
+        expect(md, contains('| `lib/core/theme/**` | Visual system |'));
+        final extracted = AgentsMdTemplate.generate(
+          flat.copyWith(extractUiPackage: true),
+        );
+        expect(
+          extracted,
+          contains('| `packages/shop_ui/**` | Visual system |'),
+        );
+        expect(extracted, isNot(contains('`lib/core/theme/**`')));
+      },
+    );
+  });
 }

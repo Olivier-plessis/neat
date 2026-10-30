@@ -127,6 +127,25 @@ void main() {
     );
   }
 
+  /// Every file AGENTS.md names (`lib/…` or `packages/…`, ending in `.dart`)
+  /// exists in the project it was written for: a path that moved without the
+  /// guide being told sends an agent to a file that is not there.
+  void expectAgentsPathsExist(Directory projectDir) {
+    final md = File('${projectDir.path}/AGENTS.md').readAsStringSync();
+    final cited = RegExp(
+      r'`((?:lib|packages)/[^`\s*<>]+\.dart)`',
+    ).allMatches(md).map((m) => m.group(1)!).toSet();
+    expect(cited, isNotEmpty);
+    final missing = cited
+        .where((p) => !File('${projectDir.path}/$p').existsSync())
+        .toList();
+    expect(
+      missing,
+      isEmpty,
+      reason: 'AGENTS.md names files the project does not have',
+    );
+  }
+
   test('packageSplit + Supabase + offline-first sync + realtime + auth: the list '
       'watches Drift and the sync engine, creates are upserts, sign-out wipes '
       'the device, and the shipped tests pass', () async {
@@ -181,6 +200,14 @@ void main() {
       read('packages/auth/lib/data/repositories/auth_repository_impl.dart'),
       contains('await _clearLocalData();'),
     );
+
+    // The guide points at the core package for the shared base, at the
+    // feature packages for the rest — and every file it names is there.
+    final agents = read('AGENTS.md');
+    expect(agents, contains('packages/core/lib/core/result/result.dart'));
+    expect(agents, contains('packages/<feature>/lib/'));
+    expect(agents, isNot(contains('lib/features/<feature>')));
+    expectAgentsPathsExist(projectDir);
 
     await expectCiGreen(projectDir);
   }, timeout: const Timeout(Duration(minutes: 14)));
@@ -327,6 +354,13 @@ void main() {
     );
     String read(String rel) =>
         File('${projectDir.path}/$rel').readAsStringSync();
+    // i18n is on: the guide sends translations to the core package, and the
+    // files it names are all there.
+    expect(
+      read('AGENTS.md'),
+      contains('`dart run slang` **inside `packages/core`**'),
+    );
+    expectAgentsPathsExist(projectDir);
     // The formatter width is pinned, so the IDE and the CI agree on it.
     expect(
       read('analysis_options.yaml'),

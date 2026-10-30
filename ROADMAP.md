@@ -1771,6 +1771,70 @@ Harness-proven: `pubspec_builder_test.dart` gained two cases (override present
     the keys the way it adds a feature's.
   - Hand-edited pages of an existing project keep whatever they had.
 
+### 5ai. `AGENTS.md` sent agents to `lib/features/` in a `packageSplit` project — found building archy
+
+> The review agents written for archy (a `packageSplit` project) read `AGENTS.md`
+> first, and it described a layout that archy does not have: features under
+> `lib/features/<feature>/`, `Result` and `UseCase` in `lib/core/`, translations in
+> `lib/i18n/`. In a split project the feature is `packages/<feature>/`, and the
+> shared base is in `packages/core/`.
+- **Cause.** `AgentsMdTemplate` wrote the flat project's paths everywhere. Only a few
+  lines went through `corePath` (the sync engine, `infrastructure_providers`, the
+  theme mode), added one bug at a time (§5w, §5ah). The tree, `Result`,
+  `UseCase`, `AppRoutePath`, the Supabase/Firebase/HTTP client, the translations,
+  "Adding a feature", "Safe to modify" and the build_runner note were still flat.
+- **Fixed in archy** (`AGENTS.md`): the tree, the paths into `packages/core`, the
+  slang command (run inside `packages/core`), `packages/auth`, the by-hand steps
+  (a package in the root `workspace:`), "Safe to modify" and the per-package
+  build_runner note. Every `lib/…` or `packages/…` file the guide names was
+  checked to exist: 25, none missing.
+- **Fixed here** (`AgentsMdTemplate`, only when `packageSplit`; a flat project's
+  text is unchanged except the line below).
+  - The tree is `packages/<feature>/lib/{data,domain,presentation}`, then two lines
+    that say what the core package and the app each hold. They are built from the
+    contract, so a project without sync, i18n, onboarding… does not list them;
+    a paragraph says a feature never lives under `lib/features/` and why the
+    shared base is in `core`; the rules add that a feature package depends on
+    `core` and the shared packages, never on another feature or on the app.
+  - `corePath` now also covers `Result`, `UseCase`, `AppRoutePath`, the
+    Supabase/Firebase providers, the HTTP client folder, the translation sources,
+    `strings.g.dart` and `LocaleStore`. What the generator keeps in the app stays
+    the app's: router, bootstrap, env, onboarding, storage.
+  - "Adding a feature" by hand: a package with its own `pubspec.yaml`
+    (`resolution: workspace`), listed under `workspace:` and `dependencies:`.
+    "Safe to modify": `packages/<feature>/**`. Verification: a note that
+    build_runner runs per package. Auth is `packages/auth`.
+  - **Also changed for a flat project:** the "Visual system" row said
+    `lib/core/theme/**` **and** the UI package when the UI package is extracted,
+    while the Theme section of the same file already put the theme in that
+    package. It is now the UI package alone, or `lib/core/theme/**` when there is
+    none.
+- **Tests.**
+  - `agents_md_test.dart` (12 new): for a split project, a feature is a package;
+    each shared file is read from `packages/core` and no `lib/core/<folder>/` is
+    left unprefixed (one regex over the whole text); what stays in the app is still
+    the app's; the two tree lines for a full and for a lean project; slang inside
+    `packages/core`; the by-hand steps; the UI package row and the per-package
+    note; a Firebase project; and the flat project keeps every `lib/` path (and the
+    theme row both ways).
+  - `offline_sync_integration_test.dart`: a helper checks that **every `.dart` file
+    `AGENTS.md` names exists in the generated project**; it runs in the `packageSplit`
+    + Supabase + sync + auth scenario and in the Workshop one (i18n on). Both pass
+    (1m32 and 3m45, `flutter analyze` and the project's tests included).
+- **Checked** by breaking 39 pieces of the template on purpose (each path, each
+  item of the two tree lines, the paragraph, the rule, the flags): the first run
+  left 5 alive — one was dead code (`fbase` for a split project is never read; removed),
+  four needed an assertion (the paragraph's two optional items, the Firebase
+  provider, the HTTP folder) — the second run caught all 38 that remained.
+- **Not covered.**
+  - The integration scenarios have no onboarding, storage or env, so those four
+    paths are read from the writers (`BackendWriter`, the router and onboarding
+    writers) and from archy, not from a generation.
+  - A project generated before this keeps its `AGENTS.md`; nothing rewrites it.
+  - `lib/core/router/app_shell_route.dart` (navigation shell) is named as before: a
+    split project with a shell keeps its shell registry in `core`, which the guide
+    does not say yet.
+
 ### 6. Multiple architectures — later, with caution
 
 - The harness makes **every** architecture a ~3× maintenance cost (each must be proven).
